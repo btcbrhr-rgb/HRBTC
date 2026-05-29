@@ -45,9 +45,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   // For Google API calls — always go network-first, never serve from cache
-<<<<<<< Updated upstream
-  if (url.hostname.includes('google') || url.hostname.includes('script.google')) {
-=======
+// For Google API calls — always go network-first, never serve from cache
   // Match only actual Google domains (script.google.com, googleapis.com, etc.)
   const googleHosts = [
     'script.google.com',
@@ -56,7 +54,6 @@ self.addEventListener('fetch', (event) => {
     'google.com'
   ];
   if (googleHosts.some(h => url.hostname === h)) {
->>>>>>> Stashed changes
     event.respondWith(
       fetch(request).catch(() => {
         // Return a minimal offline fallback for API calls
