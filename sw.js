@@ -1,41 +1,47 @@
-const CACHE_NAME = 'hrbtc-v1';
+const CACHE_NAME = 'hrbtc-cache-v1';
 const ASSETS_TO_CACHE = [
-  './',
   './index.html',
+  './manifest.json',
   'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap'
+  'https://unpkg.com/lucide@latest'
 ];
 
-// ทำการ Cache ไฟล์ที่จำเป็นเมื่อติดตั้ง Service Worker
+// ขั้นตอน Install และทำการแคชไฟล์หน้าตาพื้นฐานแอป
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      console.log('Caching essential assets...');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
+  self.skipWaiting();
 });
 
-// ลบ Cache เก่าออกเมื่อมีการอัปเดตเวอร์ชัน
+// ขั้นตอน Activate และล้างแคชอันเก่า
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('Clearing old cache...', cache);
             return caches.delete(cache);
           }
         })
       );
     })
   );
+  self.clients.claim();
 });
 
-// ดึงข้อมูลจาก Cache ก่อน ถ้าไม่มีค่อยดึงจาก Network
+// ดักจับการส่งข้อมูลข้ามเครือข่าย เพื่อสแตนด์บายออฟไลน์
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+    caches.match(event.request).then((cachedResponse) => {
+      // คืนค่าแคชที่บันทึกไว้ หรือทำการดึงข้อมูลจากเครือข่ายอินเทอร์เน็ตจริง
+      return cachedResponse || fetch(event.request).catch(() => {
+        // กรณีออฟไลน์และไฟล์ไม่มีในแคช สามารถเพิ่มหน้าแจ้งปิดอินเทอร์เน็ตสำรองได้ที่นี่
+      });
     })
   );
 });
