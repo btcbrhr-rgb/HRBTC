@@ -44,19 +44,25 @@ function debugGetEmployee(empId) {
   Logger.log(JSON.stringify(result, null, 2));
 }
 
-// === 🧪 DEBUG: ดูข้อมูลเวลางาน (ล่าสุด 20 รายการ) ===
-function debugGetTimeRecords() {
+// === 🧪 DEBUG: ดูข้อมูลเวลางาน (filter เฉพาะ empId) ===
+// Usage: debugGetTimeRecords("102003")  → เฉพาะคน (default: 102003)
+function debugGetTimeRecords(empId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("เวลางาน");
   if (!sheet) { Logger.log("❌ ชีต เวลางาน ไม่มี"); return; }
   const rows = sheet.getDataRange().getValues();
+  // Default to 102003 if no argument
+  const target = (empId || "102003").toString().trim();
   Logger.log(`\n========== เวลางาน (${rows.length - 1} รายการ) ==========`);
-  // แสดง header + 20 รายการล่าสุด
   Logger.log("Header: " + JSON.stringify(rows[0]));
-  const lastRows = rows.slice(-20);
-  lastRows.forEach((row, i) => {
-    Logger.log(`[${rows.length - 20 + i}] ${JSON.stringify(row)}`);
+  Logger.log(`🔍 Filter: emp = ${target}`);
+  let matchCount = 0;
+  rows.slice(1).forEach((row, i) => {
+    if (row[3].toString() !== target) return;
+    matchCount++;
+    Logger.log(`[${i + 2}] วันที่=${row[0]} | เข้า=${row[1]} | ออก=${row[2]} | สถานะ=${row[12]}`);
   });
+  Logger.log(`📊 รวม ${matchCount} รายการ (emp ${target})`);
 }
 
 // === 🧪 DEBUG: ดูข้อมูลการลาทั้งหมด ===
@@ -85,10 +91,215 @@ function debugListSheets() {
   });
 }
 
-/**
- * HRBTC - Google Apps Script Backend
- * Supports: attendance, leave, advance salary, payslips + accounting period filter
- */
+// ═══════════════════════════════════════════════════════════════════════
+// HRBTC - Google Apps Script Backend v2
+// Supports: attendance, leave, advance salary, payslips + accounting period filter
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── [DEFAULT SYSTEM SETTINGS] ─────────────────────────────
+const DEFAULT_SYSTEM_SETTINGS = {
+  dailyDivisor: 30,
+  workHoursPerDay: 8,
+  workStartTimeStr: '08:00',
+  workEndTimeStr: '17:00',
+  lateCutoffTimeStr: '08:15',
+  otStartTimeStr: '17:15',
+  defaultOtRate: 1.0,
+  billingCycleStartDay: 26,
+  billingCycleEndDay: 25,
+  lunchStartTimeStr: '12:00',
+  lunchEndTimeStr: '13:00',
+  halfDayOutLunchMinStr: '12:00',
+  halfDayOutLunchMaxStr: '13:30',
+  halfDayInLunchMinStr: '11:30',
+  halfDayInLunchMaxStr: '13:30',
+  otIntervalMinutes: 30,
+  otIntervalValue: 0.5,
+  defaultCentralProject: '(00)บุรีรัมย์',
+  defaultFoodAllowance: 50,
+  latePenaltyPerMinute: 1.0,
+  lateHalfDayThreshold: 240,
+  ssoRate: 0.05,
+  ssoMinSalary: 1650,
+  ssoMaxSalary: 17500,
+  includeOTinSSO: false,
+  holidayOtRate: 2.0,
+  holidayWorkRate: 1.0,
+  // Leave entitlements
+  annualLeaveDays: 10,
+  sickLeaveDays: 30,
+  personalLeaveDays: 3,
+  maternityLeaveDays: 90,
+  maternityLeavePaid: 45,
+  militaryLeaveDays: 60,
+  leaveAccrualRate: 0.0833,
+  leaveCutoff: '25/12',
+  symbolRules: {
+    'W': { fillIn: '08:00', fillOut: '17:00' },
+    'L': { fillIn: '08:00', fillOut: '17:00' }, // L = มาสาย (Late)
+    'A': { clearIn: true, clearOut: true },
+    'B': { clearIn: true, clearOut: true },
+    'H': { clearIn: true, clearOut: true },
+    'S': { clearIn: true, clearOut: true },
+    'SM': { clearIn: true, clearOut: true },
+    'A½': { fillIn: '13:00', fillOut: '17:00' },
+    'P½': { fillIn: '08:00', fillOut: '12:00' },
+    'พร': { fillIn: '08:00', fillOut: '17:00' },
+    'คส': { clearIn: true, clearOut: true }
+  },
+  roundSalary: 'none',
+  roundDiligent: 'none',
+  roundTax: 'none',
+  roundPenalty: 'none',
+  roundSSO: 'down',
+  roundNetPay: 'down',
+  roundProvidentFund: 'none',
+  roundWelfare: 'none'
+};
+
+// ─── [GLOBAL STATUS CONFIG] ────────────────────────────────
+const GLOBAL_STATUS_CONFIG = {
+  'W':  { label: 'ทำงานปกติ', icon: '💼', lucide: 'briefcase',      bgColor: 'bg-[#DCFCE7]', textColor: 'text-[#166534]', accentHex: '#166534', badgeClass: 'badge-work',    category: 'work' },
+  'L':  { label: 'มาสาย',      icon: '⏱️', lucide: 'clock',         bgColor: 'bg-[#FEF3C7]', textColor: 'text-[#92400E]', accentHex: '#92400E', badgeClass: 'badge-late',    category: 'work' },
+  'A':  { label: 'ขาดงาน',     icon: '❌', lucide: 'x-circle',       bgColor: 'bg-rose-50',   textColor: 'text-rose-500',  accentHex: '#f43f5e', badgeClass: 'badge-absent',  category: 'absent' },
+  'B+': { label: 'ลากิจ (+)',  icon: '📋', lucide: 'clipboard-list', bgColor: 'bg-violet-50', textColor: 'text-violet-700', accentHex: '#7c3aed', badgeClass: 'badge-leave',   category: 'leave' },
+  'B-': { label: 'ลากิจ (-)',  icon: '📋', lucide: 'clipboard-list', bgColor: 'bg-rose-50',   textColor: 'text-rose-500',  accentHex: '#f43f5e', badgeClass: 'badge-absent',  category: 'absent' },
+  'H+': { label: 'ลาพักร้อน (+)', icon: '🏖️', lucide: 'palmtree',    bgColor: 'bg-sky-50',    textColor: 'text-sky-700',    accentHex: '#0284c7', badgeClass: 'badge-leave',   category: 'leave' },
+  'H-': { label: 'ลาพักร้อน (-)', icon: '🏖️', lucide: 'palmtree',    bgColor: 'bg-rose-50',   textColor: 'text-rose-500',  accentHex: '#f43f5e', badgeClass: 'badge-absent',  category: 'absent' },
+  'S+': { label: 'ลาป่วย (+)', icon: '🏥', lucide: 'thermometer',    bgColor: 'bg-[#F3E8FF]', textColor: 'text-[#6B21A8]', accentHex: '#6B21A8', badgeClass: 'badge-leave',   category: 'leave' },
+  'S-': { label: 'ลาป่วย (-)', icon: '🏥', lucide: 'thermometer',    bgColor: 'bg-rose-50',   textColor: 'text-rose-500',  accentHex: '#f43f5e', badgeClass: 'badge-absent',  category: 'absent' },
+  'SM+':{ label: 'ลาป่วย+ใบรับรอง', icon: '📄', lucide: 'file-text', bgColor: 'bg-[#F3E8FF]', textColor: 'text-[#6B21A8]', accentHex: '#6B21A8', badgeClass: 'badge-leave',   category: 'leave' },
+  'A½': { label: 'ลาครึ่งเช้า', icon: '⛅', lucide: 'sun',           bgColor: 'bg-orange-50', textColor: 'text-orange-600', accentHex: '#ea580c', badgeClass: 'badge-leave',   category: 'leave' },
+  'P½': { label: 'ลาครึ่งบ่าย', icon: '🌤️', lucide: 'cloud-sun',    bgColor: 'bg-blue-50',   textColor: 'text-blue-600',  accentHex: '#2563eb', badgeClass: 'badge-leave',   category: 'leave' },
+  'พร': { label: 'เพิ่มแรง',    icon: '💪', lucide: 'zap',           bgColor: 'bg-[#DBEAFE]', textColor: 'text-[#1E40AF]', accentHex: '#1E40AF', badgeClass: 'badge-work',    category: 'special' },
+  'คส': { label: 'สวัสดิการ',   icon: '🎁', lucide: 'gift',          bgColor: 'bg-indigo-50', textColor: 'text-indigo-700', accentHex: '#4f46e5', badgeClass: 'badge-work',    category: 'special' },
+  'ย':  { label: 'วันหยุดประจำสัปดาห์', icon: '⛱️', lucide: 'coffee', bgColor: 'bg-[#FFF1F2]', textColor: 'text-[#BE123C]', accentHex: '#BE123C', badgeClass: 'badge-rest',  category: 'off' },
+  'นข':{ label: 'วันหยุดนักขัตฤกษ์', icon: '🗓️', lucide: 'calendar', bgColor: 'bg-[#FEF9C3]', textColor: 'text-[#854D0E]', accentHex: '#854D0E', badgeClass: 'badge-rest',  category: 'off' },
+  'MI': { label: 'ลืมลงเวลาเข้า (MI)', icon: '⚠️', lucide: 'alert-triangle', bgColor: 'bg-orange-50', textColor: 'text-orange-600', accentHex: '#ea580c', badgeClass: 'badge-late', category: 'absent' },
+  'MO': { label: 'ลืมลงเวลาออก (MO)', icon: '⚠️', lucide: 'alert-triangle', bgColor: 'bg-orange-50', textColor: 'text-orange-600', accentHex: '#ea580c', badgeClass: 'badge-late', category: 'absent' },
+  RAW_MAP: {
+    '1': 'W', 'W': 'W', '✓': 'W', 'ปกติ (W)': 'W', 'ปกติ': 'W',
+    '3': 'L', 'L': 'L', 'สาย': 'L', 'สาย (L)': 'L',
+    '0': 'A', 'A': 'A', 'ขาด': 'A', 'ขาดงาน': 'A',
+    '2': 'B+', 'B': 'B+', 'B+': 'B+', 'กิจ': 'B+', 'ลากิจ': 'B+', 'ลา': 'B+',
+    'B-': 'B-', 'ลากิจ (-)': 'B-', 'ลากิจไม่รับค่าจ้าง': 'B-', 'ลากิจ (ไม่รับค่าจ้าง)': 'B-', 'ลากิจเกินสิทธิ์': 'B-', 'ลากิจ (เกินสิทธิ์)': 'B-',
+    'H': 'H+', 'H+': 'H+', 'ลาพักร้อน': 'H+',
+    'H-': 'H-', 'ลาพักร้อน (-)': 'H-', 'ลาพักร้อนไม่รับค่าจ้าง': 'H-', 'ลาพักร้อน (ไม่รับค่าจ้าง)': 'H-', 'ลาพักร้อนเกินสิทธิ์': 'H-', 'ลาพักร้อน (เกินสิทธิ์)': 'H-',
+    'S': 'S+', 'S+': 'S+', 'ลาป่วย': 'S+',
+    'S-': 'S-', 'ลาป่วย (-)': 'S-', 'ลาป่วยไม่รับค่าจ้าง': 'S-', 'ลาป่วย (ไม่รับค่าจ้าง)': 'S-', 'ลป่วยเกินสิทธิ์': 'S-', 'ลาป่วย (เกินสิทธิ์)': 'S-',
+    'SM': 'SM+', 'SM+': 'SM+', 'ลาป่วย+ใบรับรอง': 'SM+', 'ลาป่วย+ใบรับรองแพทย์': 'SM+',
+    'ลาเกินสิทธิ์': 'A', 'ลาไม่รับค่าจ้าง': 'A',
+    'A½': 'A½', 'A?': 'A½',
+    'P½': 'P½', 'P?': 'P½',
+    '5': 'พร', 'พร': 'พร', 'พร½': 'พร½',
+    '6': 'คส', 'คส': 'คส',
+    'ย': 'ย',
+    'นข': 'นข',
+    'MI': 'MI', 'ลืมเข้า': 'MI', 'ลงเวลาไม่สมบูรณ์': 'MI', 'ลืมบันทึกเข้า': 'MI',
+    'MO': 'MO', 'ลืมออก': 'MO', 'ลืมบันทึกออก': 'MO'
+  }
+};
+
+// ─── [LEAVE SYSTEM TYPES] ────────────────────────────────
+const LEAVE_TYPES = ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน', 'ลาคลอดบุตร', 'ลาเพื่อทำหมัน', 'ลาเพื่อรับราชการทหาร', 'ลาอื่นๆ'];
+
+// ─── [UI CONSTANTS] ─────────────────────────────────────
+const MONTH_NAMES = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const STATUS_LEGEND_ORDER = ['W','L','A','B+','B-','H+','H-','S+','S-','SM+','A½','P½','พร','คส','ย'];
+
+// ─── [SYSTEM SETTINGS SCHEMA] ───────────────────────────
+// Key = ชื่อ row ในชีต "ตั้งค่าระบบ", Default = ค่าเริ่มต้น
+// ใช้งานอยู่ = "default" (ใช้ค่า default) หรือ "custom" (ใช้ค่าในคอลัมน์ "ใช้งานอยู่")
+const SYSTEM_SETTINGS_SCHEMA = {
+  // ── Time基准 ──
+  dailyDivisor:          { label: 'ตัวหารค่าแรง/วัน',              default: 30,        group: 'time基準' },
+  workHoursPerDay:       { label: 'ชั่วโมงทำงาน/วัน',              default: 8,         group: 'time基準' },
+  workStartTimeStr:      { label: 'เวลาเริ่มงาน',                  default: '08:00',   group: 'time基準' },
+  workEndTimeStr:        { label: 'เวลาเลิกงาน',                   default: '17:00',   group: 'time基准' },
+  lateCutoffTimeStr:     { label: 'เวลาตัดสาย (เริ่มนับสาย)',     default: '08:15',   group: 'time基準' },
+  otStartTimeStr:        { label: 'เวลาเริ่มคิด OT',               default: '17:15',   group: 'time基準' },
+  defaultOtRate:         { label: 'อัตรา OT ปกติ (เท่า)',          default: 1.5,      group: 'time基準' },
+  // ── Accounting period ──
+  billingCycleStartDay:  { label: 'วันเริ่มรอบบัญชี (วันที่)',     default: 26,        group: 'accounting' },
+  billingCycleEndDay:    { label: 'วันสิ้นสุดรอบบัญชี (วันที่)',   default: 25,        group: 'accounting' },
+  // ── Lunch / half-day ──
+  lunchStartTimeStr:     { label: 'เวลาเริ่มพักเที่ยง',           default: '12:00',   group: 'lunch' },
+  lunchEndTimeStr:       { label: 'เวลาสิ้นสุดพักเที่ยง',          default: '13:00',   group: 'lunch' },
+  halfDayOutLunchMinStr: { label: 'ลาครึ่งบ่าย (ออกขั้นต่ำ)',      default: '12:00',   group: 'lunch' },
+  halfDayOutLunchMaxStr: { label: 'ลาครึ่งบ่าย (ออกขั้นสูง)',      default: '13:30',   group: 'lunch' },
+  halfDayInLunchMinStr:  { label: 'ลาครึ่งเช้า (เข้าขั้นต่ำ)',      default: '11:30',   group: 'lunch' },
+  halfDayInLunchMaxStr:  { label: 'ลาครึ่งเช้า (เข้าขั้นสูง)',      default: '13:30',   group: 'lunch' },
+  // ── OT intervals ──
+  otIntervalMinutes:     { label: 'OT ขั้นต่ำ (นาที)',              default: 30,         group: 'ot' },
+  otIntervalValue:      { label: 'OT คิดทีละ (ชั่วโมง)',          default: 0.5,       group: 'ot' },
+  // ── Defaults ──
+  defaultCentralProject: { label: 'โครงการกลางเริ่มต้น',           default: '(00)บุรีรัมย์', group: 'defaults' },
+  defaultFoodAllowance:  { label: 'ค่าอาหาร/วัน (บาท)',           default: 50,        group: 'defaults' },
+  // ── Deduction ──
+  latePenaltyPerMinute:  { label: 'หักสาย/นาที (บาท)',              default: 1.0,       group: 'deduction' },
+  lateHalfDayThreshold:  { label: 'สายครึ่งวัน (นาที)',            default: 240,       group: 'deduction' },
+  // ── SSO ──
+  ssoRate:               { label: 'อัตราประกันสังคม (%)',           default: 0.05,      group: 'sso' },
+  ssoMinSalary:         { label: 'SSO เบี้ยขั้นต่ำ',              default: 1650,      group: 'sso' },
+  ssoMaxSalary:         { label: 'SSO เบี้ยเพดินสูง',              default: 17500,     group: 'sso' },
+  includeOTinSSO:       { label: 'รวม OT ในฐาน SSO (จริง/เท็จ)',  default: false,     group: 'sso' },
+  // ── Holiday rates ──
+  holidayOtRate:        { label: 'อัตรา OT วันหยุด (เท่า)',        default: 2.0,       group: 'holiday' },
+  holidayWorkRate:      { label: 'อัตราวันหยุดทำงาน (เท่า)',     default: 1.0,       group: 'holiday' },
+  // ── Leave entitlements ──
+  annualLeaveDays:      { label: 'สิทธิ์ลาพักร้อน (วัน/ปี)',       default: 10,        group: 'leave' },
+  sickLeaveDays:        { label: 'สิทธิ์ลาป่วย (วัน/ปี)',          default: 30,        group: 'leave' },
+  personalLeaveDays:    { label: 'สิทธิ์ลากิจ (วัน/ปี)',           default: 3,         group: 'leave' },
+  maternityLeaveDays:  { label: 'สิทธิ์ลาคลอด (วัน)',             default: 90,        group: 'leave' },
+  maternityLeavePaid:   { label: 'ลาคลอดรับค่าจ้าง (วัน)',        default: 45,        group: 'leave' },
+  militaryLeaveDays:    { label: 'สิทธิ์ลาทหาร (วัน)',             default: 60,        group: 'leave' },
+  leaveAccrualRate:     { label: 'อัตราสะสมวันลา (วัน/เดือน)',    default: 0.0833,    group: 'leave' },
+  leaveCutoff:           { label: 'วันตัดสิทธิ์ลา (dd/MM)',        default: '25/12',   group: 'leave' },
+  // ── Rounding ──
+  roundSalary:          { label: 'ปัดเศษเงินเดือน',               default: 'none',    group: 'rounding' },
+  roundDiligent:        { label: 'ปัดเศษเบี้ยขยัน',               default: 'none',    group: 'rounding' },
+  roundTax:             { label: 'ปัดเศษภาษี',                    default: 'none',    group: 'rounding' },
+  roundPenalty:         { label: 'ปัดเศษค่าปรับ',                  default: 'none',    group: 'rounding' },
+  roundSSO:             { label: 'ปัดเศษ SSO',                     default: 'down',   group: 'rounding' },
+  roundNetPay:          { label: 'ปัดเศษเงินสุทธิ',               default: 'down',   group: 'rounding' },
+  roundProvidentFund:   { label: 'ปัดเศษกองทุนสำรองเลี้ยงชีพ',    default: 'none',    group: 'rounding' },
+  roundWelfare:         { label: 'ปัดเศษสวัสดิการ',                default: 'none',    group: 'rounding' },
+  // ── Symbol rules (stored as JSON string) ──
+  symbolRules:          { label: 'กฎสรุปสถานะ (Symbol Rules)',     default: JSON.stringify(DEFAULT_SYSTEM_SETTINGS.symbolRules), group: 'symbol' }
+};
+
+// ─── [HELPER: Read system settings from sheet (with defaults)] ──
+function getSystemSettings() {
+  const defaults = {};
+  for (let k in SYSTEM_SETTINGS_SCHEMA) {
+    defaults[k] = SYSTEM_SETTINGS_SCHEMA[k].default;
+  }
+
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ตั้งค่าระบบ');
+    if (!sheet) return defaults;
+
+    const rows = sheet.getDataRange().getValues();
+    const overrides = {};
+    for (let i = 1; i < rows.length; i++) {
+      const key = (rows[i][0] || '').toString().trim();
+      const mode = (rows[i][2] || '').toString().trim().toLowerCase();
+      if (!key || mode !== 'custom') continue;
+
+      let val = rows[i][1];
+      // Parse typed values
+      if (val === true || val === 'true' || val === 'จริง') val = true;
+      else if (val === false || val === 'false' || val === 'เท็จ') val = false;
+      else if (!isNaN(parseFloat(val))) val = parseFloat(val);
+
+      overrides[key] = val;
+    }
+    return Object.assign({}, defaults, overrides);
+  } catch (e) {
+    Logger.log('[getSystemSettings] Error: ' + e);
+    return defaults;
+  }
+}
 
 // ตั้งชื่อโฟลเดอร์หลักที่จะเก็บรูปภาพและเอกสารใน Google Drive ของคุณ
 const MAIN_FOLDER_NAME = "HRBTC_Uploads";
@@ -96,6 +307,7 @@ const MAIN_FOLDER_NAME = "HRBTC_Uploads";
 function doGet(e) {
   // ตรวจสอบและสร้างชีตฐานข้อมูลที่จำเป็นทั้งหมดก่อนทำงาน
   initializeDatabase();
+  initSystemSettingsSheet(); // sync schema → sheet on every request
 
   const action = e.parameter.action;
   const empId = e.parameter.empId;
@@ -110,15 +322,33 @@ function doGet(e) {
     if (action === "getEmployee") {
       responseData = getEmployeeData(empId);
     } else if (action === "getTimeRecords") {
-      responseData = getTimeRecords(empId, periodStart, periodEnd);
+      responseData = getTimeRecords(empId, null, null); // return all — frontend filters by date
     } else if (action === "getLeaveRequests") {
-      responseData = getLeaveRequests(empId, periodStart, periodEnd);
+      responseData = getLeaveRequests(empId, null, null); // return all — frontend filters by date
     } else if (action === "getAdvanceRequests") {
-      responseData = getAdvanceRequests(empId, periodStart, periodEnd);
+      responseData = getAdvanceRequests(empId, null, null); // return all — frontend filters by date
     } else if (action === "getPayslips") {
       responseData = getPayslips(empId);
     } else if (action === "getTimeCorrections") {
       responseData = getTimeCorrections(empId, periodStart, periodEnd);
+
+    // ── [ADMIN] ──────────────────────────────────────
+    } else if (action === "getAllEmployees") {
+      responseData = adminGetAllEmployees();
+    } else if (action === "getSystemSettingsAll") {
+      responseData = adminGetSystemSettings();
+    } else if (action === "getAnnouncements") {
+      responseData = adminGetAnnouncements();
+    } else if (action === "getHolidays") {
+      responseData = adminGetHolidays(e.parameter.year || null);
+    } else if (action === "getAllLeaveRequests") {
+      responseData = adminGetAllLeaveRequests(periodStart, periodEnd, e.parameter.status || null);
+    } else if (action === "getAllTimeCorrections") {
+      responseData = adminGetAllTimeCorrections(periodStart, periodEnd, e.parameter.status || null);
+    } else if (action === "getAllAdvanceRequests") {
+      responseData = adminGetAllAdvanceRequests(periodStart, periodEnd, e.parameter.status || null);
+    } else if (action === "getAllTimeRecords") {
+      responseData = adminGetAllTimeRecords(periodStart, periodEnd);
     }
   } catch (err) {
     responseData = { status: "error", message: err.toString() };
@@ -131,6 +361,7 @@ function doGet(e) {
 function doPost(e) {
   // ตรวจสอบและสร้างชีตฐานข้อมูลที่จำเป็นทั้งหมดก่อนทำงาน
   initializeDatabase();
+  initSystemSettingsSheet(); // sync schema → sheet on every request
 
   let responseData = { status: "error", message: "ไม่พบฟังก์ชันที่ระบุ" };
 
@@ -155,6 +386,18 @@ function doPost(e) {
       responseData = doImportTimeRecords(data);
     } else if (action === "syncSymbolRules") {
       responseData = syncSymbolRules();
+
+    // ── [ADMIN] ──────────────────────────────────────
+    } else if (action === "approveLeave") {
+      responseData = adminApproveLeave(data);
+    } else if (action === "approveTimeCorrection") {
+      responseData = adminApproveTimeCorrection(data);
+    } else if (action === "approveAdvance") {
+      responseData = adminApproveAdvance(data);
+    } else if (action === "postAnnouncement") {
+      responseData = adminPostAnnouncement(data);
+    } else if (action === "addHoliday") {
+      responseData = adminAddHoliday(data);
     }
   } catch (err) {
     responseData = { status: "error", message: err.toString() };
@@ -261,7 +504,8 @@ function saveFileToDrive(base64Data, employeeId, subFolderName, filePrefix) {
     const empFolder = getOrCreateFolder(employeeId, mainFolder);
     const targetFolder = getOrCreateFolder(subFolderName, empFolder);
     const file = targetFolder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    // Private by default — only owner can view. Access managed via Apps Script API.
+    // file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); // commented out for privacy
 
     return file.getUrl();
   } catch (e) {
@@ -454,6 +698,23 @@ function registerAttendance(data) {
 
     if (data.ot) {
       sheet.getRange(recordIndex, 15).setValue(data.ot);
+    } else {
+      // Calculate OT from workEndTimeStr setting when OUT is registered
+      const settings = getSystemSettings();
+      const workEndParts = (settings.workEndTimeStr || '17:00').split(':');
+      const workEndMin = parseInt(workEndParts[0]) * 60 + parseInt(workEndParts[1]);
+
+      const timeOutParts = data.time.split(':');
+      const timeOutMin = parseInt(timeOutParts[0]) * 60 + parseInt(timeOutParts[1]);
+
+      if (timeOutMin > workEndMin) {
+        const otMin = timeOutMin - workEndMin;
+        const otInterval = settings.otIntervalMinutes || 30;
+        const otHours = Math.floor(otMin / otInterval) * (settings.otIntervalValue || 0.5);
+        if (otHours > 0) {
+          sheet.getRange(recordIndex, 15).setValue(otHours);
+        }
+      }
     }
     return { status: "success", message: "บันทึกเวลาออกงานเรียบร้อยแล้ว" };
   }
@@ -629,6 +890,13 @@ function getFilteredRecords(sheet, empId, empColIndex, periodStart, periodEnd, d
     records.push(recObj);
   }
 
+  // Sort by date descending (newest first) — works with "วันที่" field
+  records.sort((a, b) => {
+    const da = a['วันที่'] || '';
+    const db = b['วันที่'] || '';
+    return db.localeCompare(da); // desc
+  });
+
   return { status: "success", data: records };
 }
 
@@ -786,62 +1054,64 @@ function doImportTimeRecords(data) {
 }
 
 // ═══════════════════════════════════════════════════════
-// SYNC SYMBOL RULES + FIX HALF-DAY TIMES
-// รันครั้งเดียวหลังอัปเดต Code.gs เวอร์ชันใหม่
+// INIT SYSTEM SETTINGS SHEET + LEGACY SYNC
 // ═══════════════════════════════════════════════════════
-function syncSymbolRules() {
-  const SYMBOL_RULES = {
-    'W':   { fillIn: '08:00', fillOut: '17:00' },
-    'L':   { fillIn: '08:00', fillOut: '17:00' },
-    'A':   { clearIn: true, clearOut: true },
-    'B+':  { fillIn: '08:00', fillOut: '17:00' },
-    'B-':  { clearIn: true, clearOut: true },
-    'H+':  { fillIn: '08:00', fillOut: '17:00' },
-    'H-':  { clearIn: true, clearOut: true },
-    'S+':  { fillIn: '08:00', fillOut: '17:00' },
-    'S-':  { clearIn: true, clearOut: true },
-    'SM+': { clearIn: true, clearOut: true },
-    'A½':  { fillIn: '13:00', fillOut: '17:00' },
-    'P½':  { fillIn: '08:00', fillOut: '12:00' },
-    'พร':  { fillIn: '08:00', fillOut: '17:00' },
-    'คส':  { fillIn: '08:00', fillOut: '17:00' },
-    'ย':   { clearIn: true, clearOut: true },
-    'นข':  { clearIn: true, clearOut: true },
-    'MI':  { clearIn: true, clearOut: true },
-    'MO':  { clearIn: true, clearOut: true }
-  };
 
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ตั้งค่าระบบ');
+// Run once after Code.gs update — syncs schema to ตั้งค่าระบบ sheet
+function initSystemSettingsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('ตั้งค่าระบบ');
+  if (!sheet) {
+    sheet = ss.insertSheet('ตั้งค่าระบบ');
+    sheet.appendRow(['Key', 'Default', 'ใช้งานอยู่', 'คำอธิบาย']);
+    const hr = sheet.getRange(1, 1, 1, 4);
+    hr.setBackground('#0F172A');
+    hr.setFontColor('#FFFFFF');
+    hr.setFontWeight('bold');
+    hr.setHorizontalAlignment('center');
+  }
+
   const rows = sheet.getDataRange().getValues();
-  let symbolRowIdx = -1;
+  const existingKeys = {};
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === 'symbolRules') { symbolRowIdx = i + 1; break; }
+    const k = (rows[i][0] || '').toString().trim();
+    if (k) existingKeys[k] = i + 1;
   }
-  const jsonValue = JSON.stringify(SYMBOL_RULES);
-  if (symbolRowIdx === -1) {
-    sheet.appendRow(['symbolRules', '{\"\":\"\"}', jsonValue, 'กฎสถานะสรุปวัน (อัปเดตอัตโนมัติ)']);
-    symbolRowIdx = rows.length + 1;
-  }
-  sheet.getRange(symbolRowIdx, 2).setValue(jsonValue);
-  sheet.getRange(symbolRowIdx, 3).setValue(jsonValue);
 
-  // Fix half-day times: เปลี่ยน Excel bug date → string
-  const halfDayFix = { halfDayInLunchMinStr:'11:30', halfDayInLunchMaxStr:'13:30', halfDayOutLunchMinStr:'12:00', halfDayOutLunchMaxStr:'13:30' };
-  for (let i = 1; i < rows.length; i++) {
-    const key = rows[i][0];
-    if (halfDayFix.hasOwnProperty(key)) {
-      const cur = rows[i][2];
-      if (cur instanceof Date || (typeof cur === 'string' && cur.includes('1899'))) {
-        sheet.getRange(i + 1, 2).setValue(halfDayFix[key]);
-        sheet.getRange(i + 1, 3).setValue(halfDayFix[key]);
+  // Group settings by group for ordering
+  const groups = {};
+  for (let key in SYSTEM_SETTINGS_SCHEMA) {
+    const g = SYSTEM_SETTINGS_SCHEMA[key].group || 'other';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(key);
+  }
+
+  let added = 0;
+  for (let g in groups) {
+    for (let i = 0; i < groups[g].length; i++) {
+      const key = groups[g][i];
+      const schema = SYSTEM_SETTINGS_SCHEMA[key];
+
+      if (!existingKeys[key]) {
+        sheet.appendRow([key, schema.default, 'default', schema.label]);
+        existingKeys[key] = sheet.getLastRow();
+        added++;
       }
     }
   }
 
-  return { status: 'success', message: `อัปเดต ${Object.keys(SYMBOL_RULES).length} symbol codes + half-day times แล้ว` };
+  sheet.autoResizeColumns(1, 4);
+  return { status: 'success', message: `Synced schema. Added ${added} new rows.` };
 }
 
-// ═══════════════════════════════════════════════════════
+// Legacy alias — now uses schema-based init
+function syncSymbolRules() {
+  initSystemSettingsSheet();
+  const settings = getSystemSettings();
+  Logger.log('[syncSymbolRules] Loaded ' + Object.keys(settings).length + ' settings.');
+  return { status: 'success', message: `Loaded ${Object.keys(settings).length} system settings from sheet (or defaults).` };
+}
+
 // DEBUG: Preview import (แทนที่ fileContent ก่อนรัน)
 // ═══════════════════════════════════════════════════════
 function debugImportPreview() {
@@ -856,3 +1126,412 @@ function debugImportPreview() {
   r.data.warnings.forEach(w => Logger.log(`⚠️ [${w.type}] ${w.empId} | ${w.date} | ${w.time} | ${w.label}`));
   return r;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// [ADMIN] BACKEND FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── [ADMIN] ดึงพนักงานทั้งหมด ──────────────────────────────────────────
+function adminGetAllEmployees() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('พนักงาน');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตพนักงาน' };
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    // ข้าม row ว่างทั้งหมด
+    if (!row[0] || row[0].toString().trim() === '') continue;
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let val = row[idx];
+      if (val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      obj[h] = val !== undefined && val !== null ? val : '';
+    });
+    records.push(obj);
+  }
+  return { status: 'success', data: records };
+}
+
+// ─── [ADMIN] ดึง System Settings ทั้งหมด ────────────────────────────────
+function adminGetSystemSettings() {
+  const settings = getSystemSettings();
+  return { status: 'success', data: settings };
+}
+
+// ─── [ADMIN] ดึงใบลาทั้งหมด (ทุก empId) ──────────────────────────────
+function adminGetAllLeaveRequests(periodStart, periodEnd, filterStatus) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('คำขอลา');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตคำขอลา' };
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0] && !row[1]) continue; // skip empty rows
+    // กรองสถานะ
+    const status = (row[7] || '').toString();
+    if (filterStatus && filterStatus !== '' && status !== filterStatus) continue;
+    // กรองรอบบัญชี (ใช้วันที่เริ่ม index 3)
+    if (periodStart && periodEnd) {
+      const recDate = formatSheetDate(row[3]);
+      if (recDate && (recDate < periodStart || recDate > periodEnd)) continue;
+    }
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let val = row[idx];
+      if (val instanceof Date) {
+        const hStr = h.toString().toLowerCase();
+        if (hStr.includes('วันที่') || hStr.includes('วันเริ่ม') || hStr.includes('วันสิ้น') || hStr.includes('วันส่ง') || hStr.includes('วันอนุมัติ')) {
+          val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (hStr.includes('เวลา')) {
+          val = formatSheetTime(val);
+        } else {
+          val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        }
+      }
+      obj[h] = val !== undefined && val !== null ? val : '';
+    });
+    obj['__rowIndex'] = i + 1; // เก็บ row index สำหรับการอัปเดตทีหลัง
+    records.push(obj);
+  }
+  records.sort((a, b) => (b['วันที่ส่ง'] || '').localeCompare(a['วันที่ส่ง'] || ''));
+  return { status: 'success', data: records };
+}
+
+// ─── [ADMIN] ดึงคำขอแก้ไขเวลาทั้งหมด ──────────────────────────────────
+function adminGetAllTimeCorrections(periodStart, periodEnd, filterStatus) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('คำขอแก้ไขเวลา');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตคำขอแก้ไขเวลา' };
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0]) continue;
+    const status = (row[5] || '').toString();
+    if (filterStatus && filterStatus !== '' && status !== filterStatus) continue;
+    if (periodStart && periodEnd) {
+      const recDate = formatSheetDate(row[1]);
+      if (recDate && (recDate < periodStart || recDate > periodEnd)) continue;
+    }
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let val = row[idx];
+      if (val instanceof Date) {
+        const hStr = h.toString().toLowerCase();
+        if (hStr.includes('เวลา')) val = formatSheetTime(val);
+        else val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      obj[h] = val !== undefined && val !== null ? val : '';
+    });
+    obj['__rowIndex'] = i + 1;
+    records.push(obj);
+  }
+  records.sort((a, b) => (b['วันที่ส่ง'] || '').localeCompare(a['วันที่ส่ง'] || ''));
+  return { status: 'success', data: records };
+}
+
+// ─── [ADMIN] ดึงคำขอเบิกทั้งหมด ──────────────────────────────────────
+function adminGetAllAdvanceRequests(periodStart, periodEnd, filterStatus) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('บันทึกเบิกเงินกลางเดือน');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตเบิกเงิน' };
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0]) continue;
+    const status = (row[4] || '').toString();
+    if (filterStatus && filterStatus !== '' && status !== filterStatus) continue;
+    if (periodStart && periodEnd) {
+      const recDate = formatSheetDate(row[2]);
+      if (recDate && (recDate < periodStart || recDate > periodEnd)) continue;
+    }
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let val = row[idx];
+      if (val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      obj[h] = val !== undefined && val !== null ? val : '';
+    });
+    obj['__rowIndex'] = i + 1;
+    records.push(obj);
+  }
+  records.sort((a, b) => (b['วันที่เบิก'] || '').localeCompare(a['วันที่เบิก'] || ''));
+  return { status: 'success', data: records };
+}
+
+// ─── [ADMIN] ดึงเวลางานทั้งหมด (ทุก empId) ────────────────────────────
+function adminGetAllTimeRecords(periodStart, periodEnd) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('เวลางาน');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตเวลางาน' };
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0] && !row[3]) continue;
+    if (periodStart && periodEnd) {
+      const recDate = formatSheetDate(row[0]);
+      if (!recDate || recDate < periodStart || recDate > periodEnd) continue;
+    }
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let val = row[idx];
+      if (val instanceof Date) {
+        const hStr = h.toString().toLowerCase();
+        if (hStr.includes('เวลา')) val = formatSheetTime(val);
+        else val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      obj[h] = val !== undefined && val !== null ? val : '';
+    });
+    records.push(obj);
+  }
+  records.sort((a, b) => (b['วันที่'] || '').localeCompare(a['วันที่'] || ''));
+  return { status: 'success', data: records };
+}
+
+// ─── [ADMIN] อนุมัติ / ปฏิเสธ ใบลา ──────────────────────────────────
+function adminApproveLeave(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('คำขอลา');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตคำขอลา' };
+
+  const docId = (data.docId || '').toString().trim();
+  const newStatus = data.status || '';
+  const approvedBy = data.approvedBy || 'Admin';
+  const note = data.note || '';
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+  if (!docId || !newStatus) return { status: 'error', message: 'ข้อมูลไม่ครบถ้วน (docId, status)' };
+
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    const rowDocId = (rows[i][0] || '').toString().trim();
+    if (rowDocId !== docId) continue;
+    // col 7 = สถานะ, col 9 = วันที่อนุมัติ, col 10 = อนุมัติโดย, col 11 = หมายเหตุ (1-indexed: 8, 10, 11, 12)
+    sheet.getRange(i + 1, 8).setValue(newStatus);
+    sheet.getRange(i + 1, 10).setValue(today);
+    sheet.getRange(i + 1, 11).setValue(approvedBy);
+    if (note) sheet.getRange(i + 1, 12).setValue(note);
+    return { status: 'success', message: `อัปเดตสถานะใบลา ${docId} เป็น "${newStatus}" สำเร็จ` };
+  }
+  return { status: 'error', message: `ไม่พบเอกสาร ${docId} ในชีต` };
+}
+
+// ─── [ADMIN] อนุมัติ / ปฏิเสธ คำขอแก้ไขเวลา ────────────────────────
+function adminApproveTimeCorrection(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('คำขอแก้ไขเวลา');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตคำขอแก้ไขเวลา' };
+
+  const empId = (data.empId || '').toString().trim();
+  const targetDate = (data.date || '').toString().trim();
+  const newStatus = data.status || '';
+  const approvedBy = data.approvedBy || 'Admin';
+  const note = data.note || '';
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+  if (!empId || !targetDate || !newStatus) {
+    return { status: 'error', message: 'ข้อมูลไม่ครบถ้วน (empId, date, status)' };
+  }
+
+  const rows = sheet.getDataRange().getValues();
+  let updated = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const rowEmp = (rows[i][0] || '').toString().trim();
+    const rowDate = formatSheetDate(rows[i][1]);
+    const rowStatus = (rows[i][5] || '').toString();
+    if (rowEmp !== empId || rowDate !== targetDate) continue;
+    if (rowStatus !== 'รออนุมัติ') continue; // อนุมัติเฉพาะที่ยังรออนุมัติ
+    // col: สถานะ=6, วันที่อนุมัติ=9, อนุมัติโดย=10, หมายเหตุ=11 (1-indexed)
+    sheet.getRange(i + 1, 6).setValue(newStatus);
+    sheet.getRange(i + 1, 9).setValue(today);
+    sheet.getRange(i + 1, 10).setValue(approvedBy);
+    if (note) sheet.getRange(i + 1, 11).setValue(note);
+
+    // ถ้าอนุมัติ → อัปเดตเวลาจริงในชีตเวลางาน
+    if (newStatus === 'อนุมัติแล้ว') {
+      applyTimeCorrectionToSheet(empId, targetDate, rows[i][2], rows[i][3]);
+    }
+    updated++;
+    break;
+  }
+  if (updated === 0) return { status: 'error', message: 'ไม่พบคำขอหรือสถานะไม่ใช่ "รออนุมัติ"' };
+  return { status: 'success', message: `อัปเดตสถานะแก้ไขเวลาของ ${empId} วันที่ ${targetDate} เป็น "${newStatus}" สำเร็จ` };
+}
+
+// ─── [ADMIN] ฟังก์ชันย่อย: อัปเดตเวลาจริงในชีตเวลางานหลังอนุมัติ ──
+function applyTimeCorrectionToSheet(empId, dateStr, newTimeIn, newTimeOut) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('เวลางาน');
+  if (!sheet) return;
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    const rowDate = formatSheetDate(rows[i][0]);
+    const rowEmp = (rows[i][3] || '').toString();
+    if (rowDate === dateStr && rowEmp === empId) {
+      if (newTimeIn)  sheet.getRange(i + 1, 2).setValue(formatSheetTime(newTimeIn));
+      if (newTimeOut) sheet.getRange(i + 1, 3).setValue(formatSheetTime(newTimeOut));
+      sheet.getRange(i + 1, 5).setValue('แก้ไขโดย Admin');
+      break;
+    }
+  }
+}
+
+// ─── [ADMIN] อนุมัติ / ปฏิเสธ คำขอเบิกเงิน ─────────────────────────
+function adminApproveAdvance(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('บันทึกเบิกเงินกลางเดือน');
+  if (!sheet) return { status: 'error', message: 'ไม่พบชีตเบิกเงิน' };
+
+  const empId = (data.empId || '').toString().trim();
+  const targetDate = (data.date || '').toString().trim();
+  const amount = parseFloat(data.amount || 0);
+  const newStatus = data.status || '';
+  const approvedBy = data.approvedBy || 'Admin';
+  const note = data.note || '';
+
+  if (!empId || !newStatus) return { status: 'error', message: 'ข้อมูลไม่ครบถ้วน (empId, status)' };
+
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  const rows = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < rows.length; i++) {
+    const rowEmp = (rows[i][0] || '').toString().trim();
+    const rowDate = formatSheetDate(rows[i][2]);
+    const rowAmt = parseFloat(rows[i][1] || 0);
+    const rowStatus = (rows[i][4] || '').toString();
+
+    if (rowEmp !== empId) continue;
+    if (targetDate && rowDate !== targetDate) continue;
+    if (amount > 0 && Math.abs(rowAmt - amount) > 1) continue;
+    if (!['รอตรวจสอบ', 'รออนุมัติ'].includes(rowStatus)) continue;
+
+    // col: สถานะ=5, หมายเหตุ=6 (1-indexed)
+    sheet.getRange(i + 1, 5).setValue(newStatus);
+    if (note) sheet.getRange(i + 1, 6).setValue(note);
+    return { status: 'success', message: `อัปเดตสถานะเบิกของ ${empId} เป็น "${newStatus}" สำเร็จ` };
+  }
+  return { status: 'error', message: 'ไม่พบรายการหรือสถานะไม่สามารถอัปเดตได้' };
+}
+
+// ─── [ADMIN] ดึงประกาศทั้งหมด ─────────────────────────────────────────
+function adminGetAnnouncements() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('ข่าวสาร');
+  if (!sheet) {
+    // สร้างชีตใหม่อัตโนมัติ
+    sheet = ss.insertSheet('ข่าวสาร');
+    sheet.appendRow(['เลขที่', 'หัวข้อ', 'ประเภท', 'เนื้อหา', 'วันที่โพสต์', 'โพสต์โดย', 'สถานะ']);
+    const hr = sheet.getRange(1, 1, 1, 7);
+    hr.setBackground('#0F172A'); hr.setFontColor('#FFFFFF'); hr.setFontWeight('bold');
+    return { status: 'success', data: [] };
+  }
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return { status: 'success', data: [] };
+  const headers = rows[0];
+  const records = rows.slice(1).filter(r => r[0]).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let val = r[idx];
+      if (val instanceof Date) val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+      obj[h] = val !== undefined ? val : '';
+    });
+    return obj;
+  });
+  records.sort((a, b) => (b['วันที่โพสต์'] || '').localeCompare(a['วันที่โพสต์'] || ''));
+  return { status: 'success', data: records };
+}
+
+// ─── [ADMIN] โพสต์ประกาศใหม่ ─────────────────────────────────────────
+function adminPostAnnouncement(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('ข่าวสาร');
+  if (!sheet) {
+    sheet = ss.insertSheet('ข่าวสาร');
+    sheet.appendRow(['เลขที่', 'หัวข้อ', 'ประเภท', 'เนื้อหา', 'วันที่โพสต์', 'โพสต์โดย', 'สถานะ']);
+    const hr = sheet.getRange(1, 1, 1, 7);
+    hr.setBackground('#0F172A'); hr.setFontColor('#FFFFFF'); hr.setFontWeight('bold');
+  }
+
+  const title   = (data.title || '').toString().trim();
+  const content = (data.content || '').toString().trim();
+  const type    = (data.type || 'ทั่วไป').toString();
+  const author  = (data.postedBy || 'Admin').toString();
+
+  if (!title || !content) return { status: 'error', message: 'กรุณาระบุหัวข้อและเนื้อหา' };
+
+  const existingRows = sheet.getDataRange().getValues();
+  const annId = 'ANN-' + String(existingRows.length).padStart(4, '0');
+  const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+  sheet.appendRow([annId, title, type, content, now, author, 'เผยแพร่']);
+  return { status: 'success', message: `โพสต์ประกาศ "${title}" สำเร็จ (${annId})` };
+}
+
+// ─── [ADMIN] ดึงวันหยุด ──────────────────────────────────────────────
+function adminGetHolidays(yearFilter) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('วันหยุด');
+  if (!sheet) {
+    sheet = ss.insertSheet('วันหยุด');
+    sheet.appendRow(['วันที่', 'ชื่อวันหยุด', 'ปี', 'ประเภท', 'บันทึกโดย']);
+    const hr = sheet.getRange(1, 1, 1, 5);
+    hr.setBackground('#0F172A'); hr.setFontColor('#FFFFFF'); hr.setFontWeight('bold');
+    return { status: 'success', data: [] };
+  }
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return { status: 'success', data: [] };
+  const headers = rows[0];
+  let records = rows.slice(1).filter(r => r[0]).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let val = r[idx];
+      if (val instanceof Date) val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      obj[h] = val !== undefined ? val : '';
+    });
+    return obj;
+  });
+  if (yearFilter) {
+    records = records.filter(r => (r['ปี'] || '').toString() === yearFilter.toString() ||
+      (r['วันที่'] || '').toString().startsWith(yearFilter.toString()));
+  }
+  records.sort((a, b) => (a['วันที่'] || '').localeCompare(b['วันที่'] || ''));
+  return { status: 'success', data: records };
+}
+
+// ─── [ADMIN] เพิ่มวันหยุด ─────────────────────────────────────────────
+function adminAddHoliday(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('วันหยุด');
+  if (!sheet) {
+    sheet = ss.insertSheet('วันหยุด');
+    sheet.appendRow(['วันที่', 'ชื่อวันหยุด', 'ปี', 'ประเภท', 'บันทึกโดย']);
+    const hr = sheet.getRange(1, 1, 1, 5);
+    hr.setBackground('#0F172A'); hr.setFontColor('#FFFFFF'); hr.setFontWeight('bold');
+  }
+
+  const holidayDate = (data.date || '').toString().trim();
+  const holidayName = (data.name || '').toString().trim();
+  const year        = (data.year || '').toString().trim();
+  const type        = (data.type || 'นักขัตฤกษ์').toString();
+
+  if (!holidayDate || !holidayName) return { status: 'error', message: 'กรุณาระบุวันที่และชื่อวันหยุด' };
+
+  // ตรวจ duplicate
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    const existing = formatSheetDate(rows[i][0]);
+    if (existing === holidayDate) {
+      return { status: 'error', message: `วันที่ ${holidayDate} มีอยู่แล้ว: ${rows[i][1]}` };
+    }
+  }
+
+  sheet.appendRow([holidayDate, holidayName, year, type, 'Admin']);
+  return { status: 'success', message: `เพิ่มวันหยุด "${holidayName}" (${holidayDate}) สำเร็จ` };
+}
+
+// ─── [ADMIN] เพิ่มข้อมูลใน initializeDatabase ─────────────────────────
+// ชีต "ข่าวสาร" และ "วันหยุด" จะถูกสร้างอัตโนมัติเมื่อเรียก admin functions
+// ไม่จำเป็นต้องเพิ่มใน initializeDatabase เพราะมี auto-create ในแต่ละ function
