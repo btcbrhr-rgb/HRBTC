@@ -315,11 +315,11 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
-                    <button onclick="registerAttendance('IN')" class="bg-emerald-500 text-white py-3.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-100">
+                    <button onclick="registerAttendance('IN', this)" class="bg-emerald-500 text-white py-3.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-100">
                         <i data-lucide="log-in" class="w-4 h-4"></i>
                         ลงชื่อเข้างาน (Check In)
                     </button>
-                    <button onclick="registerAttendance('OUT')" class="bg-rose-500 text-white py-3.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-rose-100">
+                    <button onclick="registerAttendance('OUT', this)" class="bg-rose-500 text-white py-3.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-rose-100">
                         <i data-lucide="log-out" class="w-4 h-4"></i>
                         ลงชื่อออกงาน (Check Out)
                     </button>
@@ -500,8 +500,10 @@
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault();
                 deferredPrompt = e;
-                // แสดงแบนเนอร์ทันทีตราบใดที่ยังไม่ได้ติดตั้งแอป
-                document.getElementById('pwa-install-banner').classList.remove('hidden');
+                // แสดงแบนเนอร์ตราบใดที่ยังไม่ได้ติดตั้ง และยังไม่เคยกดปิดในเซสชันนี้
+                if (!sessionStorage.getItem('hrbtc_pwa_banner_dismissed')) {
+                    document.getElementById('pwa-install-banner').classList.remove('hidden');
+                }
             });
 
             // ตรวจจับว่าแอปพลิเคชันกำลังรันผ่านโหมดติดตั้ง Standalone แล้วหรือยัง
@@ -530,6 +532,29 @@
 
         function dismissInstallBanner() {
             document.getElementById('pwa-install-banner').classList.add('hidden');
+            sessionStorage.setItem('hrbtc_pwa_banner_dismissed', 'true');
+        }
+
+        // ----------------- HELPER: SAFE HTML ESCAPE -----------------
+        function escapeHtml(str) {
+            if (str == null || str === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(str);
+            return div.innerHTML;
+        }
+
+        // ----------------- HELPERS: DISABLE/ENABLE BUTTONS -----------------
+        function setButtonLoading(btn, loading, originalText) {
+            if (loading) {
+                btn.disabled = true;
+                btn.dataset.originalText = btn.innerHTML;
+                btn.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>กำลังส่ง...</span>';
+                btn.classList.add('opacity-60', 'cursor-not-allowed');
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText || originalText;
+                btn.classList.remove('opacity-60', 'cursor-not-allowed');
+            }
         }
 
         // ----------------- LOGIN & GET DATA -----------------
@@ -566,20 +591,92 @@
         function startClock() {
             setInterval(() => {
                 const now = new Date();
-                document.getElementById('clock-display').innerText = now.toTimeString().split(' ')[0];
+                document.getElementById('clock-display').innerText = now.toLocaleTimeString('th-TH', { hour12: false });
             }, 1000);
         }
 
+        let gpsWarningEl = null;
         function requestGpsLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((pos) => {
                     globalGps.lat = pos.coords.latitude;
                     globalGps.lng = pos.coords.longitude;
                     document.getElementById('gps-coords').innerText = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
+                    // Remove GPS warning if it was shown
+                    const warn = document.getElementById('gps-warning-badge');
+                    if (warn) warn.remove();
                 }, (err) => {
-                    document.getElementById('gps-coords').innerText = `Lat: 13.7563, Lng: 100.5018 (พิกัดจำลอง)`;
-                });
+                    globalGps = { lat: 13.7563, lng: 100.5018 };
+                    const gpsEl = document.getElementById('gps-coords');
+                    gpsEl.innerText = `Lat: 13.7563, Lng: 100.5018 (พิกัดจำลอง — กรุณาเปิด GPS)`;
+                    gpsEl.classList.add('text-amber-500');
+                    // Show warning badge on attendance page
+                    const badge = document.createElement('span');
+                    badge.id = 'gps-warning-badge';
+                    badge.className = 'text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold ml-2';
+                    badge.textContent = '⚠ พิกัดไม่แน่นอน';
+                    gpsEl.parentElement.appendChild(badge);
+                }, { timeout: 10000, maximumAge: 0 });
+            } else {
+                globalGps = { lat: 13.7563, lng: 100.5018 };
             }
+        }
+
+        // ----------------- ACCOUNTING PERIOD HELPERS -----------------
+        function getCurrentAccountingPeriod() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth(); // 0-indexed
+
+            // รอบบัญชี: 26 ของเดือนก่อน ถึง 25 ของเดือนปัจจุบัน
+            // ถ้าวันปัจจุบัน <= 25 ของเดือนปัจจุบัน → ยังอยู่ในรอบที่แล้ว
+            let startDate, endDate;
+            if (now.getDate() <= 25) {
+                // รอบก่อนหน้า: 26 ของเดือนก่อน → 25 ของเดือนปัจจุบัน
+                const prevMonth = new Date(year, month - 1, 26);
+                const endOfPrevMonth = new Date(year, month, 25);
+                startDate = prevMonth;
+                endDate = endOfPrevMonth;
+            } else {
+                // รอบปัจจุบัน: 26 ของเดือนปัจจุบัน → 25 ของเดือนหน้า
+                const startOfCycle = new Date(year, month, 26);
+                const endOfCycle = new Date(year, month + 1, 25);
+                startDate = startOfCycle;
+                endDate = endOfCycle;
+            }
+            return { startDate, endDate };
+        }
+
+        function filterByAccountingPeriod(records, startDate, endDate) {
+            return records.filter(r => {
+                if (!r["วันที่"]) return false;
+                const recDate = parseDate(r["วันที่"]);
+                return recDate >= startDate && recDate <= endDate;
+            });
+        }
+
+        // Parse Thai date string "2026-05-15" or "15/05/2026" or "15 พ.ค. 2566"
+        function parseDate(dateStr) {
+            if (!dateStr) return null;
+            // Try ISO format first: YYYY-MM-DD
+            if (/\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+                return new Date(dateStr);
+            }
+            // Try DD/MM/YYYY or DD-MM-YYYY
+            const dmy = dateStr.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+            if (dmy) {
+                return new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]));
+            }
+            // Fallback: Date constructor
+            const parsed = new Date(dateStr);
+            return isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        function formatAccountingPeriodLabel(startDate, endDate) {
+            const monthsThai = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+            const startStr = `${startDate.getDate()} ${monthsThai[startDate.getMonth()]} ${startDate.getFullYear()}`;
+            const endStr = `${endDate.getDate()} ${monthsThai[endDate.getMonth()]} ${endDate.getFullYear()}`;
+            return `${startStr} – ${endStr}`;
         }
 
         // ----------------- INTERFACE DATA SETUP -----------------
@@ -587,7 +684,15 @@
             document.getElementById('home-emp-name').innerText = currentEmployee["ชื่อ-นามสกุล"];
             document.getElementById('home-emp-id').innerText = `รหัสพนักงาน: ${currentEmployee["รหัสพนักงาน"]}`;
             document.getElementById('home-emp-position').innerText = currentEmployee["ตำแหน่ง"];
-            
+
+            // อัปเดต label รอบบัญชี
+            const period = getCurrentAccountingPeriod();
+            const label = document.getElementById('accounting-period-label');
+            if (label) label.textContent = formatAccountingPeriodLabel(period.startDate, period.endDate);
+
+            // คำนวณสถิติหน้าแรกด้วยรอบปัจจุบัน
+            calculateStatistics(period);
+
             // ดึงข้อมูลอื่น ๆ จากระบบชีตมาแสดงในตาราง
             fetchTimeRecords();
             fetchLeaveRequests();
@@ -595,66 +700,149 @@
             fetchPayslips();
         }
 
+        // ตัวแปรเก็บข้อมูลทั้งหมด (ไว้กรองหลายรอบบัญชี)
+        let allTimeRecords = [];
+        let allLeaveRequests = [];
+        let allAdvanceRequests = [];
+        let allPayslips = [];
+
         async function fetchTimeRecords() {
             try {
-                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getTimeRecords&empId=${empId}`);
+                const period = getCurrentAccountingPeriod();
+                const periodStart = period.startDate.toISOString().split('T')[0];
+                const periodEnd = period.endDate.toISOString().split('T')[0];
+                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getTimeRecords&empId=${empId}&periodStart=${periodStart}&periodEnd=${periodEnd}`);
                 const data = await res.json();
                 if (data.status === "success") {
-                    activeTimeRecords = data.data;
-                    renderCalendarData();
-                    calculateStatistics();
+                    allTimeRecords = data.data || [];
+                    applyTimePeriodFilter();
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) { console.error('[HRBTC] fetchTimeRecords failed:', err); showToast('ดึงข้อมูลเวลาล้มเหลว', 'warning'); }
         }
 
-        function calculateStatistics() {
-            // สถิติตามรอบบัญชี (26 ของเดือนก่อน ถึง 25 ของเดือนปัจจุบัน)
-            let workDays = 0;
-            let lateMins = 0;
-            let otHours = 0;
-            
-            activeTimeRecords.forEach(r => {
-                if (r["เวลาเข้า"]) workDays++;
-                if (r["นาทีสาย"]) lateMins += parseFloat(r["นาทีสาย"]);
-                if (r["ชั่วโมง OT"]) otHours += parseFloat(r["ชั่วโมง OT"]);
-            });
+        async function fetchLeaveRequests() {
+            try {
+                const period = getCurrentAccountingPeriod();
+                const periodStart = period.startDate.toISOString().split('T')[0];
+                const periodEnd = period.endDate.toISOString().split('T')[0];
+                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getLeaveRequests&empId=${empId}&periodStart=${periodStart}&periodEnd=${periodEnd}`);
+                const data = await res.json();
+                if (data.status === "success") {
+                    allLeaveRequests = data.data || [];
+                    renderLeaveHistory();
+                }
+            } catch (e) { console.error('[HRBTC] fetchLeaveRequests failed:', e); showToast('ดึงข้อมูลการลาล้มเหลว', 'warning'); }
+        }
 
-            document.getElementById('stat-work-days').innerText = workDays;
-            document.getElementById('stat-late-minutes').innerText = lateMins;
-            document.getElementById('stat-ot-hours').innerText = otHours.toFixed(1);
+        async function fetchAdvanceRequests() {
+            try {
+                const period = getCurrentAccountingPeriod();
+                const periodStart = period.startDate.toISOString().split('T')[0];
+                const periodEnd = period.endDate.toISOString().split('T')[0];
+                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getAdvanceRequests&empId=${empId}&periodStart=${periodStart}&periodEnd=${periodEnd}`);
+                const data = await res.json();
+                if (data.status === "success") {
+                    allAdvanceRequests = data.data || [];
+                    renderAdvanceHistory();
+                }
+            } catch (err) { console.error('[HRBTC] fetchAdvanceRequests failed:', err); showToast('ดึงข้อมูลการเบิกล้มเหลว', 'warning'); }
+        }
+
+        async function fetchPayslips() {
+            try {
+                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getPayslips&empId=${empId}`);
+                const data = await res.json();
+                if (data.status === "success") {
+                    allPayslips = data.data || [];
+                    renderPayslips();
+                }
+            } catch (e) { console.error('[HRBTC] fetchPayslips failed:', e); showToast('ดึงข้อมูลสลิปล้มเหลว', 'warning'); }
+        }
+
+        function getSelectedCalendarPeriod() {
+            const selectedVal = document.getElementById('calendar-month-select')?.value;
+            if (!selectedVal) {
+                // Default: รอบบัญชีปัจจุบัน
+                return getCurrentAccountingPeriod();
+            }
+            // Format: "2026-05" → parse as first day of that month
+            const [year, month] = selectedVal.split('-');
+            const startDate = new Date(parseInt(year), parseInt(month) - 1, 26);
+            const endDate = new Date(parseInt(year), parseInt(month), 25);
+            return { startDate, endDate };
+        }
+
+        function applyTimePeriodFilter() {
+            const period = getSelectedCalendarPeriod();
+            activeTimeRecords = filterByAccountingPeriod(allTimeRecords, period.startDate, period.endDate);
+            renderCalendarData();
+            calculateStatistics(period);
         }
 
         function renderCalendarData() {
             const container = document.getElementById('calendar-days-container');
             container.innerHTML = '';
-            
-            if (activeTimeRecords.length === 0) {
-                container.innerHTML = `<p class="text-xs text-center text-slate-400 py-6">ไม่มีข้อมูลประวัติเวลางานในชีต</p>`;
+            const period = getSelectedCalendarPeriod();
+
+            const filtered = filterByAccountingPeriod(allTimeRecords, period.startDate, period.endDate);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="text-xs text-center text-slate-400 py-6">ไม่มีข้อมูลประวัติเวลางานในรอบบัญชีนี้</p>`;
                 return;
             }
 
-            activeTimeRecords.forEach(rec => {
+            filtered.forEach(rec => {
                 const dayDiv = document.createElement('div');
                 dayDiv.className = "p-4 flex justify-between items-center hover:bg-slate-50 transition-colors";
+                const dateVal = escapeHtml(rec["วันที่"] || '');
+                const timeInVal = escapeHtml(rec["เวลาเข้า"] || '--');
+                const timeOutVal = escapeHtml(rec["เวลาออก"] || '--');
+                const projVal = escapeHtml(rec["โครงการ (เข้า)"] || 'N/A');
+                const editVal = escapeHtml(rec["แก้ไขเวลา"] || 'ไม่มี');
                 dayDiv.innerHTML = `
                     <div class="space-y-1">
-                        <p class="text-xs font-bold text-slate-800">${rec["วันที่"]}</p>
-                        <p class="text-[11px] text-slate-500">เข้า: ${rec["เวลาเข้า"] || '--'} | ออก: ${rec["เวลาออก"] || '--'}</p>
-                        <p class="text-[10px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || 'N/A'} | แก้ไขเวลา: ${rec["แก้ไขเวลา"] || 'ไม่มี'}</p>
+                        <p class="text-xs font-bold text-slate-800">${dateVal}</p>
+                        <p class="text-[11px] text-slate-500">เข้า: ${timeInVal} | ออก: ${timeOutVal}</p>
+                        <p class="text-[10px] text-slate-400">โครงการ: ${projVal} | แก้ไขเวลา: ${editVal}</p>
                     </div>
-                    <button onclick="openEditTimeModal('${rec["วันที่"]}', '${rec["เวลาเข้า"]}', '${rec["เวลาออก"]}')" class="text-xs bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 px-3 py-1.5 rounded-lg font-medium transition-all">ขอแก้ไข</button>
+                    <button onclick="openEditTimeModal('${dateVal}', '${timeInVal}', '${timeOutVal}')" class="text-xs bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 px-3 py-1.5 rounded-lg font-medium transition-all">ขอแก้ไข</button>
                 `;
                 container.appendChild(dayDiv);
             });
         }
 
-        // ----------------- ACTIONS (POST) -----------------
-        async function registerAttendance(type) {
+        function calculateStatistics(period) {
+            // ถ้าไม่ระบุ period ใช้รอบปัจจุบัน
+            const p = period || getCurrentAccountingPeriod();
+            const records = filterByAccountingPeriod(allTimeRecords, p.startDate, p.endDate);
+
+            let workDays = 0;
+            let lateMins = 0;
+            let otHours = 0;
+            let absentDays = 0;
+
+            records.forEach(r => {
+                if (r["เวลาเข้า"]) {
+                    workDays++;
+                } else {
+                    absentDays++;
+                }
+                lateMins += parseFloat(r["นาทีสาย"]) || 0;
+                otHours += parseFloat(r["ชั่วโมง OT"]) || 0;
+            });
+
+            document.getElementById('stat-work-days').innerText = workDays;
+            document.getElementById('stat-late-minutes').innerText = lateMins;
+            document.getElementById('stat-ot-hours').innerText = otHours.toFixed(1);
+            document.getElementById('stat-absent-days').innerText = absentDays;
+        }
+        async function registerAttendance(type, btn) {
             const project = document.getElementById('attendance-project').value;
             const now = new Date();
             const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const dateStr = now.toISOString().split('T')[0];
 
+            if (btn) setButtonLoading(btn, true);
             showToast("กำลังส่งข้อมูลเข้า Google Sheets...", "info");
 
             const payload = {
@@ -672,6 +860,7 @@
             try {
                 const response = await fetch(GOOGLE_SCRIPT_API_URL, {
                     method: "POST",
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const res = await response.json();
@@ -684,6 +873,9 @@
                 }
             } catch (err) {
                 showToast("เชื่อมต่อข้อมูลระบบปลายทางล้มเหลว", "warning");
+                console.error('[HRBTC] registerAttendance failed:', err);
+            } finally {
+                if (btn) setButtonLoading(btn, false);
             }
         }
 
@@ -691,8 +883,9 @@
         function openEditTimeModal(date, checkIn, checkOut) {
             document.getElementById('edit-date-input').value = date;
             document.getElementById('edit-date-display').value = date;
-            document.getElementById('edit-time-in').value = checkIn !== "undefined" ? checkIn : "08:30";
-            document.getElementById('edit-time-out').value = checkOut !== "undefined" ? checkOut : "17:30";
+            // Safe null/undefined check — use nullish coalescing
+            document.getElementById('edit-time-in').value = checkIn && checkIn !== 'undefined' && checkIn !== '--' ? checkIn : "08:30";
+            document.getElementById('edit-time-out').value = checkOut && checkOut !== 'undefined' && checkOut !== '--' ? checkOut : "17:30";
             document.getElementById('edit-time-modal').classList.remove('hidden');
         }
 
@@ -706,6 +899,8 @@
             const timeIn = document.getElementById('edit-time-in').value;
             const timeOut = document.getElementById('edit-time-out').value;
             const reason = document.getElementById('edit-reason').value;
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            setButtonLoading(submitBtn, true);
 
             showToast("กำลังส่งคำขอเข้า Sheets...", "info");
 
@@ -722,6 +917,7 @@
             try {
                 const response = await fetch(GOOGLE_SCRIPT_API_URL, {
                     method: "POST",
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const res = await response.json();
@@ -729,8 +925,15 @@
                     showToast("ส่งใบคำขอรับรองปรับแก้เรียบร้อย", "success");
                     closeEditTimeModal();
                     fetchTimeRecords();
+                } else {
+                    showToast(res.message || "ส่งข้อมูลล้มเหลว", "warning");
                 }
-            } catch (err) { showToast("ส่งข้อมูลล้มเหลว", "warning"); }
+            } catch (err) {
+                showToast("ส่งข้อมูลล้มเหลว", "warning");
+                console.error('[HRBTC] submitTimeCorrection failed:', err);
+            } finally {
+                setButtonLoading(submitBtn, false);
+            }
         }
 
         // ----------------- LEAVE SYSTEM -----------------
@@ -745,31 +948,42 @@
                 document.getElementById('tab-leave-form').className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600";
                 document.getElementById('leave-history-container').classList.remove('hidden');
                 document.getElementById('leave-form-container').classList.add('hidden');
+                renderLeaveHistory();
             }
         }
 
-        async function fetchLeaveRequests() {
-            try {
-                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getLeaveRequests&empId=${empId}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    const list = document.getElementById('leave-history-list');
-                    list.innerHTML = '';
-                    data.data.forEach(l => {
-                        const item = document.createElement('div');
-                        item.className = "p-3.5 bg-white border border-slate-100 rounded-2xl";
-                        item.innerHTML = `
-                            <div class="flex justify-between">
-                                <span class="font-bold text-xs text-slate-800">${l["ประเภทการลา"]}</span>
-                                <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-semibold">${l["สถานะ"]}</span>
-                            </div>
-                            <p class="text-[11px] text-slate-400 mt-1">วันที่: ${l["วันที่เริ่ม"]} ถึง ${l["วันที่สิ้นสุด"]}</p>
-                            <p class="text-[11px] text-slate-500 mt-0.5">${l["เหตุผล"]}</p>
-                        `;
-                        list.appendChild(item);
-                    });
-                }
-            } catch (e) {}
+        // Leave history is stored in allLeaveRequests, rendered on tab switch
+        function renderLeaveHistory() {
+            const list = document.getElementById('leave-history-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!allLeaveRequests || allLeaveRequests.length === 0) {
+                list.innerHTML = `<p class="text-xs text-center text-slate-400 py-4">ไม่มีประวัติการลา</p>`;
+                return;
+            }
+            allLeaveRequests.forEach(l => {
+                const item = document.createElement('div');
+                item.className = "p-3.5 bg-white border border-slate-100 rounded-2xl";
+                item.innerHTML = `
+                    <div class="flex justify-between">
+                        <span class="font-bold text-xs text-slate-800">${escapeHtml(l["ประเภทการลา"])}</span>
+                        <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-semibold">${escapeHtml(l["สถานะ"])}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">วันที่: ${escapeHtml(l["วันที่เริ่ม"])} ถึง ${escapeHtml(l["วันที่สิ้นสุด"])}</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(l["เหตุผล"])}</p>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // ----------------- FILE TO BASE64 HELPER -----------------
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
         }
 
         async function submitLeaveRequest(e) {
@@ -778,6 +992,19 @@
             const start = document.getElementById('leave-start').value;
             const end = document.getElementById('leave-end').value;
             const reason = document.getElementById('leave-reason').value;
+            const fileInput = document.getElementById('leave-attachment');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            setButtonLoading(submitBtn, true);
+
+            // Read file as Base64 if attached
+            let attachmentBase64 = null;
+            if (fileInput.files && fileInput.files.length > 0) {
+                try {
+                    attachmentBase64 = await fileToBase64(fileInput.files[0]);
+                } catch (fe) {
+                    console.warn('[HRBTC] Failed to read attachment:', fe);
+                }
+            }
 
             showToast("กำลังส่งคำขอลา...", "info");
 
@@ -788,6 +1015,7 @@
                 start: start,
                 end: end,
                 reason: reason,
+                attachment: attachmentBase64,
                 lat: globalGps.lat,
                 lng: globalGps.lng
             };
@@ -795,6 +1023,7 @@
             try {
                 const res = await fetch(GOOGLE_SCRIPT_API_URL, {
                     method: "POST",
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const result = await res.json();
@@ -803,8 +1032,15 @@
                     document.getElementById('leave-form').reset();
                     fetchLeaveRequests();
                     switchLeaveTab('history');
+                } else {
+                    showToast(result.message || "ส่งข้อมูลล้มเหลว", "warning");
                 }
-            } catch (err) {}
+            } catch (err) {
+                showToast("ส่งข้อมูลล้มเหลว", "warning");
+                console.error('[HRBTC] submitLeaveRequest failed:', err);
+            } finally {
+                setButtonLoading(submitBtn, false);
+            }
         }
 
         // ----------------- ADVANCE MONEY -----------------
@@ -819,36 +1055,19 @@
                 document.getElementById('tab-advance-form').className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600";
                 document.getElementById('advance-history-container').classList.remove('hidden');
                 document.getElementById('advance-form-container').classList.add('hidden');
+                renderAdvanceHistory();
             }
         }
 
-        async function fetchAdvanceRequests() {
-            try {
-                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getAdvanceRequests&empId=${empId}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    const list = document.getElementById('advance-history-list');
-                    list.innerHTML = '';
-                    data.data.forEach(a => {
-                        const item = document.createElement('div');
-                        item.className = "p-3 bg-white border border-slate-100 rounded-2xl flex justify-between items-center";
-                        item.innerHTML = `
-                            <div>
-                                <h4 class="font-bold text-slate-800 text-xs">เบิกจำนวน: ${a["จำนวนเงิน"]} ฿</h4>
-                                <p class="text-[10px] text-slate-400 mt-1">วันที่ขอ: ${a["วันที่เบิก"]}</p>
-                            </div>
-                            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-bold">${a["สถานะ"]}</span>
-                        `;
-                        list.appendChild(item);
-                    });
-                }
-            } catch (err) {}
-        }
+        // fetchAdvanceRequests() already defined above (line 744)
+        // This is kept for reference only — actual implementation is at line 744
 
         async function submitAdvanceRequest(e) {
             e.preventDefault();
             const amount = document.getElementById('advance-amount').value;
             const reason = document.getElementById('advance-reason').value;
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            setButtonLoading(submitBtn, true);
 
             showToast("กำลังส่งข้อมูล...", "info");
 
@@ -862,6 +1081,7 @@
             try {
                 const res = await fetch(GOOGLE_SCRIPT_API_URL, {
                     method: "POST",
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const result = await res.json();
@@ -870,37 +1090,68 @@
                     document.getElementById('advance-form').reset();
                     fetchAdvanceRequests();
                     switchAdvanceTab('history');
+                } else {
+                    showToast(result.message || "ส่งข้อมูลล้มเหลว", "warning");
                 }
-            } catch (err) {}
+            } catch (err) {
+                showToast("ส่งข้อมูลล้มเหลว", "warning");
+                console.error('[HRBTC] submitAdvanceRequest failed:', err);
+            } finally {
+                setButtonLoading(submitBtn, false);
+            }
         }
 
         // ----------------- PAYSLIPS -----------------
-        async function fetchPayslips() {
-            try {
-                const res = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getPayslips&empId=${empId}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    const list = document.getElementById('payslip-list');
-                    list.innerHTML = '';
-                    data.data.forEach(p => {
-                        const item = document.createElement('div');
-                        item.className = "p-4 flex justify-between items-center hover:bg-slate-50";
-                        item.innerHTML = `
-                            <div>
-                                <h4 class="font-bold text-slate-800 text-xs">รอบเงินเดือน: ${p["รอบเงินเดือน"]}</h4>
-                                <p class="text-[11px] text-slate-400">ชื่อไฟล์: ${p["ชื่อไฟล์"]}</p>
-                            </div>
-                            <a href="${p["URL สลิป"]}" target="_blank" class="text-xs bg-blue-50 text-blue-600 font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1">
-                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                                ดาวน์โหลด
-                            </a>
-                        `;
-                        list.appendChild(item);
-                    });
-                    lucide.createIcons();
-                }
-            } catch (e) {}
+        function renderAdvanceHistory() {
+            const list = document.getElementById('advance-history-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!allAdvanceRequests || allAdvanceRequests.length === 0) {
+                list.innerHTML = `<p class="text-xs text-center text-slate-400 py-4">ไม่มีประวัติการเบิก</p>`;
+                return;
+            }
+            allAdvanceRequests.forEach(a => {
+                const item = document.createElement('div');
+                item.className = "p-3 bg-white border border-slate-100 rounded-2xl flex justify-between items-center";
+                item.innerHTML = `
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-xs">เบิกจำนวน: ${escapeHtml(a["จำนวนเงิน"])} ฿</h4>
+                        <p class="text-[10px] text-slate-400 mt-1">วันที่ขอ: ${escapeHtml(a["วันที่เบิก"])}</p>
+                    </div>
+                    <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-bold">${escapeHtml(a["สถานะ"])}</span>
+                `;
+                list.appendChild(item);
+            });
         }
+
+        function renderPayslips() {
+            const list = document.getElementById('payslip-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!allPayslips || allPayslips.length === 0) {
+                list.innerHTML = `<p class="text-xs text-center text-slate-400 py-6">ไม่มีสลิปเงินเดือน</p>`;
+                return;
+            }
+            allPayslips.forEach(p => {
+                const item = document.createElement('div');
+                item.className = "p-4 flex justify-between items-center hover:bg-slate-50";
+                item.innerHTML = `
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-xs">รอบเงินเดือน: ${escapeHtml(p["รอบเงินเดือน"])}</h4>
+                        <p class="text-[11px] text-slate-400">ชื่อไฟล์: ${escapeHtml(p["ชื่อไฟล์"])}</p>
+                    </div>
+                    <a href="${escapeHtml(p["URL สลิป"])}" target="_blank" class="text-xs bg-blue-50 text-blue-600 font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        ดาวน์โหลด
+                    </a>
+                `;
+                list.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        // fetchPayslips() already defined above (line 755)
+        // renderPayslips() already defined above
 
         // ----------------- HEADER & MENU INTERACTIVE -----------------
         function switchView(viewName) {
