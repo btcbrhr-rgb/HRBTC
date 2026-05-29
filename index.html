@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HRBTC - HR Mobile Portal</title>
+    <!-- ลิงก์เชื่อมโยง PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563EB">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="HRBTC">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/9187/9187532.png">
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -40,7 +48,7 @@
 </head>
 <body class="max-w-md mx-auto bg-slate-50 min-h-screen shadow-xl flex flex-col relative pb-20">
 
-    <!-- PWA Installation Banner -->
+    <!-- PWA Installation Banner (แจ้งเตือนจริงจากบราวเซอร์) -->
     <div id="pwa-install-banner" class="hidden fixed top-4 left-4 right-4 max-w-sm mx-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-2xl shadow-2xl z-50 flex flex-col gap-3 pwa-banner-bounce">
         <div class="flex items-start justify-between">
             <div class="flex items-center gap-3">
@@ -470,28 +478,54 @@
         let empId = "";
         let globalGps = { lat: 13.7563, lng: 100.5018 }; // พิกัดเริ่มต้น กรุงเทพฯ
         let activeTimeRecords = [];
+        let deferredPrompt; // จัดการโปรโมชันติดตั้งของแท้จากบราวเซอร์
 
         window.addEventListener('load', () => {
             lucide.createIcons();
             startClock();
             requestGpsLocation();
-            simulatePwaInstallDetection();
+            initPwaSystem();
         });
 
-        // ----------------- PWA INSTALLATION DETECTOR -----------------
-        function simulatePwaInstallDetection() {
-            const isInstalled = localStorage.getItem('pwa-installed') === 'true';
-            if (!isInstalled) {
-                setTimeout(() => {
-                    document.getElementById('pwa-install-banner').classList.remove('hidden');
-                }, 2000);
+        // ----------------- PWA INSTALLATION SYSTEM -----------------
+        function initPwaSystem() {
+            // ค้นหาการลงทะเบียน Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('Service Worker Registered Successfully!', reg))
+                .catch(err => console.error('Service Worker Registration Failed!', err));
+            }
+
+            // ดักจับ Event บันทึกความพร้อมการติดตั้งของบราวเซอร์
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                // แสดงแบนเนอร์ทันทีตราบใดที่ยังไม่ได้ติดตั้งแอป
+                document.getElementById('pwa-install-banner').classList.remove('hidden');
+            });
+
+            // ตรวจจับว่าแอปพลิเคชันกำลังรันผ่านโหมดติดตั้ง Standalone แล้วหรือยัง
+            if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+                dismissInstallBanner();
             }
         }
 
         function triggerPwaInstall() {
-            localStorage.setItem('pwa-installed', 'true');
-            dismissInstallBanner();
-            showToast('📱 ติดตั้งแอป HRBTC และเพิ่มไอคอนไว้ที่หน้าจอหลักแล้ว!', 'success');
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        showToast('🎉 ติดตั้งแอปพลิเคชัน HRBTC เรียบร้อยแล้ว!', 'success');
+                        dismissInstallBanner();
+                    } else {
+                        showToast('การติดตั้งถูกยกเลิก', 'warning');
+                    }
+                    deferredPrompt = null;
+                });
+            } else {
+                // คู่มือจำลองสำหรับผู้ใช้ iOS Safari หรือกรณีบราวเซอร์ไม่รองรับ
+                showToast('📱 สำหรับ iOS: แตะปุ่มแชร์แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"', 'info');
+            }
         }
 
         function dismissInstallBanner() {
