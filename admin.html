@@ -39,6 +39,7 @@
             background: rgba(15,23,42,0.85);
             border: 1px solid rgba(99,102,241,0.25);
             backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
             box-shadow: 0 32px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
         }
         .login-logo {
@@ -103,6 +104,7 @@
             background: rgba(8,12,20,0.9);
             border-bottom: 1px solid rgba(99,102,241,0.12);
             backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             position: sticky;
             top: 0;
             z-index: 30;
@@ -114,6 +116,7 @@
             border: 1px solid rgba(99,102,241,0.15);
             border-radius: 16px;
             backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
         .stat-card {
             background: rgba(15,23,42,0.8);
@@ -254,6 +257,7 @@
             color: #e2e8f0;
             box-shadow: 0 8px 30px rgba(0,0,0,0.5);
             backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             animation: slideInRight 0.3s ease forwards;
             display: flex;
             align-items: center;
@@ -300,6 +304,7 @@
         .gradient-text {
             background: linear-gradient(135deg, #60a5fa, #a78bfa);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         .pulse-dot {
@@ -321,6 +326,7 @@
             background: rgba(0,0,0,0.6);
             z-index: 40;
             backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
         }
 
         /* ── Upload zone ── */
@@ -377,7 +383,7 @@
                     <input type="password" id="admin-password" placeholder="กรอกรหัสผ่าน..."
                         class="admin-input pr-10"
                         onkeydown="if(event.key==='Enter') doAdminLogin()">
-                    <button onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                    <button onclick="togglePasswordVisibility()" title="แสดง/ซ่อนรหัสผ่าน" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
                         <i data-lucide="eye" id="pwd-eye-icon" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -508,7 +514,7 @@
         <header id="topbar" class="px-6 py-4 flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <!-- Hamburger (mobile) -->
-                <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-lg hover:bg-slate-800 text-slate-400">
+                <button onclick="toggleSidebar()" title="เปิด/ปิดเมนู" class="md:hidden p-2 rounded-lg hover:bg-slate-800 text-slate-400">
                     <i data-lucide="menu" class="w-5 h-5"></i>
                 </button>
                 <div>
@@ -1363,20 +1369,21 @@ async function initDashboard() {
         now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
     document.getElementById('dash-period').textContent = p ? `${p.start} → ${p.end}` : '--';
 
-    // Load pending counts in parallel
+    // Load pending counts in parallel — ใช้ admin actions ที่ถูกต้อง
     try {
-        const [leaveRes, timeRes, advRes] = await Promise.all([
-            apiGet({ action: 'getLeaveRequests', empId: '*ALL*' }).catch(() => ({ data: [] })),
-            apiGet({ action: 'getTimeCorrections', empId: '*ALL*' }).catch(() => ({ data: [] })),
-            apiGet({ action: 'getAdvanceRequests', empId: '*ALL*' }).catch(() => ({ data: [] }))
+        const [leaveRes, timeRes, advRes, empRes] = await Promise.all([
+            apiGet({ action: 'getAllLeaveRequests', status: 'รออนุมัติ' }).catch(() => ({ data: [] })),
+            apiGet({ action: 'getAllTimeCorrections', status: 'รออนุมัติ' }).catch(() => ({ data: [] })),
+            apiGet({ action: 'getAllAdvanceRequests', status: 'รอตรวจสอบ' }).catch(() => ({ data: [] })),
+            apiGet({ action: 'getAllEmployees' }).catch(() => ({ data: [] }))
         ]);
 
-        // For employee count we use a placeholder (getEmployee is per-emp only)
-        document.getElementById('dash-emp-count').textContent = '—';
+        const empCount = Array.isArray(empRes.data) ? empRes.data.length : 0;
+        document.getElementById('dash-emp-count').textContent = empCount || '—';
 
-        const leavePending  = countPending(leaveRes.data,   'สถานะ', ['รออนุมัติ']);
-        const timePending   = countPending(timeRes.data,    'สถานะ', ['รออนุมัติ']);
-        const advancePending = countPending(advRes.data,    'สถานะ', ['รอตรวจสอบ', 'รออนุมัติ']);
+        const leavePending   = Array.isArray(leaveRes.data)  ? leaveRes.data.length  : 0;
+        const timePending    = Array.isArray(timeRes.data)   ? timeRes.data.length   : 0;
+        const advancePending = Array.isArray(advRes.data)    ? advRes.data.length    : 0;
         const total = leavePending + timePending + advancePending;
 
         document.getElementById('dash-pending-count').textContent = total;
@@ -1452,9 +1459,7 @@ async function loadTimeReport() {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8"><div class="flex items-center justify-center gap-2"><div class="spinner"></div> กำลังโหลด...</div></td></tr>`;
 
     try {
-        // Load all attendance using a wildcard-style approach: we call with a broad emp id
-        // Since the API requires empId, we'll load for all known employees if available
-        const res = await apiGet({ action: 'getTimeRecords', empId: '*ALL*', periodStart: start, periodEnd: end });
+        const res = await apiGet({ action: 'getAllTimeRecords', periodStart: start, periodEnd: end });
         if (!res.data || res.data.length === 0) {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-600">ไม่พบข้อมูลในรอบนี้</td></tr>`;
             return;
@@ -1685,9 +1690,8 @@ async function loadLeaveRequests() {
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8"><div class="flex items-center justify-center gap-2"><div class="spinner"></div> กำลังโหลด...</div></td></tr>`;
 
     try {
-        const res = await apiGet({ action: 'getLeaveRequests', empId: '*ALL*' });
+        const res = await apiGet({ action: 'getAllLeaveRequests', status: filterStatus || '' });
         let data = res.data || [];
-        if (filterStatus) data = data.filter(r => r['สถานะ'] === filterStatus);
         allLeaveRequests = data;
 
         if (data.length === 0) {
@@ -1748,9 +1752,8 @@ async function loadTimeEditRequests() {
     tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8"><div class="flex items-center justify-center gap-2"><div class="spinner"></div></div></td></tr>`;
 
     try {
-        const res = await apiGet({ action: 'getTimeCorrections', empId: '*ALL*' });
+        const res = await apiGet({ action: 'getAllTimeCorrections', status: filterStatus || '' });
         let data = res.data || [];
-        if (filterStatus) data = data.filter(r => r['สถานะ'] === filterStatus);
         allTimeEditRequests = data;
 
         if (data.length === 0) {
@@ -1813,9 +1816,8 @@ async function loadAdvanceRequests() {
     tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8"><div class="flex items-center justify-center gap-2"><div class="spinner"></div></div></td></tr>`;
 
     try {
-        const res = await apiGet({ action: 'getAdvanceRequests', empId: '*ALL*' });
+        const res = await apiGet({ action: 'getAllAdvanceRequests', status: filterStatus || '' });
         let data = res.data || [];
-        if (filterStatus) data = data.filter(r => r['สถานะ'] === filterStatus);
         allAdvanceRequests = data;
 
         if (data.length === 0) {
@@ -1917,30 +1919,104 @@ function filterEmployeeTable() {
 }
 
 // ─── HOLIDAYS ─────────────────────────────────────
-function loadHolidays() {
-    // Placeholder — requires "วันหยุด" sheet in Sheets
-    document.getElementById('holiday-list').innerHTML =
-        `<p class="text-xs text-slate-600 text-center py-6">ฟีเจอร์นี้ต้องการชีต "วันหยุด" ใน Google Sheets<br><span class="text-slate-700">เพิ่ม action "getHolidays" ใน Code.gs</span></p>`;
+async function loadHolidays() {
+    const yearFilter = document.getElementById('holiday-year-filter').value;
+    const listEl = document.getElementById('holiday-list');
+    listEl.innerHTML = `<div class="flex items-center gap-2 text-slate-500 text-xs py-4 justify-center"><div class="spinner"></div> กำลังโหลด...</div>`;
+    try {
+        const res = await apiGet({ action: 'getHolidays', year: yearFilter });
+        const data = res.data || [];
+        if (data.length === 0) {
+            listEl.innerHTML = `<p class="text-xs text-slate-600 text-center py-6">ยังไม่มีวันหยุดในปี ${escapeHtml(yearFilter)}</p>`;
+            return;
+        }
+        listEl.innerHTML = data.map(h => `
+            <div class="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-indigo-900/20">
+                <div class="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-400 flex-shrink-0">
+                    <i data-lucide="calendar-x" class="w-4 h-4"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-semibold text-white">${escapeHtml(h['ชื่อวันหยุด'] || '')}</p>
+                    <p class="text-xs text-slate-500">${escapeHtml(h['วันที่'] || '')} • ${escapeHtml(h['ประเภท'] || '')}</p>
+                </div>
+            </div>
+        `).join('');
+        lucide.createIcons();
+    } catch (e) {
+        listEl.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">เกิดข้อผิดพลาด: ${escapeHtml(e.message)}</p>`;
+    }
 }
 
-function addHoliday() {
+async function addHoliday() {
     const date = document.getElementById('holiday-date').value;
     const name = document.getElementById('holiday-name').value.trim();
+    const year = document.getElementById('holiday-year').value.trim();
     if (!date || !name) { showToast('กรุณากรอกข้อมูลให้ครบ', 'warning'); return; }
-    showToast('ฟีเจอร์นี้ต้องการ action "addHoliday" ใน Code.gs', 'info');
+    showToast('กำลังเพิ่มวันหยุด...', 'info');
+    try {
+        const res = await apiPost({ action: 'addHoliday', date, name, year, type: 'นักขัตฤกษ์' });
+        if (res.status === 'success') {
+            showToast(res.message || 'เพิ่มวันหยุดสำเร็จ', 'success');
+            document.getElementById('holiday-date').value = '';
+            document.getElementById('holiday-name').value = '';
+            loadHolidays();
+        } else {
+            showToast(res.message || 'เกิดข้อผิดพลาด', 'error');
+        }
+    } catch (e) {
+        showToast('เชื่อมต่อ API ล้มเหลว', 'error');
+    }
 }
 
 // ─── ANNOUNCEMENTS ────────────────────────────────
-function loadAnnouncements() {
-    document.getElementById('announcement-list').innerHTML =
-        `<p class="text-xs text-slate-600 text-center py-6">ฟีเจอร์นี้ต้องการชีต "ข่าวสาร" ใน Google Sheets<br><span class="text-slate-700">เพิ่ม action "getAnnouncements" ใน Code.gs</span></p>`;
+async function loadAnnouncements() {
+    const listEl = document.getElementById('announcement-list');
+    listEl.innerHTML = `<div class="flex items-center gap-2 text-slate-500 text-xs py-4 justify-center"><div class="spinner"></div> กำลังโหลด...</div>`;
+    try {
+        const res = await apiGet({ action: 'getAnnouncements' });
+        const data = res.data || [];
+        if (data.length === 0) {
+            listEl.innerHTML = `<p class="text-xs text-slate-600 text-center py-6">ยังไม่มีประกาศ</p>`;
+            return;
+        }
+        const typeColors = { 'สำคัญ': 'text-rose-400 bg-rose-500/10 border-rose-500/20', 'อัปเดตระบบ': 'text-blue-400 bg-blue-500/10 border-blue-500/20', 'ประกาศ HR': 'text-purple-400 bg-purple-500/10 border-purple-500/20' };
+        listEl.innerHTML = data.map(a => {
+            const typeClass = typeColors[a['ประเภท']] || 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+            return `
+                <div class="p-4 bg-slate-800/40 rounded-xl border border-indigo-900/20 space-y-2">
+                    <div class="flex items-start justify-between gap-2">
+                        <p class="text-sm font-bold text-white">${escapeHtml(a['หัวข้อ'] || '')}</p>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full border font-semibold ${typeClass} flex-shrink-0">${escapeHtml(a['ประเภท'] || 'ทั่วไป')}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">${escapeHtml(a['เนื้อหา'] || '')}</p>
+                    <p class="text-[10px] text-slate-600">โดย: ${escapeHtml(a['โพสต์โดย'] || '')} • ${escapeHtml(a['วันที่โพสต์'] || '')}</p>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        listEl.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">เกิดข้อผิดพลาด: ${escapeHtml(e.message)}</p>`;
+    }
 }
 
-function postAnnouncement() {
+async function postAnnouncement() {
     const title   = document.getElementById('ann-title').value.trim();
     const content = document.getElementById('ann-content').value.trim();
+    const type    = document.getElementById('ann-type').value;
     if (!title || !content) { showToast('กรุณากรอกหัวข้อและเนื้อหา', 'warning'); return; }
-    showToast('ฟีเจอร์นี้ต้องการ action "postAnnouncement" ใน Code.gs', 'info');
+    showToast('กำลังโพสต์ประกาศ...', 'info');
+    try {
+        const res = await apiPost({ action: 'postAnnouncement', title, content, type, postedBy: 'Admin' });
+        if (res.status === 'success') {
+            showToast(res.message || 'โพสต์ประกาศสำเร็จ 🎉', 'success');
+            document.getElementById('ann-title').value = '';
+            document.getElementById('ann-content').value = '';
+            loadAnnouncements();
+        } else {
+            showToast(res.message || 'เกิดข้อผิดพลาด', 'error');
+        }
+    } catch (e) {
+        showToast('เชื่อมต่อ API ล้มเหลว', 'error');
+    }
 }
 
 // ─── SYSTEM SETTINGS ──────────────────────────────
