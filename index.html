@@ -46,8 +46,174 @@
 </head>
 <body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-blue-100 flex justify-center min-h-screen">
 
+  <!-- =============================================================== -->
+  <!-- In-App Browser Detection Overlay                                -->
+  <!-- =============================================================== -->
+  <div id="inapp-overlay" class="fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 hidden"
+       style="background: rgba(15,23,42,0.96); backdrop-filter: blur(12px);">
+    <div class="bg-white rounded-3xl p-7 max-w-sm w-full shadow-2xl space-y-5 text-center">
+      <!-- Icon -->
+      <div class="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-inner">
+        <i class="fa-solid fa-globe text-amber-500"></i>
+      </div>
+      <!-- Title -->
+      <div>
+        <h2 class="text-base font-bold text-slate-800">กรุณาเปิดในเบราว์เซอร์ภายนอก</h2>
+        <p class="text-xs text-slate-500 mt-2 leading-relaxed" id="inapp-subtitle">เพื่อให้ระบบกล้องถ่ายภาพและ GPS ทำงานได้อย่างสมบูรณ์</p>
+      </div>
+      <!-- Steps -->
+      <div id="inapp-steps" class="text-left bg-slate-50 rounded-xl p-4 text-xs text-slate-600 leading-relaxed border border-slate-100"></div>
+      <!-- Buttons -->
+      <div class="space-y-2.5">
+        <button id="inapp-open-btn" onclick="inappTryOpenExternal()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <span id="inapp-open-label">เปิดในเบราว์เซอร์</span>
+        </button>
+        <button onclick="inappCopyUrl()"
+                class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-link"></i> คัดลอกลิงก์
+        </button>
+      </div>
+      <p class="text-[10px] text-slate-400 leading-relaxed">
+        ฟีเจอร์กล้องและ GPS ต้องการสิทธิ์เต็มรูปแบบจากเบราว์เซอร์หลักเท่านั้น
+      </p>
+    </div>
+  </div>
+
+  <!-- In-App Browser Detection Script (runs before DOM renders) -->
+  <script>
+    (function() {
+      const ua = navigator.userAgent || '';
+      const href = window.location.href;
+
+      // Detect in-app/WebView browsers
+      const isLINE      = /Line\//i.test(ua);
+      const isFB        = /FBAN|FBAV|FBIOS|FBSS/i.test(ua);
+      const isIG        = /Instagram/i.test(ua);
+      const isTwitter   = /Twitter(?:Android|iPhone)|twitt/i.test(ua);
+      const isTikTok    = /musical_ly|TikTok/i.test(ua);
+      const isIOS       = /iPhone|iPad|iPod/.test(ua);
+      const isAndroid   = /Android/.test(ua);
+
+      // iOS WebView: not standalone Safari/Chrome
+      const isSafariUA  = /Safari/i.test(ua) && !/CriOS|Chrome|OPiOS|EdgiOS/i.test(ua);
+      const isIOSWV     = isIOS && !isSafariUA && !isLINE && !isFB && !isIG && !isTwitter;
+      // Android WebView: has "wv" flag or not Chrome
+      const isAndWV     = isAndroid && (/\bwv\b/.test(ua) || (!/Chrome\/\d+/.test(ua) && /Version\/\d+/.test(ua)));
+
+      const needsRedirect = isLINE || isFB || isIG || isTwitter || isTikTok || isIOSWV || isAndWV;
+      if (!needsRedirect) return;
+
+      // LINE special: append ?openExternalBrowser=1 – LINE will auto-open in system browser
+      if (isLINE && !href.includes('openExternalBrowser=1')) {
+        const sep = href.includes('?') ? '&' : '?';
+        window.location.replace(href + sep + 'openExternalBrowser=1');
+        return;
+      }
+
+      // Store info for later use by helper functions
+      window._inappInfo = { isLINE, isFB, isIG, isTwitter, isTikTok, isIOS, isAndroid };
+
+      // Show overlay once DOM is ready
+      document.addEventListener('DOMContentLoaded', function() {
+        var overlay = document.getElementById('inapp-overlay');
+        var stepsEl = document.getElementById('inapp-steps');
+        var subtitle = document.getElementById('inapp-subtitle');
+        var openLabel = document.getElementById('inapp-open-label');
+        if (!overlay) return;
+
+        // Determine app name and instructions
+        var appName = 'แอปพลิเคชัน';
+        var browserTarget = isIOS ? 'Safari' : 'Chrome';
+        var steps = '';
+
+        if (isLINE) {
+          appName = 'LINE';
+          steps = isIOS
+            ? '<b>วิธีเปิดใน Safari:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม "..." (สามจุด) มุมขวาบน</li><li>เลือก <b>"เปิดใน Safari"</b></li></ol>'
+            : '<b>วิธีเปิดใน Chrome:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม ⋮ มุมขวาบน</li><li>เลือก <b>"เปิดใน Chrome"</b> หรือ <b>"เบราว์เซอร์"</b></li></ol>';
+        } else if (isFB) {
+          appName = 'Facebook';
+          steps = isIOS
+            ? '<b>วิธีเปิดใน Safari:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม "..." มุมล่างขวา</li><li>เลือก <b>"เปิดใน Safari"</b></li></ol>'
+            : '<b>วิธีเปิดใน Chrome:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม ⋮ มุมขวาบน</li><li>เลือก <b>"เปิดใน Chrome"</b></li></ol>';
+        } else if (isIG) {
+          appName = 'Instagram';
+          steps = isIOS
+            ? '<b>วิธีเปิดใน Safari:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม ··· มุมขวาบน</li><li>เลือก <b>"เปิดใน Safari"</b></li></ol>'
+            : '<b>วิธีเปิดใน Chrome:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม ⋮ มุมขวาบน</li><li>เลือก <b>"เปิดใน Chrome"</b></li></ol>';
+        } else if (isTwitter) {
+          appName = 'X (Twitter)';
+          steps = isIOS
+            ? '<b>วิธีเปิดใน Safari:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่มแชร์ด้านล่าง</li><li>เลือก <b>"เปิดใน Safari"</b></li></ol>'
+            : '<b>วิธีเปิดใน Chrome:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม ⋮ มุมขวาบน</li><li>เลือก <b>"เปิดใน Chrome"</b></li></ol>';
+        } else if (isTikTok) {
+          appName = 'TikTok';
+          steps = '<b>วิธีเปิดในเบราว์เซอร์:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่ม "..." มุมขวาบน</li><li>เลือก <b>"เปิดในเบราว์เซอร์"</b></li></ol>';
+        } else {
+          steps = isIOS
+            ? '<b>วิธีเปิดใน Safari:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>กดปุ่มแชร์ในแอป</li><li>เลือก <b>"เปิดใน Safari"</b></li></ol>'
+            : '<b>วิธีเปิดใน Chrome:</b><ol class="list-decimal pl-4 mt-1 space-y-1"><li>แตะปุ่มเมนู ⋮</li><li>เลือก <b>"เปิดใน Chrome"</b></li></ol>';
+        }
+
+        stepsEl.innerHTML = steps;
+        subtitle.textContent = 'คุณกำลังเปิดจาก ' + appName + ' · กรุณาเปิดใน ' + browserTarget + ' เพื่อใช้งานกล้องและ GPS';
+        openLabel.textContent = 'เปิดใน ' + browserTarget;
+        overlay.classList.remove('hidden');
+      });
+    })();
+
+    // Helper: Try to open in external browser
+    function inappTryOpenExternal() {
+      var info = window._inappInfo || {};
+      var cleanUrl = window.location.href.replace(/[?&]openExternalBrowser=1/, '');
+
+      if (info.isAndroid) {
+        // Intent URL to force Chrome on Android
+        var intentUrl = 'intent://' + cleanUrl.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end;';
+        window.location.href = intentUrl;
+        // Fallback to copy after delay
+        setTimeout(function() { inappCopyUrl(); }, 1000);
+      } else if (info.isIOS) {
+        // Can't force Safari on iOS from JS – instruct to copy
+        inappCopyUrl();
+      } else {
+        window.open(cleanUrl, '_blank');
+      }
+    }
+
+    // Helper: Copy current URL to clipboard
+    function inappCopyUrl() {
+      var cleanUrl = window.location.href.replace(/[?&]openExternalBrowser=1/, '');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cleanUrl).then(function() {
+          alert('✅ คัดลอกลิงก์สำเร็จ\nกรุณาวางใน Safari หรือ Chrome แล้วกด Go');
+        }).catch(function() {
+          _inappFallbackCopy(cleanUrl);
+        });
+      } else {
+        _inappFallbackCopy(cleanUrl);
+      }
+    }
+
+    function _inappFallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      alert('✅ คัดลอกลิงก์สำเร็จ\nกรุณาวางใน Safari หรือ Chrome แล้วกด Go');
+    }
+  </script>
+
+
   <!-- กรอบจำลองหน้าจอมือถือ (Mobile Frame) เพื่อแสดงผลได้พรีเมียมทุกแพลตฟอร์ม -->
-  <div id="app" class="w-full max-w-md bg-white min-h-screen shadow-2xl relative flex flex-col pb-24 overflow-x-hidden border-x border-slate-100">
+  <div id="app" class="w-full max-w-md bg-white h-[100dvh] shadow-2xl relative flex flex-col pb-24 overflow-hidden border-x border-slate-100">
     
     <!-- === ระบบแจ้งเตือนแจ้งข่าวด้านบน (Real-time Toasts) === -->
     <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-[340px] pointer-events-none flex flex-col gap-2"></div>
