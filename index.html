@@ -82,19 +82,9 @@
         </div>
 
         <button type="submit" class="btn-press w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3.5 rounded-xl shadow-md shadow-blue-500/10 hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2">
-          <span>เข้าสู่ระบบเพื่อใช้งาน</span>
+          <span>เข้าสู่ระบบ</span>
           <i class="fa-solid fa-arrow-right text-xs"></i>
         </button>
-
-        <!-- แถบแนะนำการทดสอบสำหรับโหมดเดโม่ -->
-        <div class="bg-blue-50 border border-blue-100 rounded-xl p-3.5 text-[11px] text-blue-800 leading-relaxed">
-          <p class="font-bold mb-1"><i class="fa-solid fa-circle-info mr-1 text-xs"></i> การล็อกอินเพื่อทดสอบระบบ:</p>
-          <p class="mb-2 text-slate-600">เนื่องจากเชื่อมโยงกับเซิร์ฟเวอร์จริงแล้ว กรุณาพิมพ์รหัสพนักงานที่ลงทะเบียนไว้ในตาราง Google Sheets ของคุณ หรือเปลี่ยนโหมดเป็น Demo เพื่อทดลองใช้บัญชีตัวอย่างด้านล่าง:</p>
-          <ul class="list-disc pl-4 space-y-0.5 text-blue-700 font-medium">
-            <li><span class="underline cursor-pointer" onclick="setLoginQuick('EMP102003')">EMP102003</span> - บัญชีทดสอบโปรแกรมเมอร์ (โหมดเดโม่)</li>
-            <li><span class="underline cursor-pointer" onclick="setLoginQuick('EMP800139')">EMP800139</span> - บัญชีผู้ควบคุมงาน (โหมดเดโม่)</li>
-          </ul>
-        </div>
       </form>
 
       <!-- ส่วนท้ายโลโก้ / ตั้งค่าการเชื่อมต่อ Google Sheets -->
@@ -599,14 +589,18 @@
           <button onclick="toggleConfigModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
-        <div class="space-y-3">
+<div class="space-y-3">
           <div class="space-y-1">
-            <label class="text-xs text-slate-500 font-semibold">โหมดการทำงานของระบบ</label>
-            <select id="config-mode-select" onchange="onConfigModeChange()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800">
-              <option value="real">เชื่อมต่อเซิร์ฟเวอร์จริง (Real Server API)</option>
-              <option value="demo">จำลองสถานการณ์การใช้งาน (Demo Mode)</option>
-            </select>
+            <label class="text-xs text-slate-500 font-semibold">Google Apps Script Web App URL</label>
+            <input id="config-api-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <p class="text-[9px] text-slate-400 leading-normal">วาง URL ที่ได้จากการ Deploy เป็น Web App ใน Apps Script ของท่าน</p>
           </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-2">
+            <button onclick="toggleConfigModal()" class="bg-slate-100 text-slate-600 text-xs py-2 rounded-lg">ยกเลิก</button>
+            <button onclick="saveSystemConfig()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 rounded-lg">บันทึก</button>
+          </div>
+        </div>
 
           <div id="config-url-section" class="space-y-1.5">
             <label class="text-xs text-slate-500 font-semibold">Google Apps Script Web App URL</label>
@@ -746,98 +740,17 @@
 
   <!-- === JavaScript logic === -->
   <script>
-    // --- โครงสร้างข้อมูลจำลองกรณี Demo Mode (หรือเมื่อ API โหลดไม่ได้) ---
-    const DEMO_EMPLOYEES_REGISTRY = {
-      "EMP102003": {
-        "รหัสพนักงาน": "EMP102003",
-        "ชื่อ-นามสกุล": "ณัฏฐ์พัชร์ พรหมรักษา",
-        "ตำแหน่ง": "วิศวกรซอฟต์แวร์",
-        "สถานะ": "ทำงานปกติ",
-        "วันหยุดประจําสัปดาห์": "อาทิตย์",
-        "ชื่อบริษัท": "บริษัท นวัตกรรมเทคโนโลยี จำกัด",
-        "วันที่เริ่มงาน": "2024-01-15",
-        "เบอร์โทรศัพท์": "089-765-4321",
-        "ที่อยู่": "123 ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000",
-        "เลขบัตรประชาชน": "1-2345-67890-12-3",
-        "วันเดือนปีเกิด": "1998-05-20",
-        "ธนาคาร": "กสิกรไทย",
-        "สาขาธนาคาร": "สาขาบุรีรัมย์",
-        "หมายเลขบัญชี": "012-3-45678-9",
-        "ลิ้งภาพโปรไฟล์": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-        "ฐานเงินเดือน": 28000,
-        "ตัวหารค่าแรง": 30,
-        "ชั่วโมงทำงานต่อวัน": 8,
-        "ตัวคูณโอที": 1.5,
-        "สิทธิ์การใช้งาน": "พนักงาน"
-      },
-      "EMP800139": {
-        "รหัสพนักงาน": "EMP800139",
-        "ชื่อ-นามสกุล": "สมชาย รักดี",
-        "ตำแหน่ง": "หัวหน้าผู้ควบคุมงาน (Foreman)",
-        "สถานะ": "ทำงานปกติ",
-        "วันหยุดประจําสัปดาห์": "อาทิตย์",
-        "ชื่อบริษัท": "บริษัท ก่อสร้างบุรีรัมย์ จำกัด",
-        "วันที่เริ่มงาน": "2022-06-01",
-        "เบอร์โทรศัพท์": "081-123-4567",
-        "ที่อยู่": "45/1 ต.อิสาณ อ.เมือง จ.บุรีรัมย์ 31000",
-        "เลขบัตรประชาชน": "3-3101-99887-65-4",
-        "วันเดือนปีเกิด": "1990-12-12",
-        "ธนาคาร": "ไทยพาณิชย์",
-        "สาขาธนาคาร": "สาขาเซาะกราว",
-        "หมายเลขบัญชี": "407-2-88776-5",
-        "ลิ้งภาพโปรไฟล์": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-        "ฐานเงินเดือน": 22000,
-        "ตัวหารค่าแรง": 30,
-        "ชั่วโมงทำงานต่อวัน": 8,
-        "ตัวคูณโอที": 1.5,
-        "สิทธิ์การใช้งาน": "พนักงาน"
-      }
-    };
-
-    const DEMO_EMPLOYEE = DEMO_EMPLOYEES_REGISTRY["EMP102003"];
-
-    let demoTimeRecords = [
-      { "วันที่": "2026-05-25", "เวลาเข้า": "07:54:12", "เวลาออก": "17:05:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
-      { "วันที่": "2026-05-24", "เวลาเข้า": "07:48:30", "เวลาออก": "17:15:20", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
-      { "วันที่": "2026-05-23", "เวลาเข้า": "08:18:00", "เวลาออก": "17:02:11", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "สาย", "นาทีสาย": 18, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "สำนักงานใหญ่", "โครงการ (ออก)": "สำนักงานใหญ่" },
-      { "วันที่": "2026-05-22", "เวลาเข้า": "07:50:45", "เวลาออก": "19:32:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 2.5, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
-      { "วันที่": "2026-05-21", "เวลาเข้า": "07:55:00", "เวลาออก": "17:01:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
-      { "วันที่": "2026-05-20", "เวลาเข้า": "07:40:00", "เวลาออก": "21:00:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 4.0, "โครงการ (เข้า)": "สำนักงานใหญ่", "โครงการ (ออก)": "สำนักงานใหญ่" },
-      { "วันที่": "2026-05-19", "เวลาเข้า": "07:58:12", "เวลาออก": "17:04:10", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
-      { "วันที่": "2026-05-18", "เวลาเข้า": "", "เวลาออก": "", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ลาป่วย", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "", "โครงการ (ออก)": "" },
-      { "วันที่": "2026-05-15", "เวลาเข้า": "07:52:00", "เวลาออก": "19:00:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 2.0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
-      { "วันที่": "2026-05-14", "เวลาเข้า": "07:55:12", "เวลาออก": "17:05:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
-    ];
-
-    let demoLeaveRequests = [
-      { "เลขที่เอกสาร": "LV-382901", "รหัสพนักงาน": "EMP102003", "ประเภทการลา": "ลาป่วย", "วันที่เริ่ม": "2026-05-18", "วันที่สิ้นสุด": "2026-05-18", "จำนวนวัน": 1, "เหตุผล": "ปวดศีรษะ ตัวร้อนเป็นไข้", "สถานะ": "อนุมัติแล้ว", "วันที่ส่ง": "2026-05-17", "อนุมัติโดย": "HR ADMIN" },
-      { "เลขที่เอกสาร": "LV-120932", "รหัสพนักงาน": "EMP102003", "ประเภทการลา": "ลาพักร้อน", "วันที่เริ่ม": "2026-05-01", "วันที่สิ้นสุด": "2026-05-01", "จำนวนวัน": 1, "เหตุผล": "ธุระส่วนตัวที่ต่างจังหวัด", "สถานะ": "อนุมัติแล้ว", "วันที่ส่ง": "2026-04-28", "อนุมัติโดย": "HR ADMIN" }
-    ];
-
-    let demoAdvanceSalary = [
-      { "รหัสพนักงาน": "EMP102003", "จำนวนเงิน": 3000, "วันที่เบิก": "2026-05-10", "รอบจ่าย": "รอบสิ้นเดือน", "สถานะ": "อนุมัติแล้ว", "หมายเหตุ": "ผ่านบัญชีธนาคารแล้ว" }
-    ];
-
-    let demoPayslips = [
-      { "รหัสพนักงาน": "EMP102003", "รอบเงินเดือน": "05/2026", "ชื่อไฟล์": "สลิปพฤษภาคม_2026.pdf", "ID ไฟล์": "file_05_2026", "URL สลิป": "#", "วันที่บันทึก": "2026-05-25", "ยอดสุทธิ": 27200 },
-      { "รหัสพนักงาน": "EMP102003", "รอบเงินเดือน": "04/2026", "ชื่อไฟล์": "สลิปเมษายน_2026.pdf", "ID ไฟล์": "file_04_2026", "URL สลิป": "#", "วันที่บันทึก": "2026-04-25", "ยอดสุทธิ": 28150 }
-    ];
-
-    // --- State การทำงาน ---
+// --- State การทำงาน ---
     let isLoggedIn = false;
     let currentEmployeeId = "";
-    let isDemoMode = false; // ปรับเปลี่ยนเป็นค่าเริ่มต้นสำหรับเชื่อมต่อจริง
-    
-    // ตั้งค่า URL เริ่มต้นจาก Google Apps Script ที่ได้รับ
-    const DEFAULT_SERVER_URL = "https://script.google.com/macros/s/AKfycbyPYNSeA-rOv8v37nSPJsjrcjAWVOszQJcFx_3Rq5eQg_aCHg_yQyOEUNOqPL9edY67mg/exec";
-    let serverApiUrl = DEFAULT_SERVER_URL;
+    let serverApiUrl = "";
     let activePage = "home";
     let currentGpsLocation = { lat: "", lng: "" };
     let streamRef = null;
     let cameraMode = "user";
     let leaveAttachmentBase64 = "";
 
-    // ข้อมูลพนักงานและข้อมูลเชิงโครงสร้างปัจจุบัน
+    // --- ข้อมูลพนักงานและข้อมูลเชิงโครงสร้างปัจจุบัน ---
     let employeeData = {};
     let timeRecordsList = [];
     let leaveRequestsList = [];
@@ -909,39 +822,23 @@
     // --- เริ่มต้นโหลดแอป (App Initialization) ---
     window.onload = function() {
       // ดึงค่าตั้งค่าระบบที่บันทึกไว้ในเบราว์เซอร์
-      const savedMode = localStorage.getItem("hr_api_mode");
       const savedUrl = localStorage.getItem("hr_api_url");
       const savedEmpId = localStorage.getItem("hr_emp_id");
       const savedLoginStatus = localStorage.getItem("is_logged_in");
 
-      // ปรับปรุงเงื่อนไขเริ่มต้น: หากไม่มีค่า URL ให้ใช้ค่า Web App URL ที่ Pre-fill มาเสมอ
+      // ถ้ามี URL ที่บันทึกไว้ ใช้ค่านั้น
       if (savedUrl) {
         serverApiUrl = savedUrl;
-      } else {
-        serverApiUrl = DEFAULT_SERVER_URL;
-        localStorage.setItem("hr_api_url", DEFAULT_SERVER_URL);
-      }
-
-      // ปรับเปลี่ยนโหมดเริ่มต้นเป็น real ถ้ายังไม่เคยถูกบันทึกค่าไว้
-      if (savedMode === "demo") {
-        isDemoMode = true;
-        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-amber-500 border-2 border-white rounded-full";
-      } else {
-        isDemoMode = false;
-        localStorage.setItem("hr_api_mode", "real");
-        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse";
       }
 
       // แสดงค่าเข้าฟอร์มตั้งค่า
-      document.getElementById("config-mode-select").value = isDemoMode ? "demo" : "real";
       document.getElementById("config-api-url").value = serverApiUrl;
-      onConfigModeChange();
 
       // ตรวจสอบสถานะการล็อกอิน
       if (savedLoginStatus === "true" && savedEmpId) {
         isLoggedIn = true;
         currentEmployeeId = savedEmpId;
-        document.getElementById("config-emp-id").value = currentEmployeeId;
+        document.getElementById("config-api-url").value = serverApiUrl;
         hideLoginContainer();
         
         // สร้างรอบบัญชีและโหลดข้อมูล
@@ -987,7 +884,7 @@
 
     function setLoginQuick(empId) {
       document.getElementById("login-emp-id").value = empId;
-      showToast(`📝 เลือกบัญชีทดลอง ${empId} (กรุณาสลับโหมด Demo ในส่วนฟันเฟืองล่างสุด เพื่อเข้าสู่ระบบเดโม่สำเร็จ)`, "warning");
+      showToast(`📝 เลือกรหัส ${empId} แล้ว กดปุ่มเข้าสู่ระบบเพื่อดำเนินการต่อ`, "info");
     }
 
     async function handleLogin(e) {
@@ -999,17 +896,24 @@
         return;
       }
 
+      if (!serverApiUrl) {
+        showToast("⚠️ กรุณาตั้งค่า Web App URL ของ Google Sheets ก่อน", "warning");
+        toggleConfigModal();
+        return;
+      }
+
       showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
 
-      if (isDemoMode) {
-        if (DEMO_EMPLOYEES_REGISTRY[empIdInput]) {
+      try {
+        const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${empIdInput}`, { timeout: 10000 });
+        
+        if (empResponse && empResponse.status === "success") {
           currentEmployeeId = empIdInput;
           isLoggedIn = true;
           localStorage.setItem("is_logged_in", "true");
           localStorage.setItem("hr_emp_id", currentEmployeeId);
-          document.getElementById("config-emp-id").value = currentEmployeeId;
 
-          showToast("🎉 เข้าสู่ระบบเสร็จสิ้น (Demo Mode)", "success");
+          showToast(`🎉 ยินดีต้อนรับคุณ ${empResponse.data["ชื่อ-นามสกุล"] || empIdInput}`, "success");
           hideLoginContainer();
           
           generateCycleOptions();
@@ -1019,40 +923,11 @@
           loadAllData();
           navigateTo("home");
         } else {
-          showToast("❌ ไม่พบรหัสพนักงานจำลองนี้! (หากใช้โหมดจริงให้สลับที่ตั้งค่าด้านล่าง)", "error");
+          showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
         }
-      } else {
-        if (!serverApiUrl) {
-          showToast("⚠️ กรุณาตั้งค่า Web App URL ของ Google Sheets ก่อน", "warning");
-          toggleConfigModal();
-          return;
-        }
-
-        try {
-          const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${empIdInput}`);
-          if (empResponse && empResponse.status === "success") {
-            currentEmployeeId = empIdInput;
-            isLoggedIn = true;
-            localStorage.setItem("is_logged_in", "true");
-            localStorage.setItem("hr_emp_id", currentEmployeeId);
-            document.getElementById("config-emp-id").value = currentEmployeeId;
-
-            showToast(`🎉 ยินดีต้อนรับคุณ ${empResponse.data["ชื่อ-นามสกุล"] || empIdInput}`, "success");
-            hideLoginContainer();
-            
-            generateCycleOptions();
-            const currentCycle = getCurrentCycleRange();
-            document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-            document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-            loadAllData();
-            navigateTo("home");
-          } else {
-            showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
-          }
-        } catch (error) {
-          console.error(error);
-          showToast("❌ ล้มเหลวในการเชื่อมต่อ Apps Script (ลองตรวจสอบการ Deploy หรือสิทธิ์เข้าใช้งาน)", "error");
-        }
+      } catch (error) {
+        console.error(error);
+        showToast("❌ เชื่อมต่อ Apps Script ไม่ได้ กรุณาตรวจสอบ URL หรือสิทธิ์เข้าใช้งาน", "error");
       }
     }
 
@@ -1076,94 +951,57 @@
     async function loadAllData() {
       if (!isLoggedIn) return;
 
-      if (isDemoMode) {
-        employeeData = Object.assign({}, DEMO_EMPLOYEES_REGISTRY[currentEmployeeId] || DEMO_EMPLOYEE);
-        
-        timeRecordsList = demoTimeRecords.map(r => {
-          let rec = Object.assign({}, r);
-          rec["รหัสพนักงาน"] = currentEmployeeId;
-          return rec;
-        });
+      if (!serverApiUrl) {
+        showToast("⚠️ ไม่พบ URL เชื่อมต่อ API กรุณาตั้งค่า", "warning");
+        toggleConfigModal();
+        return;
+      }
 
-        leaveRequestsList = demoLeaveRequests.map(r => {
-          let rec = Object.assign({}, r);
-          rec["รหัสพนักงาน"] = currentEmployeeId;
-          return rec;
-        });
+      showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
+      document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
 
-        advanceRequestsList = demoAdvanceSalary.map(r => {
-          let rec = Object.assign({}, r);
-          rec["รหัสพนักงาน"] = currentEmployeeId;
-          return rec;
-        });
-
-        payslipsList = demoPayslips.map(r => {
-          let rec = Object.assign({}, r);
-          rec["รหัสพนักงาน"] = currentEmployeeId;
-          return rec;
-        });
-
-        updateEmployeeProfileUI();
-        calculateAndDisplayStats();
-        displayActivitiesList();
-        displayLeaveHistory();
-        displayAdvanceHistory();
-        displayPayslipList();
-        
-        showToast("💡 ซิงค์ข้อมูลบัญชีพนักงานแล้ว", "info");
-      } else {
-        if (!serverApiUrl) {
-          showToast("⚠️ ไม่พบ URL เชื่อมต่อ API กรุณาตั้งค่า", "warning");
-          toggleConfigModal();
-          return;
+      const currentCycle = getCurrentCycleRange();
+      
+      try {
+        const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${currentEmployeeId}`);
+        if (empResponse.status === "success") {
+          employeeData = empResponse.data;
+          updateEmployeeProfileUI();
+        } else {
+          showToast("❌ โหลดข้อมูลพนักงานไม่สำเร็จ: " + empResponse.message, "error");
         }
 
-        showToast("🔄 กำลังซิงค์ข้อมูลกับเซิร์ฟเวอร์จริง...", "info");
-        document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
-
-        const currentCycle = getCurrentCycleRange();
-        
-        try {
-          const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${currentEmployeeId}`);
-          if (empResponse.status === "success") {
-            employeeData = empResponse.data;
-            updateEmployeeProfileUI();
-          } else {
-            showToast("❌ โหลดข้อมูลพนักงานไม่สำเร็จ: " + empResponse.message, "error");
-          }
-
-          const timeResponse = await fetchWithTimeout(`${serverApiUrl}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
-          if (timeResponse.status === "success") {
-            timeRecordsList = timeResponse.data;
-            calculateAndDisplayStats();
-            displayActivitiesList();
-          }
-
-          const leaveResponse = await fetchWithTimeout(`${serverApiUrl}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
-          if (leaveResponse.status === "success") {
-            leaveRequestsList = leaveResponse.data;
-            displayLeaveHistory();
-          }
-
-          const advanceResponse = await fetchWithTimeout(`${serverApiUrl}?action=getAdvanceRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
-          if (advanceResponse.status === "success") {
-            advanceRequestsList = advanceResponse.data;
-            displayAdvanceHistory();
-          }
-
-          const payslipResponse = await fetchWithTimeout(`${serverApiUrl}?action=getPayslips&empId=${currentEmployeeId}`);
-          if (payslipResponse.status === "success") {
-            payslipsList = payslipResponse.data;
-            displayPayslipList();
-          }
-
-          document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
-          showToast("✅ อัปเดตข้อมูลแบบเรียลไทม์สำเร็จ", "success");
-        } catch (error) {
-          console.error(error);
-          document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-rose-500";
-          showToast("❌ ดึงข้อมูลขัดข้อง (กรุณาเปิดระบบใช้งานใหม่ หรือเชื่อมต่อในโหมด Demo)", "error");
+        const timeResponse = await fetchWithTimeout(`${serverApiUrl}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        if (timeResponse.status === "success") {
+          timeRecordsList = timeResponse.data;
+          calculateAndDisplayStats();
+          displayActivitiesList();
         }
+
+        const leaveResponse = await fetchWithTimeout(`${serverApiUrl}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        if (leaveResponse.status === "success") {
+          leaveRequestsList = leaveResponse.data;
+          displayLeaveHistory();
+        }
+
+        const advanceResponse = await fetchWithTimeout(`${serverApiUrl}?action=getAdvanceRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        if (advanceResponse.status === "success") {
+          advanceRequestsList = advanceResponse.data;
+          displayAdvanceHistory();
+        }
+
+        const payslipResponse = await fetchWithTimeout(`${serverApiUrl}?action=getPayslips&empId=${currentEmployeeId}`);
+        if (payslipResponse.status === "success") {
+          payslipsList = payslipResponse.data;
+          displayPayslipList();
+        }
+
+        document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
+        showToast("✅ อัปเดตข้อมูลสำเร็จ", "success");
+      } catch (error) {
+        console.error(error);
+        document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-rose-500";
+        showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
       }
     }
 
@@ -1320,14 +1158,7 @@
       
       document.getElementById("calendar-cycle-display").textContent = `ช่วงรอบรายงาน: ${formatThaiDate(start)} - ${formatThaiDate(end)}`;
       
-      if (isDemoMode) {
-        const filteredRecords = timeRecordsList.filter(rec => {
-          return rec["วันที่"] >= start && rec["วันที่"] <= end;
-        });
-        displayCalendarDays(filteredRecords);
-      } else {
-        fetchWithCycleFilter(start, end);
-      }
+      fetchWithCycleFilter(start, end);
     }
 
     async function fetchWithCycleFilter(start, end) {
@@ -1494,7 +1325,6 @@
         return;
       }
 
-      const docId = "LV-" + Math.floor(100000 + Math.random() * 900000);
       const payload = {
         action: "submitLeave",
         empId: currentEmployeeId,
@@ -1510,46 +1340,23 @@
 
       showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล...", "info");
 
-      if (isDemoMode) {
-        const localDoc = {
-          "เลขที่เอกสาร": docId,
-          "รหัสพนักงาน": currentEmployeeId,
-          "ประเภทการลา": type,
-          "วันที่เริ่ม": start,
-          "วันที่สิ้นสุด": end,
-          "จำนวนวัน": days,
-          "เหตุผล": reason,
-          "สถานะ": "รออนุมัติ",
-          "วันที่ส่ง": new Date().toISOString().split('T')[0],
-          "อนุมัติโดย": "--"
-        };
-        demoLeaveRequests.unshift(localDoc);
-        leaveRequestsList = [...demoLeaveRequests];
+      try {
+        const res = await fetchWithTimeout(serverApiUrl, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" }
+        });
         
-        calculateAndDisplayStats();
-        displayLeaveHistory();
-        document.getElementById("leave-request-form").reset();
-        leaveAttachmentBase64 = "";
-        showToast("🎉 ส่งคำขอลาสำเร็จ (โหมดเดโม่)", "success");
-      } else {
-        try {
-          const res = await fetchWithTimeout(serverApiUrl, {
-            method: "POST",
-            body: JSON.stringify(payload),
-            headers: { "Content-Type": "application/json" }
-          });
-          
-          if (res.status === "success") {
-            showToast("🎉 ส่งใบลาเรียบร้อยแล้ว รอ HR ตรวจสอบ", "success");
-            document.getElementById("leave-request-form").reset();
-            leaveAttachmentBase64 = "";
-            loadAllData();
-          } else {
-            showToast("❌ ล้มเหลว: " + res.message, "error");
-          }
-        } catch (err) {
-          showToast("❌ ขัดข้องทางการเชื่อมต่อเซิร์ฟเวอร์", "error");
+        if (res.status === "success") {
+          showToast("🎉 ส่งใบลาเรียบร้อยแล้ว รอ HR ตรวจสอบ", "success");
+          document.getElementById("leave-request-form").reset();
+          leaveAttachmentBase64 = "";
+          loadAllData();
+        } else {
+          showToast("❌ ล้มเหลว: " + res.message, "error");
         }
+      } catch (err) {
+        showToast("❌ ขัดข้องทางการเชื่อมต่อเซิร์ฟเวอร์", "error");
       }
     }
 
@@ -1616,39 +1423,22 @@
 
       showToast("⏳ กำลังยื่นตรวจสอบคำขอเบิกเงิน...", "info");
 
-      if (isDemoMode) {
-        const localAdv = {
-          "รหัสพนักงาน": currentEmployeeId,
-          "จำนวนเงิน": amount,
-          "วันที่เบิก": new Date().toISOString().split('T')[0],
-          "รอบจ่าย": cycle,
-          "สถานะ": "รอตรวจสอบ",
-          "หมายเหตุ": reason
-        };
-        demoAdvanceSalary.unshift(localAdv);
-        advanceRequestsList = [...demoAdvanceSalary];
+      try {
+        const res = await fetchWithTimeout(serverApiUrl, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" }
+        });
         
-        displayAdvanceHistory();
-        document.getElementById("advance-request-form").reset();
-        showToast("🎉 ยื่นคำขอสำเร็จ (โหมดจำลอง)", "success");
-      } else {
-        try {
-          const res = await fetchWithTimeout(serverApiUrl, {
-            method: "POST",
-            body: JSON.stringify(payload),
-            headers: { "Content-Type": "application/json" }
-          });
-          
-          if (res.status === "success") {
-            showToast("🎉 ยื่นคำขอเบิกเงินล่วงหน้าสำเร็จแล้ว", "success");
-            document.getElementById("advance-request-form").reset();
-            loadAllData();
-          } else {
-            showToast("❌ ล้มเหลว: " + res.message, "error");
-          }
-        } catch (err) {
-          showToast("❌ ขัดข้องการเชื่อมต่อระบบเซิร์ฟเวอร์", "error");
+        if (res.status === "success") {
+          showToast("🎉 ยื่นคำขอเบิกเงินล่วงหน้าสำเร็จแล้ว", "success");
+          document.getElementById("advance-request-form").reset();
+          loadAllData();
+        } else {
+          showToast("❌ ล้มเหลว: " + res.message, "error");
         }
+      } catch (err) {
+        showToast("❌ ขัดข้องการเชื่อมต่อระบบเซิร์ฟเวอร์", "error");
       }
     }
 
@@ -1775,47 +1565,23 @@
 
       showToast("⏳ กำลังยื่นขอแก้ไขเวลางาน...", "info");
 
-      if (isDemoMode) {
-        const idx = demoTimeRecords.findIndex(r => r["วันที่"] === date);
-        if (idx !== -1) {
-          if (inNew) demoTimeRecords[idx]["เวลาเข้า"] = inNew + ":00";
-          if (outNew) demoTimeRecords[idx]["เวลาออก"] = outNew + ":00";
-          demoTimeRecords[idx]["สถานะสรุป"] = "ปกติ";
-          demoTimeRecords[idx]["นาทีสาย"] = 0;
+      try {
+        const res = await fetchWithTimeout(serverApiUrl, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" }
+        });
+        
+        if (res.status === "success") {
+          showToast("🎉 ยื่นใบคำขออนุมัติแก้ไขสำเร็จ รอ HR ตรวจสอบ", "success");
+          closeCorrectionModal();
+          document.getElementById("correction-form").reset();
+          loadAllData();
         } else {
-          demoTimeRecords.push({
-            "วันที่": date, "เวลาเข้า": inNew ? inNew + ":00" : "", "เวลาออก": outNew ? outNew + ":00" : "",
-            "รหัสพนักงาน": currentEmployeeId, "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": project
-          });
+          showToast("❌ ล้มเหลว: " + res.message, "error");
         }
-        timeRecordsList = [...demoTimeRecords];
-        
-        calculateAndDisplayStats();
-        displayActivitiesList();
-        loadCalendarRecords();
-        
-        closeCorrectionModal();
-        document.getElementById("correction-form").reset();
-        showToast("🎉 ส่งคำขอและทำการปรับเปลี่ยนข้อมูลเสร็จสิ้น (โหมดจำลอง)", "success");
-      } else {
-        try {
-          const res = await fetchWithTimeout(serverApiUrl, {
-            method: "POST",
-            body: JSON.stringify(payload),
-            headers: { "Content-Type": "application/json" }
-          });
-          
-          if (res.status === "success") {
-            showToast("🎉 ยื่นใบคำขออนุมัติแก้ไขสำเร็จ รอ HR ตรวจสอบ", "success");
-            closeCorrectionModal();
-            document.getElementById("correction-form").reset();
-            loadAllData();
-          } else {
-            showToast("❌ ล้มเหลว: " + res.message, "error");
-          }
-        } catch (err) {
-          showToast("❌ ไม่สามารถสื่อสารกับเซิร์ฟเวอร์ฐานข้อมูลได้", "error");
-        }
+      } catch (err) {
+        showToast("❌ ไม่สามารถสื่อสารกับเซิร์ฟเวอร์ฐานข้อมูลได้", "error");
       }
     }
 
@@ -1945,56 +1711,24 @@
 
       showToast(`⏳ กำลังบันทึกเวลาลงเข้า/ออกงาน...`, "info");
 
-      if (isDemoMode) {
-        if (type === "IN") {
-          const isExist = demoTimeRecords.some(r => r["วันที่"] === dateStr);
-          if (isExist) {
-            showToast("❌ คุณได้ทำการเช็คอินวันนี้แล้ว", "error");
-            return;
-          }
-          demoTimeRecords.unshift({
-            "วันที่": dateStr, "เวลาเข้า": timeStr, "เวลาออก": "", "รหัสพนักงาน": currentEmployeeId,
-            "สถานะสรุป": lateMin > 0 ? "สาย" : "ปกติ", "นาทีสาย": lateMin, "ชั่วโมง OT": 0, "โครงการ (เข้า)": project
-          });
-        } else {
-          const idx = demoTimeRecords.findIndex(r => r["วันที่"] === dateStr);
-          if (idx === -1) {
-            showToast("❌ ไม่พบข้อมูลการเข้างานเพื่อทำการบันทึกออกงาน", "error");
-            return;
-          }
-          demoTimeRecords[idx]["เวลาออก"] = timeStr;
-          demoTimeRecords[idx]["โครงการ (ออก)"] = project;
-        }
-
-        timeRecordsList = [...demoTimeRecords];
-        calculateAndDisplayStats();
-        displayActivitiesList();
+      try {
+        const res = await fetchWithTimeout(serverApiUrl, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" }
+        });
         
-        preview.classList.add("hidden");
-        document.getElementById("video-feed").classList.remove("hidden");
-
-        showToast(`🎉 เช็ค${type === "IN" ? "อินเข้า" : "เอาท์ออก"}งานสำเร็จเรียบร้อย (เดโม่)`, "success");
-        navigateTo("home");
-      } else {
-        try {
-          const res = await fetchWithTimeout(serverApiUrl, {
-            method: "POST",
-            body: JSON.stringify(payload),
-            headers: { "Content-Type": "application/json" }
-          });
-          
-          if (res.status === "success") {
-            showToast(`🎉 ${res.message}`, "success");
-            preview.classList.add("hidden");
-            document.getElementById("video-feed").classList.remove("hidden");
-            loadAllData();
-            navigateTo("home");
-          } else {
-            showToast("❌ ล้มเหลว: " + res.message, "error");
-          }
-        } catch (err) {
-          showToast("❌ ขัดข้องทางการเชื่อมโยงกับ API ฐานข้อมูล", "error");
+        if (res.status === "success") {
+          showToast(`🎉 ${res.message}`, "success");
+          preview.classList.add("hidden");
+          document.getElementById("video-feed").classList.remove("hidden");
+          loadAllData();
+          navigateTo("home");
+        } else {
+          showToast("❌ ล้มเหลว: " + res.message, "error");
         }
+      } catch (err) {
+        showToast("❌ ขัดข้องทางการเชื่อมโยงกับ API ฐานข้อมูล", "error");
       }
     }
 
@@ -2104,46 +1838,24 @@
     }
 
     function onConfigModeChange() {
-      const select = document.getElementById("config-mode-select");
-      const urlSection = document.getElementById("config-url-section");
-      if (select.value === "real") {
-        urlSection.classList.remove("hidden");
-      } else {
-        urlSection.classList.add("hidden");
-      }
+      // ไม่จำเป็นอีกต่อไป แต่เก็บไว้เผื่อใช้งานในอนาคต
     }
 
     function saveSystemConfig() {
-      const mode = document.getElementById("config-mode-select").value;
       const url = document.getElementById("config-api-url").value;
-      const empId = document.getElementById("config-emp-id").value;
 
-      if (mode === "real" && !url) {
-        showToast("⚠️ กรุณาระบุ Google Sheets Web App URL ให้ถูกต้อง", "warning");
+      if (!url) {
+        showToast("⚠️ กรุณาระบุ Google Sheets Web App URL", "warning");
         return;
       }
 
-      if (!empId) {
-        showToast("⚠️ กรุณาระบุรหัสพนักงานให้ถูกต้อง", "warning");
-        return;
-      }
-
-      localStorage.setItem("hr_api_mode", mode);
       localStorage.setItem("hr_api_url", url);
-      localStorage.setItem("hr_emp_id", empId);
-
-      isDemoMode = (mode === "demo");
       serverApiUrl = url;
-      currentEmployeeId = empId;
 
-      if (isDemoMode) {
-        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-amber-500 border-2 border-white rounded-full";
-      } else {
-        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse";
-      }
+      document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse";
 
       toggleConfigModal();
-      showToast("💾 บันทึกค่าตั้งค่าการเชื่อมต่อสำเร็จ", "success");
+      showToast("💾 บันทึกการเชื่อมต่อสำเร็จ", "success");
       
       loadAllData();
       navigateTo("home");
