@@ -811,8 +811,8 @@
         </div>
 
         <div class="grid grid-cols-2 gap-2 pt-2 border-t">
-          <button onclick="downloadPayslipDummy()" class="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1">
-            <i class="fa-solid fa-file-pdf"></i> ดาวน์โหลด PDF
+          <button id="payslip-open-btn" onclick="downloadPayslipDummy()" class="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1">
+            <i class="fa-solid fa-file-pdf"></i> เปิดเอกสาร PDF
           </button>
           <button onclick="closePayslipModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs py-2 rounded-lg">ปิดหน้าต่าง</button>
         </div>
@@ -1136,11 +1136,43 @@ async function handleLogin(e) {
     }
 
     // --- ส่วนแสดงผลโปรไฟล์พนักงาน ---
-    function updateEmployeeProfileUI() {
+        // ─────────────────────────────────────────────────────────
+    // Google Drive URL Utilities
+    // ─────────────────────────────────────────────────────────
+    function convertDriveUrl(url) {
+      if (!url || typeof url !== 'string') return url;
+      if (!url.includes('drive.google.com')) return url;
+      let fileId = null;
+      const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (m1) fileId = m1[1];
+      if (!fileId) {
+        const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (m2) fileId = m2[1];
+      }
+      if (!fileId) return url;
+      return "https://drive.google.com/thumbnail?id=" + fileId + "&sz=w400";
+    }
+
+    function openDriveFile(url) {
+      if (!url || url === 'N/A' || url === '') {
+        showToast('ไม่พบลิงก์เอกสาร', 'warning');
+        return;
+      }
+      let fileId = null;
+      const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (m) fileId = m[1];
+      if (fileId) {
+        window.open("https://drive.google.com/file/d/" + fileId + "/view", '_blank');
+      } else {
+        window.open(url, '_blank');
+      }
+    }
+
+function updateEmployeeProfileUI() {
       const name = employeeData["ชื่อ-นามสกุล"] || "ไม่พบชื่อ";
       const id = employeeData["รหัสพนักงาน"] || currentEmployeeId;
       const pos = employeeData["ตำแหน่ง"] || "วิศวกร";
-      const avatarUrl = employeeData["ลิ้งภาพโปรไฟล์"] || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80";
+      const avatarUrl = convertDriveUrl(employeeData["ลิ้งภาพโปรไฟล์"]) || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80";
 
       document.getElementById("header-avatar").src = avatarUrl;
       updateHeaderEmployeeInfo();
@@ -1630,6 +1662,12 @@ async function handleLogin(e) {
           </div>
         </div>
       `;
+      // เก็บ URL สลิปไว้ใช้กับปุ่มเปิดเอกสาร
+      window._currentSlipUrl = slip["URL สลิป"] || slip["url"] || slip["URL"] || "";
+      const openBtn = document.getElementById("payslip-open-btn");
+      if (openBtn) {
+        openBtn.style.display = window._currentSlipUrl ? "flex" : "none";
+      }
       document.getElementById("payslip-modal").classList.remove("hidden");
     }
 
@@ -1638,8 +1676,12 @@ async function handleLogin(e) {
     }
 
     function downloadPayslipDummy() {
-      showToast("💾 เริ่มการจำลองดาวน์โหลด PDF เรียบร้อยแล้ว", "success");
-      closePayslipModal();
+      const url = window._currentSlipUrl || "";
+      if (url) {
+        openDriveFile(url);
+      } else {
+        showToast("⚠️ ไม่พบลิงก์เอกสารสลิป กรุณาติดต่อฝ่ายบุคคล", "warning");
+      }
     }
 
     // --- หน้าต่างขอแก้ไขเวลา ---
