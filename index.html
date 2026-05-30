@@ -631,17 +631,16 @@
             // ถ้าวันปัจจุบัน <= 25 ของเดือนปัจจุบัน → ยังอยู่ในรอบที่แล้ว
             let startDate, endDate;
             if (now.getDate() <= 25) {
-                // รอบก่อนหน้า: 26 ของเดือนก่อน → 25 ของเดือนปัจจุบัน
                 const prevMonth = new Date(year, month - 1, 26);
                 const endOfPrevMonth = new Date(year, month, 25);
                 startDate = prevMonth;
                 endDate = endOfPrevMonth;
             } else {
-                // รอบปัจจุบัน: 26 ของเดือนปัจจุบัน → 25 ของเดือนหน้า
-                const startOfCycle = new Date(year, month, 26);
-                const endOfCycle = new Date(year, month + 1, 25);
-                startDate = startOfCycle;
-                endDate = endOfCycle;
+                // วันที่ > 25 → ยังไม่ถึงรอบใหม่ แสดงรอบล่าสุด (26 ก่อนหน้า - 25 ปัจจุบัน)
+                const prevMonth = new Date(year, month - 1, 26);
+                const currentMonthEnd = new Date(year, month, 25);
+                startDate = prevMonth;
+                endDate = currentMonthEnd;
             }
             return { startDate, endDate };
         }
@@ -860,20 +859,34 @@ const res = await fetchWithRetry(`${GOOGLE_SCRIPT_API_URL}?action=getPayslips&em
 
         function applyTimePeriodFilter() {
             const period = getSelectedCalendarPeriod();
-            activeTimeRecords = filterByAccountingPeriod(allTimeRecords, period.startDate, period.endDate);
-            renderCalendarData();
-            calculateStatistics(period);
+
+            let displayPeriod = period;
+            let filtered = filterByAccountingPeriod(allTimeRecords, period.startDate, period.endDate);
+
+            if (filtered.length === 0) {
+                const prevStart = new Date(period.startDate);
+                prevStart.setMonth(prevStart.getMonth() - 1);
+                const prevEnd = new Date(period.endDate);
+                prevEnd.setMonth(prevEnd.getMonth() - 1);
+                const prevPeriod = { startDate: prevStart, endDate: prevEnd };
+                displayPeriod = prevPeriod;
+                filtered = filterByAccountingPeriod(allTimeRecords, prevPeriod.startDate, prevPeriod.endDate);
+            }
+
+            activeTimeRecords = filtered;
+            renderCalendarData(displayPeriod);
+            calculateStatistics(displayPeriod);
         }
 
         function renderCalendarData() {
             const container = document.getElementById('calendar-days-container');
             container.innerHTML = '';
-            const period = getSelectedCalendarPeriod();
+            const period = passedPeriod || getSelectedCalendarPeriod();
 
             const filtered = filterByAccountingPeriod(allTimeRecords, period.startDate, period.endDate);
 
             if (filtered.length === 0) {
-                container.innerHTML = `<p class="text-xs text-center text-slate-400 py-6">ไม่มีข้อมูลประวัติเวลางานในรอบบัญชีนี้</p>`;
+                container.innerHTML = `<p class="text-xs text-center text-slate-400 py-6">ไม่มีข้อมูลในรอบนี้ — ลองเลือกเดือนอื่นด้านบน ↑</p>`;
                 return;
             }
 
