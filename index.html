@@ -3612,7 +3612,22 @@ function updateEmployeeProfileUI() {
             const status = rec.status;
             const duplicates = rec.duplicates || 0;
 
-            let statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px]">ปกติ</span>`;
+            // คำนวณสถานะแบบละเอียด
+            const inTime = clockIn !== "-" ? clockIn : null;
+            const outTime = clockOut !== "-" ? clockOut : null;
+            let statusLabel = 'ปกติ';
+            
+            if (inTime && outTime) {
+              const inMin = parseInt(inTime.split(':')[0]) * 60 + parseInt(inTime.split(':')[1]);
+              const outMin = parseInt(outTime.split(':')[0]) * 60 + parseInt(outTime.split(':')[1]);
+              // ถ้าออกก่อนเที่ยง (ก่อน 13:30) = ครึ่งวันเช้า
+              if (outMin <= 810) statusLabel = 'ทำงานครึ่งวันเช้า';
+              // ถ้าเข้าหลังเที่ยง (หลัง 11:30) = ครึ่งวันบ่าย
+              else if (inMin >= 690) statusLabel = 'ทำงานครึ่งวันบ่าย';
+              else statusLabel = 'ปกติ';
+            }
+
+            let statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px]">${statusLabel}</span>`;
             if (status === 'MI') statusBadge = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full text-[10px]">ลืมลงชื่อเข้า</span>`;
             else if (status === 'MO') statusBadge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">ลืมลงชื่อออก</span>`;
 
