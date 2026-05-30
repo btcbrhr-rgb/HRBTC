@@ -87,11 +87,8 @@
         </button>
       </form>
 
-      <!-- ส่วนท้ายโลโก้ / ตั้งค่าการเชื่อมต่อ Google Sheets -->
+      <!-- ส่วนท้ายโลโก้ -->
       <div class="text-center space-y-4">
-        <button type="button" onclick="toggleConfigModal()" class="text-xs text-slate-400 hover:text-slate-600 inline-flex items-center gap-1.5 transition-all">
-          <i class="fa-solid fa-gear"></i> ตั้งค่าเชื่อมต่อ Google Sheets (หรือสลับโหมดเดโม่)
-        </button>
         <p class="text-[10px] text-slate-300">© 2026 HRBTC Portal. All Rights Reserved.</p>
       </div>
 
@@ -115,12 +112,6 @@
         </div>
         
         <div class="flex items-center gap-2">
-          <!-- ปุ่มสลับโหมดเชื่อมต่อ API -->
-          <button onclick="toggleConfigModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-sm transition-all relative">
-            <i class="fa-solid fa-gear"></i>
-            <span id="api-indicator" class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
-          </button>
-          
           <!-- ปุ่มแจ้งเตือน -->
           <button onclick="showNotificationCenter()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-sm transition-all relative">
             <i class="fa-solid fa-bell"></i>
@@ -743,7 +734,7 @@
 // --- State การทำงาน ---
     let isLoggedIn = false;
     let currentEmployeeId = "";
-    let serverApiUrl = "";
+    const SERVER_API_URL = "https://script.google.com/macros/s/AKfycbyPYNSeA-rOv8v37nSPJsjrcjAWVOszQJcFx_3Rq5eQg_aCHg_yQyOEUNOqPL9edY67mg/exec";
     let activePage = "home";
     let currentGpsLocation = { lat: "", lng: "" };
     let streamRef = null;
@@ -821,27 +812,15 @@
 
     // --- เริ่มต้นโหลดแอป (App Initialization) ---
     window.onload = function() {
-      // ดึงค่าตั้งค่าระบบที่บันทึกไว้ในเบราว์เซอร์
-      const savedUrl = localStorage.getItem("hr_api_url");
+      // ตรวจสอบสถานะการล็อกอิน
       const savedEmpId = localStorage.getItem("hr_emp_id");
       const savedLoginStatus = localStorage.getItem("is_logged_in");
 
-      // ถ้ามี URL ที่บันทึกไว้ ใช้ค่านั้น
-      if (savedUrl) {
-        serverApiUrl = savedUrl;
-      }
-
-      // แสดงค่าเข้าฟอร์มตั้งค่า
-      document.getElementById("config-api-url").value = serverApiUrl;
-
-      // ตรวจสอบสถานะการล็อกอิน
       if (savedLoginStatus === "true" && savedEmpId) {
         isLoggedIn = true;
         currentEmployeeId = savedEmpId;
-        document.getElementById("config-api-url").value = serverApiUrl;
         hideLoginContainer();
         
-        // สร้างรอบบัญชีและโหลดข้อมูล
         generateCycleOptions();
         const currentCycle = getCurrentCycleRange();
         document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
@@ -852,7 +831,6 @@
         showLoginContainer();
       }
 
-      // เริ่มการทำงานพิกัดและกล้อง
       startLiveTime();
       requestGpsPosition();
       initCamera();
@@ -887,7 +865,7 @@
       showToast(`📝 เลือกรหัส ${empId} แล้ว กดปุ่มเข้าสู่ระบบเพื่อดำเนินการต่อ`, "info");
     }
 
-    async function handleLogin(e) {
+async function handleLogin(e) {
       e.preventDefault();
       const empIdInput = document.getElementById("login-emp-id").value.trim().toUpperCase();
 
@@ -896,7 +874,36 @@
         return;
       }
 
-      if (!serverApiUrl) {
+      showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
+
+      try {
+        const empResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${empIdInput}`, { timeout: 10000 });
+        
+        if (empResponse && empResponse.status === "success") {
+          currentEmployeeId = empIdInput;
+          isLoggedIn = true;
+          localStorage.setItem("is_logged_in", "true");
+          localStorage.setItem("hr_emp_id", currentEmployeeId);
+
+          showToast(`🎉 ยินดีต้อนรับคุณ ${empResponse.data["ชื่อ-นามสกุล"] || empIdInput}`, "success");
+          hideLoginContainer();
+          
+          generateCycleOptions();
+          const currentCycle = getCurrentCycleRange();
+          document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+          document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+          loadAllData();
+          navigateTo("home");
+        } else {
+          showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
+        }
+      } catch (error) {
+        console.error(error);
+        showToast("❌ เชื่อมต่อ Apps Script ไม่ได้ กรุณาตรวจสอบสิทธิ์เข้าใช้งาน", "error");
+      }
+    }
+
+      if (!SERVER_API_URL) {
         showToast("⚠️ กรุณาตั้งค่า Web App URL ของ Google Sheets ก่อน", "warning");
         toggleConfigModal();
         return;
@@ -905,7 +912,7 @@
       showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
 
       try {
-        const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${empIdInput}`, { timeout: 10000 });
+        const empResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${empIdInput}`, { timeout: 10000 });
         
         if (empResponse && empResponse.status === "success") {
           currentEmployeeId = empIdInput;
@@ -947,15 +954,9 @@
       showLoginContainer();
     }
 
-    // --- ส่วนบริการดึงข้อมูลและ API (API Services) ---
+// --- ส่วนบริการดึงข้อมูลและ API (API Services) ---
     async function loadAllData() {
       if (!isLoggedIn) return;
-
-      if (!serverApiUrl) {
-        showToast("⚠️ ไม่พบ URL เชื่อมต่อ API กรุณาตั้งค่า", "warning");
-        toggleConfigModal();
-        return;
-      }
 
       showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
       document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
@@ -963,7 +964,7 @@
       const currentCycle = getCurrentCycleRange();
       
       try {
-        const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${currentEmployeeId}`);
+        const empResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${currentEmployeeId}`);
         if (empResponse.status === "success") {
           employeeData = empResponse.data;
           updateEmployeeProfileUI();
@@ -971,26 +972,74 @@
           showToast("❌ โหลดข้อมูลพนักงานไม่สำเร็จ: " + empResponse.message, "error");
         }
 
-        const timeResponse = await fetchWithTimeout(`${serverApiUrl}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        const timeResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
         if (timeResponse.status === "success") {
           timeRecordsList = timeResponse.data;
           calculateAndDisplayStats();
           displayActivitiesList();
         }
 
-        const leaveResponse = await fetchWithTimeout(`${serverApiUrl}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        const leaveResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
         if (leaveResponse.status === "success") {
           leaveRequestsList = leaveResponse.data;
           displayLeaveHistory();
         }
 
-        const advanceResponse = await fetchWithTimeout(`${serverApiUrl}?action=getAdvanceRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        const advanceResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
         if (advanceResponse.status === "success") {
           advanceRequestsList = advanceResponse.data;
           displayAdvanceHistory();
         }
 
-        const payslipResponse = await fetchWithTimeout(`${serverApiUrl}?action=getPayslips&empId=${currentEmployeeId}`);
+        const payslipResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getPayslips&empId=${currentEmployeeId}`);
+        if (payslipResponse.status === "success") {
+          payslipsList = payslipResponse.data;
+          displayPayslipList();
+        }
+
+        document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
+        showToast("✅ อัปเดตข้อมูลสำเร็จ", "success");
+      } catch (error) {
+        console.error(error);
+        document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-rose-500";
+        showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
+      }
+    }
+
+      showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
+      document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+
+      const currentCycle = getCurrentCycleRange();
+      
+      try {
+        const empResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${currentEmployeeId}`);
+        if (empResponse.status === "success") {
+          employeeData = empResponse.data;
+          updateEmployeeProfileUI();
+        } else {
+          showToast("❌ โหลดข้อมูลพนักงานไม่สำเร็จ: " + empResponse.message, "error");
+        }
+
+        const timeResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        if (timeResponse.status === "success") {
+          timeRecordsList = timeResponse.data;
+          calculateAndDisplayStats();
+          displayActivitiesList();
+        }
+
+        const leaveResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        if (leaveResponse.status === "success") {
+          leaveRequestsList = leaveResponse.data;
+          displayLeaveHistory();
+        }
+
+        const advanceResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        if (advanceResponse.status === "success") {
+          advanceRequestsList = advanceResponse.data;
+          displayAdvanceHistory();
+        }
+
+        const payslipResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getPayslips&empId=${currentEmployeeId}`);
         if (payslipResponse.status === "success") {
           payslipsList = payslipResponse.data;
           displayPayslipList();
@@ -1166,7 +1215,7 @@
       container.innerHTML = `<div class="text-center py-10"><i class="fa-solid fa-rotate animate-spin text-2xl text-blue-500 block mb-2 mx-auto"></i><span class="text-xs text-slate-500">กำลังเชื่อมต่อฐานข้อมูล...</span></div>`;
       
       try {
-        const url = `${serverApiUrl}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
+        const url = `${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
         const res = await fetchWithTimeout(url);
         if (res.status === "success") {
           displayCalendarDays(res.data);
@@ -1341,7 +1390,7 @@
       showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล...", "info");
 
       try {
-        const res = await fetchWithTimeout(serverApiUrl, {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           body: JSON.stringify(payload),
           headers: { "Content-Type": "application/json" }
@@ -1424,7 +1473,7 @@
       showToast("⏳ กำลังยื่นตรวจสอบคำขอเบิกเงิน...", "info");
 
       try {
-        const res = await fetchWithTimeout(serverApiUrl, {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           body: JSON.stringify(payload),
           headers: { "Content-Type": "application/json" }
@@ -1566,7 +1615,7 @@
       showToast("⏳ กำลังยื่นขอแก้ไขเวลางาน...", "info");
 
       try {
-        const res = await fetchWithTimeout(serverApiUrl, {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           body: JSON.stringify(payload),
           headers: { "Content-Type": "application/json" }
@@ -1712,7 +1761,7 @@
       showToast(`⏳ กำลังบันทึกเวลาลงเข้า/ออกงาน...`, "info");
 
       try {
-        const res = await fetchWithTimeout(serverApiUrl, {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           body: JSON.stringify(payload),
           headers: { "Content-Type": "application/json" }
@@ -1850,7 +1899,7 @@
       }
 
       localStorage.setItem("hr_api_url", url);
-      serverApiUrl = url;
+      SERVER_API_URL = url;
 
       document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse";
 
