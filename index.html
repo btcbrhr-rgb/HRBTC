@@ -1602,6 +1602,61 @@
             </div>
           </div>
 
+  <!-- Modal: แก้ไขกฎสรุปสถานะ -->
+  <div id="symbol-rules-modal" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs hidden">
+    <div class="bg-slate-900 rounded-2xl border border-slate-700 w-full max-w-2xl shadow-2xl">
+      <div class="flex justify-between items-center p-5 border-b border-slate-800">
+        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-tags text-pink-400"></i> แก้ไขกฎสรุปสถานะ
+        </h3>
+        <button onclick="closeSymbolRulesModal()" class="text-slate-500 hover:text-slate-300 transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-xs text-slate-400">กรอก JSON object โดย key คือสถานะ เช่น W, L, A, H, S</p>
+        <textarea id="symbolRulesInput" rows="14" class="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none" placeholder='{
+  "W": { "fillIn": "08:00", "fillOut": "17:00" },
+  "A": { "clearIn": true, "clearOut": true }
+}'></textarea>
+        <div class="text-[10px] text-slate-500 space-y-1 bg-slate-950 rounded-lg p-3">
+          <p><b>fillIn/fillOut</b>: เติมเวลาเข้า/ออก เช่น <code class="text-cyan-400">{"fillIn":"08:00","fillOut":"17:00"}</code></p>
+          <p><b>clearIn/clearOut</b>: ล้างเวลา เช่น <code class="text-rose-400">{"clearIn":true,"clearOut":true}</code></p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 p-5 border-t border-slate-800">
+        <button onclick="closeSymbolRulesModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs px-4 py-2 rounded-xl transition-all">
+          ยกเลิก
+        </button>
+        <button onclick="saveSymbolRules()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition-all">
+          <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึก
+        </button>
+      </div>
+    </div>
+  </div>
+          <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-4">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-tags text-pink-400"></i> กฎสรุปสถานะ
+              </h3>
+              <button onclick="openSymbolRulesEditor()" class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] px-2.5 py-1 rounded-lg border border-slate-700 transition-all">
+                <i class="fa-solid fa-pen mr-1"></i> แก้ไข
+              </button>
+            </div>
+            <div id="symbolRulesTable" class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="text-slate-500 border-b border-slate-800">
+                    <th class="text-left px-2 py-1 font-semibold">สถานะ</th>
+                    <th class="text-left px-2 py-1 font-semibold">การกระทำ</th>
+                    <th class="text-left px-2 py-1 font-semibold">รายละเอียด</th>
+                  </tr>
+                </thead>
+                <tbody id="symbolRulesBody"></tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- ปุ่มบันทึก -->
           <div class="flex justify-end">
             <button onclick="saveAdminSettings()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-6 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition-all">
@@ -4218,6 +4273,14 @@ function updateEmployeeProfileUI() {
           document.getElementById("setting-billingCycleEndDay").value = s.billingCycleEndDay || 25;
           document.getElementById("setting-defaultCentralProject").value = s.defaultCentralProject || "(00)บุรีรัมย์";
           showToast("✅ โหลดการตั้งค่าระบบสำเร็จ", "success");
+
+          // โหลดกฎสรุปสถานะ
+          try {
+            currentSymbolRules = JSON.parse(s.symbolRules || '{}');
+          } catch {
+            currentSymbolRules = {};
+          }
+          renderSymbolRulesTable();
         } else {
           showToast("❌ โหลดการตั้งค่าล้มเหลว: " + res.message, "error");
         }
@@ -4291,6 +4354,114 @@ function updateEmployeeProfileUI() {
         });
         if (res.status === 'success') {
           showToast("🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว", "success");
+        } else {
+          showToast("❌ บันทึกล้มเหลว: " + res.message, "error");
+        }
+      } catch (err) {
+        showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
+      }
+    }
+
+    // ─── กฎสรุปสถานะ (Symbol Rules) ────────────────────────────
+    let currentSymbolRules = {};
+
+    async function loadSymbolRules() {
+      try {
+        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings`);
+        if (res.status === 'success') {
+          try {
+            currentSymbolRules = JSON.parse(res.data.symbolRules || '{}');
+          } catch {
+            currentSymbolRules = {};
+          }
+          renderSymbolRulesTable();
+        }
+      } catch (err) {
+        console.error('โหลด symbolRules ล้มเหลว:', err);
+      }
+    }
+
+    function renderSymbolRulesTable() {
+      const tbody = document.getElementById('symbolRulesBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const sortedKeys = Object.keys(currentSymbolRules).sort();
+      sortedKeys.forEach(key => {
+        const rule = currentSymbolRules[key];
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-slate-800 hover:bg-slate-800/50';
+
+        let actionText = '';
+        let detailText = '';
+
+        if (rule.fillIn && rule.fillOut) {
+          actionText = `<span class="text-emerald-400">เติมเวลาเข้า-ออก</span>`;
+          detailText = `${rule.fillIn} → ${rule.fillOut}`;
+        } else if (rule.fillIn) {
+          actionText = `<span class="text-cyan-400">เติมเวลาเข้า</span>`;
+          detailText = rule.fillIn;
+        } else if (rule.fillOut) {
+          actionText = `<span class="text-amber-400">เติมเวลาออก</span>`;
+          detailText = rule.fillOut;
+        } else if (rule.clearIn || rule.clearOut) {
+          actionText = `<span class="text-rose-400">ล้างเวลา</span>`;
+          detailText = [
+            rule.clearIn ? 'ลบเข้า' : '',
+            rule.clearOut ? 'ลบออก' : ''
+          ].filter(Boolean).join(', ') || 'ทั้งสอง';
+        }
+
+        tr.innerHTML = `
+          <td class="px-2 py-2 font-mono text-indigo-300 font-semibold">${key}</td>
+          <td class="px-2 py-2">${actionText}</td>
+          <td class="px-2 py-2 text-slate-400">${detailText}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      if (sortedKeys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="px-2 py-4 text-center text-slate-500">ยังไม่มีกฎ</td></tr>';
+      }
+    }
+
+    function openSymbolRulesEditor() {
+      const modal = document.getElementById('symbol-rules-modal');
+      const textarea = document.getElementById('symbolRulesInput');
+      textarea.value = JSON.stringify(currentSymbolRules, null, 2);
+      modal.classList.remove('hidden');
+    }
+
+    function closeSymbolRulesModal() {
+      document.getElementById('symbol-rules-modal').classList.add('hidden');
+    }
+
+    async function saveSymbolRules() {
+      const textarea = document.getElementById('symbolRulesInput');
+      try {
+        JSON.parse(textarea.value);
+      } catch (e) {
+        showToast("❌ JSON ไม่ถูกต้อง: " + e.message, "error");
+        return;
+      }
+
+      const newRules = textarea.value;
+      currentSymbolRules = JSON.parse(newRules);
+
+      showToast("⏳ กำลังบันทึกกฎสรุปสถานะ...", "info");
+      try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "saveSystemSettings",
+            settings: { symbolRules: newRules }
+          })
+        });
+        if (res.status === 'success') {
+          renderSymbolRulesTable();
+          closeSymbolRulesModal();
+          showToast("🎉 บันทึกกฎสรุปสถานะสำเร็จแล้ว", "success");
         } else {
           showToast("❌ บันทึกล้มเหลว: " + res.message, "error");
         }
