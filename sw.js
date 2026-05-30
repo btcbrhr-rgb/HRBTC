@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hrbtc-cache-v2';
+const CACHE_NAME = 'hrbtc-cache-v3';
 // Local app files only — CDN resources are cached by browser HTTP cache
 // No version pinning for external CDN in service worker (avoids stale versions)
 const ASSETS_TO_CACHE = [
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[HRBTC SW] Caching essential assets v2...');
+      console.log('[HRBTC SW] Caching essential assets v3...');
       return cache.addAll(ASSETS_TO_CACHE).catch(err => {
         console.warn('[HRBTC SW] Failed to cache some assets:', err);
       });
@@ -45,7 +45,6 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   // For Google API calls — always go network-first, never serve from cache
-// For Google API calls — always go network-first, never serve from cache
   // Match only actual Google domains (script.google.com, googleapis.com, etc.)
   const googleHosts = [
     'script.google.com',
