@@ -8,6 +8,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <!-- Google Fonts Prompt -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -282,6 +285,11 @@
           <button onclick="showNotificationCenter()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-sm transition-all relative">
             <i class="fa-solid fa-bell"></i>
             <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping"></span>
+          </button>
+
+          <!-- ปุ่มสลับโหมดผู้ดูแลระบบ (ซ่อนไว้สำหรับพนักงานทั่วไป) -->
+          <button id="admin-switch-btn" onclick="toggleAdminMode()" title="สลับไปโหมดผู้ดูแลระบบ" aria-label="สลับไปโหมดผู้ดูแลระบบ" class="hidden w-8 h-8 rounded-full bg-white/10 hover:bg-indigo-600/35 hover:text-indigo-200 flex items-center justify-center text-sm transition-all animate-bounce">
+            <i class="fa-solid fa-users-gear"></i>
           </button>
           
           <!-- ปุ่มออกจากระบบ -->
@@ -880,10 +888,593 @@
 
   </div>
 
+  <!-- =============================================================== -->
+  <!-- [ADMIN PORTAL: แผงควบคุมผู้ดูแลระบบบนคอมพิวเตอร์]                  -->
+  <!-- =============================================================== -->
+  <div id="admin-app" class="hidden fixed inset-0 z-50 w-full h-full bg-slate-950 text-slate-100 flex overflow-hidden">
+    
+    <!-- 1. Sidebar (แถบเมนูด้านซ้าย) -->
+    <aside class="w-72 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0">
+      <div>
+        <!-- Brand Header -->
+        <div class="px-6 py-5 bg-slate-950/80 border-b border-slate-800/60 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+            <i class="fa-solid fa-shield-halved text-base"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-100 tracking-wide uppercase">HRBTC Admin</h2>
+            <p class="text-[10px] text-indigo-400 font-medium">แผงควบคุมระบบจัดการข้อมูล</p>
+          </div>
+        </div>
+
+        <!-- Navigation Menu -->
+        <nav class="p-4 space-y-6">
+          <div>
+            <span class="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2.5">งานประจำวันและการอนุมัติ</span>
+            <div class="space-y-1">
+              <button onclick="switchAdminTab('import-time')" id="admin-menu-import-time" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                <i class="fa-solid fa-file-import text-slate-500"></i> นำเข้าเวลางาน (.txt)
+              </button>
+              <button onclick="switchAdminTab('import-payslip')" id="admin-menu-import-payslip" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                <i class="fa-solid fa-file-invoice text-slate-500"></i> นำเข้าสลิปเงินเดือน (.pdf)
+              </button>
+              <button onclick="switchAdminTab('approve-leave')" id="admin-menu-approve-leave" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                <i class="fa-solid fa-plane-departure text-slate-500"></i> อนุมัติใบลางาน
+              </button>
+              <button onclick="switchAdminTab('approve-correction')" id="admin-menu-approve-correction" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                <i class="fa-solid fa-clock-rotate-left text-slate-500"></i> อนุมัติแก้ไขเวลา
+              </button>
+              <button onclick="switchAdminTab('approve-advance')" id="admin-menu-approve-advance" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                <i class="fa-solid fa-hand-holding-dollar text-slate-500"></i> อนุมัติเบิกเงินสำรอง
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <span class="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2.5">การจัดการข้อมูลพนักงาน</span>
+            <div class="space-y-1">
+              <button onclick="switchAdminTab('employees')" id="admin-menu-employees" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left">
+                <i class="fa-solid fa-users text-slate-500"></i> จัดการรายชื่อพนักงาน & สิทธิ์
+              </button>
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      <!-- User Footer Profile & Mode Toggle -->
+      <div class="p-4 border-t border-slate-800 bg-slate-950/40 space-y-3">
+        <div class="flex items-center gap-3 px-2">
+          <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-indigo-400 overflow-hidden border border-slate-700">
+            <i class="fa-solid fa-user-tie text-lg"></i>
+          </div>
+          <div class="min-w-0">
+            <p id="admin-profile-name" class="text-xs font-semibold text-slate-100 truncate">System Admin</p>
+            <p id="admin-profile-role" class="text-[10px] text-slate-500 truncate">Administrator</p>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="toggleAdminMode()" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-semibold bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/25 transition-all">
+            <i class="fa-solid fa-mobile-screen-button"></i> สลับโหมดมือถือ
+          </button>
+          <button onclick="logout()" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 transition-all">
+            <i class="fa-solid fa-right-from-bracket"></i> ออกจากระบบ
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2. Main Workspace (พื้นที่ทำงานด้านขวา) -->
+    <main class="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-hidden">
+      <!-- Topbar Header -->
+      <header class="h-16 border-b border-slate-800/80 bg-slate-900/40 px-8 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <h1 id="admin-page-title" class="text-base font-bold text-slate-100">นำเข้าเวลางาน (.txt)</h1>
+          <span class="text-xs text-slate-500">|</span>
+          <p id="admin-page-desc" class="text-[11px] text-slate-400">นำเข้าประวัติการแสกนนิ้วจากไฟล์บันทึกเวลาสากล</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+            <span class="text-xs text-slate-400 font-medium">เซิร์ฟเวอร์ฐานข้อมูลใช้งานได้ปกติ</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Area Scrollable -->
+      <div class="flex-1 p-8 overflow-y-auto min-h-0 space-y-6">
+        
+        <!-- SECTION 1: นำเข้าเวลางาน (.txt) -->
+        <section id="admin-sec-import-time" class="admin-sec hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Upload Card -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 flex flex-col justify-between">
+              <div class="space-y-4">
+                <h3 class="text-sm font-bold text-slate-200">เลือกไฟล์ประวัติเวลางาน</h3>
+                <p class="text-xs text-slate-400 leading-relaxed">กรุณาอัปโหลดไฟล์ (.txt) ที่บันทึกข้อมูลการสแกนนิ้วเพื่อดำเนินการประมวลผล Dry-run</p>
+                <div class="border-2 border-dashed border-slate-800 rounded-xl p-8 text-center hover:border-indigo-500/50 cursor-pointer transition-all flex flex-col items-center justify-center gap-3" onclick="document.getElementById('txt-time-file').click()">
+                  <i class="fa-solid fa-file-lines text-3xl text-indigo-500"></i>
+                  <span class="text-xs text-slate-400" id="txt-file-label">เลือกไฟล์ .txt ที่นี่</span>
+                  <input type="file" id="txt-time-file" accept=".txt" class="hidden" title="เลือกไฟล์เวลางาน .txt" aria-label="เลือกไฟล์เวลางาน .txt" onchange="handleTxtFileSelect(event)">
+                </div>
+              </div>
+              <div class="pt-4 flex gap-2">
+                <button onclick="processTxtImport(true)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-all border border-slate-700">พรีวิวการประมวลผล</button>
+                <button onclick="processTxtImport(false)" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2.5 rounded-xl transition-all shadow-md shadow-indigo-600/20">บันทึกข้อมูลจริง</button>
+              </div>
+            </div>
+            <!-- Summary Stats -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 lg:col-span-2 space-y-5">
+              <h3 class="text-sm font-bold text-slate-200">สรุปการประมวลผลไฟล์ (พรีวิว)</h3>
+              <div class="grid grid-cols-4 gap-4" id="txt-summary-stats">
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+                  <p class="text-[10px] text-slate-500 font-bold uppercase">จำนวนบรรทัด</p>
+                  <p class="text-xl font-bold text-slate-200 mt-1" id="txt-stat-lines">0</p>
+                </div>
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+                  <p class="text-[10px] text-slate-500 font-bold uppercase">ประมวลผลวัน</p>
+                  <p class="text-xl font-bold text-slate-200 mt-1" id="txt-stat-days">0</p>
+                </div>
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+                  <p class="text-[10px] text-slate-500 font-bold uppercase">เตือน (Warnings)</p>
+                  <p class="text-xl font-bold text-amber-500 mt-1" id="txt-stat-warn">0</p>
+                </div>
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
+                  <p class="text-[10px] text-slate-500 font-bold uppercase">ความผิดปกติ</p>
+                  <p class="text-xl font-bold text-rose-500 mt-1" id="txt-stat-errors">0</p>
+                </div>
+              </div>
+              <!-- Log warnings -->
+              <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 max-h-[140px] overflow-y-auto space-y-2">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">รายการตรวจสอบข้อมูลผิดพลาด</p>
+                <div id="txt-warnings-log" class="text-xs space-y-1.5 text-slate-400">
+                  <span class="text-slate-500 italic block">ไม่มีคำเตือนความผิดพลาด</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview Table -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 class="text-sm font-bold text-slate-200">รายละเอียดตารางเวลาที่เตรียมบันทึก</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                    <th class="py-2.5 font-semibold">วันที่</th>
+                    <th class="py-2.5 font-semibold">เวลาเข้า</th>
+                    <th class="py-2.5 font-semibold">เวลาออก</th>
+                    <th class="py-2.5 font-semibold">สถานะสรุป</th>
+                    <th class="py-2.5 font-semibold">ข้อมูลแสกนนิ้วซ้ำ</th>
+                  </tr>
+                </thead>
+                <tbody id="txt-preview-table-body" class="divide-y divide-slate-800/40 text-slate-300">
+                  <tr>
+                    <td colspan="6" class="py-6 text-center text-slate-500 italic">โปรดอัปโหลดไฟล์เวลางานและกดพรีวิวเพื่อแสดงข้อมูลที่นี่</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: นำเข้าสลิปเงินเดือน (.pdf) -->
+        <section id="admin-sec-import-payslip" class="admin-sec hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Upload Card -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 flex flex-col justify-between">
+              <div class="space-y-4">
+                <h3 class="text-sm font-bold text-slate-200">อัปโหลดไฟล์สลิปรวม</h3>
+                <p class="text-xs text-slate-400 leading-relaxed">กรุณาเลือกไฟล์ PDF รวมสลิปเงินเดือนของพนักงาน ระบบจะแยกรายหน้า ดึงข้อมูลอัตโนมัติ และอัปโหลดไปยัง Google Drive ส่วนตัวพนักงาน</p>
+                <div class="border-2 border-dashed border-slate-800 rounded-xl p-8 text-center hover:border-emerald-500/50 cursor-pointer transition-all flex flex-col items-center justify-center gap-3" onclick="document.getElementById('pdf-payslip-file').click()">
+                  <i class="fa-solid fa-file-pdf text-3xl text-emerald-500"></i>
+                  <span class="text-xs text-slate-400" id="pdf-file-label">เลือกไฟล์ .pdf ที่นี่</span>
+                  <input type="file" id="pdf-payslip-file" accept=".pdf" class="hidden" title="เลือกไฟล์สลิปเงินเดือน .pdf" aria-label="เลือกไฟล์สลิปเงินเดือน .pdf" onchange="handlePdfFileSelect(event)">
+                </div>
+              </div>
+              <div class="pt-4 flex gap-2">
+                <button onclick="processPdfParse()" id="pdf-btn-parse" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-all border border-slate-700" disabled>1. วิเคราะห์ข้อความในเอกสาร</button>
+                <button onclick="uploadParsedPayslips()" id="pdf-btn-upload" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 rounded-xl transition-all shadow-md shadow-emerald-600/20" disabled>2. อัปโหลดและบันทึกสลิป</button>
+              </div>
+            </div>
+
+            <!-- Upload progress / PDF parser summary -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 lg:col-span-2 space-y-4">
+              <h3 class="text-sm font-bold text-slate-200">สถานะการประมวลผลสลิป</h3>
+              <div class="space-y-3">
+                <div class="flex justify-between text-xs text-slate-400">
+                  <span>สถานะการอ่านไฟล์ PDF:</span>
+                  <span id="pdf-parse-status" class="font-bold text-slate-200">ยังไม่ได้รับการวิเคราะห์</span>
+                </div>
+                <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                  <div id="pdf-parse-progress" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-3 pt-2">
+                <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-center">
+                  <p class="text-[9px] text-slate-500 font-bold uppercase">จำนวนหน้าสลิป</p>
+                  <p class="text-lg font-bold text-slate-200 mt-1" id="pdf-stat-pages">0</p>
+                </div>
+                <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-center">
+                  <p class="text-[9px] text-slate-500 font-bold uppercase">พบคู่ข้อมูลพนักงาน</p>
+                  <p class="text-lg font-bold text-emerald-500 mt-1" id="pdf-stat-matched">0</p>
+                </div>
+                <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-center">
+                  <p class="text-[9px] text-slate-500 font-bold uppercase">ไม่พบพนักงาน</p>
+                  <p class="text-lg font-bold text-rose-500 mt-1" id="pdf-stat-unmatched">0</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview pdf pages table -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 class="text-sm font-bold text-slate-200">ตารางข้อมูลสลิปรายบุคคลที่สกัดออก (กรุณาแก้ไขข้อผิดพลาดก่อนบันทึก)</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-2.5 font-semibold w-16">หน้า</th>
+                    <th class="py-2.5 font-semibold w-40">รหัสพนักงาน (กรอก/แก้ไขได้)</th>
+                    <th class="py-2.5 font-semibold w-52">ชื่อ-นามสกุล</th>
+                    <th class="py-2.5 font-semibold w-32">รอบเงินเดือน</th>
+                    <th class="py-2.5 font-semibold w-32">ยอดเงินโอนสุทธิ</th>
+                    <th class="py-2.5 font-semibold">ผลลัพธ์การคู่ข้อมูล</th>
+                  </tr>
+                </thead>
+                <tbody id="pdf-preview-table-body" class="divide-y divide-slate-800/40 text-slate-300">
+                  <tr>
+                    <td colspan="6" class="py-6 text-center text-slate-500 italic">โปรดอัปโหลดไฟล์สลิปรวม PDF และทำการวิเคราะห์ก่อนส่งบันทึก</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 3: อนุมัติใบลางาน -->
+        <section id="admin-sec-approve-leave" class="admin-sec hidden space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-200">คำขอการลางานของพนักงานทั้งหมด (รอการตรวจสอบและอนุมัติ)</h3>
+              <button onclick="loadAdminApprovals()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3.5 py-1.5 rounded-lg border border-slate-700 transition-all">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> ซิงค์ข้อมูลล่าสุด
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-2.5 font-semibold">เลขที่เอกสาร</th>
+                    <th class="py-2.5 font-semibold">พนักงาน</th>
+                    <th class="py-2.5 font-semibold">ประเภทการลา</th>
+                    <th class="py-2.5 font-semibold">ช่วงวันที่</th>
+                    <th class="py-2.5 font-semibold text-center">จำนวนวัน</th>
+                    <th class="py-2.5 font-semibold">เหตุผล</th>
+                    <th class="py-2.5 font-semibold">หลักฐาน</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
+                    <th class="py-2.5 font-semibold text-right">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-leave-table-body" class="divide-y divide-slate-800/40 text-slate-300">
+                  <tr>
+                    <td colspan="9" class="py-6 text-center text-slate-500 italic">อยู่ระหว่างการโหลดคำขอลาจากฐานข้อมูล...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 4: อนุมัติแก้ไขเวลา -->
+        <section id="admin-sec-approve-correction" class="admin-sec hidden space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-200">คำขอร้องแก้ไขเวลางานย้อนหลัง</h3>
+              <button onclick="loadAdminApprovals()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3.5 py-1.5 rounded-lg border border-slate-700 transition-all">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> ซิงค์ข้อมูลล่าสุด
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                    <th class="py-2.5 font-semibold">วันที่ร้องขอ</th>
+                    <th class="py-2.5 font-semibold">เวลาเข้าใหม่</th>
+                    <th class="py-2.5 font-semibold">เวลาออกใหม่</th>
+                    <th class="py-2.5 font-semibold">เหตุผลชี้แจง</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
+                    <th class="py-2.5 font-semibold text-right">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-correction-table-body" class="divide-y divide-slate-800/40 text-slate-300">
+                  <tr>
+                    <td colspan="7" class="py-6 text-center text-slate-500 italic">อยู่ระหว่างการโหลดข้อมูลเวลางานจากระบบ...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 5: อนุมัติเบิกเงินสำรอง -->
+        <section id="admin-sec-approve-advance" class="admin-sec hidden space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-200">คำขอเบิกเงินสะสมกลางเดือน (Advance Salary)</h3>
+              <button onclick="loadAdminApprovals()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3.5 py-1.5 rounded-lg border border-slate-700 transition-all">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> ซิงค์ข้อมูลล่าสุด
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                    <th class="py-2.5 font-semibold">จำนวนเงินที่เบิก</th>
+                    <th class="py-2.5 font-semibold">วันที่ส่งคำขอ</th>
+                    <th class="py-2.5 font-semibold">รอบบัญชีเรียกชำระ</th>
+                    <th class="py-2.5 font-semibold">บัญชีผู้รับเงิน</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
+                    <th class="py-2.5 font-semibold text-right">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-advance-table-body" class="divide-y divide-slate-800/40 text-slate-300">
+                  <tr>
+                    <td colspan="7" class="py-6 text-center text-slate-500 italic">กำลังดึงข้อมูลเบิกเงินสำรองพนักงาน...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 6: จัดการพนักงาน & กำหนดสิทธิ์ -->
+        <section id="admin-sec-employees" class="admin-sec hidden space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-3">
+                <h3 class="text-sm font-bold text-slate-200">รายชื่อพนักงานทั้งหมดและการเข้าถึงระบบ</h3>
+                <span class="inline-block text-[10px] bg-slate-950 border border-slate-800 text-slate-400 px-2.5 py-1 rounded-full" id="admin-emp-count-badge">พนักงานทั้งหมด: 0 คน</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="openEmployeeEditModal(null)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
+                  <i class="fa-solid fa-user-plus"></i> เพิ่มพนักงานใหม่
+                </button>
+                <button onclick="loadAdminEmployees()" title="รีเฟรชรายชื่อพนักงาน" aria-label="รีเฟรชรายชื่อพนักงาน" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3.5 py-2 rounded-xl border border-slate-700 transition-all">
+                  <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-2.5 font-semibold">พนักงาน</th>
+                    <th class="py-2.5 font-semibold">ตำแหน่ง</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
+                    <th class="py-2.5 font-semibold">บริษัทสังกัด</th>
+                    <th class="py-2.5 font-semibold text-center">ชั่วโมงทำงาน/วัน</th>
+                    <th class="py-2.5 font-semibold">เบอร์โทรศัพท์</th>
+                    <th class="py-2.5 font-semibold">สิทธิ์การใช้งาน</th>
+                    <th class="py-2.5 font-semibold text-right">เครื่องมือ</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-employees-table-body" class="divide-y divide-slate-800/40 text-slate-300">
+                  <tr>
+                    <td colspan="8" class="py-6 text-center text-slate-500 italic">กำลังเชื่อมโยงรายชื่อพนักงาน...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- [MODAL: จัดการอนุมัติด้วยข้อเสนอแนะ]                            -->
+  <!-- =============================================================== -->
+  <div id="admin-decision-modal" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs hidden">
+    <div class="bg-slate-900 border border-slate-800 max-w-sm w-full rounded-2xl p-6 space-y-4 shadow-2xl text-slate-100">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h4 id="admin-decision-title" class="font-bold text-xs uppercase text-indigo-400">พิจารณาใบลาของพนักงาน</h4>
+        <button onclick="closeDecisionModal()" title="ปิด" aria-label="ปิด" class="text-slate-400 hover:text-slate-200"><i class="fa-solid fa-xmark text-sm"></i></button>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-bold text-slate-400 uppercase">กรอกข้อความ / หมายเหตุชี้แจง</label>
+        <textarea id="admin-decision-note" rows="3" placeholder="ระบุเหตุผล หรือความคิดเห็นของผู้บริหาร..." class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"></textarea>
+      </div>
+      <div class="flex gap-2">
+        <button id="admin-decision-reject-btn" class="flex-1 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold text-xs rounded-xl border border-rose-500/25 transition-all">ปฏิเสธคำขอ</button>
+        <button id="admin-decision-approve-btn" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-emerald-500/20">อนุมัติคำขอ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- [MODAL: ฟอร์มเพิ่ม/แก้ไขพนักงานแบบละเอียด]                       -->
+  <!-- =============================================================== -->
+  <div id="admin-employee-modal" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs hidden">
+    <div class="bg-slate-900 border border-slate-800 max-w-2xl w-full rounded-3xl p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3.5 mb-4">
+        <h4 id="admin-emp-form-title" class="font-bold text-sm text-indigo-400 flex items-center gap-2">
+          <i class="fa-solid fa-user-gear"></i> ฟอร์มจัดการพนักงาน
+        </h4>
+        <button onclick="closeEmployeeModal()" title="ปิด" aria-label="ปิด" class="text-slate-400 hover:text-slate-200"><i class="fa-solid fa-xmark text-sm"></i></button>
+      </div>
+      
+      <!-- Form Body Scrollable -->
+      <form id="admin-employee-form" onsubmit="saveEmployeeForm(event)" class="space-y-4 overflow-y-auto pr-1 flex-1 text-xs">
+        <div class="grid grid-cols-2 gap-4">
+          <!-- รหัสพนักงาน -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">รหัสพนักงาน *</label>
+            <input type="text" id="form-emp-id" required placeholder="เช่น EMP001" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <!-- ชื่อพนักงาน -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">ชื่อ-นามสกุล *</label>
+            <input type="text" id="form-emp-name" required placeholder="นาย สมัคร ทำงาน" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- ตำแหน่ง -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">ตำแหน่ง</label>
+            <input type="text" id="form-emp-pos" placeholder="เช่น วิศวกร" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <!-- ชื่อบริษัท -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">สังกัดบริษัท</label>
+            <input type="text" id="form-emp-company" placeholder="เช่น HRBTC GROUP" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <!-- ฐานเงินเดือน -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">ฐานเงินเดือน (บาท)</label>
+            <input type="number" id="form-emp-salary" value="15000" title="ฐานเงินเดือน (บาท)" aria-label="ฐานเงินเดือน (บาท)" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <!-- ตัวหารวันทำงาน -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">ตัวหารวันจ่ายค่าแรง</label>
+            <input type="number" id="form-emp-divisor" value="30" title="ตัวหารวันจ่ายค่าแรง" aria-label="ตัวหารวันจ่ายค่าแรง" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <!-- ชั่วโมงทำงานต่อวัน -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">ชั่วโมงทำงานต่อวัน</label>
+            <input type="number" id="form-emp-hours" value="8" title="ชั่วโมงทำงานต่อวัน" aria-label="ชั่วโมงทำงานต่อวัน" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- วันหยุดประจำสัปดาห์ -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">วันหยุดประจำสัปดาห์</label>
+            <select id="form-emp-dayoff" title="วันหยุดประจำสัปดาห์" aria-label="วันหยุดประจำสัปดาห์" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+              <option value="อาทิตย์">วันอาทิตย์</option>
+              <option value="เสาร์">วันเสาร์</option>
+              <option value="เสาร์-อาทิตย์">วันเสาร์-อาทิตย์</option>
+              <option value="จันทร์">วันจันทร์</option>
+            </select>
+          </div>
+          <!-- รูปโปรไฟล์ -->
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">ลิงก์ภาพโปรไฟล์ (หรือ Google Drive)</label>
+            <input type="text" id="form-emp-avatar" placeholder="https://..." class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- การธนาคาร -->
+        <div class="grid grid-cols-3 gap-4 border-t border-slate-800 pt-3">
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">ธนาคาร</label>
+            <input type="text" id="form-emp-bank" placeholder="กสิกรไทย" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">สาขา</label>
+            <input type="text" id="form-emp-branch" placeholder="ลาดพร้าว" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">เลขที่บัญชี</label>
+            <input type="text" id="form-emp-accno" placeholder="000-0-00000-0" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- ข้อมูลส่วนตัวอื่นๆ -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">เบอร์โทรศัพท์</label>
+            <input type="text" id="form-emp-phone" placeholder="089-999-9999" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <div class="space-y-1">
+            <label class="text-[9px] font-bold text-slate-400 uppercase">สถานะพนักงาน</label>
+            <select id="form-emp-status" title="สถานะพนักงาน" aria-label="สถานะพนักงาน" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+              <option value="ทำงานปกติ">ทำงานปกติ</option>
+              <option value="ลาออก">ลาออก</option>
+              <option value="พักงาน">พักงาน</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 🔒 ส่วนกำหนดสิทธิ์การใช้งานของแอดมิน -->
+        <div class="border-t border-slate-800 pt-3 space-y-3">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <label class="text-[9px] font-bold text-indigo-400 uppercase">สิทธิ์การใช้งานระบบ *</label>
+              <select id="form-emp-role" onchange="toggleMenuPermissionsUi()" title="สิทธิ์การใช้งานระบบ" aria-label="สิทธิ์การใช้งานระบบ" class="w-full bg-slate-950 border border-slate-800 text-indigo-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+                <option value="Employee">Employee (พนักงานทั่วไป)</option>
+                <option value="admin">admin (ผู้ดูแลเฉพาะบางเมนู)</option>
+                <option value="Administrator">Administrator (ผู้ดูแลระบบสูงสุดเห็นทุกอย่าง)</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label class="text-[9px] font-bold text-slate-400 uppercase">Line User ID (ของขวัญระบบ)</label>
+              <input type="text" id="form-emp-lineid" placeholder="U123456789abcdef..." class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+            </div>
+          </div>
+
+          <!-- กล่องตั้งค่าสิทธิ์เข้าถึงเมนูพนักงาน (จะแสดงเฉพาะเมื่อเลือกบทบาท admin เท่านั้น) -->
+          <div id="menu-permissions-container" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+            <span class="text-[9px] font-bold text-indigo-400 uppercase tracking-widest block">เมนูแอปพนักงานที่อนุญาตให้เข้าใช้งานได้:</span>
+            <div class="grid grid-cols-3 gap-2.5">
+              <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input type="checkbox" id="perm-menu-home" value="home" class="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
+                <span>หน้าแรก</span>
+              </label>
+              <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input type="checkbox" id="perm-menu-calendar" value="calendar" class="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
+                <span>ปฏิทินงาน</span>
+              </label>
+              <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input type="checkbox" id="perm-menu-attendance" value="attendance" class="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
+                <span>ลงเวลางาน</span>
+              </label>
+              <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input type="checkbox" id="perm-menu-leave" value="leave" class="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
+                <span>ยื่นใบลางาน</span>
+              </label>
+              <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input type="checkbox" id="perm-menu-advance" value="advance" class="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
+                <span>เบิกเงินล่วงหน้า</span>
+              </label>
+              <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <input type="checkbox" id="perm-menu-payslip" value="payslip" class="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
+                <span>สลิปเงินเดือน</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-2.5 pt-4 border-t border-slate-800">
+          <button type="button" onclick="closeEmployeeModal()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition-all">ยกเลิก</button>
+          <button type="submit" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-600/20">บันทึกข้อมูลพนักงาน</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  </div>
+
   <!-- === JavaScript logic === -->
   <script>
 // --- State การทำงาน ---
     let isLoggedIn = false;
+    let isAdminMode = false;
+    let adminActiveTab = "import-time";
+    let adminEmployeesList = [];
+    let adminCurrentDecisionData = null; // Holds target data for approval modal
+    let parsedPayslips = []; // Holds list of parsed/split payslip pages
+    let selectedTxtFileContent = "";
+
     let currentEmployeeId = "";
     const SERVER_API_URL = "https://script.google.com/macros/s/AKfycbyPYNSeA-rOv8v37nSPJsjrcjAWVOszQJcFx_3Rq5eQg_aCHg_yQyOEUNOqPL9edY67mg/exec";
     let activePage = "home";
@@ -1027,6 +1618,34 @@ async function handleLogin(e) {
         return;
       }
 
+      // ตรวจสอบทางลัดสำหรับ Admin ด้วยรหัส admin123
+      if (empIdInput === "ADMIN123") {
+        currentEmployeeId = "admin123";
+        isLoggedIn = true;
+        employeeData = {
+          "รหัสพนักงาน": "admin123",
+          "ชื่อ-นามสกุล": "System Admin",
+          "สิทธิ์การใช้งาน": "Administrator",
+          "ตำแหน่ง": "System Administrator",
+          "ชื่อบริษัท": "HRBTC GROUP"
+        };
+        localStorage.setItem("is_logged_in", "true");
+        localStorage.setItem("hr_emp_id", "admin123");
+
+        showToast("🎉 ล็อกอินเข้าสู่ระบบผู้ดูแลระบบสำเร็จ", "success");
+        hideLoginContainer();
+        
+        // บังคับสลับไปยังโหมดผู้ดูแลระบบ
+        isAdminMode = true;
+        document.getElementById("app").classList.add("hidden");
+        document.getElementById("admin-app").classList.remove("hidden");
+        document.getElementById("admin-profile-name").textContent = "System Admin";
+        document.getElementById("admin-profile-role").textContent = "Administrator";
+        
+        switchAdminTab(adminActiveTab);
+        return;
+      }
+
       showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
 
       try {
@@ -1058,6 +1677,7 @@ async function handleLogin(e) {
 
     function logout() {
       isLoggedIn = false;
+      isAdminMode = false;
       localStorage.removeItem("is_logged_in");
       localStorage.removeItem("hr_emp_id");
       
@@ -1066,6 +1686,9 @@ async function handleLogin(e) {
       advanceRequestsList = [];
       payslipsList = [];
       employeeData = {};
+      
+      document.getElementById("admin-app").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
       
       showToast("🔒 ออกจากระบบเรียบร้อยแล้ว", "success");
       document.getElementById("login-emp-id").value = "";
@@ -1086,6 +1709,7 @@ async function handleLogin(e) {
         if (empResponse.status === "success") {
           employeeData = empResponse.data;
           updateEmployeeProfileUI();
+          applyRolePermissions(); // ตรวจสิทธิ์และแสดง/ซ่อนปุ่มสลับโหมดและเมนู
         } else {
           showToast("❌ โหลดข้อมูลพนักงานไม่สำเร็จ: " + empResponse.message, "error");
         }
@@ -1184,6 +1808,87 @@ function updateEmployeeProfileUI() {
 
       document.getElementById("home-emp-name").textContent = name;
       document.getElementById("home-emp-id-pos").textContent = `รหัส: ${id} | ${pos}`;
+    }
+
+    function applyRolePermissions() {
+      const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+      const switchBtn = document.getElementById("admin-switch-btn");
+      
+      const isAdminOrSuper = (role.toLowerCase() === 'administrator' || role.toLowerCase() === 'admin' || role.startsWith('admin:'));
+      
+      if (switchBtn) {
+        if (isAdminOrSuper) {
+          switchBtn.classList.remove("hidden");
+        } else {
+          switchBtn.classList.add("hidden");
+        }
+      }
+
+      // ตรวจสอบสิทธิ์เมนู Bottom Navigation สำหรับสิทธิ์แบบจำกัดเมนู
+      if (role.startsWith("admin:")) {
+        const allowed = role.split(":")[1].split(",");
+        
+        // รายการหน้าและปุ่มเมนูที่สัมพันธ์กัน
+        const menuMapping = {
+          home: "nav-home",
+          calendar: "nav-calendar",
+          attendance: "nav-attendance",
+          leave: "nav-leave",
+        };
+
+        // จัดการปุ่มเมนูปกติ
+        for (const [page, btnId] of Object.entries(menuMapping)) {
+          const btn = document.getElementById(btnId);
+          if (btn) {
+            if (allowed.includes(page)) {
+              btn.classList.remove("hidden");
+            } else {
+              btn.classList.add("hidden");
+            }
+          }
+        }
+
+        // จัดการเมนูอื่นๆ (มากกว่า/More Panel)
+        const hasMore = allowed.includes("advance") || allowed.includes("payslip");
+        const navMoreBtn = document.getElementById("nav-more");
+        if (navMoreBtn) {
+          if (hasMore) navMoreBtn.classList.remove("hidden");
+          else navMoreBtn.classList.add("hidden");
+        }
+
+        // จัดการปุ่มด้านใน More Panel
+        const moreButtons = {
+          advance: document.querySelector("button[onclick*='advance']"),
+          payslip: document.querySelector("button[onclick*='payslip']")
+        };
+        for (const [page, btn] of Object.entries(moreButtons)) {
+          if (btn) {
+            if (allowed.includes(page)) {
+              btn.classList.remove("hidden");
+            } else {
+              btn.classList.add("hidden");
+            }
+          }
+        }
+      } else {
+        // คืนค่าแสดงผลปกติสำหรับพนักงานทั่วไปและ Administrator
+        const btnIds = ["nav-home", "nav-calendar", "nav-attendance", "nav-leave", "nav-more"];
+        btnIds.forEach(id => {
+          const btn = document.getElementById(id);
+          if (btn) btn.classList.remove("hidden");
+        });
+        
+        // สำหรับปุ่มใน More Menu Panel
+        const morePanel = document.getElementById("more-menu-panel");
+        if (morePanel) {
+          const btns = morePanel.querySelectorAll("button");
+          btns.forEach(btn => {
+            if (btn && !btn.onclick?.toString().includes("triggerPwaPrompt")) {
+              btn.classList.remove("hidden");
+            }
+          });
+        }
+      }
     }
 
     function updateHeaderEmployeeInfo() {
@@ -2073,6 +2778,947 @@ function updateEmployeeProfileUI() {
       document.getElementById("pwa-modal").classList.add("hidden");
     }
 
+    // ===============================================================
+    // [ADMIN PORTAL: JAVASCRIPT CONTROL LOGIC]
+    // ===============================================================
+    
+    // ตั้งค่า Worker ของ PDF.js
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // สลับโหมดการแสดงผล (แอปพนักงาน ↔ แดชบอร์ดแอดมิน)
+    function toggleAdminMode() {
+      const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+      const isAdminOrSuper = (role.toLowerCase() === 'administrator' || role.toLowerCase() === 'admin' || role.startsWith('admin:'));
+      
+      if (!isAdminOrSuper && currentEmployeeId !== 'ADMIN123') {
+        showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
+        return;
+      }
+
+      isAdminMode = !isAdminMode;
+      const appContainer = document.getElementById("app");
+      const adminContainer = document.getElementById("admin-app");
+
+      if (isAdminMode) {
+        appContainer.classList.add("hidden");
+        adminContainer.classList.remove("hidden");
+        
+        // อัปเดตข้อมูลผู้ใช้ในแถบเมนูแอดมิน
+        document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
+        document.getElementById("admin-profile-role").textContent = role || "Administrator";
+        
+        showToast("🛠️ เข้าสู่โหมดผู้ดูแลระบบ (เต็มหน้าจอ)", "info");
+        switchAdminTab(adminActiveTab);
+      } else {
+        adminContainer.classList.add("hidden");
+        appContainer.classList.remove("hidden");
+        showToast("📱 กลับสู่โหมดพนักงานทั่วไป", "info");
+        navigateTo("home");
+      }
+    }
+
+    // สลับแท็บการทำงานในหน้าจอผู้ดูแลระบบ
+    function switchAdminTab(tabId) {
+      adminActiveTab = tabId;
+      
+      // ปิดสีปุ่มเมนูเดิมทั้งหมด
+      const menus = ['import-time', 'import-payslip', 'approve-leave', 'approve-correction', 'approve-advance', 'employees'];
+      menus.forEach(m => {
+        const btn = document.getElementById(`admin-menu-${m}`);
+        if (btn) {
+          btn.className = "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-all text-left";
+        }
+        const sec = document.getElementById(`admin-sec-${m}`);
+        if (sec) sec.classList.add("hidden");
+      });
+
+      // ไฮไลต์ปุ่มเมนูที่เปิด
+      const activeBtn = document.getElementById(`admin-menu-${tabId}`);
+      if (activeBtn) {
+        activeBtn.className = "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold bg-indigo-600/10 text-indigo-400 border-l-4 border-indigo-500 transition-all text-left";
+      }
+
+      // แสดงเนื้อหาเซกชั่น
+      const activeSec = document.getElementById(`admin-sec-${tabId}`);
+      if (activeSec) activeSec.classList.remove("hidden");
+
+      // เปลี่ยนข้อความบน Topbar Title
+      const titleEl = document.getElementById("admin-page-title");
+      const descEl = document.getElementById("admin-page-desc");
+
+      if (tabId === 'import-time') {
+        titleEl.textContent = "นำเข้าเวลางาน (.txt)";
+        descEl.textContent = "นำเข้าประวัติการแสกนนิ้วของพนักงานทั้งหมดผ่านไฟล์บันทึกเวลา";
+      } else if (tabId === 'import-payslip') {
+        titleEl.textContent = "นำเข้าสลิปเงินเดือน (.pdf)";
+        descEl.textContent = "แยกหน้าสลิปเงินเดือน สแกนรหัสพนักงานอัตโนมัติ และเซฟขึ้นระบบ Drive แยกคน";
+      } else if (tabId === 'approve-leave') {
+        titleEl.textContent = "อนุมัติใบลางาน";
+        descEl.textContent = "ตรวจสอบความสมบูรณ์และอนุมัติวันลางานประเภทต่างๆ ของพนักงาน";
+        loadAdminApprovals();
+      } else if (tabId === 'approve-correction') {
+        titleEl.textContent = "อนุมัติแก้ไขเวลา";
+        descEl.textContent = "พิจารณาข้อเสนอขอแก้ไขข้อมูลเวลาเข้า-ออกงานย้อนหลังของทีมงาน";
+        loadAdminApprovals();
+      } else if (tabId === 'approve-advance') {
+        titleEl.textContent = "อนุมัติเบิกเงินสำรอง";
+        descEl.textContent = "จัดการคำขอรับเงินสะสมกลางเดือน (Advance Salary)";
+        loadAdminApprovals();
+      } else if (tabId === 'employees') {
+        titleEl.textContent = "จัดการข้อมูลพนักงาน & กำหนดสิทธิ์";
+        descEl.textContent = "เพิ่ม/แก้ไขรายชื่อ ข้อมูลบัญชีธนาคาร ตำแหน่ง และสิทธิ์เมนูเข้าถึงแอป";
+        loadAdminEmployees();
+      }
+    }
+
+    // โหลดรายชื่อพนักงานทั้งหมด
+    async function loadAdminEmployees() {
+      const container = document.getElementById("admin-employees-table-body");
+      container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 italic">⏳ กำลังดาวน์โหลดข้อมูลพนักงานจากเซิร์ฟเวอร์...</td></tr>`;
+
+      try {
+        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees`);
+        if (res.status === 'success') {
+          adminEmployeesList = res.data;
+          document.getElementById("admin-emp-count-badge").textContent = `พนักงานทั้งหมด: ${adminEmployeesList.length} คน`;
+          
+          if (adminEmployeesList.length === 0) {
+            container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">ไม่พบรายชื่อพนักงานในฐานข้อมูล</td></tr>`;
+            return;
+          }
+
+          container.innerHTML = "";
+          adminEmployeesList.forEach(emp => {
+            const tr = document.createElement("tr");
+            tr.className = "border-b border-slate-800/40 hover:bg-slate-900/35 transition-all text-xs";
+            
+            const empId = emp["รหัสพนักงาน"] || "N/A";
+            const name = emp["ชื่อ-นามสกุล"] || "N/A";
+            const pos = emp["ตำแหน่ง"] || "-";
+            const status = emp["สถานะ"] || "ทำงานปกติ";
+            const company = emp["ชื่อบริษัท"] || "-";
+            const hours = emp["ชั่วโมงทำงานต่อวัน"] || "8";
+            const phone = emp["เบอร์โทรศัพท์"] || "-";
+            const role = emp["สิทธิ์การใช้งาน"] || "Employee";
+
+            let statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[10px]">ทำงานปกติ</span>`;
+            if (status === 'ลาออก') statusBadge = `<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-full border border-rose-500/20 text-[10px]">ลาออก</span>`;
+            else if (status === 'พักงาน') statusBadge = `<span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 text-[10px]">พักงาน</span>`;
+
+            let roleBadge = `<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px]">${role}</span>`;
+            if (role.toLowerCase() === 'administrator') {
+              roleBadge = `<span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">Admin สูงสุด</span>`;
+            } else if (role.startsWith('admin')) {
+              roleBadge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold">Admin จำกัดสิทธิ์</span>`;
+            }
+
+            tr.innerHTML = `
+              <td class="py-3 font-semibold text-slate-200">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-indigo-400 overflow-hidden border border-slate-700">
+                    <img src="${convertDriveUrl(emp["ลิ้งภาพโปรไฟล์"]) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}" class="w-full h-full object-cover">
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-100">${name}</p>
+                    <p class="text-[10px] text-slate-500">ID: ${empId}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="py-3 text-slate-300">${pos}</td>
+              <td class="py-3">${statusBadge}</td>
+              <td class="py-3 text-slate-400">${company}</td>
+              <td class="py-3 text-center text-slate-300">${hours} ชม.</td>
+              <td class="py-3 text-slate-400">${phone}</td>
+              <td class="py-3">${roleBadge}</td>
+              <td class="py-3 text-right">
+                <button onclick='editEmployeeRow(${JSON.stringify(emp).replace(/'/g, "\'")})' class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-2.5 py-1 rounded-lg transition-all border border-slate-700">
+                  <i class="fa-solid fa-pencil"></i> แก้ไข
+                </button>
+              </td>
+            `;
+            container.appendChild(tr);
+          });
+        } else {
+          container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-400">❌ เกิดข้อผิดพลาด: ${res.message}</td></tr>`;
+        }
+      } catch (err) {
+        container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-400">❌ เชื่อมต่อ API ไม่สำเร็จ: ${err.message}</td></tr>`;
+      }
+    }
+
+    function editEmployeeRow(emp) {
+      openEmployeeEditModal(emp);
+    }
+
+    // จัดการแท็บข้อมูลการอนุมัติ (ลา, แก้ไขเวลา, เบิกเงิน)
+    async function loadAdminApprovals() {
+      const leaveContainer = document.getElementById("admin-leave-table-body");
+      const correctionContainer = document.getElementById("admin-correction-table-body");
+      const advanceContainer = document.getElementById("admin-advance-table-body");
+
+      leaveContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic">⏳ กำลังซิงค์ข้อมูลใบลาทั้งหมด...</td></tr>`;
+      correctionContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดข้อมูลคำขอแก้ไขเวลา...</td></tr>`;
+      advanceContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ โหลดคำขอเบิกเงินสะสมกลางเดือน...</td></tr>`;
+
+      try {
+        // 1. โหลดข้อมูลใบลางานทั้งหมด
+        const leaveRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*`);
+        if (leaveRes.status === 'success') {
+          leaveContainer.innerHTML = "";
+          const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
+          if (pending.length === 0) {
+            leaveContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
+          } else {
+            pending.forEach(req => {
+              const tr = document.createElement("tr");
+              tr.className = "border-b border-slate-800/40 hover:bg-slate-900/35 transition-all text-xs";
+              
+              const docId = req["เลขที่เอกสาร"] || "N/A";
+              const empId = req["รหัสพนักงาน"] || "N/A";
+              const type = req["ประเภทการลา"] || "ลาพักร้อน";
+              const range = `${formatThaiDateShort(req["วันที่เริ่ม"])} - ${formatThaiDateShort(req["วันที่สิ้นสุด"])}`;
+              const days = req["จำนวนวัน"] || "0";
+              const reason = req["เหตุผล"] || "-";
+              const attachment = req["เอกสารแนบ"] || "";
+              
+              let attachHtml = `<span class="text-slate-500 italic">ไม่มีแนบ</span>`;
+              if (attachment && attachment !== 'N/A') {
+                attachHtml = `<button onclick="openDriveFile('${attachment}')" class="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"><i class="fa-solid fa-paperclip"></i> ดูเอกสาร</button>`;
+              }
+
+              tr.innerHTML = `
+                <td class="py-3 font-semibold text-slate-200">${docId}</td>
+                <td class="py-3 text-slate-300">${empId}</td>
+                <td class="py-3 text-slate-300 font-semibold">${type}</td>
+                <td class="py-3 text-slate-400">${range}</td>
+                <td class="py-3 text-center text-slate-200 font-bold">${days} วัน</td>
+                <td class="py-3 text-slate-400 max-w-[150px] truncate" title="${reason}">${reason}</td>
+                <td class="py-3">${attachHtml}</td>
+                <td class="py-3"><span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
+                <td class="py-3 text-right">
+                  <div class="flex justify-end gap-1.5">
+                    <button onclick='openDecisionModal("leave", ${JSON.stringify(req).replace(/'/g, "\'")}, "อนุมัติแล้ว")' class="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 px-2.5 py-1 rounded-lg font-semibold transition-all">อนุมัติ</button>
+                    <button onclick='openDecisionModal("leave", ${JSON.stringify(req).replace(/'/g, "\'")}, "ไม่อนุมัติ")' class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 px-2.5 py-1 rounded-lg font-semibold transition-all">ปฏิเสธ</button>
+                  </div>
+                </td>
+              `;
+              leaveContainer.appendChild(tr);
+            });
+          }
+        }
+
+        // 2. โหลดคำขอแก้ไขเวลาทั้งหมด
+        const corrRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*`);
+        if (corrRes.status === 'success') {
+          correctionContainer.innerHTML = "";
+          const pending = corrRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
+          if (pending.length === 0) {
+            correctionContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รออนุมัติ</td></tr>`;
+          } else {
+            pending.forEach(req => {
+              const tr = document.createElement("tr");
+              tr.className = "border-b border-slate-800/40 hover:bg-slate-900/35 transition-all text-xs";
+              
+              const empId = req["รหัสพนักงาน"] || "N/A";
+              const date = formatThaiDate(req["วันที่"]);
+              const newIn = req["เวลาเข้าใหม่"] || "-";
+              const newOut = req["เวลาออกใหม่"] || "-";
+              const reason = req["เหตุผล"] || "-";
+
+              tr.innerHTML = `
+                <td class="py-3 font-semibold text-slate-200">${empId}</td>
+                <td class="py-3 text-slate-300">${date}</td>
+                <td class="py-3 text-emerald-400 font-semibold">${newIn}</td>
+                <td class="py-3 text-emerald-400 font-semibold">${newOut}</td>
+                <td class="py-3 text-slate-400 max-w-[200px] truncate" title="${reason}">${reason}</td>
+                <td class="py-3"><span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
+                <td class="py-3 text-right">
+                  <div class="flex justify-end gap-1.5">
+                    <button onclick='openDecisionModal("correction", ${JSON.stringify(req).replace(/'/g, "\'")}, "อนุมัติแล้ว")' class="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 px-2.5 py-1 rounded-lg font-semibold transition-all">อนุมัติ</button>
+                    <button onclick='openDecisionModal("correction", ${JSON.stringify(req).replace(/'/g, "\'")}, "ปฏิเสธ")' class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 px-2.5 py-1 rounded-lg font-semibold transition-all">ปฏิเสธ</button>
+                  </div>
+                </td>
+              `;
+              correctionContainer.appendChild(tr);
+            });
+          }
+        }
+
+        // 3. โหลดคำขอเบิกเงินล่วงหน้า
+        const advRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*`);
+        if (advRes.status === 'success') {
+          advanceContainer.innerHTML = "";
+          const pending = advRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ' || r["สถานะ"] === 'รอตรวจสอบ');
+          if (pending.length === 0) {
+            advanceContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอเบิกเงินรออนุมัติ</td></tr>`;
+          } else {
+            pending.forEach(req => {
+              const tr = document.createElement("tr");
+              tr.className = "border-b border-slate-800/40 hover:bg-slate-900/35 transition-all text-xs";
+              
+              const empId = req["รหัสพนักงาน"] || "N/A";
+              const amount = Number(req["จำนวนเงิน"] || 0).toLocaleString();
+              const date = formatThaiDate(req["วันที่เบิก"]);
+              const cycle = req["รอบจ่าย"] || "-";
+              const channel = req["ช่องทางรับเงิน"] || "-";
+              const status = req["สถานะ"] || "รออนุมัติ";
+
+              tr.innerHTML = `
+                <td class="py-3 font-semibold text-slate-200">${empId}</td>
+                <td class="py-3 text-emerald-400 font-bold">฿${amount}</td>
+                <td class="py-3 text-slate-300">${date}</td>
+                <td class="py-3 text-slate-400">${cycle}</td>
+                <td class="py-3 text-slate-300 font-medium">${channel}</td>
+                <td class="py-3"><span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">${status}</span></td>
+                <td class="py-3 text-right">
+                  <div class="flex justify-end gap-1.5">
+                    <button onclick='openDecisionModal("advance", ${JSON.stringify(req).replace(/'/g, "\'")}, "อนุมัติแล้ว")' class="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 px-2.5 py-1 rounded-lg font-semibold transition-all">อนุมัติ</button>
+                    <button onclick='openDecisionModal("advance", ${JSON.stringify(req).replace(/'/g, "\'")}, "ปฏิเสธ")' class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 px-2.5 py-1 rounded-lg font-semibold transition-all">ปฏิเสธ</button>
+                  </div>
+                </td>
+              `;
+              advanceContainer.appendChild(tr);
+            });
+          }
+        }
+      } catch (err) {
+        showToast("❌ ซิงค์ข้อมูลคำขออนุมัติล้มเหลว: " + err.message, "error");
+      }
+    }
+
+    // เปิดโมดอลพิจารณาใบคำขอการลางาน/เบิกเงิน/แก้ไขเวลา
+    function openDecisionModal(type, recordData, actionType) {
+      adminCurrentDecisionData = { type, data: recordData, action: actionType };
+      
+      const titleEl = document.getElementById("admin-decision-title");
+      const noteEl = document.getElementById("admin-decision-note");
+      noteEl.value = "";
+
+      const verb = actionType === 'อนุมัติแล้ว' ? 'อนุมัติ' : 'ปฏิเสธ';
+      titleEl.textContent = `พิจารณา ${verb} คำขอ (${type.toUpperCase()})`;
+
+      document.getElementById("admin-decision-modal").classList.remove("hidden");
+      
+      // ตั้งค่าปุ่มในโมดอล
+      const approveBtn = document.getElementById("admin-decision-approve-btn");
+      const rejectBtn = document.getElementById("admin-decision-reject-btn");
+
+      approveBtn.onclick = () => confirmDecision(true);
+      rejectBtn.onclick = () => confirmDecision(false);
+      
+      // ปรับแต่งสีปุ่มตามแนวทาง action
+      if (actionType === 'อนุมัติแล้ว') {
+        approveBtn.className = "flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-emerald-500/20";
+        approveBtn.textContent = "ยืนยันอนุมัติ";
+        rejectBtn.classList.add("hidden");
+      } else {
+        rejectBtn.className = "flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-rose-500/20";
+        rejectBtn.textContent = "ยืนยันการปฏิเสธ";
+        approveBtn.classList.add("hidden");
+      }
+    }
+
+    function closeDecisionModal() {
+      document.getElementById("admin-decision-modal").classList.add("hidden");
+      document.getElementById("admin-decision-approve-btn").classList.remove("hidden");
+      document.getElementById("admin-decision-reject-btn").classList.remove("hidden");
+      adminCurrentDecisionData = null;
+    }
+
+    async function confirmDecision(isApproved) {
+      if (!adminCurrentDecisionData) return;
+      const { type, data, action } = adminCurrentDecisionData;
+      const note = document.getElementById("admin-decision-note").value.trim();
+      const approvedBy = employeeData["ชื่อ-นามสกุล"] || "Admin";
+
+      let url = SERVER_API_URL;
+      let payload = { approvedBy, note };
+
+      showToast("⏳ กำลังบันทึกการตัดสินใจลงฐานข้อมูล...", "info");
+
+      if (type === 'leave') {
+        payload.action = "approveLeave";
+        payload.docId = data["เลขที่เอกสาร"];
+        payload.status = action;
+      } else if (type === 'correction') {
+        payload.action = "approveTimeCorrection";
+        payload.empId = data["รหัสพนักงาน"];
+        payload.date = data["วันที่"];
+        payload.status = action;
+      } else if (type === 'advance') {
+        payload.action = "approveAdvance";
+        payload.empId = data["รหัสพนักงาน"];
+        payload.date = data["วันที่เบิก"];
+        payload.amount = data["จำนวนเงิน"];
+        payload.status = action;
+      }
+
+      try {
+        const response = await fetchWithTimeout(url, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.status === 'success') {
+          showToast(`✅ พิจารณาคำร้องเสร็จสิ้น: ${response.message}`, "success");
+          closeDecisionModal();
+          loadAdminApprovals();
+        } else {
+          showToast("❌ พิจารณาล้มเหลว: " + response.message, "error");
+        }
+      } catch (err) {
+        showToast("❌ เกิดข้อผิดพลาดในการเชื่อมโยงเครือข่าย", "error");
+      }
+    }
+
+    // เปิดโมดอลการสร้างหรือแก้ไขผู้ใช้พนักงาน
+    function openEmployeeEditModal(emp = null) {
+      const form = document.getElementById("admin-employee-form");
+      form.reset();
+      
+      const titleEl = document.getElementById("admin-emp-form-title");
+      const idInput = document.getElementById("form-emp-id");
+
+      if (emp) {
+        titleEl.innerHTML = `<i class="fa-solid fa-user-pen"></i> แก้ไขข้อมูลพนักงาน: ${emp["ชื่อ-นามสกุล"]}`;
+        idInput.value = emp["รหัสพนักงาน"] || "";
+        idInput.disabled = true; // ห้ามแก้ไข ID ของผู้ใช้เดิม
+        
+        document.getElementById("form-emp-name").value = emp["ชื่อ-นามสกุล"] || "";
+        document.getElementById("form-emp-pos").value = emp["ตำแหน่ง"] || "";
+        document.getElementById("form-emp-company").value = emp["ชื่อบริษัท"] || "";
+        document.getElementById("form-emp-salary").value = emp["ฐานเงินเดือน"] || "15000";
+        document.getElementById("form-emp-divisor").value = emp["ตัวหารค่าแรง"] || "30";
+        document.getElementById("form-emp-hours").value = emp["ชั่วโมงทำงานต่อวัน"] || "8";
+        document.getElementById("form-emp-dayoff").value = emp["วันหยุดประจําสัปดาห์"] || "อาทิตย์";
+        document.getElementById("form-emp-avatar").value = emp["ลิ้งภาพโปรไฟล์"] || "";
+        document.getElementById("form-emp-bank").value = emp["ธนาคาร"] || "";
+        document.getElementById("form-emp-branch").value = emp["สาขาธนาคาร"] || "";
+        document.getElementById("form-emp-accno").value = emp["หมายเลขบัญชี"] || "";
+        document.getElementById("form-emp-phone").value = emp["เบอร์โทรศัพท์"] || "";
+        document.getElementById("form-emp-status").value = emp["สถานะ"] || "ทำงานปกติ";
+        document.getElementById("form-emp-lineid").value = emp["LineUserId"] || "";
+
+        // สิทธิ์การใช้งานและการเข้าถึงเมนู
+        const role = emp["สิทธิ์การใช้งาน"] || "Employee";
+        let mainRole = "Employee";
+        let subPermissions = [];
+
+        if (role.toLowerCase() === 'administrator') {
+          mainRole = "Administrator";
+        } else if (role.startsWith("admin")) {
+          mainRole = "admin";
+          if (role.includes(":")) {
+            subPermissions = role.split(":")[1].split(",");
+          }
+        }
+        document.getElementById("form-emp-role").value = mainRole;
+        
+        // เช็คการติ๊ก checkbox สิทธิ์
+        const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
+        pages.forEach(p => {
+          document.getElementById(`perm-menu-${p}`).checked = subPermissions.includes(p);
+        });
+
+      } else {
+        titleEl.innerHTML = `<i class="fa-solid fa-user-plus"></i> เพิ่มพนักงานใหม่เข้าตาราง`;
+        idInput.value = "";
+        idInput.disabled = false;
+        
+        // ตั้งค่าเมนูเป็นติ๊กหมดตามค่าเริ่มต้น
+        const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
+        pages.forEach(p => {
+          document.getElementById(`perm-menu-${p}`).checked = true;
+        });
+      }
+
+      toggleMenuPermissionsUi();
+      document.getElementById("admin-employee-modal").classList.remove("hidden");
+    }
+
+    function closeEmployeeModal() {
+      document.getElementById("admin-employee-modal").classList.add("hidden");
+    }
+
+    // ซ่อน/แสดง Checkbox การตั้งค่าเมนูตามประเภทสิทธิ์
+    function toggleMenuPermissionsUi() {
+      const role = document.getElementById("form-emp-role").value;
+      const permBox = document.getElementById("menu-permissions-container");
+      
+      if (role === 'admin') {
+        permBox.classList.remove("hidden");
+      } else {
+        permBox.classList.add("hidden");
+      }
+    }
+
+    // จัดการบันทึกฟอร์มพนักงาน
+    async function saveEmployeeForm(event) {
+      event.preventDefault();
+      
+      const empId = document.getElementById("form-emp-id").value.trim();
+      const name = document.getElementById("form-emp-name").value.trim();
+      const pos = document.getElementById("form-emp-pos").value.trim();
+      const company = document.getElementById("form-emp-company").value.trim();
+      const salary = parseFloat(document.getElementById("form-emp-salary").value || 0);
+      const divisor = parseInt(document.getElementById("form-emp-divisor").value || 30);
+      const hours = parseInt(document.getElementById("form-emp-hours").value || 8);
+      const dayoff = document.getElementById("form-emp-dayoff").value;
+      const avatar = document.getElementById("form-emp-avatar").value.trim();
+      const bank = document.getElementById("form-emp-bank").value.trim();
+      const branch = document.getElementById("form-emp-branch").value.trim();
+      const accno = document.getElementById("form-emp-accno").value.trim();
+      const phone = document.getElementById("form-emp-phone").value.trim();
+      const status = document.getElementById("form-emp-status").value;
+      const mainRole = document.getElementById("form-emp-role").value;
+      const lineid = document.getElementById("form-emp-lineid").value.trim();
+
+      if (!empId || !name) {
+        showToast("⚠️ กรุณากรอกรหัสและชื่อพนักงาน", "warning");
+        return;
+      }
+
+      // คำนวณสตริงสิทธิ์การใช้งาน
+      let finalRole = mainRole;
+      if (mainRole === 'admin') {
+        const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
+        const allowed = [];
+        pages.forEach(p => {
+          if (document.getElementById(`perm-menu-${p}`).checked) allowed.push(p);
+        });
+        finalRole = `admin:${allowed.join(",")}`;
+      }
+
+      const payload = {
+        action: "saveEmployee",
+        "รหัสพนักงาน": empId,
+        "ชื่อ-นามสกุล": name,
+        "ตำแหน่ง": pos,
+        "ชื่อบริษัท": company,
+        "ฐานเงินเดือน": salary,
+        "ตัวหารค่าแรง": divisor,
+        "ชั่วโมงทำงานต่อวัน": hours,
+        "วันหยุดประจําสัปดาห์": dayoff,
+        "ลิ้งภาพโปรไฟล์": avatar,
+        "ธนาคาร": bank,
+        "สาขาธนาคาร": branch,
+        "หมายเลขบัญชี": accno,
+        "เบอร์โทรศัพท์": phone,
+        "สถานะ": status,
+        "สิทธิ์การใช้งาน": finalRole,
+        "LineUserId": lineid
+      };
+
+      showToast("⏳ กำลังบันทึกข้อมูลพนักงาน...", "info");
+
+      try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.status === 'success') {
+          showToast(`🎉 ${res.message}`, "success");
+          closeEmployeeModal();
+          loadAdminEmployees();
+        } else {
+          showToast("❌ บันทึกพนักงานล้มเหลว: " + res.message, "error");
+        }
+      } catch (err) {
+        showToast("❌ การเชื่อมต่อล้มเหลว: " + err.message, "error");
+      }
+    }
+
+    // --- ส่วนงานไฟล์นำเข้าเวลางาน (.txt) ---
+    function handleTxtFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      document.getElementById("txt-file-label").textContent = `เลือกไฟล์: ${file.name}`;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        selectedTxtFileContent = e.target.result;
+        showToast("📄 โหลดเนื้อหาไฟล์ข้อความ (.txt) สำเร็จ พร้อมสั่งประมวลผล", "success");
+      };
+      reader.readAsText(file);
+    }
+
+    async function processTxtImport(dryRun = true) {
+      if (!selectedTxtFileContent) {
+        showToast("⚠️ กรุณาเลือกไฟล์ .txt ก่อนทำรายการ", "warning");
+        return;
+      }
+
+      const modeStr = dryRun ? "พรีวิว" : "บันทึกจริง";
+      showToast(`⏳ กำลังสั่งประมวลผล ${modeStr}...`, "info");
+
+      const payload = {
+        action: "importTimeRecords",
+        fileContent: selectedTxtFileContent,
+        dryRun: dryRun
+      };
+
+      try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.status === 'success') {
+          const data = res.data;
+          
+          // อัปเดตตัวเลข Summary
+          document.getElementById("txt-stat-lines").textContent = data.summary.totalLines || 0;
+          document.getElementById("txt-stat-days").textContent = data.summary.processedDays || 0;
+          document.getElementById("txt-stat-warn").textContent = data.warnings.length || 0;
+          
+          let abnormalCount = 0;
+          for (let status in data.summary.byStatus) {
+            if (status !== 'W') abnormalCount += data.summary.byStatus[status];
+          }
+          document.getElementById("txt-stat-errors").textContent = abnormalCount;
+
+          // แสดง Logs คำเตือน
+          const warnLog = document.getElementById("txt-warnings-log");
+          warnLog.innerHTML = "";
+          if (data.warnings.length === 0) {
+            warnLog.innerHTML = `<span class="text-slate-500 italic block">ไม่มีคำเตือนความผิดปกติ</span>`;
+          } else {
+            data.warnings.forEach(w => {
+              const div = document.createElement("div");
+              div.className = "flex items-start gap-1.5 text-amber-400 font-mono text-[10px]";
+              div.innerHTML = `<i class="fa-solid fa-triangle-exclamation mt-0.5"></i> <span>${w.message}</span>`;
+              warnLog.appendChild(div);
+            });
+          }
+
+          // แสดงตารางพรีวิว
+          const previewTable = document.getElementById("txt-preview-table-body");
+          previewTable.innerHTML = "";
+          
+          data.records.forEach(rec => {
+            const tr = document.createElement("tr");
+            tr.className = "border-b border-slate-800/40 hover:bg-slate-900/35 transition-all text-xs";
+            
+            const empId = rec.empId;
+            const date = rec.date;
+            const clockIn = rec.in || "-";
+            const clockOut = rec.out || "-";
+            const status = rec.status;
+            const duplicates = rec.duplicates || 0;
+
+            let statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px]">ปกติ</span>`;
+            if (status === 'MI') statusBadge = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full text-[10px]">ลืมลงชื่อเข้า</span>`;
+            else if (status === 'MO') statusBadge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">ลืมลงชื่อออก</span>`;
+
+            tr.innerHTML = `
+              <td class="py-2.5 font-semibold text-slate-200">${empId}</td>
+              <td class="py-2.5 text-slate-300">${date}</td>
+              <td class="py-2.5 text-emerald-400 font-semibold">${clockIn}</td>
+              <td class="py-2.5 text-emerald-400 font-semibold">${clockOut}</td>
+              <td class="py-2.5">${statusBadge}</td>
+              <td class="py-2.5 text-slate-500">${duplicates} รายการซ้อน</td>
+            `;
+            previewTable.appendChild(tr);
+          });
+
+          if (dryRun) {
+            showToast("🔍 จำลองการนำเข้าเสร็จสิ้น ตรวจสอบประวัติพรีวิวได้ทันที", "success");
+          } else {
+            showToast(`🎉 ${res.message} ดึงข้อมูลเข้าสู่ชีตเวลางานแล้ว`, "success");
+            selectedTxtFileContent = "";
+            document.getElementById("txt-file-label").textContent = "เลือกไฟล์ .txt ที่นี่";
+          }
+        } else {
+          showToast("❌ การนำเข้าล้มเหลว: " + res.message, "error");
+        }
+      } catch (err) {
+        showToast("❌ เกิดข้อผิดพลาดเชื่อมต่อ Apps Script", "error");
+      }
+    }
+
+    // --- ส่วนงานนำเข้าสลิปเงินเดือนและการสับ PDF (.pdf) ---
+    let selectedPdfBuffer = null;
+    let selectedPdfFileName = "";
+
+    function handlePdfFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      selectedPdfFileName = file.name;
+      document.getElementById("pdf-file-label").textContent = `เลือกไฟล์: ${file.name}`;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        selectedPdfBuffer = e.target.result;
+        document.getElementById("pdf-btn-parse").disabled = false;
+        document.getElementById("pdf-btn-upload").disabled = true;
+        showToast("📄 โหลดไฟล์ PDF เข้าหน่วยความจำแล้ว กดวิเคราะห์ข้อความเพื่อเริ่ม", "success");
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    async function processPdfParse() {
+      if (!selectedPdfBuffer) {
+        showToast("⚠️ ไม่พบข้อมูลไฟล์ PDF", "warning");
+        return;
+      }
+
+      showToast("⏳ กำลังเริ่มแกะเนื้อหา PDF แยกรายหน้า...", "info");
+      document.getElementById("pdf-parse-status").textContent = "กำลังดำเนินการอ่านข้อมูล...";
+      
+      // ดึงรายชื่อพนักงานทั้งหมดมาช่วยทำ Auto-match
+      if (adminEmployeesList.length === 0) {
+        try {
+          const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees`);
+          if (empRes.status === 'success') {
+            adminEmployeesList = empRes.data;
+          }
+        } catch (e) {}
+      }
+
+      try {
+        const pdfjsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(selectedPdfBuffer) }).promise;
+        const pdfLibDoc = await PDFLib.PDFDocument.load(selectedPdfBuffer);
+        const numPages = pdfLibDoc.getPageCount();
+
+        parsedPayslips = [];
+        let matchedCount = 0;
+        let unmatchedCount = 0;
+
+        for (let i = 0; i < numPages; i++) {
+          const progressPercent = Math.round(((i + 1) / numPages) * 100);
+          document.getElementById("pdf-parse-progress").style.width = `${progressPercent}%`;
+          document.getElementById("pdf-parse-status").textContent = `กำลังอ่านหน้า ${i+1}/${numPages}...`;
+
+          // 1. ดึงข้อความเพื่อหา Employee ID, Amount และ Month
+          const pageJs = await pdfjsDoc.getPage(i + 1);
+          const textContext = await pageJs.getTextContent();
+          const text = textContext.items.map(item => item.str).join(" ");
+
+          // พยายามระบุตัวตนพนักงาน
+          let empId = "";
+          let empName = "ไม่ระบุ";
+
+          // ค้นหาเปรียบเทียบในรายชื่อ
+          for (const emp of adminEmployeesList) {
+            const id = (emp["รหัสพนักงาน"] || "").toString();
+            const fullName = (emp["ชื่อ-นามสกุล"] || "").toString();
+            if (id && text.includes(id)) {
+              empId = id;
+              empName = fullName;
+              break;
+            }
+          }
+
+          // Fallback regex match ID 5-7 หลัก
+          if (!empId) {
+            const mId = text.match(/(\d{5,7})/);
+            if (mId) empId = mId[1];
+          }
+
+          // ค้นหายอดโอนสุทธิ
+          let netAmount = 0.00;
+          const regexAmounts = [
+            /(?:ยอดสุทธิ|ยอดโอน|รับสุทธิ|Net\s*Pay|Net\s*Salary)[\s:]*([0-9,]+\.[0-9]{2})/i,
+            /([0-9,]+\.[0-9]{2})\s*(?:บาท|THB)/i,
+            /([0-9,]+\.[0-9]{2})/
+          ];
+          for (const rx of regexAmounts) {
+            const m = text.match(rx);
+            if (m) {
+              netAmount = parseFloat(m[1].replace(/,/g, ''));
+              break;
+            }
+          }
+
+          // ค้นหาเดือน/รอบเงินเดือน
+          let monthStr = "";
+          const mMonth = text.match(/(\d{2})\/(\d{4})/);
+          if (mMonth) {
+            monthStr = `${mMonth[1]}/${mMonth[2]}`;
+          } else {
+            const now = new Date();
+            monthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+          }
+
+          if (empName !== 'ไม่ระบุ') matchedCount++; else unmatchedCount++;
+
+          // 2. หั่นหน้า PDF นั้นๆ ออกเป็นหน้าเดี่ยวด้วย PDF-Lib
+          const newPdf = await PDFLib.PDFDocument.create();
+          const [copiedPage] = await newPdf.copyPages(pdfLibDoc, [i]);
+          newPdf.addPage(copiedPage);
+          const pdfBytes = await newPdf.save();
+          const base64Data = arrayBufferToBase64(pdfBytes);
+          const dataUrl = "data:application/pdf;base64," + base64Data;
+
+          parsedPayslips.push({
+            pageNumber: i + 1,
+            empId: empId,
+            empName: empName,
+            month: monthStr,
+            netAmount: netAmount,
+            pdfBase64: dataUrl,
+            status: empName !== 'ไม่ระบุ' ? 'MATCHED' : 'UNMATCHED'
+          });
+        }
+
+        // แสดงผลลัพธ์ลงสถิติ
+        document.getElementById("pdf-stat-pages").textContent = numPages;
+        document.getElementById("pdf-stat-matched").textContent = matchedCount;
+        document.getElementById("pdf-stat-unmatched").textContent = unmatchedCount;
+        document.getElementById("pdf-parse-status").textContent = "วิเคราะห์ข้อความสำเร็จ!";
+
+        // เรนเดอร์ลงตารางพรีวิว
+        renderPdfPreviewTable();
+
+        document.getElementById("pdf-btn-upload").disabled = false;
+        showToast("✅ วิเคราะห์แยกหน้าและแกะข้อมูลสลิปเสร็จสมบูรณ์ ตรวจสอบสิทธิ์ในตาราง", "success");
+
+      } catch (err) {
+        document.getElementById("pdf-parse-status").textContent = "❌ วิเคราะห์ผิดพลาด";
+        showToast("❌ การวิเคราะห์ PDF ขัดข้อง: " + err.message, "error");
+      }
+    }
+
+    function renderPdfPreviewTable() {
+      const container = document.getElementById("pdf-preview-table-body");
+      container.innerHTML = "";
+
+      parsedPayslips.forEach((slip, idx) => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800/40 hover:bg-slate-900/35 transition-all text-xs";
+        
+        let statusText = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-bold">พบคู่เชื่อมโยง</span>`;
+        if (slip.status === 'UNMATCHED') {
+          statusText = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full font-bold">ไม่พบคู่ข้อมูล</span>`;
+        }
+
+        tr.innerHTML = `
+          <td class="py-3 font-semibold text-slate-400 text-center">หน้า ${slip.pageNumber}</td>
+          <td class="py-3">
+            <input type="text" value="${slip.empId}" onchange="updatePayslipRowEmpId(${idx}, this.value)" placeholder="กรอกรหัส..." class="bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-indigo-500">
+          </td>
+          <td class="py-3 text-slate-300 font-semibold" id="pdf-row-name-${idx}">${slip.empName}</td>
+          <td class="py-3 text-slate-400">${slip.month}</td>
+          <td class="py-3 text-emerald-400 font-bold">฿${Number(slip.netAmount).toLocaleString()}</td>
+          <td class="py-3" id="pdf-row-status-${idx}">${statusText}</td>
+        `;
+        container.appendChild(tr);
+      });
+    }
+
+    // ฟังก์ชันรองรับการเขียนทับรหัสพนักงานด้วยตนเองหากแกะไม่ตรง
+    function updatePayslipRowEmpId(index, newEmpId) {
+      newEmpId = newEmpId.trim().toUpperCase();
+      parsedPayslips[index].empId = newEmpId;
+      
+      const employee = adminEmployeesList.find(emp => (emp["รหัสพนักงาน"] || "").toString().toUpperCase() === newEmpId);
+      const nameCell = document.getElementById(`pdf-row-name-${index}`);
+      const statusCell = document.getElementById(`pdf-row-status-${index}`);
+
+      if (employee) {
+        parsedPayslips[index].empName = employee["ชื่อ-นามสกุล"];
+        parsedPayslips[index].status = "MATCHED";
+        nameCell.textContent = employee["ชื่อ-นามสกุล"];
+        statusCell.innerHTML = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-bold">จับคู่แล้ว</span>`;
+      } else {
+        parsedPayslips[index].empName = "ไม่ระบุ";
+        parsedPayslips[index].status = "UNMATCHED";
+        nameCell.textContent = "ไม่พบรหัสนี้";
+        statusCell.innerHTML = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full font-bold">ไม่พบคู่ข้อมูล</span>`;
+      }
+
+      // นับสถิติใหม่
+      const matched = parsedPayslips.filter(s => s.status === 'MATCHED').length;
+      document.getElementById("pdf-stat-matched").textContent = matched;
+      document.getElementById("pdf-stat-unmatched").textContent = parsedPayslips.length - matched;
+    }
+
+    // ฟังก์ชันสั่งอัพโหลด PDF ทั้งหมดขึ้นระบบ
+    async function uploadParsedPayslips() {
+      const unmatched = parsedPayslips.filter(s => s.status === 'UNMATCHED');
+      if (unmatched.length > 0) {
+        if (!confirm(`⚠️ พบบางรายการ (${unmatched.length} หน้า) ที่ยังไม่ได้กำหนดคู่รหัสพนักงานที่ถูกต้อง\nต้องการอัปโหลดเฉพาะรายการที่จับคู่พนักงานแล้วใช่หรือไม่?`)) {
+          return;
+        }
+      }
+
+      const targets = parsedPayslips.filter(s => s.status === 'MATCHED');
+      if (targets.length === 0) {
+        showToast("⚠️ ไม่มีสลิปเงินเดือนที่พร้อมอัปโหลด", "warning");
+        return;
+      }
+
+      showToast(`⏳ เริ่มต้นการอัปโหลดไฟล์สลิปขึ้นคลาวด์ ${targets.length} รายการ...`, "info");
+      document.getElementById("pdf-btn-upload").disabled = true;
+      
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < targets.length; i++) {
+        const slip = targets[i];
+        const progressPercent = Math.round(((i + 1) / targets.length) * 100);
+        document.getElementById("pdf-parse-progress").style.width = `${progressPercent}%`;
+        document.getElementById("pdf-parse-status").textContent = `กำลังอัปโหลด ${i+1}/${targets.length} (รหัส: ${slip.empId})...`;
+
+        const payload = {
+          action: "uploadPayslipFile",
+          empId: slip.empId,
+          month: slip.month,
+          netAmount: slip.netAmount,
+          pdfFile: slip.pdfBase64
+        };
+
+        try {
+          const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.status === 'success') {
+            successCount++;
+          } else {
+            failCount++;
+            console.error(`Upload error for ${slip.empId}: ${res.message}`);
+          }
+        } catch (e) {
+          failCount++;
+          console.error(`Upload connection failure for ${slip.empId}: ${e.message}`);
+        }
+      }
+
+      document.getElementById("pdf-parse-status").textContent = `เสร็จสิ้น! อัปโหลดผ่าน ${successCount} · ล้มเหลว ${failCount}`;
+      document.getElementById("pdf-parse-progress").style.width = "100%";
+      
+      showToast(`🎉 จัดการสลิปเรียบร้อย: โอนเข้าระบบสำเร็จ ${successCount} รายการ · ล้มเหลว ${failCount} รายการ`, "success");
+      
+      // ล้างไฟล์ออกจากสเตท
+      selectedPdfBuffer = null;
+      parsedPayslips = [];
+      document.getElementById("pdf-file-label").textContent = "เลือกไฟล์ .pdf ที่นี่";
+      document.getElementById("pdf-preview-table-body").innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic">การทำรายการอัปโหลดเสร็จสิ้น ข้อมูลถูกจัดส่งเข้าตารางคลาวด์แล้ว</td></tr>`;
+    }
+
+    // Helper: แปลง ArrayBuffer เป็น Base64
+    function arrayBufferToBase64(buffer) {
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return window.btoa(binary);
+    }
+
+    // ─────────────────────────────────────────────────────────────
     function showNotificationCenter() {
       showToast("🔔 ข่าวสารล่าสุด: ระบบประมวลผลรอบบัญชีพร้อมใช้งานแล้ว!", "info");
     }
