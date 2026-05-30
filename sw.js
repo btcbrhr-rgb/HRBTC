@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hrbtc-cache-v3';
+const CACHE_NAME = 'hrbtc-cache-v4';
 // Local app files only — CDN resources are cached by browser HTTP cache
 // No version pinning for external CDN in service worker (avoids stale versions)
 const ASSETS_TO_CACHE = [
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[HRBTC SW] Caching essential assets v3...');
+      console.log('[HRBTC SW] Caching essential assets v4...');
       return cache.addAll(ASSETS_TO_CACHE).catch(err => {
         console.warn('[HRBTC SW] Failed to cache some assets:', err);
       });
