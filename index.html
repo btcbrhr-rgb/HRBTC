@@ -1,1361 +1,2208 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HRBTC - HR Mobile Portal</title>
-    <!-- ลิงก์เชื่อมโยง PWA Manifest -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2563EB">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="HRBTC">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/9187/9187532.png">
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Google Fonts (Sarabun & Prompt) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <style>
-        body {
-            font-family: 'Prompt', 'Sarabun', sans-serif;
-            background-color: #F8FAFC;
-            -webkit-tap-highlight-color: transparent;
-        }
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        .pwa-banner-bounce {
-            animation: bounce 2s infinite;
-        }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>HRBTC Mobile Application</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts Prompt -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Prompt', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* ปรับแต่ง scrollbar ให้เล็ก สไตล์โมเดิร์น */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    /* ปรับปรุงแอนิเมชันตอนกด */
+    .btn-press:active {
+      transform: scale(0.96);
+    }
+    /* PWA Splash Simulator style */
+    .pwa-badge {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .7; }
+    }
+  </style>
 </head>
-<body class="max-w-md mx-auto bg-slate-50 min-h-screen shadow-xl flex flex-col relative pb-20">
+<body class="bg-[#F8FAFC] text-slate-800 antialiased selection:bg-blue-100 flex justify-center min-h-screen">
 
-    <!-- PWA Installation Banner (แจ้งเตือนจริงจากบราวเซอร์) -->
-    <div id="pwa-install-banner" class="hidden fixed top-4 left-4 right-4 max-w-sm mx-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-2xl shadow-2xl z-50 flex flex-col gap-3 pwa-banner-bounce">
-        <div class="flex items-start justify-between">
-            <div class="flex items-center gap-3">
-                <div class="bg-white/20 p-2 rounded-xl">
-                    <i data-lucide="smartphone" class="w-6 h-6"></i>
-                </div>
-                <div>
-                    <h4 class="font-semibold text-sm">ติดตั้งแอป HRBTC บนมือถือ</h4>
-                    <p class="text-xs text-blue-100">ลงเวลาด้วย GPS รวดเร็วและแจ้งเตือนทันที</p>
-                </div>
-            </div>
-            <button onclick="dismissInstallBanner()" title="ปิดบานเนอร์ติดตั้ง" class="text-white/80 hover:text-white">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
+  <!-- กรอบจำลองหน้าจอมือถือ (Mobile Frame) เพื่อแสดงผลได้พรีเมียมทุกแพลตฟอร์ม -->
+  <div id="app" class="w-full max-w-md bg-white min-h-screen shadow-2xl relative flex flex-col pb-24 overflow-x-hidden border-x border-slate-100">
+    
+    <!-- === ระบบแจ้งเตือนแจ้งข่าวด้านบน (Real-time Toasts) === -->
+    <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-[340px] pointer-events-none flex flex-col gap-2"></div>
+
+    <!-- ============================================== -->
+    <!-- 0. หน้าเข้าสู่ระบบ (Login Page) -->
+    <!-- ============================================== -->
+    <div id="login-container" class="absolute inset-0 bg-white z-50 flex flex-col justify-between px-6 py-10 transition-all duration-300">
+      
+      <!-- ส่วนหัวต้อนรับ -->
+      <div class="space-y-6 text-center mt-10">
+        <div class="inline-flex w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl items-center justify-center text-4xl shadow-inner mx-auto animate-bounce">
+          <i class="fa-solid fa-fingerprint"></i>
         </div>
-        <div class="flex gap-2 justify-end">
-            <button onclick="dismissInstallBanner()" class="px-3 py-1.5 text-xs text-white/90 hover:text-white">ภายหลัง</button>
-            <button onclick="triggerPwaInstall()" class="px-4 py-1.5 bg-white text-blue-600 rounded-lg text-xs font-semibold hover:bg-blue-50 transition-all shadow-md">ติดตั้งทันที</button>
+        <div class="space-y-2">
+          <h2 class="text-2xl font-bold text-slate-800 tracking-tight">ระบบบริการตนเองพนักงาน</h2>
+          <p class="text-xs text-slate-400">HRBTC Portal · บันทึกเวลา ลา เบิกเงินล่วงหน้า และสลิป</p>
         </div>
+      </div>
+
+      <!-- ส่วนแบบฟอร์มล็อกอิน -->
+      <form onsubmit="handleLogin(event)" class="space-y-5 my-auto">
+        <div class="space-y-2">
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">รหัสประจำตัวพนักงาน</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <i class="fa-solid fa-id-card"></i>
+            </span>
+            <input id="login-emp-id" type="text" placeholder="พิมพ์รหัสพนักงานของคุณ..." required 
+                   class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3.5 text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-xs">
+          </div>
+        </div>
+
+        <button type="submit" class="btn-press w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3.5 rounded-xl shadow-md shadow-blue-500/10 hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2">
+          <span>เข้าสู่ระบบเพื่อใช้งาน</span>
+          <i class="fa-solid fa-arrow-right text-xs"></i>
+        </button>
+
+        <!-- แถบแนะนำการทดสอบสำหรับโหมดเดโม่ -->
+        <div class="bg-blue-50 border border-blue-100 rounded-xl p-3.5 text-[11px] text-blue-800 leading-relaxed">
+          <p class="font-bold mb-1"><i class="fa-solid fa-circle-info mr-1 text-xs"></i> การล็อกอินเพื่อทดสอบระบบ:</p>
+          <p class="mb-2 text-slate-600">เนื่องจากเชื่อมโยงกับเซิร์ฟเวอร์จริงแล้ว กรุณาพิมพ์รหัสพนักงานที่ลงทะเบียนไว้ในตาราง Google Sheets ของคุณ หรือเปลี่ยนโหมดเป็น Demo เพื่อทดลองใช้บัญชีตัวอย่างด้านล่าง:</p>
+          <ul class="list-disc pl-4 space-y-0.5 text-blue-700 font-medium">
+            <li><span class="underline cursor-pointer" onclick="setLoginQuick('EMP102003')">EMP102003</span> - บัญชีทดสอบโปรแกรมเมอร์ (โหมดเดโม่)</li>
+            <li><span class="underline cursor-pointer" onclick="setLoginQuick('EMP800139')">EMP800139</span> - บัญชีผู้ควบคุมงาน (โหมดเดโม่)</li>
+          </ul>
+        </div>
+      </form>
+
+      <!-- ส่วนท้ายโลโก้ / ตั้งค่าการเชื่อมต่อ Google Sheets -->
+      <div class="text-center space-y-4">
+        <button type="button" onclick="toggleConfigModal()" class="text-xs text-slate-400 hover:text-slate-600 inline-flex items-center gap-1.5 transition-all">
+          <i class="fa-solid fa-gear"></i> ตั้งค่าเชื่อมต่อ Google Sheets (หรือสลับโหมดเดโม่)
+        </button>
+        <p class="text-[10px] text-slate-300">© 2026 HRBTC Portal. All Rights Reserved.</p>
+      </div>
+
     </div>
 
-    <!-- หน้าจอป้อนรหัสพนักงานเข้าสู่ระบบ (เนื่องจากเชื่อมต่อระบบจริง) -->
-    <div id="login-screen" class="fixed inset-0 bg-white z-50 flex flex-col justify-center p-6">
-        <div class="space-y-6 text-center">
-            <div class="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center text-white text-3xl font-bold shadow-xl shadow-blue-100">
-                HR
-            </div>
-            <div class="space-y-2">
-                <h2 class="text-2xl font-bold text-slate-800">เข้าสู่ระบบ HRBTC</h2>
-                <p class="text-xs text-slate-400">กรุณาป้อนรหัสพนักงานของคุณเพื่อเข้าใช้งานผ่านฐานข้อมูล</p>
-            </div>
-            <div class="space-y-4 text-left">
-                <div>
-                    <label class="text-xs font-bold text-slate-500 block mb-1.5">รหัสพนักงาน</label>
-                    <input type="text" id="login-emp-id" placeholder="ตัวอย่าง: EMP001" class="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                </div>
-                <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-semibold text-sm transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2">
-                    <span>ค้นหาข้อมูลพนักงาน</span>
-                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                </button>
-            </div>
-            <p class="text-[11px] text-slate-400">ระบบเชื่อมต่อโดยตรงกับระบบ Google Sheets Cloud DB แบบเรียลไทม์</p>
+    <!-- === ส่วนหัว (Header) === -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 pt-5 pb-5 sticky top-0 z-40 shadow-md">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-sm overflow-hidden" onclick="triggerPwaPrompt()">
+            <img id="header-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Avatar" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <h1 class="text-xs text-blue-100 font-light flex items-center gap-1">
+              <span>HRBTC Portal</span>
+              <span id="connection-status-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </h1>
+            <!-- แสดงชื่อ-สกุล (รหัสพนักงาน) ตามเงื่อนไขหน้าอื่นๆ ยกเว้นหน้าแรก -->
+            <p id="header-emp-info" class="text-sm font-semibold truncate max-w-[200px]">ยินดีต้อนรับ</p>
+          </div>
         </div>
-    </div>
-
-    <!-- Notification Toast -->
-    <div id="toast" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-4 py-3 rounded-full shadow-lg z-50 flex items-center gap-2 opacity-0 pointer-events-none transition-all duration-300 text-sm">
-        <span id="toast-icon"></span>
-        <span id="toast-message">ข้อความแจ้งเตือน</span>
-    </div>
-
-    <!-- MAIN HEADER -->
-    <header id="main-header" class="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100 px-4 py-3 flex items-center justify-between transition-all">
+        
         <div class="flex items-center gap-2">
-            <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-blue-100">
-                HR
-            </div>
-            <div>
-                <h1 id="header-title" class="text-base font-bold text-slate-800">HRBTC</h1>
-                <!-- แสดง ชื่อ-สกุล (รหัสพนักงาน) ในเมนูอื่นๆยกเว้นหน้าแรก -->
-                <p id="header-employee-info" class="text-xs text-blue-600 font-medium hidden">นายนพดล มั่งมี (EMP001)</p>
-            </div>
+          <!-- ปุ่มสลับโหมดเชื่อมต่อ API -->
+          <button onclick="toggleConfigModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-sm transition-all relative">
+            <i class="fa-solid fa-gear"></i>
+            <span id="api-indicator" class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
+          </button>
+          
+          <!-- ปุ่มแจ้งเตือน -->
+          <button onclick="showNotificationCenter()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-sm transition-all relative">
+            <i class="fa-solid fa-bell"></i>
+            <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping"></span>
+          </button>
         </div>
-        <div class="relative cursor-pointer" onclick="toggleNotifications()">
-            <div class="bg-slate-100 hover:bg-slate-200/80 p-2 rounded-xl transition-all">
-                <i data-lucide="bell" class="w-5 h-5 text-slate-600"></i>
-            </div>
-            <span id="noti-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">0</span>
-        </div>
+      </div>
     </header>
 
-    <!-- Notification Drawer -->
-    <div id="noti-drawer" class="hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-end flex-col">
-        <div class="bg-white rounded-t-3xl max-w-md mx-auto w-full p-5 shadow-2xl transition-all max-h-[75vh] flex flex-col">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="bell-ring" class="text-blue-500 w-5 h-5"></i>
-                    <h3 class="font-bold text-slate-800 text-lg">การแจ้งเตือนล่าสุด</h3>
-                </div>
-                <button onclick="toggleNotifications()" title="ปิดหน้าต่างแจ้งเตือน" class="p-1 hover:bg-slate-100 rounded-full">
-                    <i data-lucide="x" class="w-6 h-6 text-slate-400"></i>
-                </button>
+    <!-- === เนื้อหาแอปพลิเคชัน (Main Screen Container) === -->
+    <main class="flex-1 px-4 py-4 overflow-y-auto">
+
+      <!-- ============================================== -->
+      <!-- 1. หน้าแรก (Home Page) -->
+      <!-- ============================================== -->
+      <section id="page-home" class="space-y-5">
+        <!-- ยินดีต้อนรับ & โปรไฟล์ผู้ใช้ -->
+        <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-500/10 rounded-full blur-2xl"></div>
+          <div class="absolute -left-10 -top-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl"></div>
+          
+          <div class="relative z-10">
+            <p class="text-xs text-indigo-300 font-medium tracking-wider uppercase mb-1">สวัสดีคุณพนักงาน</p>
+            <h2 id="home-emp-name" class="text-xl font-bold mb-1">...</h2>
+            <p id="home-emp-id-pos" class="text-xs text-indigo-200">กำลังดึงพนักงาน...</p>
+            
+            <div class="mt-4 pt-3 border-t border-white/10 flex justify-between items-center text-xs">
+              <span class="text-slate-400">รอบบัญชีปัจจุบัน:</span>
+              <span id="home-cycle-range" class="font-semibold text-emerald-400">...</span>
             </div>
-            <div id="noti-list" class="flex flex-col gap-3 overflow-y-auto pb-6"></div>
+          </div>
         </div>
-    </div>
 
-    <!-- MAIN CONTENT -->
-    <main class="flex-1 p-4 overflow-y-auto">
-
-        <!-- ==================== หน้าแรก (HOME) ==================== -->
-        <section id="view-home" class="space-y-5">
-            <div class="bg-gradient-to-tr from-blue-50 to-indigo-50/50 p-5 rounded-3xl border border-blue-100/50 relative overflow-hidden">
-                <div class="relative z-10">
-                    <span class="bg-blue-600 text-white text-[10px] px-2.5 py-1 rounded-full font-semibold uppercase tracking-wider">ยินดีต้อนรับ</span>
-                    <h2 id="home-emp-name" class="text-xl font-bold text-slate-800 mt-2">กำลังโหลดข้อมูล...</h2>
-                    <p id="home-emp-id" class="text-sm text-slate-500 font-medium">รหัสพนักงาน: --</p>
-                    <div class="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
-                        <i data-lucide="briefcase" class="w-3.5 h-3.5"></i>
-                        <span id="home-emp-position">--</span>
-                    </div>
-                </div>
-                <div class="absolute right-4 bottom-4 opacity-10">
-                    <i data-lucide="user-check" class="w-24 h-24 text-blue-600"></i>
-                </div>
+        <!-- แผงข้อมูลสถิติประจำรอบบัญชี -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+              <i class="fa-solid fa-chart-pie text-blue-600"></i> สถิติตามรอบบัญชีนี้
+            </h3>
+            <span class="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full" id="stat-cycle-label">...</span>
+          </div>
+          
+          <!-- ตารางสถิติ Grid -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-emerald-50/50 border border-emerald-100/80 rounded-xl p-3.5 flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-600 text-lg">
+                <i class="fa-solid fa-calendar-check"></i>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-500 font-medium">วันทำงาน</p>
+                <p id="stat-work-days" class="text-base font-bold text-slate-800">0 <span class="text-xs font-normal text-slate-500">วัน</span></p>
+              </div>
             </div>
 
-            <!-- ส่วนสถิติตามรอบบัญชี (26 ของเดือนก่อน ถึง 25 ของเดือนปัจจุบัน) -->
-            <div>
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-bold text-slate-800 text-sm">สถิติตามรอบบัญชีปัจจุบัน</h3>
-                    <span id="accounting-period-label" class="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg font-medium">รอบบัญชีปัจจุบัน</span>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-xs">
-                        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                            <i data-lucide="calendar-days" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-400">วันทำงาน</p>
-                            <p class="text-base font-bold text-slate-800"><span id="stat-work-days">0</span> วัน</p>
-                        </div>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-xs">
-                        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                            <i data-lucide="clock" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-400">มาสาย</p>
-                            <p class="text-base font-bold text-slate-800"><span id="stat-late-minutes">0</span> นาที</p>
-                        </div>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-xs">
-                        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                            <i data-lucide="timer" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-400">ยอดโอที</p>
-                            <p class="text-base font-bold text-slate-800"><span id="stat-ot-hours">0.0</span> ช.ม.</p>
-                        </div>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-xs">
-                        <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                            <i data-lucide="user-x" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-400">หักขาดงาน</p>
-                            <p class="text-base font-bold text-slate-800"><span id="stat-absent-days">0</span> วัน</p>
-                        </div>
-                    </div>
-                </div>
+            <div class="bg-amber-50/50 border border-amber-100/80 rounded-xl p-3.5 flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-600 text-lg">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-500 font-medium">มาสาย</p>
+                <p id="stat-late-minutes" class="text-base font-bold text-slate-800">0 <span class="text-xs font-normal text-slate-500">นาที</span></p>
+              </div>
             </div>
 
-            <div>
-                <h3 class="font-bold text-slate-800 text-sm mb-3">กิจกรรมและประกาศตามรอบบัญชี</h3>
-                <div class="space-y-3">
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-md font-semibold">อัปเดตระบบ</span>
-                            <span class="text-[11px] text-slate-400">ล่าสุด</span>
-                        </div>
-                        <h4 class="font-bold text-slate-800 text-xs">เชื่อมต่อ Google Sheets สำเร็จ</h4>
-                        <p class="text-slate-500 text-xs leading-relaxed">แอปพลิเคชันเวอร์ชันนี้เชื่อมต่อฐานข้อมูลและอัปโหลดภาพลงระบบ Cloud Google Drive อัตโนมัติแล้ว</p>
-                    </div>
-                </div>
+            <div class="bg-blue-50/50 border border-blue-100/80 rounded-xl p-3.5 flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-blue-500/15 flex items-center justify-center text-blue-600 text-lg">
+                <i class="fa-solid fa-business-time"></i>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-500 font-medium">ยอดโอที</p>
+                <p id="stat-ot-hours" class="text-base font-bold text-slate-800">0.0 <span class="text-xs font-normal text-slate-500">ช.ม.</span></p>
+              </div>
             </div>
-        </section>
 
-        <!-- ==================== ปฏิทิน (CALENDAR) ==================== -->
-        <section id="view-calendar" class="hidden space-y-4">
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 flex flex-col gap-2 shadow-xs">
-                <label for="calendar-month-select" class="text-xs font-bold text-slate-500 uppercase">เลือกรอบบัญชี</label>
-                <select id="calendar-month-select" onchange="renderCalendarData()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 outline-none" title="เลือกรอบบัญชี">
-                    <!-- Options จะถูก generate อัตโนมัติโดย JS ด้านล่าง (populateCalendarMonthSelect) -->
+            <div class="bg-rose-50/50 border border-rose-100/80 rounded-xl p-3.5 flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-rose-500/15 flex items-center justify-center text-rose-600 text-lg">
+                <i class="fa-solid fa-user-xmark"></i>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-500 font-medium">หักขาดงาน</p>
+                <p id="stat-absent-days" class="text-base font-bold text-slate-800">0 <span class="text-xs font-normal text-slate-500">วัน</span></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-violet-50/50 border border-violet-100/80 rounded-xl p-3.5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-violet-500/15 flex items-center justify-center text-violet-600 text-lg">
+                <i class="fa-solid fa-plane-departure"></i>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-500 font-medium">วันลาทั้งหมดที่ใช้ไป</p>
+                <p id="stat-leave-days" class="text-base font-bold text-slate-800">0 <span class="text-xs font-normal text-slate-500">วัน</span></p>
+              </div>
+            </div>
+            <span class="text-xs text-violet-700 bg-violet-100 font-semibold px-2 py-1 rounded-lg">รอบบัญชีปัจจุบัน</span>
+          </div>
+        </div>
+
+        <!-- ประวัติและกิจกรรมล่าสุดตามรอบบัญชี -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+              <i class="fa-solid fa-list-check text-blue-600"></i> กิจกรรมล่าสุดในรอบบัญชี
+            </h3>
+            <button onclick="navigateTo('calendar')" class="text-xs text-blue-600 hover:underline">ดูปฏิทินทั้งหมด</button>
+          </div>
+          
+          <div id="home-activities-list" class="space-y-2.5">
+            <!-- โหลดรายการกิจกรรมที่นี่ -->
+            <div class="text-center py-6 text-slate-400 text-xs">
+              <i class="fa-solid fa-circle-notch animate-spin text-lg text-blue-500 mb-2 block"></i>
+              กำลังโหลดประวัติเวลางานในรอบปัจจุบัน...
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- 2. ปฏิทินรอบบัญชี (Calendar Page) -->
+      <!-- ============================================== -->
+      <section id="page-calendar" class="hidden space-y-4">
+        <!-- กล่องฟิลเตอร์เลือกรอบบัญชี -->
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
+          <label class="block text-xs font-semibold text-slate-500">เลือกรอบบัญชี (26 ของเดือนก่อนหน้า - 25 ของเดือนปัจจุบัน)</label>
+          <div class="flex items-center gap-2">
+            <select id="calendar-cycle-select" onchange="onCalendarCycleChange()" class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <!-- ตัวเลือกจะถูกสร้างอัตโนมัติ -->
+            </select>
+            <button onclick="loadCalendarRecords()" class="btn-press bg-blue-50 text-blue-600 font-semibold text-xs px-3 py-2 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all">
+              <i class="fa-solid fa-rotate"></i> รีเฟรช
+            </button>
+          </div>
+          <p id="calendar-cycle-display" class="text-xs text-indigo-600 font-semibold bg-indigo-50/50 p-2 rounded-lg text-center"></p>
+        </div>
+
+        <!-- รายการเวลาเข้า-ออก และสถานะรายวัน -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-slate-800">บันทึกรายวันในรอบบัญชี</h3>
+            <span class="text-xs text-slate-400" id="calendar-records-count">0 รายการ</span>
+          </div>
+
+          <div id="calendar-days-list" class="space-y-3">
+            <!-- โหลดรายการวันจากชีตเวลางานที่นี่ -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- 3. บันทึกเวลาด้วย GPS และภาพถ่าย (Time Attendance) -->
+      <!-- ============================================== -->
+      <section id="page-attendance" class="hidden space-y-4">
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-4">
+          <div class="text-center">
+            <h3 class="font-bold text-base text-slate-800">บันทึกเวลาทำงาน</h3>
+            <p class="text-xs text-slate-400">กรุณาเลือกโครงการ และยืนยันตัวตนด้วยภาพถ่ายและพิกัด GPS</p>
+          </div>
+
+          <!-- ตัวเลือกโครงการ -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-500"><i class="fa-solid fa-map-pin text-rose-500"></i> เลือกโครงการ/สถานที่</label>
+            <select id="attendance-project-select" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <option value="(00)บุรีรัมย์">(00)บุรีรัมย์ (โครงการหลัก)</option>
+              <option value="สำนักงานใหญ่">สำนักงานใหญ่</option>
+              <option value="หน้างานก่อสร้าง A">หน้างานก่อสร้าง A</option>
+              <option value="ไซด์งาน B">ไซด์งาน B</option>
+            </select>
+          </div>
+
+          <!-- แสดงผลลัพธ์ตำแหน่งพิกัด GPS -->
+          <div class="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-xs">
+              <span id="gps-status-icon" class="text-rose-500 text-lg"><i class="fa-solid fa-location-crosshairs animate-pulse"></i></span>
+              <div>
+                <p class="font-semibold text-slate-700">พิกัด GPS ของคุณ</p>
+                <p id="gps-coords" class="text-slate-500 text-[10px]">กำลังค้นหาพิกัดพนักงาน...</p>
+              </div>
+            </div>
+            <button onclick="requestGpsPosition()" class="btn-press bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 p-2 rounded-lg text-xs">
+              <i class="fa-solid fa-location-arrow"></i> อัปเดตพิกัด
+            </button>
+          </div>
+
+          <!-- ส่วนกล้องถ่ายรูปจริง (Camera Section) -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-semibold text-slate-500"><i class="fa-solid fa-camera text-blue-500"></i> ภาพถ่ายยืนยันตัวตน</label>
+              <button onclick="switchCamera()" class="text-[10px] text-blue-600 hover:underline flex items-center gap-1">
+                <i class="fa-solid fa-arrows-rotate"></i> สลับกล้องหน้า/หลัง
+              </button>
+            </div>
+            
+            <div class="relative bg-slate-900 rounded-xl overflow-hidden aspect-video flex items-center justify-center border border-slate-200 shadow-inner">
+              <video id="video-feed" autoplay playsinline class="w-full h-full object-cover"></video>
+              <canvas id="photo-canvas" class="hidden w-full h-full object-cover"></canvas>
+              <img id="photo-preview" class="absolute inset-0 w-full h-full object-cover hidden" alt="Preview Image">
+              
+              <!-- เมนูควบคุมบนกล้อง -->
+              <div class="absolute bottom-2 inset-x-2 flex justify-between items-center bg-black/40 backdrop-blur-sm p-1.5 rounded-lg">
+                <span id="camera-label" class="text-[10px] text-white/90 px-2">กำลังทำงาน</span>
+                <button onclick="capturePhoto()" class="btn-press bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-md shadow-md hover:bg-blue-600 transition-all">
+                  <i class="fa-solid fa-camera-retro"></i> ถ่ายรูปภาพ
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- แถบเวลาปัจจุบัน -->
+          <div class="text-center py-2 bg-blue-50/50 rounded-xl border border-blue-100">
+            <p class="text-xs text-blue-600 font-medium">เวลาท้องถิ่นของเซิร์ฟเวอร์</p>
+            <p id="live-time" class="text-2xl font-bold text-blue-700 tracking-wider">00:00:00</p>
+            <p id="live-date" class="text-[10px] text-blue-500">ดึงข้อมูลเวลาล่าสุด...</p>
+          </div>
+
+          <!-- ปุ่มหลักสำหรับเช็คอิน / เช็คเอาท์ -->
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="submitAttendance('IN')" class="btn-press bg-emerald-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-emerald-700 transition-all flex flex-col items-center gap-1">
+              <i class="fa-solid fa-right-to-bracket text-lg"></i>
+              <span class="text-sm">ลงเวลาเข้างาน</span>
+              <span class="text-[9px] text-emerald-100 font-normal">เช็คอิน (Check-In)</span>
+            </button>
+
+            <button onclick="submitAttendance('OUT')" class="btn-press bg-rose-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-rose-700 transition-all flex flex-col items-center gap-1">
+              <i class="fa-solid fa-right-from-bracket text-lg"></i>
+              <span class="text-sm">ลงเวลาออกงาน</span>
+              <span class="text-[9px] text-rose-100 font-normal">เช็คเอาท์ (Check-Out)</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- 4. การลา (Leave Requests & Balances) -->
+      <!-- ============================================== -->
+      <section id="page-leave" class="hidden space-y-4">
+        <!-- แผงแสดงสิทธิ์วันลาคงเหลือ -->
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">สิทธิ์วันลาประจำปี (ใช้ไปแล้ว / สิทธิ์ทั้งหมด)</h3>
+          
+          <div class="grid grid-cols-3 gap-2">
+            <!-- ลากิจ -->
+            <div class="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-center">
+              <p class="text-[10px] text-slate-500 font-semibold mb-0.5">ลากิจ</p>
+              <p class="text-sm font-bold text-slate-800"><span id="leave-personal-used">0</span>/3</p>
+              <p class="text-[9px] text-slate-400">วัน</p>
+            </div>
+            <!-- ลาป่วย -->
+            <div class="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-center">
+              <p class="text-[10px] text-slate-500 font-semibold mb-0.5">ลาป่วย</p>
+              <p class="text-sm font-bold text-slate-800"><span id="leave-sick-used">0</span>/30</p>
+              <p class="text-[9px] text-slate-400">วัน</p>
+            </div>
+            <!-- ลาพักร้อน -->
+            <div class="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-center">
+              <p class="text-[10px] text-slate-500 font-semibold mb-0.5">ลาพักร้อน</p>
+              <p class="text-sm font-bold text-slate-800"><span id="leave-vacation-used">0</span>/10</p>
+              <p class="text-[9px] text-slate-400">วัน</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ฟอร์มสร้างคำขอลา -->
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-4">
+          <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-1.5 border-b pb-2">
+            <i class="fa-solid fa-file-signature text-blue-600"></i> เขียนคำขอลาใหม่
+          </h3>
+          
+          <form id="leave-request-form" onsubmit="onLeaveSubmit(event)" class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="text-xs text-slate-500 font-semibold">ประเภทการลา</label>
+                <select id="leave-type-select" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+                  <option value="ลากิจ">ลากิจ</option>
+                  <option value="ลาป่วย">ลาป่วย</option>
+                  <option value="ลาพักร้อน">ลาพักร้อน</option>
+                  <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
+                  <option value="ลาอื่นๆ">ลาอื่นๆ</option>
                 </select>
+              </div>
+              
+              <div class="space-y-1">
+                <label class="text-xs text-slate-500 font-semibold">จำนวนวันลา</label>
+                <input id="leave-days-input" type="number" step="0.5" min="0.5" value="1" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+              </div>
             </div>
 
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
-                <div class="bg-slate-50/80 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-600">รายการเวลาเข้า-ออกงานในรอบบัญชี</span>
-                </div>
-                <div id="calendar-days-container" class="divide-y divide-slate-100 max-h-[50vh] overflow-y-auto">
-                    <!-- ประวัติจะแสดงตรงนี้ -->
-                </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="text-xs text-slate-500 font-semibold">วันที่เริ่มต้นลา</label>
+                <input id="leave-start-input" type="date" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+              </div>
+              
+              <div class="space-y-1">
+                <label class="text-xs text-slate-500 font-semibold">วันที่สิ้นสุดลา</label>
+                <input id="leave-end-input" type="date" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+              </div>
             </div>
 
-            <!-- Modal แก้ไขเวลา -->
-            <div id="edit-time-modal" class="hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-                <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-                    <div class="flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800 text-base">ขอแก้ไขบันทึกเวลา</h3>
-                        <button onclick="closeEditTimeModal()" title="ปิดหน้าต่าง" class="text-slate-400 hover:text-slate-600">
-                            <i data-lucide="x" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-                    <form id="edit-time-form" onsubmit="submitTimeCorrection(event)" class="space-y-3">
-                        <input type="hidden" id="edit-date-input">
-                        <div>
-                            <label for="edit-date-display" class="text-[11px] font-bold text-slate-400 block mb-1">วันที่ต้องการแก้ไข</label>
-                            <input type="text" id="edit-date-display" readonly title="วันที่ต้องการแก้ไข" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-600 outline-none">
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label for="edit-time-in" class="text-[11px] font-bold text-slate-400 block mb-1">เวลาเข้างานใหม่</label>
-                                <input type="time" id="edit-time-in" required title="เวลาเข้างานใหม่" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 outline-none">
-                            </div>
-                            <div>
-                                <label for="edit-time-out" class="text-[11px] font-bold text-slate-400 block mb-1">เวลาออกงานใหม่</label>
-                                <input type="time" id="edit-time-out" required title="เวลาออกงานใหม่" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 outline-none">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-[11px] font-bold text-slate-400 block mb-1">เหตุผลที่ขอแก้ไข</label>
-                            <textarea id="edit-reason" required rows="2" placeholder="กรุณาระบุเหตุผลการลืมสแกน..." class="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-700 outline-none resize-none"></textarea>
-                        </div>
-                        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl text-xs font-semibold shadow-lg">ส่งคำขอแก้ไขเวลา</button>
-                    </form>
-                </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-500 font-semibold">เหตุผล/คำชี้แจง</label>
+              <textarea id="leave-reason-input" rows="2" placeholder="กรุณาระบุรายละเอียดการขอลา..." required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"></textarea>
             </div>
-        </section>
 
-        <!-- ==================== บันทึกเวลา (TIME ATTENDANCE) ==================== -->
-        <section id="view-attendance" class="hidden space-y-4">
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 space-y-2 shadow-xs">
-                <label for="attendance-project" class="text-xs font-bold text-slate-500 block">เลือกโครงการ / สถานที่ปฏิบัติงาน</label>
-                <select id="attendance-project" title="เลือกโครงการ / สถานที่ปฏิบัติงาน" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 outline-none">
-                    <option value="สำนักงานใหญ่">สำนักงานใหญ่ (HQ - กรุงเทพฯ)</option>
-                    <option value="โครงการ BTC Tower">โครงการ BTC Tower (อโศก)</option>
-                    <option value="โครงการอาคารชุดบางนา">โครงการอาคารชุดบางนา</option>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-500 font-semibold">เอกสารแนบใบลา (ทางเลือก - ไฟล์ภาพ Base64)</label>
+              <input id="leave-file-input" type="file" accept="image/*" onchange="convertLeaveFileToBase64()" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+              <p class="text-[9px] text-slate-400">แนบหลักฐาน เช่น ใบรับรองแพทย์ หรือ เอกสารสำคัญอื่นๆ</p>
+            </div>
+
+            <button type="submit" class="btn-press w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl text-xs transition-all shadow">
+              <i class="fa-solid fa-paper-plane mr-1"></i> ส่งคำขออนุมัติลา
+            </button>
+          </form>
+        </div>
+
+        <!-- ประวัติการลา -->
+        <div class="space-y-2.5">
+          <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-history text-slate-500"></i> ประวัติการลาล่าสุด
+          </h3>
+          <div id="leave-history-list" class="space-y-2">
+            <!-- โหลดรายการประวัติการลาที่นี่ -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- 5. ขอเบิกเงินล่วงหน้า (Advance Salary) -->
+      <!-- ============================================== -->
+      <section id="page-advance" class="hidden space-y-4">
+        <!-- ฟอร์มสร้างคำขอเบิกเงินล่วงหน้า -->
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-4">
+          <div class="text-center">
+            <h3 class="font-semibold text-base text-slate-800">ขอเบิกเงินเดือนล่วงหน้า</h3>
+            <p class="text-xs text-slate-400">กรุณากรอกยอดเงิน และชี้แจงวัตถุประสงค์เพื่อยื่นตรวจสอบ</p>
+          </div>
+
+          <form id="advance-request-form" onsubmit="onAdvanceSubmit(event)" class="space-y-3.5">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-500">จำนวนเงินที่ต้องการเบิก (บาท)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">฿</span>
+                <input id="advance-amount-input" type="number" min="500" max="10000" step="100" placeholder="ระบุยอดเงิน (เช่น 3,000)" required class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-800 font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              </div>
+              <p class="text-[9px] text-amber-600"><i class="fa-solid fa-circle-info"></i> สามารถเบิกได้ตั้งแต่ 500 - 10,000 บาท ขึ้นอยู่กับเงื่อนไขของบริษัท</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="text-xs text-slate-500 font-semibold">ช่องทางรับเงิน</label>
+                <select id="advance-channel-select" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none">
+                  <option value="โอนผ่านบัญชีธนาคาร">โอนเข้าบัญชีธนาคาร</option>
+                  <option value="รับเงินสด">รับเงินสด (แผนกการเงิน)</option>
                 </select>
+              </div>
+
+              <div class="space-y-1">
+                <label class="text-xs text-slate-500 font-semibold">รอบบัญชีจ่าย</label>
+                <select id="advance-cycle-select" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none">
+                  <option value="รอบสิ้นเดือน">หักล้างในรอบสิ้นเดือน</option>
+                  <option value="รอบกลางเดือน">หักล้างในรอบกลางเดือน</option>
+                </select>
+              </div>
             </div>
 
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 space-y-4 shadow-xs">
-                <div>
-                    <span class="text-xs font-bold text-slate-500 block mb-2">กล้องตรวจจับใบหน้าเสมือนจริง</span>
-                    <div class="w-full h-48 bg-slate-900 rounded-xl overflow-hidden relative flex flex-col items-center justify-center text-white/50">
-                        <div id="camera-overlay" class="absolute inset-0 border-2 border-dashed border-blue-500 m-8 rounded-full opacity-40"></div>
-                        <div id="camera-preview" class="flex flex-col items-center gap-1.5">
-                            <i data-lucide="user" class="w-8 h-8 text-slate-400"></i>
-                            <span class="text-xs text-slate-400">คลิกลงเพื่อจำลองภาพถ่าย</span>
-                        </div>
-                        <!-- Canvas สำหรับแปลงเป็น Base64 เพื่อส่งเข้า Google Drive API -->
-                        <canvas id="virtual-camera-canvas" class="hidden w-full h-full object-cover"></canvas>
-                    </div>
-                </div>
-
-                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="map-pin" class="w-4 h-4 text-rose-500"></i>
-                        <span class="text-xs font-bold text-slate-700">พิกัด GPS ตรวจจับ</span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs">
-                        <span id="gps-coords" class="text-slate-500 font-mono">ดึงพิกัด GPS อัตโนมัติ...</span>
-                    </div>
-                </div>
-
-                <div class="text-center py-2">
-                    <h2 id="clock-display" class="text-3xl font-bold text-slate-800">00:00:00</h2>
-                    <p class="text-xs text-slate-400">ลงเวลาการทำงานแบบเรียบร้อย</p>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="registerAttendance('IN', this)" class="bg-emerald-500 text-white py-3.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-100">
-                        <i data-lucide="log-in" class="w-4 h-4"></i>
-                        ลงชื่อเข้างาน (Check In)
-                    </button>
-                    <button onclick="registerAttendance('OUT', this)" class="bg-rose-500 text-white py-3.5 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-lg shadow-rose-100">
-                        <i data-lucide="log-out" class="w-4 h-4"></i>
-                        ลงชื่อออกงาน (Check Out)
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- ==================== การลา (LEAVE REQUEST) ==================== -->
-        <section id="view-leave" class="hidden space-y-4">
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 space-y-3 shadow-xs">
-                <h3 class="text-xs font-bold text-slate-500 uppercase">สถิติและโควตาการลาคงเหลือ</h3>
-                <div class="grid grid-cols-3 gap-2 text-center">
-                    <div class="bg-emerald-50/50 p-2.5 rounded-xl">
-                        <p class="text-[10px] text-slate-400 font-medium">ลาป่วย</p>
-                        <p class="text-sm font-bold text-slate-800 mt-1"><span id="leave-sick-used">0</span>/<span id="leave-sick-total">30</span></p>
-                    </div>
-                    <div class="bg-blue-50/50 p-2.5 rounded-xl">
-                        <p class="text-[10px] text-slate-400 font-medium">ลากิจ</p>
-                        <p class="text-sm font-bold text-slate-800 mt-1"><span id="leave-personal-used">0</span>/<span id="leave-personal-total">3</span></p>
-                    </div>
-                    <div class="bg-amber-50/50 p-2.5 rounded-xl">
-                        <p class="text-[10px] text-slate-400 font-medium">ลาพักร้อน</p>
-                        <p class="text-sm font-bold text-slate-800 mt-1"><span id="leave-annual-used">0</span>/<span id="leave-annual-total">10</span></p>
-                    </div>
-                </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-500 font-semibold">เหตุผลความจำเป็นในการเบิก</label>
+              <textarea id="advance-reason-input" rows="2" placeholder="กรุณาชี้แจงเหตุผลความจำเป็นสำหรับพิจารณา..." required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-blue-500 focus:outline-none"></textarea>
             </div>
 
-            <div class="flex bg-slate-100 p-1 rounded-xl">
-                <button onclick="switchLeaveTab('form')" id="tab-leave-form" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-xs">สร้างใบลา</button>
-                <button onclick="switchLeaveTab('history')" id="tab-leave-history" class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600">ประวัติการลา</button>
-            </div>
+            <button type="submit" class="btn-press w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-xs transition-all shadow">
+              <i class="fa-solid fa-circle-dollar-to-slot mr-1"></i> ยื่นคำขอเบิกเงิน
+            </button>
+          </form>
+        </div>
 
-            <div id="leave-form-container" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs space-y-3">
-                <form id="leave-form" onsubmit="submitLeaveRequest(event)" class="space-y-3">
-                    <div>
-                        <label for="leave-type" class="text-[11px] font-bold text-slate-400 block mb-1">ประเภทการลา</label>
-                        <select id="leave-type" title="ประเภทการลา" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700">
-                            <option value="ลาป่วย">ลาป่วย</option>
-                            <option value="ลากิจ">ลากิจ</option>
-                            <option value="ลาพักร้อน">ลาพักร้อน</option>
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label for="leave-start" class="text-[11px] font-bold text-slate-400 block mb-1">เริ่มวันที่</label>
-                            <input type="date" id="leave-start" required title="วันที่เริ่มลา" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700">
-                        </div>
-                        <div>
-                            <label for="leave-end" class="text-[11px] font-bold text-slate-400 block mb-1">สิ้นสุดวันที่</label>
-                            <input type="date" id="leave-end" required title="วันที่สิ้นสุดลา" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700">
-                        </div>
-                    </div>
-                    <div>
-                        <label for="leave-attachment" class="text-[11px] font-bold text-slate-400 block mb-1">เอกสารแนบใบลา / ใบรับรองแพทย์ (Base64)</label>
-                        <input type="file" id="leave-attachment" accept="image/*,application/pdf" title="แนบเอกสารใบลา" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700">
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-400 block mb-1">เหตุผลการลา</label>
-                        <textarea id="leave-reason" required rows="2" placeholder="กรุณาระบุรายละเอียดการขอลา..." class="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-700 resize-none"></textarea>
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl text-xs font-semibold">ส่งคำขอลาเพื่อพิจารณา</button>
-                </form>
-            </div>
+        <!-- ประวัติการขอเบิกเงินล่วงหน้า -->
+        <div class="space-y-2.5">
+          <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left text-slate-500"></i> ประวัติการขอเบิกเงินล่าสุด
+          </h3>
+          <div id="advance-history-list" class="space-y-2">
+            <!-- โหลดประวัติการเบิกเงินที่นี่ -->
+          </div>
+        </div>
+      </section>
 
-            <div id="leave-history-container" class="hidden space-y-3">
-                <div id="leave-history-list" class="space-y-2"></div>
-            </div>
-        </section>
+      <!-- ============================================== -->
+      <!-- 6. สลิปเงินเดือน (Payslip Portal) -->
+      <!-- ============================================== -->
+      <section id="page-payslip" class="hidden space-y-4">
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-2">
+          <h3 class="font-bold text-base text-slate-800">ศูนย์สลิปเงินเดือนพนักงาน</h3>
+          <p class="text-xs text-slate-400">ท่านสามารถตรวจสอบ ดูรายละเอียด และเปิดไฟล์ดาวน์โหลดสลิปเงินเดือนรายเดือนของท่านได้</p>
+        </div>
 
-        <!-- ==================== ขอเบิกเงินล่วงหน้า (ADVANCE SALARY) ==================== -->
-        <section id="view-advance" class="hidden space-y-4">
-            <div class="bg-gradient-to-r from-emerald-500 to-teal-600 p-5 rounded-3xl text-white shadow-lg relative overflow-hidden">
-<div class="relative z-10">
-                    <span class="bg-white/20 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">โควตาเบิกเงินล่วงหน้า</span>
-                    <h2 id="advance-quota-display" class="text-2xl font-bold mt-2">-- ฿</h2>
-                    <p class="text-xs text-emerald-100 mt-1">อ้างอิงฐานเงินเดือน (เบิกได้ไม่เกิน 50% ของฐาน)</p>
-                </div>
-                <div class="absolute right-4 bottom-2 opacity-10">
-                    <i data-lucide="banknote" class="w-24 h-24 text-white"></i>
-                </div>
-            </div>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500">รายการสลิปเงินเดือนที่ออกให้</span>
+            <span class="text-[10px] text-slate-400">คลิกเพื่อดูรายละเอียด</span>
+          </div>
 
-            <div class="flex bg-slate-100 p-1 rounded-xl">
-                <button onclick="switchAdvanceTab('form')" id="tab-advance-form" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-xs">สร้างใบคำขอเบิก</button>
-                <button onclick="switchAdvanceTab('history')" id="tab-advance-history" class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600">ประวัติการเบิก</button>
-            </div>
-
-            <div id="advance-form-container" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs space-y-3">
-                <form id="advance-form" onsubmit="submitAdvanceRequest(event)" class="space-y-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-400 block mb-1">จำนวนเงินที่ต้องการขอเบิก (บาท)</label>
-                        <input type="number" id="advance-amount" required min="100" max="15000" placeholder="ระบุจำนวนเงิน..." class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700">
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-400 block mb-1">ความจำเป็นการเบิก</label>
-                        <textarea id="advance-reason" required rows="2" placeholder="เหตุผลและวัตถุประสงค์ในการขอเงิน..." class="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-700 resize-none"></textarea>
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl text-xs font-semibold">ส่งเรื่องคำขอเบิก</button>
-                </form>
-            </div>
-
-            <div id="advance-history-container" class="hidden space-y-3">
-                <div id="advance-history-list" class="space-y-2"></div>
-            </div>
-        </section>
-
-        <!-- ==================== สลิปเงินเดือน (PAYSLIP) ==================== -->
-        <section id="view-payslip" class="hidden space-y-4">
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
-                <div class="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-600">สลิปเงินเดือนของคุณ</span>
-                </div>
-                <div id="payslip-list" class="divide-y divide-slate-100">
-                    <!-- ข้อมูลสลิปจะแปรผันตามชีตสลิปเงินเดือนของคุณ -->
-                </div>
-            </div>
-        </section>
+          <div id="payslip-records-list" class="space-y-3">
+            <!-- โหลดรายการสลิปเงินเดือนที่นี่ -->
+          </div>
+        </div>
+      </section>
 
     </main>
 
-    <!-- BOTTOM NAV -->
-    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around py-2.5 z-40 rounded-t-2xl shadow-lg">
-        <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center gap-1 text-blue-600 flex-1">
-            <i data-lucide="home" class="w-5 h-5"></i>
-            <span class="text-[10px] font-medium">หน้าแรก</span>
+    <!-- === [MODAL: คำขอแก้ไขเวลา] === -->
+    <div id="correction-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-user-pen text-blue-500"></i> ยื่นขอแก้ไขเวลาทำงาน</h3>
+          <button onclick="closeCorrectionModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <form id="correction-form" onsubmit="submitTimeCorrection(event)" class="space-y-3">
+          <input type="hidden" id="correction-date">
+          
+          <div class="bg-blue-50 text-blue-800 text-xs p-2.5 rounded-lg">
+            คุณกำลังทำรายการแก้ไขของวันที่: <strong id="correction-date-display">...</strong>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-500 font-semibold">เวลาเข้าใหม่ (IN)</label>
+              <input id="correction-time-in" type="time" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none">
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-500 font-semibold">เวลาออกใหม่ (OUT)</label>
+              <input id="correction-time-out" type="time" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none">
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[11px] text-slate-500 font-semibold">โครงการที่เข้าปฏิบัติงาน</label>
+            <select id="correction-project" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700">
+              <option value="(00)บุรีรัมย์">(00)บุรีรัมย์</option>
+              <option value="สำนักงานใหญ่">สำนักงานใหญ่</option>
+              <option value="หน้างานก่อสร้าง A">หน้างานก่อสร้าง A</option>
+              <option value="ไซด์งาน B">ไซด์งาน B</option>
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[11px] text-slate-500 font-semibold">เหตุผลที่ต้องการแก้ไข / ชี้แจงข้อผิดพลาด</label>
+            <textarea id="correction-reason" rows="2.5" placeholder="กรุณาระบุความจำเป็น เช่น ลืมบันทึกเวลา, สัญญาณอินเทอร์เน็ตขัดข้อง..." required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-2">
+            <button type="button" onclick="closeCorrectionModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs py-2 rounded-lg">ยกเลิก</button>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 rounded-lg">ส่งคำขออนุมัติ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- === [MODAL: ตั้งค่า API / เชื่อมต่อสมุดงาน] === -->
+    <div id="config-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-server text-amber-500"></i> เชื่อมต่อ Google Sheets API</h3>
+          <button onclick="toggleConfigModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="space-y-3">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-500 font-semibold">โหมดการทำงานของระบบ</label>
+            <select id="config-mode-select" onchange="onConfigModeChange()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800">
+              <option value="real">เชื่อมต่อเซิร์ฟเวอร์จริง (Real Server API)</option>
+              <option value="demo">จำลองสถานการณ์การใช้งาน (Demo Mode)</option>
+            </select>
+          </div>
+
+          <div id="config-url-section" class="space-y-1.5">
+            <label class="text-xs text-slate-500 font-semibold">Google Apps Script Web App URL</label>
+            <input id="config-api-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <p class="text-[9px] text-slate-400 leading-normal">วาง URL ที่ได้จากการ Deployment เป็น Web App ใน Apps Script ของท่านเพื่อทำการเชื่อมโยงข้อมูลจริง</p>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs text-slate-500 font-semibold">ระบุรหัสพนักงานผู้เข้าสู่ระบบ</label>
+            <input id="config-emp-id" type="text" placeholder="EMP102003" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:outline-none">
+          </div>
+
+          <div class="bg-amber-50 border border-amber-100 text-[10px] text-amber-800 p-2.5 rounded-lg leading-relaxed">
+            <i class="fa-solid fa-circle-exclamation mr-1 text-xs"></i> <strong>คำแนะนำ:</strong> ในโหมด Demo แอปจะทำงานด้วยระบบจำลองและตอบรับคำขอสำเร็จทันทีโดยไม่ต้องต่ออินเทอร์เน็ต!
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-2">
+            <button onclick="toggleConfigModal()" class="bg-slate-100 text-slate-600 text-xs py-2 rounded-lg">ปิดหน้าต่าง</button>
+            <button onclick="saveSystemConfig()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 rounded-lg">บันทึกการเชื่อมต่อ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === [MODAL: แจ้งเตือน PWA / วิธีเพิ่มหน้าจอโฮม] === -->
+    <div id="pwa-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-end justify-center p-4 hidden">
+      <div class="bg-white w-full rounded-2xl p-5 space-y-4 shadow-2xl animate-slide-up">
+        <div class="flex justify-between items-center border-b pb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600"><i class="fa-solid fa-mobile-screen-button"></i></span>
+            <h3 class="font-bold text-sm text-slate-800">ติดตั้งแอปพลิเคชันมือถือ (PWA)</h3>
+          </div>
+          <button onclick="closePwaModal()" class="text-slate-400 text-lg"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="space-y-3.5 text-xs text-slate-600 leading-relaxed">
+          <p>เข้าใช้งานแอปพลิเคชันเสมือนแอปจริงบนหน้าจอมือถือของคุณโดยไม่ต้องดาวน์โหลดผ่าน App Store หรือ Play Store!</p>
+          
+          <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <p class="font-bold text-slate-800 flex items-center gap-1.5"><i class="fa-brand fa-apple text-slate-500"></i> สำหรับอุปกรณ์ iOS (iPhone / iPad):</p>
+            <ol class="list-decimal pl-4 space-y-1 text-slate-500">
+              <li>เปิดหน้าเว็บนี้ด้วยเบราว์เซอร์ <strong>Safari</strong></li>
+              <li>แตะที่ปุ่ม <strong>"แชร์ (Share)"</strong> ที่แถบเครื่องมือด้านล่าง <i class="fa-solid fa-share-from-square text-blue-500"></i></li>
+              <li>เลื่อนลงแล้วเลือก <strong>"เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)"</strong> <i class="fa-regular fa-square-plus text-slate-700"></i></li>
+            </ol>
+          </div>
+
+          <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <p class="font-bold text-slate-800 flex items-center gap-1.5"><i class="fa-brand fa-android text-emerald-500"></i> สำหรับอุปกรณ์ Android / Chrome:</p>
+            <ol class="list-decimal pl-4 space-y-1 text-slate-500">
+              <li>แตะปุ่ม <strong>"เมนูสามจุด"</strong> ที่มุมขวาบนของหน้าจอ</li>
+              <li>เลือก <strong>"ติดตั้งแอป (Install App)"</strong> หรือ <strong>"เพิ่มในหน้าจอหลัก"</strong></li>
+            </ol>
+          </div>
+
+          <button onclick="closePwaModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl">เข้าใจแล้ว</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- === [MODAL: ศูนย์ข้อมูลสลิปเงินเดือนแบบละเอียด] === -->
+    <div id="payslip-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl overflow-y-auto max-h-[85vh]">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-receipt text-emerald-500"></i> สลิปเงินเดือนรายละเอียด</h3>
+          <button onclick="closePayslipModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="space-y-3" id="payslip-detail-content">
+          <!-- ข้อมูลจะถูกแสดงเมื่อมีการคลิก -->
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t">
+          <button onclick="downloadPayslipDummy()" class="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1">
+            <i class="fa-solid fa-file-pdf"></i> ดาวน์โหลด PDF
+          </button>
+          <button onclick="closePayslipModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs py-2 rounded-lg">ปิดหน้าต่าง</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- === [แถบเมนูด้านล่าง (Bottom Navigation Navigation)] === -->
+    <nav class="absolute bottom-0 inset-x-0 bg-white border-t border-slate-200 py-2.5 px-4 flex justify-between items-center z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
+      <button onclick="navigateTo('home')" id="nav-home" class="flex flex-col items-center gap-1 flex-1 text-blue-600 transition-all">
+        <span class="text-lg"><i class="fa-solid fa-house"></i></span>
+        <span class="text-[9px] font-medium">หน้าแรก</span>
+      </button>
+
+      <button onclick="navigateTo('calendar')" id="nav-calendar" class="flex flex-col items-center gap-1 flex-1 text-slate-400 transition-all">
+        <span class="text-lg"><i class="fa-solid fa-calendar-days"></i></span>
+        <span class="text-[9px] font-medium">ปฏิทิน</span>
+      </button>
+
+      <button onclick="navigateTo('attendance')" id="nav-attendance" class="flex flex-col items-center gap-1 flex-1 text-slate-400 transition-all relative">
+        <div class="w-11 h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg -translate-y-4 border-4 border-white transition-all btn-press">
+          <i class="fa-solid fa-fingerprint text-lg"></i>
+        </div>
+        <span class="text-[9px] font-medium -translate-y-3">บันทึกเวลา</span>
+      </button>
+
+      <button onclick="navigateTo('leave')" id="nav-leave" class="flex flex-col items-center gap-1 flex-1 text-slate-400 transition-all">
+        <span class="text-lg"><i class="fa-solid fa-plane-departure"></i></span>
+        <span class="text-[9px] font-medium">การลา</span>
+      </button>
+
+      <!-- เมนู "อื่นๆ" (สลิป/เบิกเงินล่วงหน้า) -->
+      <div class="flex-1 flex justify-center">
+        <button onclick="toggleMoreMenu()" id="nav-more" class="flex flex-col items-center gap-1 text-slate-400 transition-all">
+          <span class="text-lg"><i class="fa-solid fa-ellipsis"></i></span>
+          <span class="text-[9px] font-medium">เมนูอื่นๆ</span>
         </button>
-        <button onclick="switchView('calendar')" id="nav-calendar" class="flex flex-col items-center gap-1 text-slate-400 flex-1">
-            <i data-lucide="calendar" class="w-5 h-5"></i>
-            <span class="text-[10px] font-medium">ปฏิทิน</span>
-        </button>
-        <button onclick="switchView('attendance')" id="nav-attendance" class="flex flex-col items-center gap-1 text-slate-400 flex-1">
-            <i data-lucide="clock" class="w-5 h-5"></i>
-            <span class="text-[10px] font-medium">บันทึกเวลา</span>
-        </button>
-        <button onclick="switchView('leave')" id="nav-leave" class="flex flex-col items-center gap-1 text-slate-400 flex-1">
-            <i data-lucide="file-text" class="w-5 h-5"></i>
-            <span class="text-[10px] font-medium">การลา</span>
-        </button>
-        <button onclick="switchView('advance')" id="nav-advance" class="flex flex-col items-center gap-1 text-slate-400 flex-1">
-            <i data-lucide="banknote" class="w-5 h-5"></i>
-            <span class="text-[10px] font-medium">เบิกเงิน</span>
-        </button>
-        <button onclick="switchView('payslip')" id="nav-payslip" class="flex flex-col items-center gap-1 text-slate-400 flex-1">
-            <i data-lucide="credit-card" class="w-5 h-5"></i>
-            <span class="text-[10px] font-medium">สลิป</span>
-        </button>
+      </div>
     </nav>
 
-    <!-- JAVASCRIPT CONNECTIVITY -->
-    <script>
-        // กำหนด URL Web App API ที่คุณให้มา
-        const GOOGLE_SCRIPT_API_URL = "https://script.google.com/macros/s/AKfycbxdYPztvUbOz7GYz--DvtLRBZTDRVllYAQ3-poXHPUBYjfkXCIcpbVaO8kXtq2_sMYR/exec";
+    <!-- === [แผงเมนูป๊อปอัป: เมนูอื่นๆ] === -->
+    <div id="more-menu-panel" class="absolute bottom-16 right-4 bg-white rounded-2xl border border-slate-100 shadow-xl p-3 w-48 space-y-1 z-40 hidden transition-all">
+      <button onclick="selectMoreMenu('advance')" class="w-full text-left flex items-center gap-2.5 px-2.5 py-2 hover:bg-slate-50 rounded-xl text-xs text-slate-700">
+        <span class="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><i class="fa-solid fa-hand-holding-dollar"></i></span>
+        <span>เบิกเงินล่วงหน้า</span>
+      </button>
+      <button onclick="selectMoreMenu('payslip')" class="w-full text-left flex items-center gap-2.5 px-2.5 py-2 hover:bg-slate-50 rounded-xl text-xs text-slate-700">
+        <span class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+        <span>สลิปเงินเดือน</span>
+      </button>
+      <hr class="border-slate-100">
+      <button onclick="logout()" class="w-full text-left flex items-center gap-2.5 px-2.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold">
+        <span class="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600"><i class="fa-solid fa-right-from-bracket"></i></span>
+        <span>ออกจากระบบ</span>
+      </button>
+      <button onclick="triggerPwaPrompt()" class="w-full text-left flex items-center gap-2.5 px-2.5 py-2 hover:bg-slate-50 rounded-xl text-[10px] text-blue-600 font-semibold">
+        <span class="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><i class="fa-solid fa-download"></i></span>
+        <span>ติดตั้งแอปบนมือถือ</span>
+      </button>
+    </div>
 
-        // ชื่อเดือนภาษาไทย
-        const MONTH_NAMES = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  </div>
+
+  <!-- === JavaScript logic === -->
+  <script>
+    // --- โครงสร้างข้อมูลจำลองกรณี Demo Mode (หรือเมื่อ API โหลดไม่ได้) ---
+    const DEMO_EMPLOYEES_REGISTRY = {
+      "EMP102003": {
+        "รหัสพนักงาน": "EMP102003",
+        "ชื่อ-นามสกุล": "ณัฏฐ์พัชร์ พรหมรักษา",
+        "ตำแหน่ง": "วิศวกรซอฟต์แวร์",
+        "สถานะ": "ทำงานปกติ",
+        "วันหยุดประจําสัปดาห์": "อาทิตย์",
+        "ชื่อบริษัท": "บริษัท นวัตกรรมเทคโนโลยี จำกัด",
+        "วันที่เริ่มงาน": "2024-01-15",
+        "เบอร์โทรศัพท์": "089-765-4321",
+        "ที่อยู่": "123 ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000",
+        "เลขบัตรประชาชน": "1-2345-67890-12-3",
+        "วันเดือนปีเกิด": "1998-05-20",
+        "ธนาคาร": "กสิกรไทย",
+        "สาขาธนาคาร": "สาขาบุรีรัมย์",
+        "หมายเลขบัญชี": "012-3-45678-9",
+        "ลิ้งภาพโปรไฟล์": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+        "ฐานเงินเดือน": 28000,
+        "ตัวหารค่าแรง": 30,
+        "ชั่วโมงทำงานต่อวัน": 8,
+        "ตัวคูณโอที": 1.5,
+        "สิทธิ์การใช้งาน": "พนักงาน"
+      },
+      "EMP800139": {
+        "รหัสพนักงาน": "EMP800139",
+        "ชื่อ-นามสกุล": "สมชาย รักดี",
+        "ตำแหน่ง": "หัวหน้าผู้ควบคุมงาน (Foreman)",
+        "สถานะ": "ทำงานปกติ",
+        "วันหยุดประจําสัปดาห์": "อาทิตย์",
+        "ชื่อบริษัท": "บริษัท ก่อสร้างบุรีรัมย์ จำกัด",
+        "วันที่เริ่มงาน": "2022-06-01",
+        "เบอร์โทรศัพท์": "081-123-4567",
+        "ที่อยู่": "45/1 ต.อิสาณ อ.เมือง จ.บุรีรัมย์ 31000",
+        "เลขบัตรประชาชน": "3-3101-99887-65-4",
+        "วันเดือนปีเกิด": "1990-12-12",
+        "ธนาคาร": "ไทยพาณิชย์",
+        "สาขาธนาคาร": "สาขาเซาะกราว",
+        "หมายเลขบัญชี": "407-2-88776-5",
+        "ลิ้งภาพโปรไฟล์": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+        "ฐานเงินเดือน": 22000,
+        "ตัวหารค่าแรง": 30,
+        "ชั่วโมงทำงานต่อวัน": 8,
+        "ตัวคูณโอที": 1.5,
+        "สิทธิ์การใช้งาน": "พนักงาน"
+      }
+    };
+
+    const DEMO_EMPLOYEE = DEMO_EMPLOYEES_REGISTRY["EMP102003"];
+
+    let demoTimeRecords = [
+      { "วันที่": "2026-05-25", "เวลาเข้า": "07:54:12", "เวลาออก": "17:05:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
+      { "วันที่": "2026-05-24", "เวลาเข้า": "07:48:30", "เวลาออก": "17:15:20", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
+      { "วันที่": "2026-05-23", "เวลาเข้า": "08:18:00", "เวลาออก": "17:02:11", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "สาย", "นาทีสาย": 18, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "สำนักงานใหญ่", "โครงการ (ออก)": "สำนักงานใหญ่" },
+      { "วันที่": "2026-05-22", "เวลาเข้า": "07:50:45", "เวลาออก": "19:32:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 2.5, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
+      { "วันที่": "2026-05-21", "เวลาเข้า": "07:55:00", "เวลาออก": "17:01:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
+      { "วันที่": "2026-05-20", "เวลาเข้า": "07:40:00", "เวลาออก": "21:00:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 4.0, "โครงการ (เข้า)": "สำนักงานใหญ่", "โครงการ (ออก)": "สำนักงานใหญ่" },
+      { "วันที่": "2026-05-19", "เวลาเข้า": "07:58:12", "เวลาออก": "17:04:10", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
+      { "วันที่": "2026-05-18", "เวลาเข้า": "", "เวลาออก": "", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ลาป่วย", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "", "โครงการ (ออก)": "" },
+      { "วันที่": "2026-05-15", "เวลาเข้า": "07:52:00", "เวลาออก": "19:00:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 2.0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
+      { "วันที่": "2026-05-14", "เวลาเข้า": "07:55:12", "เวลาออก": "17:05:00", "รหัสพนักงาน": "EMP102003", "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": "(00)บุรีรัมย์", "โครงการ (ออก)": "(00)บุรีรัมย์" },
+    ];
+
+    let demoLeaveRequests = [
+      { "เลขที่เอกสาร": "LV-382901", "รหัสพนักงาน": "EMP102003", "ประเภทการลา": "ลาป่วย", "วันที่เริ่ม": "2026-05-18", "วันที่สิ้นสุด": "2026-05-18", "จำนวนวัน": 1, "เหตุผล": "ปวดศีรษะ ตัวร้อนเป็นไข้", "สถานะ": "อนุมัติแล้ว", "วันที่ส่ง": "2026-05-17", "อนุมัติโดย": "HR ADMIN" },
+      { "เลขที่เอกสาร": "LV-120932", "รหัสพนักงาน": "EMP102003", "ประเภทการลา": "ลาพักร้อน", "วันที่เริ่ม": "2026-05-01", "วันที่สิ้นสุด": "2026-05-01", "จำนวนวัน": 1, "เหตุผล": "ธุระส่วนตัวที่ต่างจังหวัด", "สถานะ": "อนุมัติแล้ว", "วันที่ส่ง": "2026-04-28", "อนุมัติโดย": "HR ADMIN" }
+    ];
+
+    let demoAdvanceSalary = [
+      { "รหัสพนักงาน": "EMP102003", "จำนวนเงิน": 3000, "วันที่เบิก": "2026-05-10", "รอบจ่าย": "รอบสิ้นเดือน", "สถานะ": "อนุมัติแล้ว", "หมายเหตุ": "ผ่านบัญชีธนาคารแล้ว" }
+    ];
+
+    let demoPayslips = [
+      { "รหัสพนักงาน": "EMP102003", "รอบเงินเดือน": "05/2026", "ชื่อไฟล์": "สลิปพฤษภาคม_2026.pdf", "ID ไฟล์": "file_05_2026", "URL สลิป": "#", "วันที่บันทึก": "2026-05-25", "ยอดสุทธิ": 27200 },
+      { "รหัสพนักงาน": "EMP102003", "รอบเงินเดือน": "04/2026", "ชื่อไฟล์": "สลิปเมษายน_2026.pdf", "ID ไฟล์": "file_04_2026", "URL สลิป": "#", "วันที่บันทึก": "2026-04-25", "ยอดสุทธิ": 28150 }
+    ];
+
+    // --- State การทำงาน ---
+    let isLoggedIn = false;
+    let currentEmployeeId = "";
+    let isDemoMode = false; // ปรับเปลี่ยนเป็นค่าเริ่มต้นสำหรับเชื่อมต่อจริง
+    
+    // ตั้งค่า URL เริ่มต้นจาก Google Apps Script ที่ได้รับ
+    const DEFAULT_SERVER_URL = "https://script.google.com/macros/s/AKfycbyPYNSeA-rOv8v37nSPJsjrcjAWVOszQJcFx_3Rq5eQg_aCHg_yQyOEUNOqPL9edY67mg/exec";
+    let serverApiUrl = DEFAULT_SERVER_URL;
+    let activePage = "home";
+    let currentGpsLocation = { lat: "", lng: "" };
+    let streamRef = null;
+    let cameraMode = "user";
+    let leaveAttachmentBase64 = "";
+
+    // ข้อมูลพนักงานและข้อมูลเชิงโครงสร้างปัจจุบัน
+    let employeeData = {};
+    let timeRecordsList = [];
+    let leaveRequestsList = [];
+    let advanceRequestsList = [];
+    let payslipsList = [];
+
+    // --- การคิดรอบบัญชี (Accounting Cycle Helper) ---
+    function getCycleDateRange(year, month) {
+      const prevMonth = month === 0 ? 11 : month - 1;
+      const prevYear = month === 0 ? year - 1 : year;
+      
+      const startDate = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-26`;
+      const endDate = `${year}-${String(month + 1).padStart(2, '0')}-25`;
+      return { start: startDate, end: endDate };
+    }
+
+    function generateCycleOptions() {
+      const select = document.getElementById("calendar-cycle-select");
+      select.innerHTML = "";
+      
+      const now = new Date();
+      let currentMonth = now.getMonth();
+      let currentYear = now.getFullYear();
+
+      if (now.getDate() >= 26) {
+        currentMonth += 1;
+        if (currentMonth > 11) {
+          currentMonth = 0;
+          currentYear += 1;
+        }
+      }
+
+      const thMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+      for (let i = 0; i < 6; i++) {
+        let m = currentMonth - i;
+        let y = currentYear;
+        if (m < 0) {
+          m += 12;
+          y -= 1;
+        }
+
+        const range = getCycleDateRange(y, m);
+        const option = document.createElement("option");
+        option.value = `${range.start}|${range.end}`;
         
-        // ข้อมูล State ภายในแอป
-        let currentEmployee = null;
-        let empId = "";
-        let globalGps = { lat: 13.7563, lng: 100.5018 }; // พิกัดเริ่มต้น กรุงเทพฯ
-        let activeTimeRecords = [];
-        let deferredPrompt; // จัดการโปรโมชันติดตั้งของแท้จากบราวเซอร์
+        option.textContent = `รอบจ่าย ${thMonths[m]} ${y}`;
+        if (i === 0) {
+          option.textContent += " (รอบปัจจุบัน)";
+        }
+        select.appendChild(option);
+      }
+    }
 
-        window.addEventListener('load', () => {
-            lucide.createIcons();
-            startClock();
-            requestGpsLocation();
-            initPwaSystem();
+    function getCurrentCycleRange() {
+      const now = new Date();
+      let month = now.getMonth();
+      let year = now.getFullYear();
+      if (now.getDate() >= 26) {
+        month += 1;
+        if (month > 11) {
+          month = 0;
+          year += 1;
+        }
+      }
+      return getCycleDateRange(year, month);
+    }
+
+    // --- เริ่มต้นโหลดแอป (App Initialization) ---
+    window.onload = function() {
+      // ดึงค่าตั้งค่าระบบที่บันทึกไว้ในเบราว์เซอร์
+      const savedMode = localStorage.getItem("hr_api_mode");
+      const savedUrl = localStorage.getItem("hr_api_url");
+      const savedEmpId = localStorage.getItem("hr_emp_id");
+      const savedLoginStatus = localStorage.getItem("is_logged_in");
+
+      // ปรับปรุงเงื่อนไขเริ่มต้น: หากไม่มีค่า URL ให้ใช้ค่า Web App URL ที่ Pre-fill มาเสมอ
+      if (savedUrl) {
+        serverApiUrl = savedUrl;
+      } else {
+        serverApiUrl = DEFAULT_SERVER_URL;
+        localStorage.setItem("hr_api_url", DEFAULT_SERVER_URL);
+      }
+
+      // ปรับเปลี่ยนโหมดเริ่มต้นเป็น real ถ้ายังไม่เคยถูกบันทึกค่าไว้
+      if (savedMode === "demo") {
+        isDemoMode = true;
+        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-amber-500 border-2 border-white rounded-full";
+      } else {
+        isDemoMode = false;
+        localStorage.setItem("hr_api_mode", "real");
+        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse";
+      }
+
+      // แสดงค่าเข้าฟอร์มตั้งค่า
+      document.getElementById("config-mode-select").value = isDemoMode ? "demo" : "real";
+      document.getElementById("config-api-url").value = serverApiUrl;
+      onConfigModeChange();
+
+      // ตรวจสอบสถานะการล็อกอิน
+      if (savedLoginStatus === "true" && savedEmpId) {
+        isLoggedIn = true;
+        currentEmployeeId = savedEmpId;
+        document.getElementById("config-emp-id").value = currentEmployeeId;
+        hideLoginContainer();
+        
+        // สร้างรอบบัญชีและโหลดข้อมูล
+        generateCycleOptions();
+        const currentCycle = getCurrentCycleRange();
+        document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+        document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+        loadAllData();
+      } else {
+        isLoggedIn = false;
+        showLoginContainer();
+      }
+
+      // เริ่มการทำงานพิกัดและกล้อง
+      startLiveTime();
+      requestGpsPosition();
+      initCamera();
+
+      document.addEventListener("click", function(e) {
+        const morePanel = document.getElementById("more-menu-panel");
+        const navMoreBtn = document.getElementById("nav-more");
+        if (morePanel && navMoreBtn && !navMoreBtn.contains(e.target) && !morePanel.contains(e.target)) {
+          morePanel.classList.add("hidden");
+        }
+      });
+    };
+
+    // --- ส่วนการจัดการเข้าสู่ระบบ (Login Functions) ---
+    function showLoginContainer() {
+      const loginCont = document.getElementById("login-container");
+      loginCont.classList.remove("hidden");
+      loginCont.classList.remove("opacity-0");
+      loginCont.classList.add("opacity-100");
+    }
+
+    function hideLoginContainer() {
+      const loginCont = document.getElementById("login-container");
+      loginCont.classList.add("opacity-0");
+      setTimeout(() => {
+        loginCont.classList.add("hidden");
+      }, 300);
+    }
+
+    function setLoginQuick(empId) {
+      document.getElementById("login-emp-id").value = empId;
+      showToast(`📝 เลือกบัญชีทดลอง ${empId} (กรุณาสลับโหมด Demo ในส่วนฟันเฟืองล่างสุด เพื่อเข้าสู่ระบบเดโม่สำเร็จ)`, "warning");
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const empIdInput = document.getElementById("login-emp-id").value.trim().toUpperCase();
+
+      if (!empIdInput) {
+        showToast("⚠️ กรุณากรอกรหัสพนักงาน", "warning");
+        return;
+      }
+
+      showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
+
+      if (isDemoMode) {
+        if (DEMO_EMPLOYEES_REGISTRY[empIdInput]) {
+          currentEmployeeId = empIdInput;
+          isLoggedIn = true;
+          localStorage.setItem("is_logged_in", "true");
+          localStorage.setItem("hr_emp_id", currentEmployeeId);
+          document.getElementById("config-emp-id").value = currentEmployeeId;
+
+          showToast("🎉 เข้าสู่ระบบเสร็จสิ้น (Demo Mode)", "success");
+          hideLoginContainer();
+          
+          generateCycleOptions();
+          const currentCycle = getCurrentCycleRange();
+          document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+          document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+          loadAllData();
+          navigateTo("home");
+        } else {
+          showToast("❌ ไม่พบรหัสพนักงานจำลองนี้! (หากใช้โหมดจริงให้สลับที่ตั้งค่าด้านล่าง)", "error");
+        }
+      } else {
+        if (!serverApiUrl) {
+          showToast("⚠️ กรุณาตั้งค่า Web App URL ของ Google Sheets ก่อน", "warning");
+          toggleConfigModal();
+          return;
+        }
+
+        try {
+          const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${empIdInput}`);
+          if (empResponse && empResponse.status === "success") {
+            currentEmployeeId = empIdInput;
+            isLoggedIn = true;
+            localStorage.setItem("is_logged_in", "true");
+            localStorage.setItem("hr_emp_id", currentEmployeeId);
+            document.getElementById("config-emp-id").value = currentEmployeeId;
+
+            showToast(`🎉 ยินดีต้อนรับคุณ ${empResponse.data["ชื่อ-นามสกุล"] || empIdInput}`, "success");
+            hideLoginContainer();
+            
+            generateCycleOptions();
+            const currentCycle = getCurrentCycleRange();
+            document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+            document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+            loadAllData();
+            navigateTo("home");
+          } else {
+            showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
+          }
+        } catch (error) {
+          console.error(error);
+          showToast("❌ ล้มเหลวในการเชื่อมต่อ Apps Script (ลองตรวจสอบการ Deploy หรือสิทธิ์เข้าใช้งาน)", "error");
+        }
+      }
+    }
+
+    function logout() {
+      isLoggedIn = false;
+      localStorage.removeItem("is_logged_in");
+      localStorage.removeItem("hr_emp_id");
+      
+      timeRecordsList = [];
+      leaveRequestsList = [];
+      advanceRequestsList = [];
+      payslipsList = [];
+      employeeData = {};
+      
+      showToast("🔒 ออกจากระบบเรียบร้อยแล้ว", "success");
+      document.getElementById("login-emp-id").value = "";
+      showLoginContainer();
+    }
+
+    // --- ส่วนบริการดึงข้อมูลและ API (API Services) ---
+    async function loadAllData() {
+      if (!isLoggedIn) return;
+
+      if (isDemoMode) {
+        employeeData = Object.assign({}, DEMO_EMPLOYEES_REGISTRY[currentEmployeeId] || DEMO_EMPLOYEE);
+        
+        timeRecordsList = demoTimeRecords.map(r => {
+          let rec = Object.assign({}, r);
+          rec["รหัสพนักงาน"] = currentEmployeeId;
+          return rec;
         });
 
-        // ----------------- PWA INSTALLATION SYSTEM -----------------
-        function initPwaSystem() {
-            // ค้นหาการลงทะเบียน Service Worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('Service Worker Registered Successfully!', reg))
-                .catch(err => console.error('Service Worker Registration Failed!', err));
-            }
+        leaveRequestsList = demoLeaveRequests.map(r => {
+          let rec = Object.assign({}, r);
+          rec["รหัสพนักงาน"] = currentEmployeeId;
+          return rec;
+        });
 
-            // ดักจับ Event บันทึกความพร้อมการติดตั้งของบราวเซอร์
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                // แสดงแบนเนอร์ตราบใดที่ยังไม่ได้ติดตั้ง และยังไม่เคยกดปิดในเซสชันนี้
-                if (!sessionStorage.getItem('hrbtc_pwa_banner_dismissed')) {
-                    document.getElementById('pwa-install-banner').classList.remove('hidden');
-                }
-            });
+        advanceRequestsList = demoAdvanceSalary.map(r => {
+          let rec = Object.assign({}, r);
+          rec["รหัสพนักงาน"] = currentEmployeeId;
+          return rec;
+        });
 
-            // ตรวจจับว่าแอปพลิเคชันกำลังรันผ่านโหมดติดตั้ง Standalone แล้วหรือยัง
-            if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
-                dismissInstallBanner();
-            }
+        payslipsList = demoPayslips.map(r => {
+          let rec = Object.assign({}, r);
+          rec["รหัสพนักงาน"] = currentEmployeeId;
+          return rec;
+        });
+
+        updateEmployeeProfileUI();
+        calculateAndDisplayStats();
+        displayActivitiesList();
+        displayLeaveHistory();
+        displayAdvanceHistory();
+        displayPayslipList();
+        
+        showToast("💡 ซิงค์ข้อมูลบัญชีพนักงานแล้ว", "info");
+      } else {
+        if (!serverApiUrl) {
+          showToast("⚠️ ไม่พบ URL เชื่อมต่อ API กรุณาตั้งค่า", "warning");
+          toggleConfigModal();
+          return;
         }
 
-        function triggerPwaInstall() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        showToast('🎉 ติดตั้งแอปพลิเคชัน HRBTC เรียบร้อยแล้ว!', 'success');
-                        dismissInstallBanner();
-                    } else {
-                        showToast('การติดตั้งถูกยกเลิก', 'warning');
-                    }
-                    deferredPrompt = null;
-                });
-            } else {
-                // คู่มือจำลองสำหรับผู้ใช้ iOS Safari หรือกรณีบราวเซอร์ไม่รองรับ
-                showToast('📱 สำหรับ iOS: แตะปุ่มแชร์แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"', 'info');
-            }
+        showToast("🔄 กำลังซิงค์ข้อมูลกับเซิร์ฟเวอร์จริง...", "info");
+        document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+
+        const currentCycle = getCurrentCycleRange();
+        
+        try {
+          const empResponse = await fetchWithTimeout(`${serverApiUrl}?action=getEmployee&empId=${currentEmployeeId}`);
+          if (empResponse.status === "success") {
+            employeeData = empResponse.data;
+            updateEmployeeProfileUI();
+          } else {
+            showToast("❌ โหลดข้อมูลพนักงานไม่สำเร็จ: " + empResponse.message, "error");
+          }
+
+          const timeResponse = await fetchWithTimeout(`${serverApiUrl}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+          if (timeResponse.status === "success") {
+            timeRecordsList = timeResponse.data;
+            calculateAndDisplayStats();
+            displayActivitiesList();
+          }
+
+          const leaveResponse = await fetchWithTimeout(`${serverApiUrl}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+          if (leaveResponse.status === "success") {
+            leaveRequestsList = leaveResponse.data;
+            displayLeaveHistory();
+          }
+
+          const advanceResponse = await fetchWithTimeout(`${serverApiUrl}?action=getAdvanceRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+          if (advanceResponse.status === "success") {
+            advanceRequestsList = advanceResponse.data;
+            displayAdvanceHistory();
+          }
+
+          const payslipResponse = await fetchWithTimeout(`${serverApiUrl}?action=getPayslips&empId=${currentEmployeeId}`);
+          if (payslipResponse.status === "success") {
+            payslipsList = payslipResponse.data;
+            displayPayslipList();
+          }
+
+          document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
+          showToast("✅ อัปเดตข้อมูลแบบเรียลไทม์สำเร็จ", "success");
+        } catch (error) {
+          console.error(error);
+          document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-rose-500";
+          showToast("❌ ดึงข้อมูลขัดข้อง (กรุณาเปิดระบบใช้งานใหม่ หรือเชื่อมต่อในโหมด Demo)", "error");
+        }
+      }
+    }
+
+    async function fetchWithTimeout(resource, options = {}) {
+      const { timeout = 8000 } = options;
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const response = await fetch(resource, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        if (!response.ok) throw new Error("Network response was not ok");
+        return await response.json();
+      } catch (err) {
+        clearTimeout(id);
+        throw err;
+      }
+    }
+
+    // --- ส่วนแสดงผลโปรไฟล์พนักงาน ---
+    function updateEmployeeProfileUI() {
+      const name = employeeData["ชื่อ-นามสกุล"] || "ไม่พบชื่อ";
+      const id = employeeData["รหัสพนักงาน"] || currentEmployeeId;
+      const pos = employeeData["ตำแหน่ง"] || "วิศวกร";
+      const avatarUrl = employeeData["ลิ้งภาพโปรไฟล์"] || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80";
+
+      document.getElementById("header-avatar").src = avatarUrl;
+      updateHeaderEmployeeInfo();
+
+      document.getElementById("home-emp-name").textContent = name;
+      document.getElementById("home-emp-id-pos").textContent = `รหัส: ${id} | ${pos}`;
+    }
+
+    function updateHeaderEmployeeInfo() {
+      const name = employeeData["ชื่อ-นามสกุล"] || "ไม่พบชื่อ";
+      const id = employeeData["รหัสพนักงาน"] || currentEmployeeId;
+      const element = document.getElementById("header-emp-info");
+
+      if (activePage === "home") {
+        element.textContent = "ยินดีต้อนรับ";
+      } else {
+        element.textContent = `${name} (${id})`;
+      }
+    }
+
+    // --- คำนวณวิเคราะห์สถิติตามรอบบัญชี ---
+    function calculateAndDisplayStats() {
+      let workDaysCount = 0;
+      let totalLateMin = 0;
+      let totalOtHours = 0;
+      let absentDaysCount = 0;
+      let leaveDaysCount = 0;
+
+      timeRecordsList.forEach(rec => {
+        const stat = rec["สถานะสรุป"] || "ปกติ";
+        
+        if (stat === "ปกติ" || stat === "สาย") {
+          workDaysCount++;
+        }
+        if (stat === "สาย") {
+          totalLateMin += parseInt(rec["นาทีสาย"] || 0);
+        }
+        if (stat === "ขาดงาน" || stat === "A") {
+          absentDaysCount++;
+        }
+        if (stat.includes("ลา") || stat === "B+" || stat === "S+" || stat === "H+") {
+          leaveDaysCount++;
+        }
+        
+        totalOtHours += parseFloat(rec["ชั่วโมง OT"] || 0);
+      });
+
+      let sickUsed = 0;
+      let personalUsed = 0;
+      let vacationUsed = 0;
+
+      leaveRequestsList.forEach(l => {
+        if (l["สถานะ"] === "อนุมัติแล้ว") {
+          const days = parseFloat(l["จำนวนวัน"] || 1);
+          const type = l["ประเภทการลา"];
+          if (type === "ลาป่วย") sickUsed += days;
+          else if (type === "ลากิจ") personalUsed += days;
+          else if (type === "ลาพักร้อน") vacationUsed += days;
+        }
+      });
+
+      document.getElementById("leave-personal-used").textContent = personalUsed;
+      document.getElementById("leave-sick-used").textContent = sickUsed;
+      document.getElementById("leave-vacation-used").textContent = vacationUsed;
+
+      document.getElementById("stat-work-days").innerHTML = `${workDaysCount} <span class="text-xs font-normal text-slate-500">วัน</span>`;
+      document.getElementById("stat-late-minutes").innerHTML = `${totalLateMin} <span class="text-xs font-normal text-slate-500">นาที</span>`;
+      document.getElementById("stat-ot-hours").innerHTML = `${totalOtHours.toFixed(1)} <span class="text-xs font-normal text-slate-500">ช.ม.</span>`;
+      document.getElementById("stat-absent-days").innerHTML = `${absentDaysCount} <span class="text-xs font-normal text-slate-500">วัน</span>`;
+      document.getElementById("stat-leave-days").textContent = sickUsed + personalUsed + vacationUsed;
+    }
+
+    // --- ส่วนแสดงประวัติกิจกรรมล่าสุดในหน้าแรก ---
+    function displayActivitiesList() {
+      const listContainer = document.getElementById("home-activities-list");
+      listContainer.innerHTML = "";
+
+      if (timeRecordsList.length === 0) {
+        listContainer.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีประวัติการบันทึกเวลางานในรอบบัญชีนี้</div>`;
+        return;
+      }
+
+      const displayList = timeRecordsList.slice(0, 3);
+      displayList.forEach(rec => {
+        const dateStr = rec["วันที่"];
+        const timeIn = rec["เวลาเข้า"] || "--:--";
+        const timeOut = rec["เวลาออก"] || "--:--";
+        const status = rec["สถานะสรุป"] || "ปกติ";
+        const projectIn = rec["โครงการ (เข้า)"] || "ไม่ได้ระบุ";
+
+        let badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
+        if (status === "สาย") badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
+        else if (status.includes("ขาด") || status.includes("ลืม")) badgeClass = "bg-rose-50 text-rose-700 border-rose-100";
+        else if (status.includes("ลา")) badgeClass = "bg-violet-50 text-violet-700 border-violet-100";
+
+        const card = document.createElement("div");
+        card.className = "bg-white p-3 rounded-xl border border-slate-100 shadow-xs flex items-center justify-between";
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
+              <i class="fa-solid fa-business-time"></i>
+            </div>
+            <div>
+              <p class="text-xs font-semibold text-slate-700">${formatThaiDate(dateStr)}</p>
+              <p class="text-[10px] text-slate-400 flex items-center gap-1">
+                <i class="fa-solid fa-circle-check text-emerald-500"></i> ${projectIn}
+              </p>
+            </div>
+          </div>
+          
+          <div class="text-right">
+            <p class="text-xs font-bold text-slate-800">${timeIn} - ${timeOut}</p>
+            <span class="inline-block text-[9px] px-2 py-0.5 rounded-full border ${badgeClass} mt-0.5">${status}</span>
+          </div>
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    // --- ส่วนแสดงประวัติและการสลับรอบปฏิทิน ---
+    function onCalendarCycleChange() {
+      loadCalendarRecords();
+    }
+
+    function loadCalendarRecords() {
+      const cycleSelect = document.getElementById("calendar-cycle-select");
+      if (!cycleSelect.value) return;
+      const [start, end] = cycleSelect.value.split("|");
+      
+      document.getElementById("calendar-cycle-display").textContent = `ช่วงรอบรายงาน: ${formatThaiDate(start)} - ${formatThaiDate(end)}`;
+      
+      if (isDemoMode) {
+        const filteredRecords = timeRecordsList.filter(rec => {
+          return rec["วันที่"] >= start && rec["วันที่"] <= end;
+        });
+        displayCalendarDays(filteredRecords);
+      } else {
+        fetchWithCycleFilter(start, end);
+      }
+    }
+
+    async function fetchWithCycleFilter(start, end) {
+      const container = document.getElementById("calendar-days-list");
+      container.innerHTML = `<div class="text-center py-10"><i class="fa-solid fa-rotate animate-spin text-2xl text-blue-500 block mb-2 mx-auto"></i><span class="text-xs text-slate-500">กำลังเชื่อมต่อฐานข้อมูล...</span></div>`;
+      
+      try {
+        const url = `${serverApiUrl}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
+        const res = await fetchWithTimeout(url);
+        if (res.status === "success") {
+          displayCalendarDays(res.data);
+        } else {
+          showToast("❌ โหลดข้อมูลปฏิทินไม่สำเร็จ: " + res.message, "error");
+        }
+      } catch (err) {
+        showToast("❌ ขัดข้องในการเชื่อมต่อระบบปฏิทิน", "error");
+        displayCalendarDays([]);
+      }
+    }
+
+    function displayCalendarDays(records) {
+      const container = document.getElementById("calendar-days-list");
+      container.innerHTML = "";
+      document.getElementById("calendar-records-count").textContent = `${records.length} วัน`;
+
+      if (records.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-xl p-8 text-center text-slate-400 text-xs border border-dashed border-slate-200">
+            <i class="fa-solid fa-folder-open text-2xl block mb-2"></i> ไม่พบรายการข้อมูลเวลางานในช่วงรอบบัญชีที่ระบุ
+          </div>
+        `;
+        return;
+      }
+
+      records.forEach(rec => {
+        const dateStr = rec["วันที่"];
+        const timeIn = rec["เวลาเข้า"] || "--:--";
+        const timeOut = rec["เวลาออก"] || "--:--";
+        const late = parseInt(rec["นาทีสาย"] || 0);
+        const ot = parseFloat(rec["ชั่วโมง OT"] || 0);
+        const status = rec["สถานะสรุป"] || "ปกติ";
+        
+        let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+        if (status === "สาย") badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
+        else if (status.includes("ขาด")) badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
+        else if (status.includes("ลา")) badgeColor = "bg-violet-50 text-violet-700 border-violet-100";
+
+        const card = document.createElement("div");
+        card.className = "bg-white rounded-xl border border-slate-100 p-3.5 shadow-xs relative overflow-hidden space-y-2.5";
+        
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i class="fa-regular fa-calendar-days text-blue-500"></i> ${formatThaiDate(dateStr)}
+            </span>
+            <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeColor}">${status}</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 py-2 border-y border-slate-50 text-center">
+            <div>
+              <p class="text-[10px] text-slate-400">เวลาเข้า - ออก</p>
+              <p class="text-xs font-bold text-slate-700 mt-0.5">${timeIn} - ${timeOut}</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400">สาย (นาที)</p>
+              <p class="text-xs font-bold ${late > 0 ? 'text-amber-600' : 'text-slate-700'} mt-0.5">${late}</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400">โอที (ชม.)</p>
+              <p class="text-xs font-bold ${ot > 0 ? 'text-blue-600' : 'text-slate-700'} mt-0.5">${ot.toFixed(1)}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <span class="text-[9px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || "ปกติ"}</span>
+            <button onclick="openCorrectionModal('${dateStr}')" class="btn-press text-[10px] text-blue-600 font-semibold bg-blue-50/70 hover:bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-all">
+              <i class="fa-solid fa-user-pen"></i> ขอแก้ไขเวลา
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // --- ส่วนงานเขียนคำขอลาและประวัติ ---
+    function displayLeaveHistory() {
+      const container = document.getElementById("leave-history-list");
+      container.innerHTML = "";
+
+      if (leaveRequestsList.length === 0) {
+        container.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่พบบันทึกการขอลาของคุณ</div>`;
+        return;
+      }
+
+      leaveRequestsList.forEach(l => {
+        const docId = l["เลขที่เอกสาร"] || "N/A";
+        const type = l["ประเภทการลา"] || "ลาอื่นๆ";
+        const start = l["วันที่เริ่ม"] || l["วันที่"];
+        const end = l["วันที่สิ้นสุด"] || start;
+        const days = l["จำนวนวัน"] || 1;
+        const status = l["สถานะ"] || "รออนุมัติ";
+        const reason = l["เหตุผล"] || "ไม่มีการระบุ";
+
+        let badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
+        if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
+        else if (status.includes("ปฏิเสธ") || status.includes("ไม่อนุมัติ")) badgeClass = "bg-rose-50 text-rose-700 border-rose-100";
+
+        const card = document.createElement("div");
+        card.className = "bg-white rounded-xl border border-slate-100 p-3.5 shadow-xs space-y-1.5";
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center text-[10px]"><i class="fa-solid fa-plane-departure"></i></span>
+              <p class="text-xs font-bold text-slate-700">${type} (${days} วัน)</p>
+            </div>
+            <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeClass}">${status}</span>
+          </div>
+          
+          <div class="text-[11px] text-slate-500">
+            <p><strong>ช่วงวันลา:</strong> ${formatThaiDate(start)} ถึง ${formatThaiDate(end)}</p>
+            <p class="mt-0.5 text-slate-400 truncate"><strong>เหตุผล:</strong> ${reason}</p>
+          </div>
+          
+          <div class="text-[9px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-50">
+            <span>เลขที่ใบคำขอ: ${docId}</span>
+            <span>อนุมัติโดย: ${l["อนุมัติโดย"] || "--"}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function convertLeaveFileToBase64() {
+      const fileInput = document.getElementById("leave-file-input");
+      const file = fileInput.files[0];
+      if (!file) {
+        leaveAttachmentBase64 = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        leaveAttachmentBase64 = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function onLeaveSubmit(e) {
+      e.preventDefault();
+      
+      const type = document.getElementById("leave-type-select").value;
+      const days = parseFloat(document.getElementById("leave-days-input").value);
+      const start = document.getElementById("leave-start-input").value;
+      const end = document.getElementById("leave-end-input").value;
+      const reason = document.getElementById("leave-reason-input").value;
+
+      if (!start || !end || !reason) {
+        showToast("⚠️ กรุณากรอกข้อมูลวันที่และเหตุผลให้ครบถ้วน", "warning");
+        return;
+      }
+
+      if (new Date(start) > new Date(end)) {
+        showToast("⚠️ วันเริ่มต้นต้องไม่ช้ากว่าวันสิ้นสุดการลา", "warning");
+        return;
+      }
+
+      const docId = "LV-" + Math.floor(100000 + Math.random() * 900000);
+      const payload = {
+        action: "submitLeave",
+        empId: currentEmployeeId,
+        type: type,
+        days: days,
+        start: start,
+        end: end,
+        reason: reason,
+        attachment: leaveAttachmentBase64,
+        lat: currentGpsLocation.lat || "14.9912",
+        lng: currentGpsLocation.lng || "103.1008"
+      };
+
+      showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล...", "info");
+
+      if (isDemoMode) {
+        const localDoc = {
+          "เลขที่เอกสาร": docId,
+          "รหัสพนักงาน": currentEmployeeId,
+          "ประเภทการลา": type,
+          "วันที่เริ่ม": start,
+          "วันที่สิ้นสุด": end,
+          "จำนวนวัน": days,
+          "เหตุผล": reason,
+          "สถานะ": "รออนุมัติ",
+          "วันที่ส่ง": new Date().toISOString().split('T')[0],
+          "อนุมัติโดย": "--"
+        };
+        demoLeaveRequests.unshift(localDoc);
+        leaveRequestsList = [...demoLeaveRequests];
+        
+        calculateAndDisplayStats();
+        displayLeaveHistory();
+        document.getElementById("leave-request-form").reset();
+        leaveAttachmentBase64 = "";
+        showToast("🎉 ส่งคำขอลาสำเร็จ (โหมดเดโม่)", "success");
+      } else {
+        try {
+          const res = await fetchWithTimeout(serverApiUrl, {
+            method: "POST",
+            body: JSON.stringify(payload),
+            headers: { "Content-Type": "application/json" }
+          });
+          
+          if (res.status === "success") {
+            showToast("🎉 ส่งใบลาเรียบร้อยแล้ว รอ HR ตรวจสอบ", "success");
+            document.getElementById("leave-request-form").reset();
+            leaveAttachmentBase64 = "";
+            loadAllData();
+          } else {
+            showToast("❌ ล้มเหลว: " + res.message, "error");
+          }
+        } catch (err) {
+          showToast("❌ ขัดข้องทางการเชื่อมต่อเซิร์ฟเวอร์", "error");
+        }
+      }
+    }
+
+    // --- ส่วนเบิกเงินเดือนล่วงหน้า ---
+    function displayAdvanceHistory() {
+      const container = document.getElementById("advance-history-list");
+      container.innerHTML = "";
+
+      if (advanceRequestsList.length === 0) {
+        container.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีประวัติการเบิกเงินในรอบบัญชีนี้</div>`;
+        return;
+      }
+
+      advanceRequestsList.forEach(adv => {
+        const amount = adv["จำนวนเงิน"] || 0;
+        const date = adv["วันที่เบิก"] || adv["วันที่"];
+        const status = adv["สถานะ"] || "รอตรวจสอบ";
+        const reason = adv["หมายเหตุ"] || adv["เหตุผล"] || "ระบุเพื่อใช้จ่ายในชีวิตประจำวัน";
+
+        let badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
+        if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
+        else if (status.includes("ปฏิเสธ") || status.includes("ไม่อนุมัติ")) badgeClass = "bg-rose-50 text-rose-700 border-rose-100";
+
+        const card = document.createElement("div");
+        card.className = "bg-white rounded-xl border border-slate-100 p-3.5 shadow-xs flex items-center justify-between";
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-base">
+              <i class="fa-solid fa-hand-holding-dollar"></i>
+            </div>
+            <div>
+              <p class="text-xs font-bold text-slate-800">฿${Number(amount).toLocaleString()}</p>
+              <p class="text-[10px] text-slate-500">${formatThaiDate(date)}</p>
+              <p class="text-[9px] text-slate-400 mt-0.5 truncate max-w-[180px]">${reason}</p>
+            </div>
+          </div>
+          <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeClass}">${status}</span>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    async function onAdvanceSubmit(e) {
+      e.preventDefault();
+      
+      const amount = parseFloat(document.getElementById("advance-amount-input").value);
+      const channel = document.getElementById("advance-channel-select").value;
+      const cycle = document.getElementById("advance-cycle-select").value;
+      const reason = document.getElementById("advance-reason-input").value;
+
+      if (!amount || amount <= 0 || !reason) {
+        showToast("⚠️ กรุณาระบุยอดเงินและเหตุผลความจำเป็น", "warning");
+        return;
+      }
+
+      const payload = {
+        action: "submitAdvance",
+        empId: currentEmployeeId,
+        amount: amount,
+        paymentRound: cycle,
+        channel: channel,
+        reason: reason
+      };
+
+      showToast("⏳ กำลังยื่นตรวจสอบคำขอเบิกเงิน...", "info");
+
+      if (isDemoMode) {
+        const localAdv = {
+          "รหัสพนักงาน": currentEmployeeId,
+          "จำนวนเงิน": amount,
+          "วันที่เบิก": new Date().toISOString().split('T')[0],
+          "รอบจ่าย": cycle,
+          "สถานะ": "รอตรวจสอบ",
+          "หมายเหตุ": reason
+        };
+        demoAdvanceSalary.unshift(localAdv);
+        advanceRequestsList = [...demoAdvanceSalary];
+        
+        displayAdvanceHistory();
+        document.getElementById("advance-request-form").reset();
+        showToast("🎉 ยื่นคำขอสำเร็จ (โหมดจำลอง)", "success");
+      } else {
+        try {
+          const res = await fetchWithTimeout(serverApiUrl, {
+            method: "POST",
+            body: JSON.stringify(payload),
+            headers: { "Content-Type": "application/json" }
+          });
+          
+          if (res.status === "success") {
+            showToast("🎉 ยื่นคำขอเบิกเงินล่วงหน้าสำเร็จแล้ว", "success");
+            document.getElementById("advance-request-form").reset();
+            loadAllData();
+          } else {
+            showToast("❌ ล้มเหลว: " + res.message, "error");
+          }
+        } catch (err) {
+          showToast("❌ ขัดข้องการเชื่อมต่อระบบเซิร์ฟเวอร์", "error");
+        }
+      }
+    }
+
+    // --- ส่วนสลิปเงินเดือน (Payslip Portal) ---
+    function displayPayslipList() {
+      const container = document.getElementById("payslip-records-list");
+      container.innerHTML = "";
+
+      if (payslipsList.length === 0) {
+        container.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ไม่มีข้อมูลสลิปเงินเดือนที่ออกให้</div>`;
+        return;
+      }
+
+      payslipsList.forEach(slip => {
+        const cycle = slip["รอบเงินเดือน"] || "N/A";
+        const net = slip["ยอดสุทธิ"] || 0;
+        const date = slip["วันที่บันทึก"] || "N/A";
+
+        const card = document.createElement("div");
+        card.className = "bg-white rounded-xl border border-slate-100 p-3.5 shadow-xs flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-all btn-press";
+        card.onclick = () => openPayslipModal(slip);
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-file-invoice-dollar"></i>
+            </div>
+            <div>
+              <p class="text-xs font-bold text-slate-800">รอบเงินเดือนประจำ ${cycle}</p>
+              <p class="text-[9px] text-slate-400">วันที่ส่งเอกสาร: ${formatThaiDate(date)}</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-xs font-bold text-emerald-600">฿${Number(net).toLocaleString()}</p>
+            <span class="inline-block text-[8px] bg-slate-100 px-2 py-0.5 text-slate-500 rounded-full font-medium">ดูเอกสาร</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function openPayslipModal(slip) {
+      const content = document.getElementById("payslip-detail-content");
+      const cycle = slip["รอบเงินเดือน"] || "N/A";
+      const net = slip["ยอดสุทธิ"] || 0;
+      
+      content.innerHTML = `
+        <div class="text-center bg-slate-50 rounded-2xl p-4 border border-slate-100">
+          <p class="text-xs text-slate-400">ยอดเงินโอนเข้าบัญชีสุทธิ</p>
+          <p class="text-2xl font-bold text-emerald-600 tracking-wide mt-1">฿${Number(net).toLocaleString()}</p>
+          <p class="text-[10px] text-slate-500 mt-1">บริษัท นวัตกรรมเทคโนโลยี จำกัด</p>
+        </div>
+
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
+            <span class="text-slate-400">รหัสพนักงาน:</span>
+            <span class="font-semibold text-slate-700">${currentEmployeeId}</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
+            <span class="text-slate-400">รอบบัญชีสลิป:</span>
+            <span class="font-semibold text-slate-700">${cycle}</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
+            <span class="text-slate-400">ชื่อเอกสารอ้างอิง:</span>
+            <span class="font-semibold text-slate-700">${slip["ชื่อไฟล์"] || "สลิปอ้างอิง"}</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
+            <span class="text-slate-400">ธนาคารรับโอน:</span>
+            <span class="font-semibold text-slate-700">${employeeData["ธนาคาร"] || "กสิกรไทย"} ${employeeData["หมายเลขบัญชี"] || ""}</span>
+          </div>
+          <div class="flex justify-between items-center py-1.5">
+            <span class="text-slate-400">สถานะการทำรายการ:</span>
+            <span class="text-emerald-600 font-bold flex items-center gap-1">
+              <i class="fa-solid fa-circle-check"></i> สำเร็จ
+            </span>
+          </div>
+        </div>
+      `;
+      document.getElementById("payslip-modal").classList.remove("hidden");
+    }
+
+    function closePayslipModal() {
+      document.getElementById("payslip-modal").classList.add("hidden");
+    }
+
+    function downloadPayslipDummy() {
+      showToast("💾 เริ่มการจำลองดาวน์โหลด PDF เรียบร้อยแล้ว", "success");
+      closePayslipModal();
+    }
+
+    // --- หน้าต่างขอแก้ไขเวลา ---
+    function openCorrectionModal(dateStr) {
+      document.getElementById("correction-date").value = dateStr;
+      document.getElementById("correction-date-display").textContent = formatThaiDate(dateStr);
+      document.getElementById("correction-modal").classList.remove("hidden");
+    }
+
+    function closeCorrectionModal() {
+      document.getElementById("correction-modal").classList.add("hidden");
+    }
+
+    async function submitTimeCorrection(e) {
+      e.preventDefault();
+      
+      const date = document.getElementById("correction-date").value;
+      const inNew = document.getElementById("correction-time-in").value;
+      const outNew = document.getElementById("correction-time-out").value;
+      const project = document.getElementById("correction-project").value;
+      const reason = document.getElementById("correction-reason").value;
+
+      if (!inNew && !outNew) {
+        showToast("⚠️ กรุณากรอกระบุเวลาเข้า หรือเวลาออก อย่างน้อย 1 ช่อง", "warning");
+        return;
+      }
+
+      const payload = {
+        action: "submitTimeCorrection",
+        empId: currentEmployeeId,
+        date: date,
+        timeInNew: inNew || "",
+        timeOutNew: outNew || "",
+        project: project,
+        reason: reason
+      };
+
+      showToast("⏳ กำลังยื่นขอแก้ไขเวลางาน...", "info");
+
+      if (isDemoMode) {
+        const idx = demoTimeRecords.findIndex(r => r["วันที่"] === date);
+        if (idx !== -1) {
+          if (inNew) demoTimeRecords[idx]["เวลาเข้า"] = inNew + ":00";
+          if (outNew) demoTimeRecords[idx]["เวลาออก"] = outNew + ":00";
+          demoTimeRecords[idx]["สถานะสรุป"] = "ปกติ";
+          demoTimeRecords[idx]["นาทีสาย"] = 0;
+        } else {
+          demoTimeRecords.push({
+            "วันที่": date, "เวลาเข้า": inNew ? inNew + ":00" : "", "เวลาออก": outNew ? outNew + ":00" : "",
+            "รหัสพนักงาน": currentEmployeeId, "สถานะสรุป": "ปกติ", "นาทีสาย": 0, "ชั่วโมง OT": 0, "โครงการ (เข้า)": project
+          });
+        }
+        timeRecordsList = [...demoTimeRecords];
+        
+        calculateAndDisplayStats();
+        displayActivitiesList();
+        loadCalendarRecords();
+        
+        closeCorrectionModal();
+        document.getElementById("correction-form").reset();
+        showToast("🎉 ส่งคำขอและทำการปรับเปลี่ยนข้อมูลเสร็จสิ้น (โหมดจำลอง)", "success");
+      } else {
+        try {
+          const res = await fetchWithTimeout(serverApiUrl, {
+            method: "POST",
+            body: JSON.stringify(payload),
+            headers: { "Content-Type": "application/json" }
+          });
+          
+          if (res.status === "success") {
+            showToast("🎉 ยื่นใบคำขออนุมัติแก้ไขสำเร็จ รอ HR ตรวจสอบ", "success");
+            closeCorrectionModal();
+            document.getElementById("correction-form").reset();
+            loadAllData();
+          } else {
+            showToast("❌ ล้มเหลว: " + res.message, "error");
+          }
+        } catch (err) {
+          showToast("❌ ไม่สามารถสื่อสารกับเซิร์ฟเวอร์ฐานข้อมูลได้", "error");
+        }
+      }
+    }
+
+    // --- ส่วนลงทะเบียนเวลาทำงานด้วยกล้องถ่ายรูปและ GPS ---
+    function requestGpsPosition() {
+      const display = document.getElementById("gps-coords");
+      const icon = document.getElementById("gps-status-icon");
+
+      if (!navigator.geolocation) {
+        display.textContent = "เบราว์เซอร์นี้ไม่รองรับระบบ GPS Location";
+        return;
+      }
+
+      display.textContent = "กำลังจับพิกัดความปลอดภัยแบบเวลาจริง...";
+      icon.innerHTML = '<i class="fa-solid fa-location-crosshairs animate-spin text-amber-500"></i>';
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          currentGpsLocation.lat = pos.coords.latitude.toFixed(6);
+          currentGpsLocation.lng = pos.coords.longitude.toFixed(6);
+          display.textContent = `ละติจูด: ${currentGpsLocation.lat} | ลองจิจูด: ${currentGpsLocation.lng}`;
+          icon.innerHTML = '<i class="fa-solid fa-location-dot text-emerald-500"></i>';
+        },
+        (err) => {
+          console.warn("Geolocation error: " + err.message);
+          currentGpsLocation.lat = "14.9912";
+          currentGpsLocation.lng = "103.1008";
+          display.textContent = "ใช้พิกัดมาตรฐานบริษัท (บุรีรัมย์): 14.9912, 103.1008";
+          icon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-amber-500"></i>';
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+
+    async function initCamera() {
+      const video = document.getElementById("video-feed");
+      if (!video) return;
+      const constraints = {
+        video: { facingMode: cameraMode, width: 400, height: 300 }
+      };
+
+      try {
+        if (streamRef) {
+          streamRef.getTracks().forEach(track => track.stop());
+        }
+        
+        streamRef = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = streamRef;
+        document.getElementById("camera-label").textContent = `โหมดกล้อง: ${cameraMode === "user" ? "หน้า" : "หลัง"}`;
+      } catch (err) {
+        console.error("Camera Access Error: ", err);
+        const cameraLabel = document.getElementById("camera-label");
+        if (cameraLabel) {
+          cameraLabel.textContent = "ไม่สามารถเชื่อมต่อกล้องจริงได้ (ใช้สิทธิ์จำลอง)";
+        }
+      }
+    }
+
+    function switchCamera() {
+      cameraMode = cameraMode === "user" ? "environment" : "user";
+      initCamera();
+    }
+
+    // ถ่ายภาพหลักฐานการเช็คอิน/เช็คเอาท์
+    function capturePhoto() {
+      const video = document.getElementById("video-feed");
+      const canvas = document.getElementById("photo-canvas");
+      const preview = document.getElementById("photo-preview");
+
+      if (!streamRef) {
+        showToast("📷 ไม่พบสิทธิ์เชื่อมกล้อง จะดึงรูปภาพพรีวิวอัตโนมัติ", "warning");
+        preview.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80";
+        preview.classList.remove("hidden");
+        video.classList.add("hidden");
+        return;
+      }
+
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 240;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const base64 = canvas.toDataURL("image/jpeg", 0.7);
+      preview.src = base64;
+      preview.classList.remove("hidden");
+      video.classList.add("hidden");
+      showToast("📸 ถ่ายภาพหลักฐานเรียบร้อย", "success");
+    }
+
+    async function submitAttendance(type) {
+      const project = document.getElementById("attendance-project-select").value;
+      const preview = document.getElementById("photo-preview");
+      const timeStr = document.getElementById("live-time").textContent;
+      const dateStr = new Date().toISOString().split('T')[0];
+
+      let photoBase64 = "";
+      if (!preview.classList.contains("hidden")) {
+        photoBase64 = preview.src;
+      }
+
+      if (!photoBase64) {
+        showToast("⚠️ กรุณากดถ่ายรูปภาพก่อนลงเวลาเพื่อความโปร่งใส", "warning");
+        return;
+      }
+
+      let lateMin = 0;
+      if (type === "IN") {
+        const parts = timeStr.split(":");
+        const minutes = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        if (minutes > 495) { 
+          lateMin = minutes - 480; 
+        }
+      }
+
+      const payload = {
+        action: "registerAttendance",
+        empId: currentEmployeeId,
+        type: type,
+        time: timeStr,
+        date: dateStr,
+        project: project,
+        lat: currentGpsLocation.lat || "14.9912",
+        lng: currentGpsLocation.lng || "103.1008",
+        photo: photoBase64,
+        late: lateMin
+      };
+
+      showToast(`⏳ กำลังบันทึกเวลาลงเข้า/ออกงาน...`, "info");
+
+      if (isDemoMode) {
+        if (type === "IN") {
+          const isExist = demoTimeRecords.some(r => r["วันที่"] === dateStr);
+          if (isExist) {
+            showToast("❌ คุณได้ทำการเช็คอินวันนี้แล้ว", "error");
+            return;
+          }
+          demoTimeRecords.unshift({
+            "วันที่": dateStr, "เวลาเข้า": timeStr, "เวลาออก": "", "รหัสพนักงาน": currentEmployeeId,
+            "สถานะสรุป": lateMin > 0 ? "สาย" : "ปกติ", "นาทีสาย": lateMin, "ชั่วโมง OT": 0, "โครงการ (เข้า)": project
+          });
+        } else {
+          const idx = demoTimeRecords.findIndex(r => r["วันที่"] === dateStr);
+          if (idx === -1) {
+            showToast("❌ ไม่พบข้อมูลการเข้างานเพื่อทำการบันทึกออกงาน", "error");
+            return;
+          }
+          demoTimeRecords[idx]["เวลาออก"] = timeStr;
+          demoTimeRecords[idx]["โครงการ (ออก)"] = project;
         }
 
-        function dismissInstallBanner() {
-            document.getElementById('pwa-install-banner').classList.add('hidden');
-            sessionStorage.setItem('hrbtc_pwa_banner_dismissed', 'true');
+        timeRecordsList = [...demoTimeRecords];
+        calculateAndDisplayStats();
+        displayActivitiesList();
+        
+        preview.classList.add("hidden");
+        document.getElementById("video-feed").classList.remove("hidden");
+
+        showToast(`🎉 เช็ค${type === "IN" ? "อินเข้า" : "เอาท์ออก"}งานสำเร็จเรียบร้อย (เดโม่)`, "success");
+        navigateTo("home");
+      } else {
+        try {
+          const res = await fetchWithTimeout(serverApiUrl, {
+            method: "POST",
+            body: JSON.stringify(payload),
+            headers: { "Content-Type": "application/json" }
+          });
+          
+          if (res.status === "success") {
+            showToast(`🎉 ${res.message}`, "success");
+            preview.classList.add("hidden");
+            document.getElementById("video-feed").classList.remove("hidden");
+            loadAllData();
+            navigateTo("home");
+          } else {
+            showToast("❌ ล้มเหลว: " + res.message, "error");
+          }
+        } catch (err) {
+          showToast("❌ ขัดข้องทางการเชื่อมโยงกับ API ฐานข้อมูล", "error");
         }
+      }
+    }
 
-        // ----------------- HELPER: SAFE HTML ESCAPE -----------------
-        function escapeHtml(str) {
-            if (str == null || str === undefined) return '';
-            const div = document.createElement('div');
-            div.textContent = String(str);
-            return div.innerHTML;
+    // --- ส่วนจัดการเวลา ---
+    function startLiveTime() {
+      setInterval(() => {
+        const now = new Date();
+        const timeElement = document.getElementById("live-time");
+        const dateElement = document.getElementById("live-date");
+
+        if (timeElement) {
+          timeElement.textContent = Utilities_formatTime(now);
         }
-
-        // ----------------- HELPERS: DISABLE/ENABLE BUTTONS -----------------
-        function setButtonLoading(btn, loading, originalText) {
-            if (loading) {
-                btn.disabled = true;
-                btn.dataset.originalText = btn.innerHTML;
-                btn.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>กำลังส่ง...</span>';
-                btn.classList.add('opacity-60', 'cursor-not-allowed');
-            } else {
-                btn.disabled = false;
-                btn.innerHTML = btn.dataset.originalText || originalText;
-                btn.classList.remove('opacity-60', 'cursor-not-allowed');
-            }
+        if (dateElement) {
+          dateElement.textContent = formatThaiDate(now.toISOString().split('T')[0]);
         }
+      }, 1000);
+    }
 
-        // ----------------- LOGIN & GET DATA -----------------
-        async function handleLogin() {
-            const inputId = document.getElementById('login-emp-id').value.trim();
-            if (!inputId) {
-                showToast("กรุณากรอกรหัสพนักงานของคุณ", "warning");
-                return;
-            }
+    function Utilities_formatTime(date) {
+      return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+    }
 
-            showToast("กำลังดึงข้อมูลฐานข้อมูล...", "info");
-            
-            try {
-                const response = await fetch(`${GOOGLE_SCRIPT_API_URL}?action=getEmployee&empId=${inputId}`);
-                const result = await response.json();
-                
-                if (result.status === "success" && result.data["รหัสพนักงาน"]) {
-                    currentEmployee = result.data;
-                    empId = inputId;
-                    
-                    document.getElementById('login-screen').classList.add('hidden');
-                    showToast("ยินดีต้อนรับเข้าสู่ระบบ", "success");
-                    
-                    initializeDashboardData();
-                } else {
-                    showToast("ไม่พบรหัสพนักงานนี้ในระบบ กรุณาตรวจสอบ", "warning");
-                }
-            } catch (err) {
-                console.error(err);
-                showToast("การเชื่อมต่อฐานข้อมูลชีตล้มเหลว", "warning");
-            }
+    function formatThaiDate(dateStr) {
+      if (!dateStr) return "";
+      const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+      const parts = dateStr.split("-");
+      if (parts.length < 3) return dateStr;
+      const day = parseInt(parts[2]);
+      const month = months[parseInt(parts[1]) - 1];
+      const year = parseInt(parts[0]) + 543;
+      return `${day} ${month} ${year}`;
+    }
+
+    function formatThaiDateShort(dateStr) {
+      if (!dateStr) return "";
+      const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+      const parts = dateStr.split("-");
+      if (parts.length < 3) return dateStr;
+      return `${parseInt(parts[2])} ${months[parseInt(parts[1]) - 1]}`;
+    }
+
+    // --- ส่วนจัดการหน้าจอและการเปลี่ยนหน้า ---
+    function navigateTo(target) {
+      activePage = target;
+      
+      const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
+      pages.forEach(p => {
+        const section = document.getElementById(`page-${p}`);
+        if (section) {
+          section.classList.add("hidden");
         }
+      });
 
-        function startClock() {
-            setInterval(() => {
-                const now = new Date();
-                document.getElementById('clock-display').innerText = now.toLocaleTimeString('th-TH', { hour12: false });
-            }, 1000);
+      document.getElementById("more-menu-panel").classList.add("hidden");
+
+      const targetSection = document.getElementById(`page-${target}`);
+      if (targetSection) {
+        targetSection.classList.remove("hidden");
+      }
+
+      if (target === "calendar") {
+        loadCalendarRecords();
+      }
+
+      const navItems = {
+        home: "nav-home",
+        calendar: "nav-calendar",
+        attendance: "nav-attendance",
+        leave: "nav-leave",
+        advance: "nav-more",
+        payslip: "nav-more"
+      };
+
+      Object.values(navItems).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          if (id === "nav-attendance") {
+            // ปุ่มเช็คอินตรงกลางคงรูปเดิมไว้
+          } else {
+            el.className = "flex flex-col items-center gap-1 flex-1 text-slate-400 transition-all";
+          }
         }
-
-        let gpsWarningEl = null;
-        function requestGpsLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    globalGps.lat = pos.coords.latitude;
-                    globalGps.lng = pos.coords.longitude;
-                    document.getElementById('gps-coords').innerText = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
-                    // Remove GPS warning if it was shown
-                    const warn = document.getElementById('gps-warning-badge');
-                    if (warn) warn.remove();
-                }, (err) => {
-                    globalGps = { lat: 13.7563, lng: 100.5018 };
-                    const gpsEl = document.getElementById('gps-coords');
-                    gpsEl.innerText = `Lat: 13.7563, Lng: 100.5018 (พิกัดจำลอง — กรุณาเปิด GPS)`;
-                    gpsEl.classList.add('text-amber-500');
-                    // Show warning badge on attendance page
-                    const badge = document.createElement('span');
-                    badge.id = 'gps-warning-badge';
-                    badge.className = 'text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold ml-2';
-                    badge.textContent = '⚠ พิกัดไม่แน่นอน';
-                    gpsEl.parentElement.appendChild(badge);
-                }, { timeout: 10000, maximumAge: 0 });
-            } else {
-                globalGps = { lat: 13.7563, lng: 100.5018 };
-            }
-        }
-
-        // ----------------- ACCOUNTING PERIOD HELPERS -----------------
-        function getCurrentAccountingPeriod() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = now.getMonth(); // 0-indexed
-
-            // รอบบัญชี: 26 ของเดือนก่อน ถึง 25 ของเดือนปัจจุบัน
-            // ถ้าวันปัจจุบัน <= 25 ของเดือนปัจจุบัน → ยังอยู่ในรอบที่แล้ว
-            let startDate, endDate;
-            if (now.getDate() <= 25) {
-                const prevMonth = new Date(year, month - 1, 26);
-                const endOfPrevMonth = new Date(year, month, 25);
-                startDate = prevMonth;
-                endDate = endOfPrevMonth;
-            } else {
-                // วันที่ > 25 → ยังไม่ถึงรอบใหม่ แสดงรอบล่าสุด (26 ก่อนหน้า - 25 ปัจจุบัน)
-                const prevMonth = new Date(year, month - 1, 26);
-                const currentMonthEnd = new Date(year, month, 25);
-                startDate = prevMonth;
-                endDate = currentMonthEnd;
-            }
-            return { startDate, endDate };
-        }
-
-        function filterByAccountingPeriod(records, startDate, endDate) {
-            return records.filter(r => {
-                if (!r["วันที่"]) return false;
-                const recDate = parseDate(r["วันที่"]);
-                return recDate >= startDate && recDate <= endDate;
-            });
-        }
-
-        // Parse Thai date string "2026-05-22" (local time, no UTC offset)
-        function parseDate(dateStr) {
-            if (!dateStr) return null;
-            // Try ISO format first: YYYY-MM-DD — parse as LOCAL date (not UTC)
-            if (/\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-                const [y, m, d] = dateStr.split('-').map(Number);
-                return new Date(y, m - 1, d); // local time
-            }
-            // Try DD/MM/YYYY or DD-MM-YYYY
-            const dmy = dateStr.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-            if (dmy) {
-                return new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]));
-            }
-            // Fallback: Date constructor
-            const parsed = new Date(dateStr);
-            return isNaN(parsed.getTime()) ? null : parsed;
-        }
-
-        function formatAccountingPeriodLabel(startDate, endDate) {
-            const monthsThai = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-            const startStr = `${startDate.getDate()} ${monthsThai[startDate.getMonth()]} ${startDate.getFullYear()}`;
-            const endStr = `${endDate.getDate()} ${monthsThai[endDate.getMonth()]} ${endDate.getFullYear()}`;
-            return `${startStr} – ${endStr}`;
-        }
-
-        // Generate calendar month dropdown (12 months back from today)
-        function populateCalendarMonthSelect() {
-            const sel = document.getElementById('calendar-month-select');
-            if (!sel) return;
-            const now = new Date();
-            sel.innerHTML = '';
-            for (let i = 0; i < 12; i++) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-                const opt = document.createElement('option');
-                opt.value = val;
-                opt.textContent = label;
-                if (i === 0) opt.selected = true;
-                sel.appendChild(opt);
-            }
-        }
-
-        // ----------------- INTERFACE DATA SETUP -----------------
-        function initializeDashboardData() {
-            document.getElementById('home-emp-name').innerText = currentEmployee["ชื่อ-นามสกุล"];
-            document.getElementById('home-emp-id').innerText = `รหัสพนักงาน: ${currentEmployee["รหัสพนักงาน"]}`;
-            document.getElementById('home-emp-position').innerText = currentEmployee["ตำแหน่ง"];
-
-            // เติม options ให้ calendar select อัตโนมัติ
-            populateCalendarMonthSelect();
-
-            // อัปเดต label รอบบัญชี
-            const period = getCurrentAccountingPeriod();
-            const label = document.getElementById('accounting-period-label');
-            if (label) label.textContent = formatAccountingPeriodLabel(period.startDate, period.endDate);
-
-            // คำนวณสถิติหน้าแรกด้วยรอบปัจจุบัน
-            calculateStatistics(period);
-
-            // ดึงข้อมูลอื่น ๆ จากระบบชีตมาแสดงในตาราง
-            fetchTimeRecords();
-            fetchLeaveRequests();
-            fetchAdvanceRequests();
-            fetchPayslips();
-
-            // ── Dynamic Advance Quota (50% of ฐานเงินเดือน) ──
-            const baseSalary = parseFloat(currentEmployee["ฐานเงินเดือน"]) || 0;
-            const advanceQuota = Math.floor(baseSalary * 0.5);
-            const quotaEl = document.getElementById('advance-quota-display');
-            if (quotaEl) quotaEl.innerText = advanceQuota.toLocaleString('th-TH') + ' ฿';
-
-            // ── Dynamic Leave Quota from DEFAULT_SYSTEM_SETTINGS ──
-            const LEAVE_SICK_DEFAULT = 30;
-            const LEAVE_PERSONAL_DEFAULT = 3;
-            const LEAVE_ANNUAL_DEFAULT = 10;
-
-            // Count used days from allLeaveRequests for current accounting period
-            const periodStart = period.startDate.toISOString().split('T')[0];
-            const periodEnd = period.endDate.toISOString().split('T')[0];
-
-            let sickUsed = 0, personalUsed = 0, annualUsed = 0;
-            allLeaveRequests.forEach(l => {
-                const start = l["วันที่เริ่ม"] || '';
-                if (start >= periodStart && start <= periodEnd && l["สถานะ"] !== 'ยกเลิก') {
-                    const days = parseFloat(l["จำนวนวัน"]) || 1;
-                    const type = l["ประเภทการลา"] || '';
-                    if (type.includes('ป่วย')) sickUsed += days;
-                    else if (type.includes('กิจ')) personalUsed += days;
-                    else if (type.includes('พักร้อน')) annualUsed += days;
-                }
-            });
-
-            document.getElementById('leave-sick-used').innerText = sickUsed;
-            document.getElementById('leave-sick-total').innerText = LEAVE_SICK_DEFAULT;
-            document.getElementById('leave-personal-used').innerText = personalUsed;
-            document.getElementById('leave-personal-total').innerText = LEAVE_PERSONAL_DEFAULT;
-            document.getElementById('leave-annual-used').innerText = annualUsed;
-            document.getElementById('leave-annual-total').innerText = LEAVE_ANNUAL_DEFAULT;
-
-            // ── Update advance form max attribute ──
-            const advanceInput = document.getElementById('advance-amount');
-            if (advanceInput) advanceInput.max = advanceQuota;
-            const advanceHint = document.createElement('p');
-            advanceHint.id = 'advance-max-hint';
-            advanceHint.className = 'text-[10px] text-emerald-600/70 mt-1';
-            advanceHint.textContent = `เบิกได้สูงสุด ${advanceQuota.toLocaleString('th-TH')} บาท`;
-            if (advanceInput && !document.getElementById('advance-max-hint')) {
-                advanceInput.parentElement.appendChild(advanceHint);
-            }
-        }
-
-        // ตัวแปรเก็บข้อมูลทั้งหมด (ไว้กรองหลายรอบบัญชี)
-        let allTimeRecords = [];
-        let allLeaveRequests = [];
-        let allAdvanceRequests = [];
-        let allPayslips = [];
-
-        // ----------------- FETCH WITH RETRY HELPER -----------------
-        async function fetchWithRetry(url, options = {}, retries = 2, delayMs = 1500) {
-            for (let attempt = 0; attempt <= retries; attempt++) {
-                try {
-                    const res = await fetch(url, options);
-                    return res;
-                } catch (err) {
-                    if (attempt < retries) {
-                        console.warn(`[HRBTC] Fetch attempt ${attempt + 1} failed, retrying in ${delayMs}ms...`);
-                        await new Promise(r => setTimeout(r, delayMs));
-                        delayMs *= 2; // exponential backoff
-                    } else {
-                        throw err;
-                    }
-                }
-            }
-        }
-
-        // ตัวแปรเก็บข้อมูลทั้งหมด (ไว้กรองหลายรอบบัญชี) — declared above
-
-        async function fetchTimeRecords() {
-            try {
-                const period = getCurrentAccountingPeriod();
-                const periodStart = period.startDate.toISOString().split('T')[0];
-                const periodEnd = period.endDate.toISOString().split('T')[0];
-const res = await fetchWithRetry(`${GOOGLE_SCRIPT_API_URL}?action=getTimeRecords&empId=${empId}&periodStart=${periodStart}&periodEnd=${periodEnd}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    allTimeRecords = data.data || [];
-                    applyTimePeriodFilter();
-                }
-            } catch (err) { console.error('[HRBTC] fetchTimeRecords failed:', err); showToast('ดึงข้อมูลเวลาล้มเหลว', 'warning'); }
-        }
-
-        async function fetchLeaveRequests() {
-            try {
-                const period = getCurrentAccountingPeriod();
-                const periodStart = period.startDate.toISOString().split('T')[0];
-                const periodEnd = period.endDate.toISOString().split('T')[0];
-const res = await fetchWithRetry(`${GOOGLE_SCRIPT_API_URL}?action=getLeaveRequests&empId=${empId}&periodStart=${periodStart}&periodEnd=${periodEnd}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    allLeaveRequests = data.data || [];
-                    renderLeaveHistory();
-                }
-            } catch (e) { console.error('[HRBTC] fetchLeaveRequests failed:', e); showToast('ดึงข้อมูลการลาล้มเหลว', 'warning'); }
-        }
-
-        async function fetchAdvanceRequests() {
-            try {
-                const period = getCurrentAccountingPeriod();
-                const periodStart = period.startDate.toISOString().split('T')[0];
-                const periodEnd = period.endDate.toISOString().split('T')[0];
-const res = await fetchWithRetry(`${GOOGLE_SCRIPT_API_URL}?action=getAdvanceRequests&empId=${empId}&periodStart=${periodStart}&periodEnd=${periodEnd}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    allAdvanceRequests = data.data || [];
-                    renderAdvanceHistory();
-                }
-            } catch (err) { console.error('[HRBTC] fetchAdvanceRequests failed:', err); showToast('ดึงข้อมูลการเบิกล้มเหลว', 'warning'); }
-        }
-
-        async function fetchPayslips() {
-            try {
-const res = await fetchWithRetry(`${GOOGLE_SCRIPT_API_URL}?action=getPayslips&empId=${empId}`);
-                const data = await res.json();
-                if (data.status === "success") {
-                    allPayslips = data.data || [];
-                    renderPayslips();
-                }
-            } catch (e) { console.error('[HRBTC] fetchPayslips failed:', e); showToast('ดึงข้อมูลสลิปล้มเหลว', 'warning'); }
-        }
-
-        function getSelectedCalendarPeriod() {
-            const selectedVal = document.getElementById('calendar-month-select')?.value;
-            if (!selectedVal) {
-                // Default: รอบบัญชีปัจจุบัน
-                return getCurrentAccountingPeriod();
-            }
-            // Format: "2026-05" → parse as first day of that month
-            const [year, month] = selectedVal.split('-');
-            const startDate = new Date(parseInt(year), parseInt(month) - 1, 26);
-            const endDate = new Date(parseInt(year), parseInt(month), 25);
-            return { startDate, endDate };
-        }
-
-        function applyTimePeriodFilter() {
-            const period = getSelectedCalendarPeriod();
-
-            let displayPeriod = period;
-            let filtered = filterByAccountingPeriod(allTimeRecords, period.startDate, period.endDate);
-
-            if (filtered.length === 0) {
-                const prevStart = new Date(period.startDate);
-                prevStart.setMonth(prevStart.getMonth() - 1);
-                const prevEnd = new Date(period.endDate);
-                prevEnd.setMonth(prevEnd.getMonth() - 1);
-                const prevPeriod = { startDate: prevStart, endDate: prevEnd };
-                displayPeriod = prevPeriod;
-                filtered = filterByAccountingPeriod(allTimeRecords, prevPeriod.startDate, prevPeriod.endDate);
-            }
-
-            activeTimeRecords = filtered;
-            renderCalendarData(displayPeriod);
-            calculateStatistics(displayPeriod);
-        }
-
-        function renderCalendarData() {
-            const container = document.getElementById('calendar-days-container');
-            container.innerHTML = '';
-            const period = passedPeriod || getSelectedCalendarPeriod();
-
-            const filtered = filterByAccountingPeriod(allTimeRecords, period.startDate, period.endDate);
-
-            if (filtered.length === 0) {
-                container.innerHTML = `<p class="text-xs text-center text-slate-400 py-6">ไม่มีข้อมูลในรอบนี้ — ลองเลือกเดือนอื่นด้านบน ↑</p>`;
-                return;
-            }
-
-            filtered.forEach(rec => {
-                const dayDiv = document.createElement('div');
-                dayDiv.className = "p-4 flex justify-between items-center hover:bg-slate-50 transition-colors";
-                const dateVal = escapeHtml(rec["วันที่"] || '');
-                const timeInVal = escapeHtml(rec["เวลาเข้า"] || '--');
-                const timeOutVal = escapeHtml(rec["เวลาออก"] || '--');
-                const projVal = escapeHtml(rec["โครงการ (เข้า)"] || 'N/A');
-                const editVal = escapeHtml(rec["แก้ไขเวลา"] || 'ไม่มี');
-                dayDiv.innerHTML = `
-                    <div class="space-y-1">
-                        <p class="text-xs font-bold text-slate-800">${dateVal}</p>
-                        <p class="text-[11px] text-slate-500">เข้า: ${timeInVal} | ออก: ${timeOutVal}</p>
-                        <p class="text-[10px] text-slate-400">โครงการ: ${projVal} | แก้ไขเวลา: ${editVal}</p>
-                    </div>
-                    <button onclick="openEditTimeModal('${dateVal}', '${timeInVal}', '${timeOutVal}')" class="text-xs bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 px-3 py-1.5 rounded-lg font-medium transition-all">ขอแก้ไข</button>
-                `;
-                container.appendChild(dayDiv);
-            });
-        }
-
-        function calculateStatistics(period) {
-            // ถ้าไม่ระบุ period ใช้รอบปัจจุบัน
-            const p = period || getCurrentAccountingPeriod();
-            const records = filterByAccountingPeriod(allTimeRecords, p.startDate, p.endDate);
-
-            let workDays = 0;
-            let lateMins = 0;
-            let otHours = 0;
-            let absentDays = 0;
-
-            records.forEach(r => {
-                if (r["เวลาเข้า"]) {
-                    workDays++;
-                } else {
-                    absentDays++;
-                }
-                lateMins += parseFloat(r["นาทีสาย"]) || 0;
-                otHours += parseFloat(r["ชั่วโมง OT"]) || 0;
-            });
-
-            document.getElementById('stat-work-days').innerText = workDays;
-            document.getElementById('stat-late-minutes').innerText = lateMins;
-            document.getElementById('stat-ot-hours').innerText = otHours.toFixed(1);
-            document.getElementById('stat-absent-days').innerText = absentDays;
-        }
-        async function registerAttendance(type, btn) {
-            const project = document.getElementById('attendance-project').value;
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const dateStr = now.toISOString().split('T')[0];
-
-            if (btn) setButtonLoading(btn, true);
-            showToast("กำลังส่งข้อมูลเข้า Google Sheets...", "info");
-
-            const payload = {
-                action: "registerAttendance",
-                empId: empId,
-                date: dateStr,
-                time: timeStr,
-                type: type,
-                project: project,
-                lat: globalGps.lat,
-                lng: globalGps.lng,
-                late: type === 'IN'
-                    ? Math.max(0, (now.getHours() - 8) * 60 + now.getMinutes() - 15)
-                    : 0
-            };
-
-try {
-                const response = await fetchWithRetry(GOOGLE_SCRIPT_API_URL, {
-                    method: "POST",
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }, 1);
-                const res = await response.json();
-                if (res.status === "success") {
-                    showToast(`บันทึกเวลาฝั่ง ${type} เรียบร้อยแล้ว`, "success");
-                    addSystemNotification("บันทึกเวลางานสำเร็จ", `พนักงานลงเวลา ${type} เมื่อ ${timeStr} ที่ ${project}`);
-                    fetchTimeRecords();
-                } else {
-                    showToast(res.message, "warning");
-                }
-            } catch (err) {
-                showToast("เชื่อมต่อข้อมูลระบบปลายทางล้มเหลว", "warning");
-                console.error('[HRBTC] registerAttendance failed:', err);
-            } finally {
-                if (btn) setButtonLoading(btn, false);
-            }
-        }
-
-        // ----------------- SUBMIT TIME CORRECTION -----------------
-        function openEditTimeModal(date, checkIn, checkOut) {
-            document.getElementById('edit-date-input').value = date;
-            document.getElementById('edit-date-display').value = date;
-            // Safe null/undefined check — use nullish coalescing
-            document.getElementById('edit-time-in').value = checkIn && checkIn !== 'undefined' && checkIn !== '--' ? checkIn : "08:30";
-            document.getElementById('edit-time-out').value = checkOut && checkOut !== 'undefined' && checkOut !== '--' ? checkOut : "17:30";
-            document.getElementById('edit-time-modal').classList.remove('hidden');
-        }
-
-        function closeEditTimeModal() {
-            document.getElementById('edit-time-modal').classList.add('hidden');
-        }
-
-        async function submitTimeCorrection(e) {
-            e.preventDefault();
-            const date = document.getElementById('edit-date-input').value;
-            const timeIn = document.getElementById('edit-time-in').value;
-            const timeOut = document.getElementById('edit-time-out').value;
-            const reason = document.getElementById('edit-reason').value;
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            setButtonLoading(submitBtn, true);
-
-            showToast("กำลังส่งคำขอเข้า Sheets...", "info");
-
-            const payload = {
-                action: "submitTimeCorrection",
-                empId: empId,
-                date: date,
-                timeInNew: timeIn,
-                timeOutNew: timeOut,
-                reason: reason,
-                project: "สำนักงานใหญ่"
-            };
-
-            try {
-                const response = await fetchWithRetry(GOOGLE_SCRIPT_API_URL, {
-                    method: "POST",
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }, 1);
-                const res = await response.json();
-                if (res.status === "success") {
-                    showToast("ส่งใบคำขอรับรองปรับแก้เรียบร้อย", "success");
-                    closeEditTimeModal();
-                    fetchTimeRecords();
-                } else {
-                    showToast(res.message || "ส่งข้อมูลล้มเหลว", "warning");
-                }
-            } catch (err) {
-                showToast("ส่งข้อมูลล้มเหลว", "warning");
-                console.error('[HRBTC] submitTimeCorrection failed:', err);
-            } finally {
-                setButtonLoading(submitBtn, false);
-            }
-        }
-
-        // ----------------- LEAVE SYSTEM -----------------
-        function switchLeaveTab(tab) {
-            if (tab === 'form') {
-                document.getElementById('tab-leave-form').className = "flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-xs";
-                document.getElementById('tab-leave-history').className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600";
-                document.getElementById('leave-form-container').classList.remove('hidden');
-                document.getElementById('leave-history-container').classList.add('hidden');
-            } else {
-                document.getElementById('tab-leave-history').className = "flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-xs";
-                document.getElementById('tab-leave-form').className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600";
-                document.getElementById('leave-history-container').classList.remove('hidden');
-                document.getElementById('leave-form-container').classList.add('hidden');
-                renderLeaveHistory();
-            }
-        }
-
-        // Leave history is stored in allLeaveRequests, rendered on tab switch
-        function renderLeaveHistory() {
-            const list = document.getElementById('leave-history-list');
-            if (!list) return;
-            list.innerHTML = '';
-            if (!allLeaveRequests || allLeaveRequests.length === 0) {
-                list.innerHTML = `<p class="text-xs text-center text-slate-400 py-4">ไม่มีประวัติการลา</p>`;
-                return;
-            }
-            allLeaveRequests.forEach(l => {
-                const item = document.createElement('div');
-                item.className = "p-3.5 bg-white border border-slate-100 rounded-2xl";
-                item.innerHTML = `
-                    <div class="flex justify-between">
-                        <span class="font-bold text-xs text-slate-800">${escapeHtml(l["ประเภทการลา"])}</span>
-                        <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-semibold">${escapeHtml(l["สถานะ"])}</span>
-                    </div>
-                    <p class="text-[11px] text-slate-400 mt-1">วันที่: ${escapeHtml(l["วันที่เริ่ม"])} ถึง ${escapeHtml(l["วันที่สิ้นสุด"])}</p>
-                    <p class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(l["เหตุผล"])}</p>
-                `;
-                list.appendChild(item);
-            });
-        }
-
-        // ----------------- FILE TO BASE64 HELPER -----------------
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
-
-        async function submitLeaveRequest(e) {
-            e.preventDefault();
-            const type = document.getElementById('leave-type').value;
-            const start = document.getElementById('leave-start').value;
-            const end = document.getElementById('leave-end').value;
-            const reason = document.getElementById('leave-reason').value;
-            const fileInput = document.getElementById('leave-attachment');
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            setButtonLoading(submitBtn, true);
-
-            // Read file as Base64 if attached
-            let attachmentBase64 = null;
-            if (fileInput.files && fileInput.files.length > 0) {
-                try {
-                    attachmentBase64 = await fileToBase64(fileInput.files[0]);
-                } catch (fe) {
-                    console.warn('[HRBTC] Failed to read attachment:', fe);
-                }
-            }
-
-            showToast("กำลังส่งคำขอลา...", "info");
-
-            const payload = {
-                action: "submitLeave",
-                empId: empId,
-                type: type,
-                start: start,
-                end: end,
-                reason: reason,
-                attachment: attachmentBase64,
-                lat: globalGps.lat,
-                lng: globalGps.lng
-            };
-
-            try {
-                const res = await fetchWithRetry(GOOGLE_SCRIPT_API_URL, {
-                    method: "POST",
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }, 1);
-                const result = await res.json();
-                if (result.status === "success") {
-                    showToast("ยื่นคำขอลาเรียบร้อยแล้ว", "success");
-                    document.getElementById('leave-form').reset();
-                    fetchLeaveRequests();
-                    switchLeaveTab('history');
-                } else {
-                    showToast(result.message || "ส่งข้อมูลล้มเหลว", "warning");
-                }
-            } catch (err) {
-                showToast("ส่งข้อมูลล้มเหลว", "warning");
-                console.error('[HRBTC] submitLeaveRequest failed:', err);
-            } finally {
-                setButtonLoading(submitBtn, false);
-            }
-        }
-
-        // ----------------- ADVANCE MONEY -----------------
-        function switchAdvanceTab(tab) {
-            if (tab === 'form') {
-                document.getElementById('tab-advance-form').className = "flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-xs";
-                document.getElementById('tab-advance-history').className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600";
-                document.getElementById('advance-form-container').classList.remove('hidden');
-                document.getElementById('advance-history-container').classList.add('hidden');
-            } else {
-                document.getElementById('tab-advance-history').className = "flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-blue-600 shadow-xs";
-                document.getElementById('tab-advance-form').className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-600";
-                document.getElementById('advance-history-container').classList.remove('hidden');
-                document.getElementById('advance-form-container').classList.add('hidden');
-                renderAdvanceHistory();
-            }
-        }
-
-        // fetchAdvanceRequests() already defined above (line 744)
-        // This is kept for reference only — actual implementation is at line 744
-
-        async function submitAdvanceRequest(e) {
-            e.preventDefault();
-            const amount = document.getElementById('advance-amount').value;
-            const reason = document.getElementById('advance-reason').value;
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            setButtonLoading(submitBtn, true);
-
-            showToast("กำลังส่งข้อมูล...", "info");
-
-            const payload = {
-                action: "submitAdvance",
-                empId: empId,
-                amount: amount,
-                reason: reason
-            };
-
-            try {
-                const res = await fetchWithRetry(GOOGLE_SCRIPT_API_URL, {
-                    method: "POST",
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }, 1);
-                const result = await res.json();
-                if (result.status === "success") {
-                    showToast("ส่งคำขอเบิกเงินเรียบร้อย", "success");
-                    document.getElementById('advance-form').reset();
-                    fetchAdvanceRequests();
-                    switchAdvanceTab('history');
-                } else {
-                    showToast(result.message || "ส่งข้อมูลล้มเหลว", "warning");
-                }
-            } catch (err) {
-                showToast("ส่งข้อมูลล้มเหลว", "warning");
-                console.error('[HRBTC] submitAdvanceRequest failed:', err);
-            } finally {
-                setButtonLoading(submitBtn, false);
-            }
-        }
-
-        // ----------------- PAYSLIPS -----------------
-        function renderAdvanceHistory() {
-            const list = document.getElementById('advance-history-list');
-            if (!list) return;
-            list.innerHTML = '';
-            if (!allAdvanceRequests || allAdvanceRequests.length === 0) {
-                list.innerHTML = `<p class="text-xs text-center text-slate-400 py-4">ไม่มีประวัติการเบิก</p>`;
-                return;
-            }
-            allAdvanceRequests.forEach(a => {
-                const item = document.createElement('div');
-                item.className = "p-3 bg-white border border-slate-100 rounded-2xl flex justify-between items-center";
-                item.innerHTML = `
-                    <div>
-                        <h4 class="font-bold text-slate-800 text-xs">เบิกจำนวน: ${escapeHtml(a["จำนวนเงิน"])} ฿</h4>
-                        <p class="text-[10px] text-slate-400 mt-1">วันที่ขอ: ${escapeHtml(a["วันที่เบิก"])}</p>
-                    </div>
-                    <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-bold">${escapeHtml(a["สถานะ"])}</span>
-                `;
-                list.appendChild(item);
-            });
-        }
-
-        function renderPayslips() {
-            const list = document.getElementById('payslip-list');
-            if (!list) return;
-            list.innerHTML = '';
-            if (!allPayslips || allPayslips.length === 0) {
-                list.innerHTML = `<p class="text-xs text-center text-slate-400 py-6">ไม่มีสลิปเงินเดือน</p>`;
-                return;
-            }
-            allPayslips.forEach(p => {
-                const item = document.createElement('div');
-                item.className = "p-4 flex justify-between items-center hover:bg-slate-50";
-                item.innerHTML = `
-                    <div>
-                        <h4 class="font-bold text-slate-800 text-xs">รอบเงินเดือน: ${escapeHtml(p["รอบเงินเดือน"])}</h4>
-                        <p class="text-[11px] text-slate-400">ชื่อไฟล์: ${escapeHtml(p["ชื่อไฟล์"])}</p>
-                    </div>
-                    <a href="${escapeHtml(p["URL สลิป"])}" target="_blank" class="text-xs bg-blue-50 text-blue-600 font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1">
-                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                        ดาวน์โหลด
-                    </a>
-                `;
-                list.appendChild(item);
-            });
-            lucide.createIcons();
-        }
-
-        // fetchPayslips() already defined above (line 755)
-        // renderPayslips() already defined above
-
-        // ----------------- HEADER & MENU INTERACTIVE -----------------
-        function switchView(viewName) {
-            const views = ['home', 'calendar', 'attendance', 'leave', 'advance', 'payslip'];
-            views.forEach(v => {
-                document.getElementById(`view-${v}`).classList.add('hidden');
-                document.getElementById(`nav-${v}`).classList.remove('text-blue-600');
-                document.getElementById(`nav-${v}`).classList.add('text-slate-400');
-            });
-
-            document.getElementById(`view-${viewName}`).classList.remove('hidden');
-            document.getElementById(`nav-${viewName}`).classList.add('text-blue-600');
-            document.getElementById(`nav-${viewName}`).classList.remove('text-slate-400');
-
-            const empInfo = document.getElementById('header-employee-info');
-            const headerTitle = document.getElementById('header-title');
-
-            if (viewName === 'home') {
-                empInfo.classList.add('hidden');
-                headerTitle.innerText = "HRBTC Portal";
-            } else {
-                empInfo.classList.remove('hidden');
-                if (currentEmployee) {
-                    empInfo.innerText = `${currentEmployee["ชื่อ-นามสกุล"]} (${currentEmployee["รหัสพนักงาน"]})`;
-                }
-                const titleMap = {
-                    calendar: 'ปฏิทินเวลาทำงาน',
-                    attendance: 'บันทึกเวลาปฏิบัติงาน',
-                    leave: 'ระบบส่งใบขอลา',
-                    advance: 'เบิกเงินล่วงหน้า',
-                    payslip: 'สลิปเงินเดือน'
-                };
-                headerTitle.innerText = titleMap[viewName];
-            }
-        }
-
-        // ----------------- TOAST SYSTEM -----------------
-        function showToast(message, type = 'info') {
-            const toast = document.getElementById('toast');
-            const iconSpan = document.getElementById('toast-icon');
-            const msgSpan = document.getElementById('toast-message');
-
-            msgSpan.innerText = message;
-            if (type === 'success') {
-                iconSpan.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>';
-            } else if (type === 'warning') {
-                iconSpan.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400"></i>';
-            } else {
-                iconSpan.innerHTML = '<i data-lucide="info" class="w-5 h-5 text-blue-400"></i>';
-            }
-            lucide.createIcons();
-
-            toast.classList.remove('opacity-0', 'pointer-events-none');
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'pointer-events-none');
-            }, 3000);
-        }
-
-        // ----------------- NOTIFICATION DRAWER -----------------
-        let systemNotifications = [
-            { title: "ยินดีต้อนรับสู่ HRBTC", message: "ระบบพร้อมอำนวยความสะดวกการสแกนงานและการลาเรียบร้อยแล้ว", time: "เมื่อสักครู่", read: false }
-        ];
-
-        function toggleNotifications() {
-            const drawer = document.getElementById('noti-drawer');
-            drawer.classList.toggle('hidden');
-            if (!drawer.classList.contains('hidden')) {
-                document.getElementById('noti-badge').classList.add('hidden');
-                systemNotifications.forEach(n => n.read = true);
-                renderNotifications();
-            }
-        }
-
-        function addSystemNotification(title, message) {
-            systemNotifications.unshift({ title, message, time: "เมื่อสักครู่", read: false });
-            const unread = systemNotifications.filter(n => !n.read).length;
-            if (unread > 0) {
-                document.getElementById('noti-badge').classList.remove('hidden');
-                document.getElementById('noti-badge').innerText = unread;
-            }
-            renderNotifications();
-        }
-
-        function renderNotifications() {
-            const list = document.getElementById('noti-list');
-            list.innerHTML = '';
-            systemNotifications.forEach(n => {
-                const item = document.createElement('div');
-                item.className = "p-3 rounded-2xl border border-slate-100 flex gap-3 bg-white";
-                item.innerHTML = `
-                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                        <i data-lucide="bell" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                        <h4 class="font-bold text-xs text-slate-800">${n.title}</h4>
-                        <p class="text-[11px] text-slate-500">${n.message}</p>
-                        <span class="text-[9px] text-slate-400">${n.time}</span>
-                    </div>
-                `;
-                list.appendChild(item);
-            });
-            lucide.createIcons();
-        }
-    </script>
+      });
+
+      const activeElId = navItems[target];
+      if (activeElId && activeElId !== "nav-attendance") {
+        document.getElementById(activeElId).className = "flex flex-col items-center gap-1 flex-1 text-blue-600 font-semibold transition-all";
+      }
+
+      updateHeaderEmployeeInfo();
+    }
+
+    function toggleMoreMenu() {
+      const panel = document.getElementById("more-menu-panel");
+      panel.classList.toggle("hidden");
+    }
+
+    function selectMoreMenu(target) {
+      navigateTo(target);
+    }
+
+    // --- ส่วนบริหารระบบตั้งค่า API ---
+    function toggleConfigModal() {
+      const modal = document.getElementById("config-modal");
+      modal.classList.toggle("hidden");
+    }
+
+    function onConfigModeChange() {
+      const select = document.getElementById("config-mode-select");
+      const urlSection = document.getElementById("config-url-section");
+      if (select.value === "real") {
+        urlSection.classList.remove("hidden");
+      } else {
+        urlSection.classList.add("hidden");
+      }
+    }
+
+    function saveSystemConfig() {
+      const mode = document.getElementById("config-mode-select").value;
+      const url = document.getElementById("config-api-url").value;
+      const empId = document.getElementById("config-emp-id").value;
+
+      if (mode === "real" && !url) {
+        showToast("⚠️ กรุณาระบุ Google Sheets Web App URL ให้ถูกต้อง", "warning");
+        return;
+      }
+
+      if (!empId) {
+        showToast("⚠️ กรุณาระบุรหัสพนักงานให้ถูกต้อง", "warning");
+        return;
+      }
+
+      localStorage.setItem("hr_api_mode", mode);
+      localStorage.setItem("hr_api_url", url);
+      localStorage.setItem("hr_emp_id", empId);
+
+      isDemoMode = (mode === "demo");
+      serverApiUrl = url;
+      currentEmployeeId = empId;
+
+      if (isDemoMode) {
+        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-amber-500 border-2 border-white rounded-full";
+      } else {
+        document.getElementById("api-indicator").className = "absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse";
+      }
+
+      toggleConfigModal();
+      showToast("💾 บันทึกค่าตั้งค่าการเชื่อมต่อสำเร็จ", "success");
+      
+      loadAllData();
+      navigateTo("home");
+    }
+
+    // --- ส่วนการแจ้งเตือนแบบเรียลไทม์ ---
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toast-container");
+      
+      const toast = document.createElement("div");
+      toast.className = "p-3 rounded-xl shadow-lg text-xs font-medium flex items-center gap-2 border text-white transition-all transform translate-y-2 opacity-0 pointer-events-auto cursor-pointer";
+      
+      let bg = "bg-slate-800 border-slate-700";
+      let icon = '<i class="fa-solid fa-info-circle text-blue-400"></i>';
+
+      if (type === "success") {
+        bg = "bg-slate-900/95 border-emerald-500/30 text-emerald-100";
+        icon = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+      } else if (type === "warning") {
+        bg = "bg-amber-900/95 border-amber-500/30 text-amber-100";
+        icon = '<i class="fa-solid fa-circle-exclamation text-amber-400"></i>';
+      } else if (type === "error") {
+        bg = "bg-rose-900/95 border-rose-500/30 text-rose-100";
+        icon = '<i class="fa-solid fa-circle-xmark text-rose-400"></i>';
+      }
+
+      toast.className = `${toast.className} ${bg}`;
+      toast.innerHTML = `${icon} <span class="flex-1">${message}</span>`;
+      
+      toast.onclick = () => {
+        toast.remove();
+      };
+
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+      }, 50);
+
+      setTimeout(() => {
+        toast.classList.add("translate-y-2", "opacity-0");
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }, 4000);
+    }
+
+    // --- ติดตั้งแอปพลิเคชันมือถือ (PWA Simulation) ---
+    function triggerPwaPrompt() {
+      document.getElementById("pwa-modal").classList.remove("hidden");
+    }
+
+    function closePwaModal() {
+      document.getElementById("pwa-modal").classList.add("hidden");
+    }
+
+    function showNotificationCenter() {
+      showToast("🔔 ข่าวสารล่าสุด: ระบบประมวลผลรอบบัญชีพร้อมใช้งานแล้ว!", "info");
+    }
+  </script>
 </body>
 </html>
