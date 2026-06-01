@@ -4827,8 +4827,12 @@ function updateEmployeeProfileUI() {
         if (initialRes.status !== 'success') {
           throw new Error(initialRes.message || JSON.stringify(initialRes));
         }
+        if (!initialRes.data) {
+          throw new Error(`Import API returned success but no data: ${JSON.stringify(initialRes)}`);
+        }
         
         let res = initialRes;
+        initialRes.data.summary = initialRes.data.summary || {};
         
         console.log(`[TXT Import] dryRun=${dryRun}, initialRes.data:`, initialRes.data);
         
@@ -4919,7 +4923,7 @@ function updateEmployeeProfileUI() {
         clearInterval(progressInterval);
 
         if (res.status === 'success') {
-          const data = res.data;
+          const data = res.data || {};
           
           // อัปเดตตัวเลข Summary
           const warnings = data.warnings || [];
