@@ -599,18 +599,21 @@
       <!-- 2. ปฏิทินรอบบัญชี (Calendar Page) -->
       <!-- ============================================== -->
       <section id="page-calendar" class="hidden space-y-4">
-        <!-- กล่องฟิลเตอร์เลือกรอบบัญชี -->
+        <!-- กล่องฟิลเตอร์เลือกรอบบัญชีแบบ Month Switcher -->
         <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
-          <label for="calendar-cycle-select" class="block text-xs font-semibold text-slate-500">เลือกรอบบัญชี (26 ของเดือนก่อนหน้า - 25 ของเดือนปัจจุบัน)</label>
-          <div class="flex items-center gap-2">
-            <select id="calendar-cycle-select" onchange="onCalendarCycleChange()" title="เลือกรอบบัญชี" aria-label="เลือกรอบบัญชี" class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <!-- ตัวเลือกจะถูกสร้างอัตโนมัติ -->
-            </select>
-            <button onclick="loadCalendarRecords()" class="btn-press bg-blue-50 text-blue-600 font-semibold text-xs px-3 py-2 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all">
-              <i class="fa-solid fa-rotate"></i> รีเฟรช
+          <span class="block text-xs font-semibold text-slate-500">เลือกรอบบัญชีด้วยเดือน</span>
+          <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-1.5">
+            <button onclick="changeCalendarMonth(-1)" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-200 text-slate-600 active:scale-95 transition-all" title="เดือนก่อนหน้า" aria-label="เดือนก่อนหน้า">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <span id="calendar-month-year-display" class="text-sm font-bold text-slate-800">พฤษภาคม 2569</span>
+            <button onclick="changeCalendarMonth(1)" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-200 text-slate-600 active:scale-95 transition-all" title="เดือนถัดไป" aria-label="เดือนถัดไป">
+              <i class="fa-solid fa-chevron-right"></i>
             </button>
           </div>
-          <p id="calendar-cycle-display" class="text-xs text-indigo-600 font-semibold bg-indigo-50/50 p-2 rounded-lg text-center"></p>
+          <p id="calendar-cycle-display" class="text-[11px] text-indigo-600 font-semibold bg-indigo-50/50 p-2 rounded-lg text-center flex items-center justify-center gap-1">
+            <i class="fa-solid fa-calendar-days text-[10px]"></i> ช่วงรอบบัญชี: 26 เม.ย. 2569 - 25 พ.ค. 2569
+          </p>
         </div>
 
         <!-- รายการเวลาเข้า-ออก และสถานะรายวัน -->
@@ -2394,56 +2397,51 @@
       return { start: startDate, end: endDate };
     }
 
-    function generateCycleOptions() {
-      const select = document.getElementById("calendar-cycle-select");
-      if (!select) return;
-      select.innerHTML = "";
-      
-      const now = new Date();
-      let currentMonth = now.getMonth();
-      let currentYear = now.getFullYear();
-
-      if (now.getDate() >= 26) {
-        currentMonth += 1;
-        if (currentMonth > 11) {
-          currentMonth = 0;
-          currentYear += 1;
-        }
+    // --- การจัดการ Month Switcher ของหน้าปฏิทินรอบบัญชี ---
+    const initDateObj = new Date();
+    let initMonth = initDateObj.getMonth();
+    let initYear = initDateObj.getFullYear();
+    if (initDateObj.getDate() >= 26) {
+      initMonth += 1;
+      if (initMonth > 11) {
+        initMonth = 0;
+        initYear += 1;
       }
+    }
+    let calendarActiveMonth = initMonth;
+    let calendarActiveYear = initYear;
 
+    function changeCalendarMonth(offset) {
+      calendarActiveMonth += offset;
+      if (calendarActiveMonth < 0) {
+        calendarActiveMonth = 11;
+        calendarActiveYear -= 1;
+      } else if (calendarActiveMonth > 11) {
+        calendarActiveMonth = 0;
+        calendarActiveYear += 1;
+      }
+      updateCalendarCycleUI();
+    }
+
+    function updateCalendarCycleUI() {
       const thMonthsFull = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
-      const thMonthsShort = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-
-      for (let i = 0; i < 6; i++) {
-        let m = currentMonth - i;
-        let y = currentYear;
-        if (m < 0) {
-          m += 12;
-          y -= 1;
-        }
-
-        const range = getCycleDateRange(y, m);
-        const option = document.createElement("option");
-        option.value = `${range.start}|${range.end}`;
-        
-        // แยกส่วนวันที่คร่อมเดือนเพื่อระบุขอบเขตในตัวเลือกให้เด่นชัด
-        const startParts = range.start.split("-");
-        const endParts = range.end.split("-");
-        
-        const startDay = parseInt(startParts[2]);
-        const startMonth = thMonthsShort[parseInt(startParts[1]) - 1];
-        
-        const endDay = parseInt(endParts[2]);
-        const endMonth = thMonthsShort[parseInt(endParts[1]) - 1];
-        
-        const cycleLabel = `รอบจ่าย ${thMonthsFull[m]} ${y + 543} (${startDay} ${startMonth} - ${endDay} ${endMonth})`;
-        
-        option.textContent = cycleLabel;
-        if (i === 0) {
-          option.textContent += " (รอบปัจจุบัน)";
-        }
-        select.appendChild(option);
+      
+      const displayEl = document.getElementById("calendar-month-year-display");
+      if (displayEl) {
+        displayEl.textContent = `${thMonthsFull[calendarActiveMonth]} ${calendarActiveYear + 543}`;
       }
+      
+      const range = getCycleDateRange(calendarActiveYear, calendarActiveMonth);
+      const cycleDisplayEl = document.getElementById("calendar-cycle-display");
+      if (cycleDisplayEl) {
+        cycleDisplayEl.innerHTML = `<i class="fa-solid fa-calendar-days text-[10px]"></i> ช่วงรอบบัญชี: ${formatThaiDate(range.start)} - ${formatThaiDate(range.end)}`;
+      }
+      
+      fetchWithCycleFilter(range.start, range.end);
+    }
+
+    function generateCycleOptions() {
+      // สงวนหัวฟังก์ชันเก่าไว้เพื่อความสอดคล้องระดับ APIs
     }
 
     function getCurrentCycleRange() {
@@ -2714,7 +2712,7 @@ async function handleLogin(e) {
 
     function proceedToMainApp() {
       hideLoginContainer();
-      generateCycleOptions();
+      updateCalendarCycleUI();
       const currentCycle = getCurrentCycleRange();
       document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
       document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
@@ -3334,13 +3332,7 @@ function updateEmployeeProfileUI() {
     }
 
     function loadCalendarRecords() {
-      const cycleSelect = document.getElementById("calendar-cycle-select");
-      if (!cycleSelect.value) return;
-      const [start, end] = cycleSelect.value.split("|");
-      
-      document.getElementById("calendar-cycle-display").textContent = `ช่วงรอบรายงาน: ${formatThaiDate(start)} - ${formatThaiDate(end)}`;
-      
-      fetchWithCycleFilter(start, end);
+      updateCalendarCycleUI();
     }
 
     async function fetchWithCycleFilter(start, end) {
