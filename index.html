@@ -590,15 +590,20 @@
             <p id="live-date" class="text-[10px] text-blue-500">ดึงข้อมูลเวลาล่าสุด...</p>
           </div>
 
+          <div id="attendance-dayoff-info" class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            <p class="font-semibold text-slate-700">สถานะวันหยุดประจำสัปดาห์</p>
+            <p id="attendance-dayoff-text" class="mt-1">ข้อมูลวันหยุดยังไม่พร้อมใช้งาน</p>
+          </div>
+
           <!-- ปุ่มหลักสำหรับเช็คอิน / เช็คเอาท์ -->
           <div class="grid grid-cols-2 gap-3">
-            <button onclick="submitAttendance('IN')" class="btn-press bg-emerald-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-emerald-700 transition-all flex flex-col items-center gap-1">
+            <button id="btn-attendance-in" onclick="submitAttendance('IN')" class="btn-press bg-emerald-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-emerald-700 transition-all flex flex-col items-center gap-1">
               <i class="fa-solid fa-right-to-bracket text-lg"></i>
               <span class="text-sm">ลงเวลาเข้างาน</span>
               <span class="text-[9px] text-emerald-100 font-normal">เช็คอิน (Check-In)</span>
             </button>
 
-            <button onclick="submitAttendance('OUT')" class="btn-press bg-rose-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-rose-700 transition-all flex flex-col items-center gap-1">
+            <button id="btn-attendance-out" onclick="submitAttendance('OUT')" class="btn-press bg-rose-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-rose-700 transition-all flex flex-col items-center gap-1">
               <i class="fa-solid fa-right-from-bracket text-lg"></i>
               <span class="text-sm">ลงเวลาออกงาน</span>
               <span class="text-[9px] text-rose-100 font-normal">เช็คเอาท์ (Check-Out)</span>
@@ -1934,10 +1939,11 @@
           <div class="space-y-1">
             <label class="text-[9px] font-bold text-slate-400 uppercase">วันหยุดประจำสัปดาห์</label>
             <select id="form-emp-dayoff" title="วันหยุดประจำสัปดาห์" aria-label="วันหยุดประจำสัปดาห์" class="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-              <option value="อาทิตย์">วันอาทิตย์</option>
-              <option value="เสาร์">วันเสาร์</option>
-              <option value="เสาร์-อาทิตย์">วันเสาร์-อาทิตย์</option>
-              <option value="จันทร์">วันจันทร์</option>
+              <option value="ผู้บริหาร">ผู้บริหาร (เหมาจ่าย 30 วัน ไม่ต้องลงเวลาก็ได้)</option>
+              <option value="อาทิตย์">อาทิตย์ (ทำงาน 6 วัน หยุดวันอาทิตย์)</option>
+              <option value="เสาร์">เสาร์ (ทำงาน 6 วัน หยุดวันเสาร์)</option>
+              <option value="เสาร์-อาทิตย์">เสาร์-อาทิตย์ (หยุดเสาร์-อาทิตย์)</option>
+              <option value="ทำงานทุกวัน">ทำงานทุกวัน (ไม่มีวันหยุด)</option>
             </select>
           </div>
           <!-- รูปโปรไฟล์ -->
@@ -2522,6 +2528,91 @@ function updateEmployeeProfileUI() {
 
       document.getElementById("home-emp-name").textContent = name;
       document.getElementById("home-emp-id-pos").textContent = `รหัส: ${id} | ${pos}`;
+      updateAttendanceStatus();
+    }
+
+    function getWeeklyDayoffInfo() {
+      const rawDayoff = (employeeData["วันหยุดประจําสัปดาห์"] || "").toString().trim();
+      const today = new Date().getDay();
+      const info = {
+        label: "ไม่พบข้อมูลวันหยุดประจำสัปดาห์",
+        description: "กรุณาตรวจสอบข้อมูลพนักงานหรือกำหนดวันหยุดในระบบ",
+        disabled: false,
+        warning: false
+      };
+
+      if (!rawDayoff) {
+        return info;
+      }
+
+      switch (rawDayoff) {
+        case "ผู้บริหาร":
+          info.label = "ผู้บริหาร (เหมาจ่าย 30 วัน)";
+          info.description = "ผู้บริหารไม่จำเป็นต้องลงเวลาเข้า-ออกงานผ่านระบบนี้ หากลงเวลาแล้วจะถูกบันทึกเป็นสถานะ พร ทั้นที่";
+          info.holidayAttendance = true;
+          info.warning = true;
+          break;
+        case "อาทิตย์":
+          info.label = "วันหยุดประจำสัปดาห์: วันอาทิตย์";
+          if (today === 0) {
+            info.description = "วันนี้เป็นวันหยุดของคุณ หากลงเวลาแล้วจะถูกบันทึกเป็นสถานะ พร ทั้นที่";
+            info.holidayAttendance = true;
+            info.warning = true;
+          } else {
+            info.description = "วันนี้เป็นวันทำงานปกติ โปรดลงเวลาเข้า-ออก";
+          }
+          break;
+        case "เสาร์":
+          info.label = "วันหยุดประจำสัปดาห์: วันเสาร์";
+          if (today === 6) {
+            info.description = "วันนี้เป็นวันหยุดของคุณ หากลงเวลาแล้วจะถูกบันทึกเป็นสถานะ พร ทั้นที่";
+            info.holidayAttendance = true;
+            info.warning = true;
+          } else {
+            info.description = "วันนี้เป็นวันทำงานปกติ โปรดลงเวลาเข้า-ออก";
+          }
+          break;
+        case "เสาร์-อาทิตย์":
+          info.label = "วันหยุดประจำสัปดาห์: เสาร์-อาทิตย์";
+          if (today === 0 || today === 6) {
+            info.description = "วันนี้เป็นวันหยุดของคุณ หากลงเวลาแล้วจะถูกบันทึกเป็นสถานะ พร ทั้นที่";
+            info.holidayAttendance = true;
+            info.warning = true;
+          } else {
+            info.description = "วันนี้เป็นวันทำงานปกติ โปรดลงเวลาเข้า-ออก";
+          }
+          break;
+        case "ทำงานทุกวัน":
+          info.label = "ทำงานทุกวัน";
+          info.description = "คุณไม่มีวันหยุดประจำสัปดาห์ สามารถลงเวลาได้ทุกวัน";
+          break;
+        default:
+          info.label = `วันหยุดประจำสัปดาห์: ${rawDayoff}`;
+          info.description = "ระบบยังไม่รองรับค่าวันหยุดนี้อย่างเต็มรูปแบบ";
+          break;
+      }
+
+      return info;
+    }
+
+    function updateAttendanceStatus() {
+      const info = getWeeklyDayoffInfo();
+      const box = document.getElementById("attendance-dayoff-info");
+      const text = document.getElementById("attendance-dayoff-text");
+      const btnIn = document.getElementById("btn-attendance-in");
+      const btnOut = document.getElementById("btn-attendance-out");
+
+      if (box) {
+        box.classList.toggle("border-rose-200", info.warning);
+        box.classList.toggle("bg-rose-50", info.warning);
+        box.classList.toggle("border-slate-200", !info.warning);
+        box.classList.toggle("bg-slate-50", !info.warning);
+      }
+      if (text) {
+        text.innerHTML = `<span class="font-semibold">${info.label}</span><br>${info.description}`;
+      }
+      if (btnIn) btnIn.disabled = false;
+      if (btnOut) btnOut.disabled = false;
     }
 
     function applyRolePermissions() {
@@ -3252,6 +3343,8 @@ function updateEmployeeProfileUI() {
     }
 
     async function submitAttendance(type) {
+      const dayoffInfo = getWeeklyDayoffInfo();
+
       const project = document.getElementById("attendance-project-select").value;
       const preview = document.getElementById("photo-preview");
       const timeStr = document.getElementById("live-time").textContent;
@@ -3288,6 +3381,10 @@ function updateEmployeeProfileUI() {
         photo: photoBase64,
         late: lateMin
       };
+
+      if (dayoffInfo.holidayAttendance) {
+        payload.status = "พร ทั้นที่";
+      }
 
       showToast(`⏳ กำลังบันทึกเวลาลงเข้า/ออกงาน...`, "info");
 
@@ -3372,6 +3469,10 @@ function updateEmployeeProfileUI() {
 
       if (target === "calendar") {
         loadCalendarRecords();
+      }
+
+      if (target === "attendance") {
+        updateAttendanceStatus();
       }
 
       const navItems = {
