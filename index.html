@@ -956,7 +956,7 @@
     </div>
 
     <!-- === [แถบเมนูด้านล่าง (Bottom Navigation Navigation)] === -->
-    <nav id="bottom-nav" class="absolute bottom-0 inset-x-0 bg-white border-t border-slate-200 py-2.5 px-4 flex justify-between items-center z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] hidden">
+    <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 py-2.5 px-4 flex justify-between items-center z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] hidden" style="padding-bottom: calc(0.625rem + env(safe-area-inset-bottom, 0));">
       <button onclick="navigateTo('home')" id="nav-home" class="flex flex-col items-center gap-1 flex-1 text-blue-600 transition-all">
         <span class="text-lg"><i class="fa-solid fa-house"></i></span>
         <span class="text-[9px] font-medium">หน้าแรก</span>
@@ -4236,23 +4236,25 @@ function updateEmployeeProfileUI() {
           const data = res.data;
           
           // อัปเดตตัวเลข Summary
-          document.getElementById("txt-stat-lines").textContent = data.summary.totalLines || 0;
-          document.getElementById("txt-stat-days").textContent = data.summary.processedDays || 0;
-          document.getElementById("txt-stat-warn").textContent = data.warnings.length || 0;
+          const warnings = data.warnings || [];
+          const summary = data.summary || { totalLines: 0, processedDays: 0, byStatus: {} };
+          document.getElementById("txt-stat-lines").textContent = summary.totalLines || 0;
+          document.getElementById("txt-stat-days").textContent = summary.processedDays || 0;
+          document.getElementById("txt-stat-warn").textContent = warnings.length || 0;
           
           let abnormalCount = 0;
-          for (let status in data.summary.byStatus) {
-            if (status !== 'W') abnormalCount += data.summary.byStatus[status];
+          for (let status in summary.byStatus) {
+            if (status !== 'W') abnormalCount += summary.byStatus[status];
           }
           document.getElementById("txt-stat-errors").textContent = abnormalCount;
 
           // แสดง Logs คำเตือน
           const warnLog = document.getElementById("txt-warnings-log");
           warnLog.innerHTML = "";
-          if (data.warnings.length === 0) {
+          if (warnings.length === 0) {
             warnLog.innerHTML = `<span class="text-slate-500 italic block">ไม่มีคำเตือนความผิดปกติ</span>`;
           } else {
-            data.warnings.forEach(w => {
+            warnings.forEach(w => {
               const div = document.createElement("div");
               div.className = "flex items-start gap-1.5 text-amber-500 font-mono text-[10px]";
               div.innerHTML = `<i class="fa-solid fa-triangle-exclamation mt-0.5"></i> <span>${w.message}</span>`;
@@ -4308,7 +4310,7 @@ function updateEmployeeProfileUI() {
           if (dryRun) {
             showToast("🔍 จำลองการนำเข้าเสร็จสิ้น ตรวจสอบประวัติพรีวิวได้ทันที", "success");
           } else {
-            const warningMessage = data.warnings.length > 0 ? "⚠️ บันทึกข้อมูลจริงแล้ว แม้พบคำเตือนบางรายการ" : "🎉 บันทึกข้อมูลจริงแล้ว";
+            const warningMessage = warnings.length > 0 ? "⚠️ บันทึกข้อมูลจริงแล้ว แม้พบคำเตือนบางรายการ" : "🎉 บันทึกข้อมูลจริงแล้ว";
             showToast(`${warningMessage} · ${res.message}`, "success");
             selectedTxtFileContent = "";
             document.getElementById("txt-file-label").textContent = "เลือกไฟล์ .txt ที่นี่";
