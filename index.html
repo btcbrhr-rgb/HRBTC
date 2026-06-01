@@ -2127,6 +2127,24 @@
       return getCycleDateRange(year, month);
     }
 
+    function getPinStorageKey(empId) {
+      return `pin_hash_${empId}`;
+    }
+
+    async function hashPin(pin) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(pin);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function isPinValid(empId, pin) {
+      const storedHash = localStorage.getItem(getPinStorageKey(empId));
+      if (!storedHash) return false;
+      const pinHash = await hashPin(pin);
+      return storedHash === pinHash;
+    }
+
     // --- เริ่มต้นโหลดแอป (App Initialization) ---
     window.onload = function() {
       // ตรวจสอบ PWA standalone mode
@@ -2142,7 +2160,7 @@
         currentEmployeeId = savedEmpId;
 
         // PWA mode + มี PIN ที่ตั้งไว้ → แสดงหน้าใส่ PIN
-        if (isPWAApp && localStorage.getItem("pin_" + savedEmpId)) {
+        if (isPWAApp && localStorage.getItem(getPinStorageKey(savedEmpId))) {
           document.getElementById("pin-login-emp-id").value = savedEmpId;
           showModal("pin-login-modal");
           return;
@@ -2205,34 +2223,6 @@ async function handleLogin(e) {
         return;
       }
 
-      // ตรวจสอบทางลัดสำหรับ Admin ด้วยรหัส admin123
-      if (empIdInput === "ADMIN123") {
-        currentEmployeeId = "admin123";
-        isLoggedIn = true;
-        employeeData = {
-          "รหัสพนักงาน": "admin123",
-          "ชื่อ-นามสกุล": "System Admin",
-          "สิทธิ์การใช้งาน": "Administrator",
-          "ตำแหน่ง": "System Administrator",
-          "ชื่อบริษัท": "HRBTC GROUP"
-        };
-        localStorage.setItem("is_logged_in", "true");
-        localStorage.setItem("hr_emp_id", "admin123");
-
-        showToast("🎉 ล็อกอินเข้าสู่ระบบผู้ดูแลระบบสำเร็จ", "success");
-        hideLoginContainer();
-        
-        // บังคับสลับไปยังโหมดผู้ดูแลระบบ
-        isAdminMode = true;
-        document.getElementById("app").classList.add("hidden");
-        document.getElementById("admin-app").classList.remove("hidden");
-        document.getElementById("admin-profile-name").textContent = "System Admin";
-        document.getElementById("admin-profile-role").textContent = "Administrator";
-        
-        switchAdminTab(adminActiveTab);
-        return;
-      }
-
       showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
 
       try {
@@ -2241,13 +2231,14 @@ async function handleLogin(e) {
         if (empResponse && empResponse.status === "success") {
           currentEmployeeId = empIdInput;
           isLoggedIn = true;
+          employeeData = empResponse.data || {};
           localStorage.setItem("is_logged_in", "true");
           localStorage.setItem("hr_emp_id", currentEmployeeId);
 
           // PWA mode: ตรวจสอบว่ามี PIN หรือยัง
           if (isPWAApp) {
-            const savedPin = localStorage.getItem("pin_" + currentEmployeeId);
-            if (!savedPin) {
+            const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
+            if (!savedPinHash) {
               // ยังไม่เคยตั้ง PIN → แสดงหน้าตั้ง PIN
               document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
               showModal("pin-setup-modal");
@@ -2259,7 +2250,7 @@ async function handleLogin(e) {
             return;
           }
 
-          showToast(`🎉 ยินดีต้อนรับคุณ ${empResponse.data["ชื่อ-นามสกุล"] || empIdInput}`, "success");
+          showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
           hideLoginContainer();
           
           generateCycleOptions();
@@ -2325,7 +2316,7 @@ async function handleLogin(e) {
       document.getElementById("pin-login-input").focus();
     }
 
-    function submitPinSetup() {
+    async function submitPinSetup() {
       const pin = document.getElementById("pin-setup-input").value.trim();
       const pinConfirm = document.getElementById("pin-setup-confirm").value.trim();
       const empId = document.getElementById("pin-setup-emp-id").value.trim();
@@ -2339,7 +2330,8 @@ async function handleLogin(e) {
         return;
       }
 
-      localStorage.setItem("pin_" + empId, pin);
+      const pinHash = await hashPin(pin);
+      localStorage.setItem(getPinStorageKey(empId), pinHash);
       closeModal("pin-setup-modal");
       document.getElementById("pin-setup-input").value = "";
       document.getElementById("pin-setup-confirm").value = "";
@@ -2348,14 +2340,13 @@ async function handleLogin(e) {
       proceedToMainApp();
     }
 
-    function submitPinLogin() {
+    async function submitPinLogin() {
       const pin = document.getElementById("pin-login-input").value.trim();
       const empId = document.getElementById("pin-login-emp-id").value.trim();
-      const savedPin = localStorage.getItem("pin_" + empId);
-
-      // ตรวจสอบ lockout
       const lockKey = "pin_lock_" + empId;
       const lockData = JSON.parse(localStorage.getItem(lockKey) || "null");
+
+      // ตรวจสอบ lockout
       if (lockData && lockData.count >= 3) {
         const remaining = Math.ceil((lockData.unlockAt - Date.now()) / 1000);
         if (remaining > 0) {
@@ -2366,7 +2357,8 @@ async function handleLogin(e) {
         localStorage.removeItem(lockKey);
       }
 
-      if (pin === savedPin) {
+      const isValidPin = await isPinValid(empId, pin);
+      if (isValidPin) {
         localStorage.removeItem(lockKey);
         closeModal("pin-login-modal");
         document.getElementById("pin-login-input").value = "";
@@ -2413,7 +2405,7 @@ async function handleLogin(e) {
     }
     function clearEmployeePin(empId, empName) {
       if (!confirm(`ต้องการล้าง PIN ของคุณ ${empName} (${empId}) ใช่หรือไม่?\nพนักงานจะต้องตั้ง PIN ใหม่เมื่อเข้าแอปครั้งต่อไป`)) return;
-      localStorage.removeItem("pin_" + empId);
+      localStorage.removeItem(getPinStorageKey(empId));
       showToast(`🔑 ล้าง PIN ของ ${empName} เรียบร้อยแล้ว`, "success");
     }
 
@@ -3393,18 +3385,19 @@ function updateEmployeeProfileUI() {
 
       Object.values(navItems).forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-          if (id === "nav-attendance") {
-            // ปุ่มเช็คอินตรงกลางคงรูปเดิมไว้
-          } else {
-            el.className = "flex flex-col items-center gap-1 flex-1 text-slate-400 transition-all";
-          }
+        if (el && id !== "nav-attendance") {
+          el.classList.remove("text-blue-600", "font-semibold");
+          el.classList.add("text-slate-400");
         }
       });
 
       const activeElId = navItems[target];
       if (activeElId && activeElId !== "nav-attendance") {
-        document.getElementById(activeElId).className = "flex flex-col items-center gap-1 flex-1 text-blue-600 font-semibold transition-all";
+        const activeEl = document.getElementById(activeElId);
+        if (activeEl) {
+          activeEl.classList.remove("text-slate-400");
+          activeEl.classList.add("text-blue-600", "font-semibold");
+        }
       }
 
       updateHeaderEmployeeInfo();
@@ -3514,7 +3507,7 @@ function updateEmployeeProfileUI() {
       const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
       const isAdminOrSuper = (role.toLowerCase() === 'administrator' || role.toLowerCase() === 'admin' || role.startsWith('admin:'));
       
-      if (!isAdminOrSuper && currentEmployeeId !== 'ADMIN123') {
+      if (!isAdminOrSuper) {
         showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
         return;
       }
