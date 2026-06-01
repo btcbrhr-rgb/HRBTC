@@ -4187,51 +4187,84 @@ function updateEmployeeProfileUI() {
           const textContext = await pageJs.getTextContent();
           const text = textContext.items.map(item => item.str).join(" ");
 
-          // พยายามระบุตัวตนพนักงาน
+          // พยายามระบุตัวตนพนักงาน (Enhanced Multi-Pattern ID Extraction)
           let empId = "";
           let empName = "ไม่ระบุ";
 
-          // ค้นหาเปรียบเทียบในรายชื่อ
-          for (const emp of adminEmployeesList) {
-            const id = (emp["รหัสพนักงาน"] || "").toString();
-            const fullName = (emp["ชื่อ-นามสกุล"] || "").toString();
-            if (id && text.includes(id)) {
-              empId = id;
-              empName = fullName;
+          // ลองหลาย pattern เพื่อให้ได้ ID แม่นยำ (BTC Time Recording Strategy)
+          const idPatterns = [
+            /([A-Z0-9]{3,10})\s*แผนก/i,           // "102002 แผนก"
+            /\b(ID|รหัส|รหัสพนักงาน)\s*[:\-\. ]*([A-Z0-9]{3,10})\b/i,  // "รหัส: 102002"
+            /\b([A-Z][0-9]{3,8})\b/i,              // "B12345"
+            /\b([0-9]{4,10})\b/                    // "102002"
+          ];
+
+          for (const pattern of idPatterns) {
+            const match = text.match(pattern);
+            if (match) {
+              empId = (match[2] || match[1]).trim().toUpperCase();
               break;
             }
           }
 
-          // Fallback regex match ID 5-7 หลัก
-          if (!empId) {
-            const mId = text.match(/\b(\d{5,7})\b/);
-            if (mId) empId = mId[1];
-          }
-
-          // ค้นหายอดโอนสุทธิ
-          let netAmount = 0.00;
-          let amountMatchedText = "";
-          
-          // ขั้นตอน 1: ลองหารูปแบบ "ยอดสุทธิ: 25000.00" (keyword-based)
-          const keywordPatterns = [
-            /(?:ยอดสุทธิ|ยอดโอน|รับสุทธิ|Net\s*Pay|Net\s*Salary)[\s:]+(\d+(?:[,.]\d+)*)/i,
-            /(\d+(?:[,.]\d+)*)\s*(?:บาท|THB)/i,
-            /เงิน[\s:]+(\d+(?:[,.]\d+)*)/i
-          ];
-          for (const rx of keywordPatterns) {
-            const m = text.match(rx);
-            if (m) {
-              const cleanNum = m[1].replace(/[,]/g, '').replace(/[^0-9.]/g, '');
-              netAmount = parseFloat(cleanNum) || 0.00;
-              if (netAmount > 100) { // ยอดเงินควรมากกว่า 100 บาท
-                amountMatchedText = m[0];
+          // ค้นหาชื่อพนักงานจาก employee list
+          if (empId) {
+            for (const emp of adminEmployeesList) {
+              const id = (emp["รหัสพนักงาน"] || "").toString().trim().toUpperCase();
+              if (id === empId) {
+                empName = (emp["ชื่อ-นามสกุล"] || "").toString();
                 break;
               }
             }
           }
-          
-          // ขั้นตอน 2: ถ้าขั้นตอน 1 ไม่เจอ ให้หาตัวเลขทั่วไป แต่ข้ามรหัสพนักงาน (5-7 หลัก)
-          if (netAmount === 0) {
+
+          // ค้นหายอดโอนสุทธิ (Enhanced Net Pay Extraction - BTC Strategy)
+          let netAmount = 0.00;
+          let amountMatchedText = "";
+
+          // ขั้นตอน 1: หา "Net To Pay" เป็นจุดเริ่มต้น (ภาษาอังกฤษ OCR มักจะไม่พลาด)
+          const netToPayMatch = text.match(/Net\s*To\s*Pay|Net\s*Pay|Net\s*Salary/i);
+
+          if (netToPayMatch) {
+            const searchBlock = text.substring(netToPayMatch.index);
+            // หาคำภาษาอังกฤษที่เป็นจุดสิ้นสุด (Total Earnings / Total Deduction / วันที่)
+            const endAnchorRegex = /(?:Total\s*Earnings|Total\s*Deduction|Earnings|Deductions|Amount|\d{1,2}\/\d{1,2}\/\d{4})/i;
+            const blockBeforeAnchor = searchBlock.split(endAnchorRegex)[0];
+
+            // ดึงตัวเลขทั้งหมดที่มีทศนิยมสองตำแหน่ง
+            const allNumbers = blockBeforeAnchor.match(/[\d,]+\.\d{2}/g);
+            if (allNumbers && allNumbers.length > 0) {
+              // ยอดสุทธิจะเป็นตัวเลข "ตัวสุดท้าย" เสมอ ก่อนจะขึ้นตารางสรุมด้านล่าง
+              const lastNumber = allNumbers[allNumbers.length - 1];
+              const cleanNum = lastNumber.replace(/[,]/g, '').replace(/[^0-9.]/g, '');
+              netAmount = parseFloat(cleanNum) || 0.00;
+              amountMatchedText = lastNumber;
+            }
+          }
+
+          // ขั้นตอน 2: Fallback - ลองหารูปแบบ "ยอดสุทธิ: 25000.00" (keyword-based)
+          if (!netAmount || netAmount === 0) {
+            const keywordPatterns = [
+              /(?:เงินรับสุทธิ|เงินโอนสุทธิ|ยอดสุทธิ|ยอดโอน|รับสุทธิ)[\s:]+(\d+(?:[,.]\d+)*)/i,
+              /(\d+(?:[,.]\d+)*)\s*(?:บาท|THB)/i,
+              /เงิน[\s:]+(\d+(?:[,.]\d+)*)/i
+            ];
+            for (const rx of keywordPatterns) {
+              const m = text.match(rx);
+              if (m) {
+                const cleanNum = m[1].replace(/[,]/g, '').replace(/[^0-9.]/g, '');
+                const parsedNum = parseFloat(cleanNum) || 0.00;
+                if (parsedNum > 100) {
+                  netAmount = parsedNum;
+                  amountMatchedText = m[0];
+                  break;
+                }
+              }
+            }
+          }
+
+          // ขั้นตอน 3: ถ้ายังหาไม่เจอ ให้หาตัวเลขทั่วไป แต่ข้ามรหัสพนักงาน (5-7 หลัก)
+          if (!netAmount || netAmount === 0) {
             const allNumbers = text.matchAll(/(\d+(?:[,.]\d+)*)/g);
             let candidates = [];
             for (const m of allNumbers) {
@@ -4249,6 +4282,7 @@ function updateEmployeeProfileUI() {
               amountMatchedText = largest.text;
             }
           }
+          
           // ถ้ายังหาไม่เจอ netAmount ให้ user edit เอง
           const textSample = text.substring(0, 400);
 
@@ -4286,6 +4320,43 @@ function updateEmployeeProfileUI() {
             extractedDetails: `ID: ${empId || 'ไม่ระบุ'} | ชื่อ: ${empName} | ยอด: ${amountMatchedText || 'ไม่ระบุ'}`,
             textSample: textSample
           });
+        }
+
+        // 🔍 BATCH EMPLOYEE VALIDATION (Enhance Matched Count)
+        const idsToValidate = parsedPayslips
+          .map(s => s.empId)
+          .filter((id, index, arr) => id && id.length >= 3 && arr.indexOf(id) === index); // Remove duplicates
+
+        if (idsToValidate.length > 0) {
+          try {
+            const validationResult = await new Promise((resolve, reject) => {
+              google.script.run
+                .withSuccessHandler(res => resolve(res))
+                .withFailureHandler(err => reject(err))
+                .validatePayslipEmployees(idsToValidate);
+            });
+
+            if (validationResult && validationResult.success && validationResult.data) {
+              // สร้าง map ของ ID -> ชื่อ
+              const nameMap = {};
+              validationResult.data.forEach(item => {
+                nameMap[item.id] = item.name;
+              });
+
+              // อัพเดต parsedPayslips ด้วยชื่อที่ได้จาก backend
+              parsedPayslips.forEach(slip => {
+                if (nameMap[slip.empId]) {
+                  slip.empName = nameMap[slip.empId];
+                  slip.status = 'MATCHED';
+                  matchedCount++;
+                  unmatchedCount--;
+                }
+              });
+            }
+          } catch (err) {
+            console.warn('Batch validation failed:', err);
+            // ถ้า validation ผิดพลาด ก็ใช้ข้อมูลจากขั้นตอนแรกต่อไป
+          }
         }
 
         // แสดงผลลัพธ์ลงสถิติ
