@@ -4211,19 +4211,29 @@ function updateEmployeeProfileUI() {
           // ค้นหายอดโอนสุทธิ
           let netAmount = 0.00;
           let amountMatchedText = "";
+          // กำหนดลำดับความสำคัญในการหา net amount
           const regexAmounts = [
-            /(?:ยอดสุทธิ|ยอดโอน|รับสุทธิ|Net\s*Pay|Net\s*Salary)[\s:]*([0-9,]+\.[0-9]{2})/i,
-            /([0-9,]+\.[0-9]{2})\s*(?:บาท|THB)/i,
-            /([0-9,]+\.[0-9]{2})/
+            // ลองหา "ยอดสุทธิ", "ยอดโอน", "รับสุทธิ" ตามด้วยตัวเลข
+            /(?:ยอดสุทธิ|ยอดโอน|รับสุทธิ|Net\s*Pay|Net\s*Salary)[\s:]+(\d+(?:[,.]\d+)*)/i,
+            // ลองหา ตัวเลขตามด้วย "บาท" หรือ "THB"
+            /(\d+(?:[,.]\d+)*)\s*(?:บาท|THB)/i,
+            // ลองหา "เงิน" ตามด้วยตัวเลข
+            /เงิน[\s:]+(\d+(?:[,.]\d+)*)/i,
+            // ลองหา ตัวเลขเอง (สุดท้าย: ตัวเลขใหญ่ที่สุด)
+            /(\d+(?:[,.]\d+)*)/
           ];
           for (const rx of regexAmounts) {
             const m = text.match(rx);
             if (m) {
-              netAmount = parseFloat(m[1].replace(/,/g, ''));
+              // ทำความสะอาดตัวเลข: ลบ comma และแปลง . -> .
+              const cleanNum = m[1].replace(/[,]/g, '').replace(/[^0-9.]/g, '');
+              netAmount = parseFloat(cleanNum) || 0.00;
               amountMatchedText = m[0];
-              break;
+              if (netAmount > 0) break; // ถ้าหาตัวเลข > 0 แล้ว ให้ยุติ
             }
           }
+          // ถ้ายังหาไม่เจอ netAmount ให้ user edit เอง
+          const textSample = text.substring(0, 400);
 
           // ค้นหาเดือน/รอบเงินเดือน
           // หากผู้ใช้เลือกเดือน/ปีจาก dropdown แล้ว ให้ใช้ค่าที่เลือกเป็นหลัก
@@ -4256,7 +4266,8 @@ function updateEmployeeProfileUI() {
             netAmount: netAmount,
             pdfBase64: dataUrl,
             status: empName !== 'ไม่ระบุ' ? 'MATCHED' : 'UNMATCHED',
-            extractedDetails: `ID: ${empId || 'ไม่ระบุ'} | ชื่อ: ${empName} | ยอด: ${amountMatchedText || 'ไม่ระบุ'}`
+            extractedDetails: `ID: ${empId || 'ไม่ระบุ'} | ชื่อ: ${empName} | ยอด: ${amountMatchedText || 'ไม่ระบุ'}`,
+            textSample: textSample
           });
         }
 
@@ -4299,8 +4310,10 @@ function updateEmployeeProfileUI() {
           </td>
           <td class="py-3 text-slate-600 font-semibold text-xs" id="pdf-row-name-${idx}">${slip.empName}</td>
           <td class="py-3 text-slate-500 text-xs">${slip.month}</td>
-          <td class="py-3 text-emerald-600 font-bold text-xs">฿${Number(slip.netAmount).toLocaleString()}</td>
-          <td class="py-3 text-slate-500 text-xs font-mono bg-slate-50 rounded px-2" title="${slip.extractedDetails}">${slip.extractedDetails}</td>
+          <td class="py-3 text-xs">
+            <input type="number" value="${slip.netAmount}" onchange="updatePayslipRowNetAmount(${idx}, this.value)" placeholder="0.00" class="bg-white border ${slip.netAmount === 0 ? 'border-rose-300 bg-rose-50' : 'border-slate-200'} text-slate-800 text-xs rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-indigo-500" step="0.01">
+          </td>
+          <td class="py-3 text-slate-500 text-xs font-mono bg-slate-50 rounded px-2 max-w-xs overflow-hidden text-ellipsis" title="${slip.extractedDetails}" onclick="showPayslipDebugInfo(${idx})" style="cursor: pointer;">${slip.extractedDetails}</td>
           <td class="py-3" id="pdf-row-status-${idx}">${statusText}</td>
         `;
         container.appendChild(tr);
@@ -4332,6 +4345,46 @@ function updateEmployeeProfileUI() {
       const matched = parsedPayslips.filter(s => s.status === 'MATCHED').length;
       document.getElementById("pdf-stat-matched").textContent = matched;
       document.getElementById("pdf-stat-unmatched").textContent = parsedPayslips.length - matched;
+    }
+
+    // ฟังก์ชันอัปเดตยอดเงินโอนสุทธิด้วยตนเอง
+    function updatePayslipRowNetAmount(index, newAmount) {
+      const amount = parseFloat(newAmount) || 0.00;
+      parsedPayslips[index].netAmount = amount;
+      // อัปเดตสีพื้นหลัง input ถ้า amount = 0
+      const input = event.target;
+      if (amount === 0) {
+        input.classList.add("bg-rose-50");
+        input.classList.add("border-rose-300");
+        input.classList.remove("border-slate-200");
+      } else {
+        input.classList.remove("bg-rose-50");
+        input.classList.remove("border-rose-300");
+        input.classList.add("border-slate-200");
+      }
+    }
+
+    // ฟังก์ชันแสดงข้อความตัวอย่างที่สกัดออกจาก PDF
+    function showPayslipDebugInfo(index) {
+      const slip = parsedPayslips[index];
+      const debugMsg = `
+📋 ข้อมูลการสกัดหน้า ${slip.pageNumber}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🆔 รหัสพนักงาน: ${slip.empId || 'ไม่พบ'}
+👤 ชื่อ: ${slip.empName}
+💰 ยอดเงิน: ${slip.netAmount}
+📅 เดือน: ${slip.month}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 ข้อความตัวอย่างจาก PDF (400 ตัวอักษรแรก):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${slip.textSample}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 หากยอดเงินเป็น 0 ให้แก้ไขตรง "ยอดเงินโอนสุทธิ" ในตาราง
+💡 ดูข้อความด้านบนเพื่อค้นหา "ยอดสุทธิ" หรือตัวเลขเงินเดือน
+      `;
+      alert(debugMsg);
     }
 
     // ฟังก์ชันสั่งอัพโหลด PDF ทั้งหมดขึ้นระบบ
