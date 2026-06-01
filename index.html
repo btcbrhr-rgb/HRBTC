@@ -76,6 +76,17 @@
       if (companyDetailLabel) companyDetailLabel.textContent = COMPANY_INFO.name;
       if (adminTitle) adminTitle.textContent = COMPANY_INFO.adminTitle;
       if (empCompanyInput) empCompanyInput.placeholder = COMPANY_INFO.name;
+
+      const storedApiUrl = localStorage.getItem("hr_api_url");
+      if (storedApiUrl) {
+        SERVER_API_URL = storedApiUrl;
+        const configInput = document.getElementById("config-api-url");
+        if (configInput) configInput.value = storedApiUrl;
+        const apiIndicator = document.getElementById("api-indicator");
+        if (apiIndicator) {
+          apiIndicator.className = "absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse";
+        }
+      }
     }
 
     window.addEventListener('DOMContentLoaded', initializeCompanyInfo);
@@ -2349,7 +2360,7 @@
     let selectedTxtFileContent = "";
 
     let currentEmployeeId = "";
-    const SERVER_API_URL = "https://script.google.com/macros/s/AKfycbyPYNSeA-rOv8v37nSPJsjrcjAWVOszQJcFx_3Rq5eQg_aCHg_yQyOEUNOqPL9edY67mg/exec";
+    let SERVER_API_URL = localStorage.getItem("hr_api_url") || "https://script.google.com/macros/s/AKfycbyPYNSeA-rOv8v37nSPJsjrcjAWVOszQJcFx_3Rq5eQg_aCHg_yQyOEUNOqPL9edY67mg/exec";
     let activePage = "home";
     let currentGpsLocation = { lat: "", lng: "" };
     let streamRef = null;
@@ -4017,7 +4028,7 @@ function updateEmployeeProfileUI() {
     }
 
     function saveSystemConfig() {
-      const url = document.getElementById("config-api-url").value;
+      const url = document.getElementById("config-api-url").value.trim();
 
       if (!url) {
         showToast("⚠️ กรุณาระบุ Google Sheets Web App URL", "warning");
@@ -4266,7 +4277,7 @@ function updateEmployeeProfileUI() {
                   <button onclick='clearEmployeePin("${empId}", "${name}")' title="ล้าง PIN" class="bg-rose-50 hover:bg-rose-100 text-rose-500 font-semibold px-2 py-1 rounded-lg transition-all border border-rose-200">
                     <i class="fa-solid fa-key"></i>
                   </button>
-                  <button onclick='editEmployeeRow(${JSON.stringify(emp).replace(/'/g, "\'")})' class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-2.5 py-1 rounded-lg transition-all border border-slate-200">
+                  <button onclick="editEmployeeRow('${empId}')" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-2.5 py-1 rounded-lg transition-all border border-slate-200">
                     <i class="fa-solid fa-pencil"></i> แก้ไข
                   </button>
                 </div>
@@ -4282,8 +4293,13 @@ function updateEmployeeProfileUI() {
       }
     }
 
-    function editEmployeeRow(emp) {
-      openEmployeeEditModal(emp);
+    function editEmployeeRow(empId) {
+      const emp = adminEmployeesList.find(item => (item["รหัสพนักงาน"] || "") === empId);
+      if (emp) {
+        openEmployeeEditModal(emp);
+      } else {
+        showToast("❌ ไม่พบข้อมูลพนักงานสำหรับแก้ไข", "error");
+      }
     }
 
     // จัดการแท็บข้อมูลการอนุมัติ (ลา, แก้ไขเวลา, เบิกเงิน)
@@ -4573,7 +4589,7 @@ function updateEmployeeProfileUI() {
       try {
         const response = await fetchWithTimeout(url, {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
 
@@ -4732,7 +4748,7 @@ function updateEmployeeProfileUI() {
       try {
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
 
@@ -4810,7 +4826,7 @@ function updateEmployeeProfileUI() {
         // ─── ขั้นที่ 1: Parse ไฟล์เสมอ เพื่อให้ได้ records ────
         const initialRes = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
           timeout: 0
         });
@@ -4853,7 +4869,7 @@ function updateEmployeeProfileUI() {
             
             const batchRes = await fetchWithTimeout(SERVER_API_URL, {
               method: "POST",
-              headers: { "Content-Type": "text/plain" },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify(batchPayload),
               timeout: 0
             });
@@ -5298,7 +5314,7 @@ function updateEmployeeProfileUI() {
           <td class="py-3 text-slate-600 font-semibold text-xs" id="pdf-row-name-${idx}">${slip.empName}</td>
           <td class="py-3 text-slate-500 text-xs">${slip.month}</td>
           <td class="py-3 text-xs">
-            <input type="number" value="${slip.netAmount}" onchange="updatePayslipRowNetAmount(${idx}, this.value)" placeholder="0.00" class="bg-white border ${slip.netAmount === 0 ? 'border-rose-300 bg-rose-50' : 'border-slate-200'} text-slate-800 text-xs rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-indigo-500" step="0.01">
+            <input type="number" value="${slip.netAmount}" onchange="updatePayslipRowNetAmount(${idx}, this.value, this)" placeholder="0.00" class="bg-white border ${slip.netAmount === 0 ? 'border-rose-300 bg-rose-50' : 'border-slate-200'} text-slate-800 text-xs rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-indigo-500" step="0.01">
           </td>
           <td class="py-3 text-slate-500 text-xs font-mono bg-slate-50 rounded px-2 max-w-xs overflow-hidden text-ellipsis" title="${slip.extractedDetails}" onclick="showPayslipDebugInfo(${idx})" style="cursor: pointer;">${slip.extractedDetails}</td>
           <td class="py-3 text-center">
@@ -5340,11 +5356,10 @@ function updateEmployeeProfileUI() {
     }
 
     // ฟังก์ชันอัปเดตยอดเงินโอนสุทธิด้วยตนเอง
-    function updatePayslipRowNetAmount(index, newAmount) {
+    function updatePayslipRowNetAmount(index, newAmount, input) {
       const amount = parseFloat(newAmount) || 0.00;
       parsedPayslips[index].netAmount = amount;
-      // อัปเดตสีพื้นหลัง input ถ้า amount = 0
-      const input = event.target;
+      if (!input) return;
       if (amount === 0) {
         input.classList.add("bg-rose-50");
         input.classList.add("border-rose-300");
@@ -5446,7 +5461,7 @@ ${slip.textSample}
         try {
           const res = await fetchWithTimeout(SERVER_API_URL, {
             method: "POST",
-            headers: { "Content-Type": "text/plain" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           });
 
@@ -5761,7 +5776,7 @@ ${slip.textSample}
       try {
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         if (res.status === 'success') {
@@ -5864,7 +5879,7 @@ ${slip.textSample}
       try {
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
-          headers: { "Content-Type": "text/plain" },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "saveSystemSettings",
             settings: { symbolRules: newRules }
