@@ -1154,6 +1154,11 @@
               <div class="space-y-4">
                 <h3 class="text-sm font-bold text-slate-800">อัปโหลดไฟล์สลิปรวม</h3>
                 <p class="text-xs text-slate-500 leading-relaxed">กรุณาเลือกไฟล์ PDF รวมสลิปเงินเดือนของพนักงาน ระบบจะแยกรายหน้า ดึงข้อมูลอัตโนมัติ และอัปโหลดไปยัง Google Drive ส่วนตัวพนักงาน</p>
+                <div class="grid gap-3">
+                  <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider">เลือกเดือนสลิป</label>
+                  <input id="pdf-month-input" type="text" placeholder="MM/YYYY เช่น 01/2026" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" aria-label="เลือกเดือนสลิป" />
+                  <p class="text-[10px] text-slate-500">ระบุเดือนและปีที่ต้องการบันทึกเป็นชื่อไฟล์</p>
+                </div>
                 <div class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-emerald-500/50 cursor-pointer transition-all flex flex-col items-center justify-center gap-3 bg-slate-50" onclick="document.getElementById('pdf-payslip-file').click()">
                   <i class="fa-solid fa-file-pdf text-3xl text-emerald-500"></i>
                   <span class="text-xs text-slate-500" id="pdf-file-label">เลือกไฟล์ .pdf ที่นี่</span>
@@ -1946,6 +1951,7 @@
     let adminEmployeesList = [];
     let adminCurrentDecisionData = null; // Holds target data for approval modal
     let parsedPayslips = []; // Holds list of parsed/split payslip pages
+    let selectedPayslipMonth = "";
     let selectedTxtFileContent = "";
 
     let currentEmployeeId = "";
@@ -4110,6 +4116,12 @@ function updateEmployeeProfileUI() {
     }
 
     async function processPdfParse() {
+      selectedPayslipMonth = getSelectedPayslipMonth();
+      if (!selectedPayslipMonth) {
+        showToast("⚠️ กรุณาระบุเดือนสลิปในรูปแบบ MM/YYYY ก่อน", "warning");
+        return;
+      }
+
       if (!selectedPdfBuffer) {
         showToast("⚠️ ไม่พบข้อมูลไฟล์ PDF", "warning");
         return;
@@ -4350,6 +4362,23 @@ function updateEmployeeProfileUI() {
       parsedPayslips = [];
       document.getElementById("pdf-file-label").textContent = "เลือกไฟล์ .pdf ที่นี่";
       document.getElementById("pdf-preview-table-body").innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic">การทำรายการอัปโหลดเสร็จสิ้น ข้อมูลถูกจัดส่งเข้าตารางคลาวด์แล้ว</td></tr>`;
+    }
+
+    function getSelectedPayslipMonth() {
+      const raw = (document.getElementById("pdf-month-input").value || "").trim();
+      if (!raw) return "";
+      const cleaned = raw.replace(/\s+/g, "");
+      let match = cleaned.match(/^(\d{1,2})[\/\-](\d{4})$/);
+      if (match) {
+        const month = String(match[1]).padStart(2, '0');
+        return `${month}/${match[2]}`;
+      }
+      match = cleaned.match(/^(\d{4})-(\d{1,2})$/);
+      if (match) {
+        const month = String(match[2]).padStart(2, '0');
+        return `${month}/${match[1]}`;
+      }
+      return "";
     }
 
     // Helper: แปลง ArrayBuffer เป็น Base64
