@@ -1229,12 +1229,13 @@
               <table class="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr class="border-b border-slate-200 text-slate-500">
-                    <th class="py-2.5 font-semibold w-16">หน้า</th>
-                    <th class="py-2.5 font-semibold w-40">รหัสพนักงาน (กรอก/แก้ไขได้)</th>
-                    <th class="py-2.5 font-semibold w-52">ชื่อ-นามสกุล</th>
-                    <th class="py-2.5 font-semibold w-32">รอบเงินเดือน</th>
-                    <th class="py-2.5 font-semibold w-32">ยอดเงินโอนสุทธิ</th>
-                    <th class="py-2.5 font-semibold">ผลลัพธ์การคู่ข้อมูล</th>
+                    <th class="py-2.5 font-semibold w-12">หน้า</th>
+                    <th class="py-2.5 font-semibold w-36">รหัสพนักงาน</th>
+                    <th class="py-2.5 font-semibold w-40">ชื่อ-นามสกุล</th>
+                    <th class="py-2.5 font-semibold w-24">รอบเงินเดือน</th>
+                    <th class="py-2.5 font-semibold w-28">ยอดโอนสุทธิ</th>
+                    <th class="py-2.5 font-semibold w-80">ข้อมูลที่สกัดออก</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
                   </tr>
                 </thead>
                 <tbody id="pdf-preview-table-body" class="divide-y divide-slate-200 text-slate-600">
@@ -4209,6 +4210,7 @@ function updateEmployeeProfileUI() {
 
           // ค้นหายอดโอนสุทธิ
           let netAmount = 0.00;
+          let amountMatchedText = "";
           const regexAmounts = [
             /(?:ยอดสุทธิ|ยอดโอน|รับสุทธิ|Net\s*Pay|Net\s*Salary)[\s:]*([0-9,]+\.[0-9]{2})/i,
             /([0-9,]+\.[0-9]{2})\s*(?:บาท|THB)/i,
@@ -4218,6 +4220,7 @@ function updateEmployeeProfileUI() {
             const m = text.match(rx);
             if (m) {
               netAmount = parseFloat(m[1].replace(/,/g, ''));
+              amountMatchedText = m[0];
               break;
             }
           }
@@ -4252,7 +4255,8 @@ function updateEmployeeProfileUI() {
             month: monthStr,
             netAmount: netAmount,
             pdfBase64: dataUrl,
-            status: empName !== 'ไม่ระบุ' ? 'MATCHED' : 'UNMATCHED'
+            status: empName !== 'ไม่ระบุ' ? 'MATCHED' : 'UNMATCHED',
+            extractedDetails: `ID: ${empId || 'ไม่ระบุ'} | ชื่อ: ${empName} | ยอด: ${amountMatchedText || 'ไม่ระบุ'}`
           });
         }
 
@@ -4289,13 +4293,14 @@ function updateEmployeeProfileUI() {
         }
 
         tr.innerHTML = `
-          <td class="py-3 font-semibold text-slate-700 text-center">หน้า ${slip.pageNumber}</td>
+          <td class="py-3 font-semibold text-slate-700 text-center text-xs">หน้า ${slip.pageNumber}</td>
           <td class="py-3">
-            <input type="text" value="${slip.empId}" onchange="updatePayslipRowEmpId(${idx}, this.value)" placeholder="กรอกรหัส..." class="bg-white border border-slate-200 text-slate-800 text-xs rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-indigo-500">
+            <input type="text" value="${slip.empId}" onchange="updatePayslipRowEmpId(${idx}, this.value)" placeholder="กรอกรหัส..." class="bg-white border border-slate-200 text-slate-800 text-xs rounded-lg px-2 py-1 w-24 focus:outline-none focus:border-indigo-500">
           </td>
-          <td class="py-3 text-slate-600 font-semibold" id="pdf-row-name-${idx}">${slip.empName}</td>
-          <td class="py-3 text-slate-500">${slip.month}</td>
-          <td class="py-3 text-emerald-600 font-bold">฿${Number(slip.netAmount).toLocaleString()}</td>
+          <td class="py-3 text-slate-600 font-semibold text-xs" id="pdf-row-name-${idx}">${slip.empName}</td>
+          <td class="py-3 text-slate-500 text-xs">${slip.month}</td>
+          <td class="py-3 text-emerald-600 font-bold text-xs">฿${Number(slip.netAmount).toLocaleString()}</td>
+          <td class="py-3 text-slate-500 text-xs font-mono bg-slate-50 rounded px-2" title="${slip.extractedDetails}">${slip.extractedDetails}</td>
           <td class="py-3" id="pdf-row-status-${idx}">${statusText}</td>
         `;
         container.appendChild(tr);
