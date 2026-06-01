@@ -1136,8 +1136,10 @@
                 <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                   <div id="txt-import-progress-bar" class="h-full bg-indigo-600 transition-all" style="width: 0%"></div>
                 </div>
+                <div class="text-xs text-slate-600 mt-2 text-center" id="txt-import-counter">0 / 0 แถว</div>
               </div>
               <div id="txt-import-result" class="mt-3 p-3 rounded-xl hidden text-xs font-semibold" role="alert"></div>
+              <div id="txt-import-db-summary" class="mt-2 text-[11px] text-slate-500 hidden"></div>
               <p class="text-[10px] text-slate-500 mt-3">เมื่อกด "บันทึกข้อมูลจริง" ระบบจะเขียนข้อมูลลงชีตตามผลการประมวลผลทันที แม้พบคำเตือนหรือความผิดปกติ ผู้ใช้สามารถส่งคำขอแก้ไขเวลาต่อไปได้ภายหลัง</p>
             </div>
             <!-- Summary Stats -->
@@ -4238,11 +4240,14 @@ function updateEmployeeProfileUI() {
       const modeStr = dryRun ? "พรีวิว" : "บันทึกจริง";
       const statusDiv = document.getElementById("txt-import-status");
       const resultDiv = document.getElementById("txt-import-result");
+      const dbSummaryEl = document.getElementById("txt-import-db-summary");
       const previewBtn = document.getElementById("txt-preview-btn");
       const saveBtn = document.getElementById("txt-save-btn");
       
       statusDiv.classList.remove("hidden");
       resultDiv.classList.add("hidden");
+      dbSummaryEl.classList.add("hidden");
+      dbSummaryEl.textContent = "";
       previewBtn.disabled = true;
       saveBtn.disabled = true;
       document.getElementById("txt-import-status-text").textContent = `กำลังสั่งประมวลผล ${modeStr}...`;
@@ -4270,12 +4275,69 @@ function updateEmployeeProfileUI() {
         console.log(`[TXT Import] Sending request to ${SERVER_API_URL}...`);
         const startTime = Date.now();
         
-        const res = await fetchWithTimeout(SERVER_API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(payload),
-          timeout: 0  // ไม่มี timeout - รอจนกว่าจะประมวลผลเสร็จ
-        });
+        if (!dryRun) {
+          // ─── โหมดบันทึกจริง: แบ่ง batch และส่งทีละ batch ─────
+          const batchSize = 50;
+          const totalBatches = Math.ceil(data.records.length / batchSize);
+          let totalSavedRecords = 0;
+          
+          for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+            const batchStart = batchIdx * batchSize;
+            const batchEnd = Math.min(batchStart + batchSize, data.records.length);
+            const batchRecords = data.records.slice(batchStart, batchEnd);
+            
+            const batchPayload = {
+              action: "importTimeRecords",
+              fileContent: data.fileContent,
+              dryRun: false,
+              batchOnly: true,
+              batchRecords: batchRecords,
+              batchNum: batchIdx,
+              totalBatches: totalBatches
+            };
+            
+            document.getElementById("txt-import-counter").textContent = 
+              `${batchStart + 1} / ${data.records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
+            document.getElementById("txt-import-progress-bar").style.width = 
+              ((batchIdx / totalBatches) * 100) + "%";
+            
+            const batchRes = await fetchWithTimeout(SERVER_API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain" },
+              body: JSON.stringify(batchPayload),
+              timeout: 30000
+            });
+            
+            if (batchRes.status !== 'success') {
+              throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message}`);
+            }
+            
+            totalSavedRecords += (batchRes.data.summary?.saved || 0);
+          }
+          
+          // หลังจาก batches ทั้งหมด ให้ดึงสรุปเต็ม
+          const finalRes = await fetchWithTimeout(SERVER_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({
+              action: "importTimeRecords",
+              fileContent: data.fileContent,
+              dryRun: false
+            }),
+            timeout: 0
+          });
+          
+          if (finalRes.status !== 'success') throw finalRes;
+          res = finalRes;
+        } else {
+          // ─── โหมด dry-run: ส่งปกติเหมือนเดิม ─────
+          res = await fetchWithTimeout(SERVER_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(payload),
+            timeout: 0
+          });
+        }
 
         const endTime = Date.now();
         console.log(`[TXT Import] Response received after ${endTime - startTime}ms:`, res);
@@ -4297,6 +4359,16 @@ function updateEmployeeProfileUI() {
             if (status !== 'W') abnormalCount += summary.byStatus[status];
           }
           document.getElementById("txt-stat-errors").textContent = abnormalCount;
+
+          const dbSummaryEl = document.getElementById("txt-import-db-summary");
+          dbSummaryEl.classList.remove("hidden");
+          if (dryRun) {
+            dbSummaryEl.textContent = "สถานะ: Dry-run เท่านั้น ยังไม่บันทึกลงฐานข้อมูล";
+          } else {
+            const written = summary.written || 0;
+            const updated = summary.updated || 0;
+            dbSummaryEl.textContent = `บันทึกฐานข้อมูล: เขียนใหม่ ${written} แถว · อัปเดต ${updated} แถว`;
+          }
 
           // แสดง Logs คำเตือน
           const warnLog = document.getElementById("txt-warnings-log");
@@ -4368,11 +4440,11 @@ function updateEmployeeProfileUI() {
               ? `<i class="fa-solid fa-circle-check mr-2"></i>✓ บันทึกข้อมูลจริงแล้ว · ${summary.processedDays} วัน · แม้มี ${warnings.length} เตือน` 
               : `<i class="fa-solid fa-circle-check mr-2"></i>✓ บันทึกข้อมูลจริงสำเร็จ · ${summary.processedDays} วัน`;
             resultDiv.innerHTML = successMsg;
-            // คงสถานะไฟล์ที่เลือกไว้หลังบันทึกสำเร็จ
-            document.getElementById("txt-import-status-text").textContent = `บันทึกสำเร็จ ${summary.processedDays} วัน`; 
+            document.getElementById("txt-import-status-text").textContent = `บันทึกสำเร็จ ${summary.processedDays} วัน`;
             setTimeout(() => {
               statusDiv.classList.add("hidden");
               resultDiv.classList.add("hidden");
+              dbSummaryEl.classList.add("hidden");
             }, 3000);
           }
           document.getElementById("txt-import-progress-bar").style.width = "100%";
