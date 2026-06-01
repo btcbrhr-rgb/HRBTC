@@ -4211,25 +4211,42 @@ function updateEmployeeProfileUI() {
           // ค้นหายอดโอนสุทธิ
           let netAmount = 0.00;
           let amountMatchedText = "";
-          // กำหนดลำดับความสำคัญในการหา net amount
-          const regexAmounts = [
-            // ลองหา "ยอดสุทธิ", "ยอดโอน", "รับสุทธิ" ตามด้วยตัวเลข
+          
+          // ขั้นตอน 1: ลองหารูปแบบ "ยอดสุทธิ: 25000.00" (keyword-based)
+          const keywordPatterns = [
             /(?:ยอดสุทธิ|ยอดโอน|รับสุทธิ|Net\s*Pay|Net\s*Salary)[\s:]+(\d+(?:[,.]\d+)*)/i,
-            // ลองหา ตัวเลขตามด้วย "บาท" หรือ "THB"
             /(\d+(?:[,.]\d+)*)\s*(?:บาท|THB)/i,
-            // ลองหา "เงิน" ตามด้วยตัวเลข
-            /เงิน[\s:]+(\d+(?:[,.]\d+)*)/i,
-            // ลองหา ตัวเลขเอง (สุดท้าย: ตัวเลขใหญ่ที่สุด)
-            /(\d+(?:[,.]\d+)*)/
+            /เงิน[\s:]+(\d+(?:[,.]\d+)*)/i
           ];
-          for (const rx of regexAmounts) {
+          for (const rx of keywordPatterns) {
             const m = text.match(rx);
             if (m) {
-              // ทำความสะอาดตัวเลข: ลบ comma และแปลง . -> .
               const cleanNum = m[1].replace(/[,]/g, '').replace(/[^0-9.]/g, '');
               netAmount = parseFloat(cleanNum) || 0.00;
-              amountMatchedText = m[0];
-              if (netAmount > 0) break; // ถ้าหาตัวเลข > 0 แล้ว ให้ยุติ
+              if (netAmount > 100) { // ยอดเงินควรมากกว่า 100 บาท
+                amountMatchedText = m[0];
+                break;
+              }
+            }
+          }
+          
+          // ขั้นตอน 2: ถ้าขั้นตอน 1 ไม่เจอ ให้หาตัวเลขทั่วไป แต่ข้ามรหัสพนักงาน (5-7 หลัก)
+          if (netAmount === 0) {
+            const allNumbers = text.matchAll(/(\d+(?:[,.]\d+)*)/g);
+            let candidates = [];
+            for (const m of allNumbers) {
+              const cleanNum = m[1].replace(/[,]/g, '').replace(/[^0-9.]/g, '');
+              const parsedNum = parseFloat(cleanNum);
+              // ข้ามตัวเลขที่เป็นรหัสพนักงาน (5-7 หลักไม่มีทศนิยม) และตัวเลขเล็กๆ
+              if (parsedNum > 100 && !(parsedNum.toString().match(/^\d{5,7}$/))) {
+                candidates.push({ value: parsedNum, text: m[0] });
+              }
+            }
+            // เลือกตัวเลขใหญ่ที่สุด (ซึ่งมักจะเป็นยอดเงิน)
+            if (candidates.length > 0) {
+              const largest = candidates.reduce((a, b) => a.value > b.value ? a : b);
+              netAmount = largest.value;
+              amountMatchedText = largest.text;
             }
           }
           // ถ้ายังหาไม่เจอ netAmount ให้ user edit เอง
