@@ -1244,6 +1244,7 @@
                 <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                   <div id="pdf-parse-progress" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
                 </div>
+                <div id="pdf-upload-errors" class="text-[10px] text-rose-600 mt-2 hidden"></div>
               </div>
               <div class="grid grid-cols-3 gap-3 pt-2">
                 <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-center">
@@ -4729,12 +4730,13 @@ ${slip.textSample}
       
       let successCount = 0;
       let failCount = 0;
+      const failDetails = [];
 
       for (let i = 0; i < targets.length; i++) {
         const slip = targets[i];
         const progressPercent = Math.round(((i + 1) / targets.length) * 100);
         document.getElementById("pdf-parse-progress").style.width = `${progressPercent}%`;
-        document.getElementById("pdf-parse-status").textContent = `กำลังอัปโหลด ${i+1}/${targets.length} (รหัส: ${slip.empId})...`;
+        document.getElementById("pdf-parse-status").textContent = `กำลังอัปโหลด ${i+1}/${targets.length} (รหัส: ${slip.empId || 'ไม่ระบุ'})...`;
 
         const payload = {
           action: "uploadPayslipFile",
@@ -4755,17 +4757,34 @@ ${slip.textSample}
             successCount++;
           } else {
             failCount++;
-            console.error(`Upload error for ${slip.empId}: ${res.message}`);
+            const message = res.message || 'ไม่ทราบสาเหตุ';
+            failDetails.push(`รหัส ${slip.empId || 'ไม่ระบุ'}: ${message}`);
+            console.error(`Upload error for ${slip.empId}: ${message}`);
           }
         } catch (e) {
           failCount++;
-          console.error(`Upload connection failure for ${slip.empId}: ${e.message}`);
+          const message = e.message || 'เชื่อมต่อไม่สำเร็จ';
+          failDetails.push(`รหัส ${slip.empId || 'ไม่ระบุ'}: ${message}`);
+          console.error(`Upload connection failure for ${slip.empId}: ${message}`);
         }
       }
 
-      document.getElementById("pdf-parse-status").textContent = `เสร็จสิ้น! อัปโหลดผ่าน ${successCount} · ล้มเหลว ${failCount}`;
+      const statusText = `เสร็จสิ้น! อัปโหลดผ่าน ${successCount} · ล้มเหลว ${failCount}`;
+      document.getElementById("pdf-parse-status").textContent = statusText;
       document.getElementById("pdf-parse-progress").style.width = "100%";
       
+      if (failDetails.length > 0) {
+        const errorContainer = document.getElementById("pdf-upload-errors");
+        errorContainer.classList.remove("hidden");
+        errorContainer.innerHTML = `สาเหตุล้มเหลว: <br>${failDetails.map(msg => `- ${msg}`).join('<br>')}`;
+      } else {
+        const errorContainer = document.getElementById("pdf-upload-errors");
+        if (errorContainer) {
+          errorContainer.classList.add("hidden");
+          errorContainer.innerHTML = "";
+        }
+      }
+
       showToast(`🎉 จัดการสลิปเรียบร้อย: โอนเข้าระบบสำเร็จ ${successCount} รายการ · ล้มเหลว ${failCount} รายการ`, "success");
       
       // ล้างไฟล์ออกจากสเตท
