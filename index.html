@@ -2518,15 +2518,20 @@ async function handleLogin(e) {
     async function fetchWithTimeout(resource, options = {}) {
       const { timeout = 8000 } = options;
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
+      let id = null;
+      
+      // ถ้า timeout = 0 หรือ null → ไม่มี timeout
+      if (timeout > 0) {
+        id = setTimeout(() => controller.abort(), timeout);
+      }
       
       try {
         const response = await fetch(resource, { ...options, signal: controller.signal });
-        clearTimeout(id);
+        if (id !== null) clearTimeout(id);
         if (!response.ok) throw new Error("Network response was not ok");
         return await response.json();
       } catch (err) {
-        clearTimeout(id);
+        if (id !== null) clearTimeout(id);
         throw err;
       }
     }
@@ -4245,12 +4250,25 @@ function updateEmployeeProfileUI() {
         dryRun: Boolean(dryRun)
       };
 
+      // Animate progress bar while waiting for response
+      let progressWidth = 30;
+      const progressInterval = setInterval(() => {
+        if (progressWidth < 90) {
+          progressWidth += Math.random() * 20;
+          if (progressWidth > 90) progressWidth = 90;
+          document.getElementById("txt-import-progress-bar").style.width = progressWidth + "%";
+        }
+      }, 800);
+
       try {
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          timeout: 0  // ไม่มี timeout - รอจนกว่าจะประมวลผลเสร็จ
         });
+
+        clearInterval(progressInterval);
 
         if (res.status === 'success') {
           const data = res.data;
@@ -4351,6 +4369,7 @@ function updateEmployeeProfileUI() {
           previewBtn.disabled = false;
           saveBtn.disabled = false;
         } else {
+          clearInterval(progressInterval);
           document.getElementById("txt-import-progress-bar").style.width = "100%";
           resultDiv.classList.remove("hidden");
           resultDiv.className = "mt-3 p-3 rounded-xl text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700";
@@ -4359,6 +4378,7 @@ function updateEmployeeProfileUI() {
           saveBtn.disabled = false;
         }
       } catch (err) {
+        clearInterval(progressInterval);
         document.getElementById("txt-import-progress-bar").style.width = "100%";
         resultDiv.classList.remove("hidden");
         resultDiv.className = "mt-3 p-3 rounded-xl text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700";
