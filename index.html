@@ -4163,8 +4163,13 @@ function updateEmployeeProfileUI() {
       }
 
       try {
-        const pdfjsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(selectedPdfBuffer), disableWorker: true }).promise;
-        const pdfLibDoc = await PDFLib.PDFDocument.load(selectedPdfBuffer);
+        // Clone the original ArrayBuffer for each library to avoid a
+        // "Cannot perform Construct on a detached ArrayBuffer" error when
+        // one library detaches or consumes the buffer internally.
+        const pdfDataForPdfJs = selectedPdfBuffer.slice(0);
+        const pdfDataForPdfLib = selectedPdfBuffer.slice(0);
+        const pdfjsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(pdfDataForPdfJs), disableWorker: true }).promise;
+        const pdfLibDoc = await PDFLib.PDFDocument.load(pdfDataForPdfLib);
         const numPages = pdfLibDoc.getPageCount();
 
         parsedPayslips = [];
