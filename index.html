@@ -4849,7 +4849,6 @@ function updateEmployeeProfileUI() {
             const batchStart = batchIdx * batchSize;
             const batchEnd = Math.min(batchStart + batchSize, records.length);
             const batchRecords = records.slice(batchStart, batchEnd);
-            
             const batchPayload = {
               action: "importTimeRecords",
               batchOnly: true,
@@ -4858,24 +4857,50 @@ function updateEmployeeProfileUI() {
               totalBatches: totalBatches
             };
             
+            const batchStatusText = document.getElementById("txt-import-status-text");
+            if (batchStatusText) {
+              batchStatusText.textContent = `กำลังบันทึก batch ${batchIdx + 1}/${totalBatches}...`;
+            }
+            console.log(`[TXT Import] Starting batch ${batchIdx + 1}/${totalBatches} (${batchRecords.length} records)`);
+
+            // Animate the row counter one-by-one while waiting for the batch to finish
+            const counterEl = document.getElementById("txt-import-counter");
+            let currentCount = batchStart;
+            const targetCount = batchEnd;
+            const incrementInterval = Math.max(15, Math.floor(2500 / Math.max(targetCount - currentCount, 1)));
+            const counterTimer = setInterval(() => {
+              if (currentCount < targetCount) {
+                currentCount += 1;
+                if (counterEl) {
+                  counterEl.textContent = `${currentCount} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
+                }
+              } else {
+                clearInterval(counterTimer);
+              }
+            }, incrementInterval);
+
             const batchRes = await fetchWithTimeout(SERVER_API_URL, {
               method: "POST",
               body: JSON.stringify(batchPayload),
-              timeout: 0
+              timeout: 300000
             });
+            clearInterval(counterTimer);
             
             if (batchRes.status !== 'success') {
               throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message}`);
             }
             
-            const savedCount = batchEnd;
             totalWritten += batchRes.data.summary?.written || 0;
             totalUpdated += batchRes.data.summary?.updated || 0;
             
-            document.getElementById("txt-import-counter").textContent =
-              `${batchEnd} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
+            if (counterEl) {
+              counterEl.textContent = `${batchEnd} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
+            }
             document.getElementById("txt-import-progress-bar").style.width =
               (((batchIdx + 1) / totalBatches) * 100) + "%";
+            if (batchStatusText) {
+              batchStatusText.textContent = `บันทึก batch ${batchIdx + 1}/${totalBatches} เสร็จแล้ว`;
+            }
             
             console.log(`[TXT Import] Batch ${batchIdx + 1}/${totalBatches} completed`);
           }
