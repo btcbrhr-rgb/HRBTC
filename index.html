@@ -4275,20 +4275,36 @@ function updateEmployeeProfileUI() {
       try {
         console.log(`[TXT Import] Sending request to ${SERVER_API_URL}...`);
         
-        if (!dryRun) {
-          // ─── โหมดบันทึกจริง: แบ่ง batch และส่งทีละ batch ─────
+        // ─── ขั้นที่ 1: Parse ไฟล์เสมอ เพื่อให้ได้ records ────
+        const initialRes = await fetchWithTimeout(SERVER_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload),
+          timeout: 0
+        });
+        
+        if (initialRes.status !== 'success') throw initialRes;
+        
+        let res = initialRes;
+        
+        // ─── ขั้นที่ 2: ถ้าบันทึกจริง ให้แบ่ง batch ────
+        if (!dryRun && initialRes.data && initialRes.data.records) {
+          const recordsData = initialRes.data;
+          const records = recordsData.records || [];
           const batchSize = 50;
-          const totalBatches = Math.ceil(data.records.length / batchSize);
-          let totalSavedRecords = 0;
+          const totalBatches = Math.ceil(records.length / batchSize);
+          
+          console.log(`[TXT Import] Starting batch save: ${records.length} records in ${totalBatches} batches`);
+          statusDiv.classList.remove("hidden");
           
           for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
             const batchStart = batchIdx * batchSize;
-            const batchEnd = Math.min(batchStart + batchSize, data.records.length);
-            const batchRecords = data.records.slice(batchStart, batchEnd);
+            const batchEnd = Math.min(batchStart + batchSize, records.length);
+            const batchRecords = records.slice(batchStart, batchEnd);
             
             const batchPayload = {
               action: "importTimeRecords",
-              fileContent: data.fileContent,
+              fileContent: selectedTxtFileContent,
               dryRun: false,
               batchOnly: true,
               batchRecords: batchRecords,
@@ -4297,7 +4313,7 @@ function updateEmployeeProfileUI() {
             };
             
             document.getElementById("txt-import-counter").textContent = 
-              `${batchStart + 1} / ${data.records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
+              `${batchStart + 1} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
             document.getElementById("txt-import-progress-bar").style.width = 
               ((batchIdx / totalBatches) * 100) + "%";
             
@@ -4312,7 +4328,7 @@ function updateEmployeeProfileUI() {
               throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message}`);
             }
             
-            totalSavedRecords += (batchRes.data.summary?.saved || 0);
+            console.log(`[TXT Import] Batch ${batchIdx + 1}/${totalBatches} completed`);
           }
           
           // หลังจาก batches ทั้งหมด ให้ดึงสรุปเต็ม
@@ -4321,7 +4337,7 @@ function updateEmployeeProfileUI() {
             headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({
               action: "importTimeRecords",
-              fileContent: data.fileContent,
+              fileContent: selectedTxtFileContent,
               dryRun: false
             }),
             timeout: 0
@@ -4329,14 +4345,6 @@ function updateEmployeeProfileUI() {
           
           if (finalRes.status !== 'success') throw finalRes;
           res = finalRes;
-        } else {
-          // ─── โหมด dry-run: ส่งปกติเหมือนเดิม ─────
-          res = await fetchWithTimeout(SERVER_API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify(payload),
-            timeout: 0
-          });
         }
 
         const endTime = Date.now();
