@@ -4887,84 +4887,118 @@ function updateEmployeeProfileUI() {
           
           console.log(`[TXT Import] Starting batch save: ${records.length} records in ${totalBatches} batches`);
           statusDiv.classList.remove("hidden");
-          document.getElementById("txt-import-status-text").textContent = `กำลังบันทึก ${records.length} แถว...`;
-          document.getElementById("txt-import-counter").textContent = `0 / ${records.length} แถว (batch 0/${totalBatches})`;
+          document.getElementById("txt-import-status-text").textContent = `กำลังบันทึก ${records.length} รายการ...`;
+          document.getElementById("txt-import-counter").textContent = `0 / ${records.length} รายการ`;
           document.getElementById("txt-import-progress-bar").style.width = "0%";
-          
-          for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-            const batchStart = batchIdx * batchSize;
-            const batchEnd = Math.min(batchStart + batchSize, records.length);
-            const batchRecords = records.slice(batchStart, batchEnd);
-            const batchPayload = {
-              action: "importTimeRecords",
-              batchOnly: true,
-              batchRecords: batchRecords,
-              batchNum: batchIdx,
-              totalBatches: totalBatches
-            };
-            
-            const batchStatusText = document.getElementById("txt-import-status-text");
-            if (batchStatusText) {
-              batchStatusText.textContent = `กำลังบันทึก batch ${batchIdx + 1}/${totalBatches}...`;
-            }
-            console.log(`[TXT Import] Starting batch ${batchIdx + 1}/${totalBatches} (${batchRecords.length} records)`);
 
-            // Animate the row counter one-by-one while waiting for the batch to finish
-            const counterEl = document.getElementById("txt-import-counter");
-            let currentCount = batchStart;
-            const targetCount = batchEnd;
-            const incrementInterval = Math.max(15, Math.floor(2500 / Math.max(targetCount - currentCount, 1)));
-            const counterTimer = setInterval(() => {
-              if (currentCount < targetCount) {
-                currentCount += 1;
-                if (counterEl) {
-                  counterEl.textContent = `${currentCount} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
-                }
-              } else {
-                clearInterval(counterTimer);
+          const counterEl = document.getElementById("txt-import-counter");
+          const progressBar = document.getElementById("txt-import-progress-bar");
+          
+          let currentProgressCount = 0;
+          let activeBatchIndex = 0;
+
+          // ─── สร้าง Global Timer ตัวนับความคืบหน้าแบบไหลลื่นทีละรายการ ───
+          const globalProgressTimer = setInterval(() => {
+            const allowedCap = Math.min(records.length, (activeBatchIndex + 1) * batchSize);
+            if (currentProgressCount < allowedCap) {
+              const remainingInBatch = allowedCap - currentProgressCount;
+              let isSlowingDown = false;
+              if (remainingInBatch <= 10) {
+                isSlowingDown = Math.random() > 0.3; // ชะลอเมื่อเข้าใกล้เพดานของ batch
               }
-            }, incrementInterval);
+              if (!isSlowingDown) {
+                currentProgressCount += 1;
+                if (counterEl) {
+                  counterEl.textContent = `${currentProgressCount} / ${records.length} รายการ (กำลังบันทึกข้อมูลจริง...)`;
+                }
+                if (progressBar) {
+                  progressBar.style.width = `${(currentProgressCount / records.length) * 100}%`;
+                }
+              }
+            }
+          }, 20); // ติ๊กทุกๆ 20ms เพื่อการอัปเดตที่สมูทและรวดเร็ว
 
-            const batchRes = await fetchWithTimeout(SERVER_API_URL, {
-              method: "POST",
-              body: JSON.stringify(batchPayload),
-              timeout: 300000
-            });
-            clearInterval(counterTimer);
-            
-            if (!batchRes) {
-              throw new Error(`Batch ${batchIdx + 1}: No response from API`);
+          try {
+            for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+              activeBatchIndex = batchIdx;
+              const batchStart = batchIdx * batchSize;
+              const batchEnd = Math.min(batchStart + batchSize, records.length);
+              const batchRecords = records.slice(batchStart, batchEnd);
+              const batchPayload = {
+                action: "importTimeRecords",
+                batchOnly: true,
+                batchRecords: batchRecords,
+                batchNum: batchIdx,
+                totalBatches: totalBatches
+              };
+              
+              const batchStatusText = document.getElementById("txt-import-status-text");
+              if (batchStatusText) {
+                batchStatusText.textContent = `กำลังบันทึกรายการที่ ${batchStart + 1} ถึง ${batchEnd}...`;
+              }
+              console.log(`[TXT Import] Starting batch ${batchIdx + 1}/${totalBatches} (${batchRecords.length} records)`);
+
+              const batchRes = await fetchWithTimeout(SERVER_API_URL, {
+                method: "POST",
+                body: JSON.stringify(batchPayload),
+                timeout: 300000
+              });
+              
+              if (!batchRes) {
+                clearInterval(globalProgressTimer);
+                throw new Error(`Batch ${batchIdx + 1}: No response from API`);
+              }
+              
+              if (batchRes.status !== 'success') {
+                clearInterval(globalProgressTimer);
+                throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message || JSON.stringify(batchRes)}`);
+              }
+              
+              if (!batchRes.data || !batchRes.data.summary) {
+                clearInterval(globalProgressTimer);
+                console.warn(`[TXT Import] Batch ${batchIdx + 1}: Invalid response structure:`, batchRes);
+                throw new Error(`Batch ${batchIdx + 1}: Invalid response structure - missing data.summary`);
+              }
+              
+              totalWritten += batchRes.data.summary.written || 0;
+              totalUpdated += batchRes.data.summary.updated || 0;
+              
+              // เร่งตัวนับแอนิเมชันให้ไล่ทันค่า batchEnd ของ batch ที่เสร็จแล้วทันที เพื่อให้ลื่นไหลต่อเนื่อง
+              currentProgressCount = batchEnd;
+              if (counterEl) {
+                counterEl.textContent = `${currentProgressCount} / ${records.length} รายการ (กำลังบันทึกข้อมูลจริง...)`;
+              }
+              if (progressBar) {
+                progressBar.style.width = `${(currentProgressCount / records.length) * 100}%`;
+              }
+              
+              if (batchStatusText) {
+                batchStatusText.textContent = `บันทึกรายการที่ ${batchStart + 1} ถึง ${batchEnd} เสร็จเรียบร้อย`;
+              }
+              
+              console.log(`[TXT Import] Batch ${batchIdx + 1}/${totalBatches} completed`);
             }
             
-            if (batchRes.status !== 'success') {
-              throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message || JSON.stringify(batchRes)}`);
-            }
-            
-            if (!batchRes.data || !batchRes.data.summary) {
-              console.warn(`[TXT Import] Batch ${batchIdx + 1}: Invalid response structure:`, batchRes);
-              throw new Error(`Batch ${batchIdx + 1}: Invalid response structure - missing data.summary`);
-            }
-            
-            totalWritten += batchRes.data.summary.written || 0;
-            totalUpdated += batchRes.data.summary.updated || 0;
-            
+            // ─── ปิดแอนิเมชันและตั้งค่าเต็ม 100% หลังวนลูปเสร็จสมบูรณ์ ───
+            clearInterval(globalProgressTimer);
+            currentProgressCount = records.length;
             if (counterEl) {
-              counterEl.textContent = `${batchEnd} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
+              counterEl.textContent = `${records.length} / ${records.length} รายการ (บันทึกข้อมูลสำเร็จ)`;
             }
-            document.getElementById("txt-import-progress-bar").style.width =
-              (((batchIdx + 1) / totalBatches) * 100) + "%";
-            if (batchStatusText) {
-              batchStatusText.textContent = `บันทึก batch ${batchIdx + 1}/${totalBatches} เสร็จแล้ว`;
+            if (progressBar) {
+              progressBar.style.width = "100%";
             }
             
-            console.log(`[TXT Import] Batch ${batchIdx + 1}/${totalBatches} completed`);
+            // สรุปผลหลังบันทึกจริง
+            res.data.summary.written = totalWritten;
+            res.data.summary.updated = totalUpdated;
+            res.data.summary.savedRecords = totalWritten + totalUpdated;
+            res = initialRes;
+            
+          } catch (batchError) {
+            clearInterval(globalProgressTimer);
+            throw batchError;
           }
-          
-          // สรุปผลหลังบันทึกจริง
-          res.data.summary.written = totalWritten;
-          res.data.summary.updated = totalUpdated;
-          res.data.summary.savedRecords = totalWritten + totalUpdated;
-          res = initialRes;
         }
 
         const endTime = Date.now();
