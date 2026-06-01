@@ -4244,6 +4244,8 @@ function updateEmployeeProfileUI() {
       document.getElementById("txt-import-status-text").textContent = `กำลังสั่งประมวลผล ${modeStr}...`;
       document.getElementById("txt-import-progress-bar").style.width = "30%";
 
+      console.log(`[TXT Import] Starting ${modeStr} with ${selectedTxtFileContent.length} bytes`);
+
       const payload = {
         action: "importTimeRecords",
         fileContent: selectedTxtFileContent,
@@ -4261,6 +4263,9 @@ function updateEmployeeProfileUI() {
       }, 800);
 
       try {
+        console.log(`[TXT Import] Sending request to ${SERVER_API_URL}...`);
+        const startTime = Date.now();
+        
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
@@ -4268,6 +4273,8 @@ function updateEmployeeProfileUI() {
           timeout: 0  // ไม่มี timeout - รอจนกว่าจะประมวลผลเสร็จ
         });
 
+        const endTime = Date.now();
+        console.log(`[TXT Import] Response received after ${endTime - startTime}ms:`, res);
         clearInterval(progressInterval);
 
         if (res.status === 'success') {
@@ -4379,10 +4386,11 @@ function updateEmployeeProfileUI() {
         }
       } catch (err) {
         clearInterval(progressInterval);
+        console.error(`[TXT Import] Error after ${Date.now() - startTime}ms:`, err);
         document.getElementById("txt-import-progress-bar").style.width = "100%";
         resultDiv.classList.remove("hidden");
         resultDiv.className = "mt-3 p-3 rounded-xl text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700";
-        resultDiv.innerHTML = `<i class="fa-solid fa-circle-xmark mr-2"></i>❌ เกิดข้อผิดพลาดเชื่อมต่อ Apps Script`;
+        resultDiv.innerHTML = `<i class="fa-solid fa-circle-xmark mr-2"></i>❌ ข้อผิดพลาด: ${err.message || err.toString()}<br><small class="text-[9px] opacity-75">ดูรายละเอียดใน Developer Console (F12)</small>`;
         previewBtn.disabled = false;
         saveBtn.disabled = false;
       }
