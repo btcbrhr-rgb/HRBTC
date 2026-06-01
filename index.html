@@ -938,14 +938,27 @@
             คุณกำลังทำรายการแก้ไขของวันที่: <strong id="correction-date-display">...</strong>
           </div>
 
+          <div class="bg-slate-50 text-slate-700 text-xs p-2.5 rounded-lg space-y-1">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-0.5">
+                <span class="text-[10px] text-slate-500 font-semibold">เวลาเข้าเดิม:</span>
+                <div id="correction-original-time-in" class="font-semibold">-</div>
+              </div>
+              <div class="space-y-0.5">
+                <span class="text-[10px] text-slate-500 font-semibold">เวลาออกเดิม:</span>
+                <div id="correction-original-time-out" class="font-semibold">-</div>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1">
               <label for="correction-time-in" class="text-[11px] text-slate-500 font-semibold">เวลาเข้าใหม่ (IN)</label>
-              <input id="correction-time-in" type="time" title="เวลาเข้าใหม่" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none">
+              <input id="correction-time-in" type="time" title="เวลาเข้าใหม่" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none" required>
             </div>
             <div class="space-y-1">
               <label for="correction-time-out" class="text-[11px] text-slate-500 font-semibold">เวลาออกใหม่ (OUT)</label>
-              <input id="correction-time-out" type="time" title="เวลาออกใหม่" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none">
+              <input id="correction-time-out" type="time" title="เวลาออกใหม่" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none" required>
             </div>
           </div>
 
@@ -3740,9 +3753,42 @@ function updateEmployeeProfileUI() {
     }
 
     // --- หน้าต่างขอแก้ไขเวลา ---
-    function openCorrectionModal(dateStr) {
+    async function openCorrectionModal(dateStr) {
       document.getElementById("correction-date").value = dateStr;
       document.getElementById("correction-date-display").textContent = formatThaiDate(dateStr);
+      
+      // Reset original time display
+      document.getElementById("correction-original-time-in").textContent = "-";
+      document.getElementById("correction-original-time-out").textContent = "-";
+      document.getElementById("correction-time-in").value = "";
+      document.getElementById("correction-time-out").value = "";
+      document.getElementById("correction-reason").value = "";
+      
+      // Fetch time records to get original times
+      try {
+        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}`);
+        if (res.status === "success" && res.data) {
+          const record = res.data.find(r => r['วันที่'] === dateStr);
+          if (record) {
+            let inTime = record['เวลาเข้า'] || "";
+            let outTime = record['เวลาออก'] || "";
+            // Format for display (HH:MM)
+            if (inTime) {
+              const parts = inTime.split(':');
+              inTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+            }
+            if (outTime) {
+              const parts = outTime.split(':');
+              outTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+            }
+            document.getElementById("correction-original-time-in").textContent = inTime || "-";
+            document.getElementById("correction-original-time-out").textContent = outTime || "-";
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching time record:", err);
+      }
+      
       document.getElementById("correction-modal").classList.remove("hidden");
     }
 
@@ -3759,8 +3805,8 @@ function updateEmployeeProfileUI() {
       const project = document.getElementById("correction-project").value;
       const reason = document.getElementById("correction-reason").value;
 
-      if (!inNew && !outNew) {
-        showToast("⚠️ กรุณากรอกระบุเวลาเข้า หรือเวลาออก อย่างน้อย 1 ช่อง", "warning");
+      if (!inNew || !outNew || !project || !reason) {
+        showToast("⚠️ กรุณากรอกข้อมูลให้ครบทุกช่อง", "warning");
         return;
       }
 
