@@ -2069,6 +2069,7 @@
         <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
           <i class="fa-solid fa-tags text-pink-500"></i> แก้ไขกฎสรุปสถานะ
         </h3>
+        
         <button onclick="closeSymbolRulesModal()" class="text-slate-400 hover:text-slate-600 transition-colors" title="ปิด" aria-label="ปิด">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
@@ -2395,6 +2396,7 @@
 
     function generateCycleOptions() {
       const select = document.getElementById("calendar-cycle-select");
+      if (!select) return;
       select.innerHTML = "";
       
       const now = new Date();
@@ -2409,7 +2411,8 @@
         }
       }
 
-      const thMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+      const thMonthsFull = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+      const thMonthsShort = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
       for (let i = 0; i < 6; i++) {
         let m = currentMonth - i;
@@ -2423,7 +2426,19 @@
         const option = document.createElement("option");
         option.value = `${range.start}|${range.end}`;
         
-        option.textContent = `รอบจ่าย ${thMonths[m]} ${y}`;
+        // แยกส่วนวันที่คร่อมเดือนเพื่อระบุขอบเขตในตัวเลือกให้เด่นชัด
+        const startParts = range.start.split("-");
+        const endParts = range.end.split("-");
+        
+        const startDay = parseInt(startParts[2]);
+        const startMonth = thMonthsShort[parseInt(startParts[1]) - 1];
+        
+        const endDay = parseInt(endParts[2]);
+        const endMonth = thMonthsShort[parseInt(endParts[1]) - 1];
+        
+        const cycleLabel = `รอบจ่าย ${thMonthsFull[m]} ${y + 543} (${startDay} ${startMonth} - ${endDay} ${endMonth})`;
+        
+        option.textContent = cycleLabel;
         if (i === 0) {
           option.textContent += " (รอบปัจจุบัน)";
         }
@@ -3360,6 +3375,9 @@ function updateEmployeeProfileUI() {
         return;
       }
 
+      const thMonthsFull = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+      let currentMonthYearKey = ""; // ใช้สำหรับกั้นป้ายหัวข้อเดือนแบบคร่อมเดือน
+
       records.forEach(rec => {
         const dateStr = rec["วันที่"];
         const timeIn = rec["เวลาเข้า"] || "--:--";
@@ -3368,6 +3386,32 @@ function updateEmployeeProfileUI() {
         const ot = parseFloat(rec["ชั่วโมง OT"] || 0);
         const status = rec["สถานะสรุป"] || "ปกติ";
         
+        // ─── การกั้นส่วนแบ่งเดือน (Month Grouping Header) ───
+        if (dateStr) {
+          const dateParts = dateStr.split("-");
+          if (dateParts.length === 3) {
+            const yyyy = parseInt(dateParts[0]);
+            const mmIndex = parseInt(dateParts[1]) - 1;
+            const thMonth = thMonthsFull[mmIndex];
+            const thYear = yyyy + 543;
+            const monthYearKey = `${thMonth} ${thYear}`;
+            
+            if (monthYearKey !== currentMonthYearKey) {
+              currentMonthYearKey = monthYearKey;
+              
+              const headerDiv = document.createElement("div");
+              headerDiv.className = "flex items-center gap-2 pt-3 pb-1 first:pt-0";
+              headerDiv.innerHTML = `
+                <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                  <i class="fa-solid fa-calendar text-[9px]"></i> ${monthYearKey}
+                </span>
+                <div class="flex-1 h-[1px] bg-slate-200/60"></div>
+              `;
+              container.appendChild(headerDiv);
+            }
+          }
+        }
+
         let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
         if (status === "สาย") badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
         else if (status.includes("ขาด")) badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
