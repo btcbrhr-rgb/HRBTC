@@ -4258,7 +4258,7 @@ function updateEmployeeProfileUI() {
       const payload = {
         action: "importTimeRecords",
         fileContent: selectedTxtFileContent,
-        dryRun: Boolean(dryRun)
+        dryRun: true
       };
 
       // Animate progress bar while waiting for response
@@ -4287,15 +4287,22 @@ function updateEmployeeProfileUI() {
         
         let res = initialRes;
         
-        // ─── ขั้นที่ 2: ถ้าบันทึกจริง ให้แบ่ง batch ────
-        if (!dryRun && initialRes.data && initialRes.data.records) {
+        console.log(`[TXT Import] dryRun=${dryRun}, initialRes.data:`, initialRes.data);
+        
+        // ─── ขั้นที่ 2: ถ้าบันทึกจริง ให้แบ่ง batch (parse-only ครั้งแรก) ────
+        if (!dryRun && initialRes.data && initialRes.data.records && initialRes.data.records.length > 0) {
           const recordsData = initialRes.data;
-          const records = recordsData.records || [];
+          const records = recordsData.records;
           const batchSize = 50;
           const totalBatches = Math.ceil(records.length / batchSize);
+          let totalWritten = 0;
+          let totalUpdated = 0;
           
           console.log(`[TXT Import] Starting batch save: ${records.length} records in ${totalBatches} batches`);
           statusDiv.classList.remove("hidden");
+          document.getElementById("txt-import-status-text").textContent = `กำลังบันทึก ${records.length} แถว...`;
+          document.getElementById("txt-import-counter").textContent = `0 / ${records.length} แถว (batch 0/${totalBatches})`;
+          document.getElementById("txt-import-progress-bar").style.width = "0%";
           
           for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
             const batchStart = batchIdx * batchSize;
@@ -4312,11 +4319,6 @@ function updateEmployeeProfileUI() {
               totalBatches: totalBatches
             };
             
-            document.getElementById("txt-import-counter").textContent = 
-              `${batchStart + 1} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
-            document.getElementById("txt-import-progress-bar").style.width = 
-              ((batchIdx / totalBatches) * 100) + "%";
-            
             const batchRes = await fetchWithTimeout(SERVER_API_URL, {
               method: "POST",
               headers: { "Content-Type": "text/plain" },
@@ -4328,23 +4330,23 @@ function updateEmployeeProfileUI() {
               throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message}`);
             }
             
+            const savedCount = batchEnd;
+            totalWritten += batchRes.data.summary?.written || 0;
+            totalUpdated += batchRes.data.summary?.updated || 0;
+            
+            document.getElementById("txt-import-counter").textContent =
+              `${batchEnd} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
+            document.getElementById("txt-import-progress-bar").style.width =
+              (((batchIdx + 1) / totalBatches) * 100) + "%";
+            
             console.log(`[TXT Import] Batch ${batchIdx + 1}/${totalBatches} completed`);
           }
           
-          // หลังจาก batches ทั้งหมด ให้ดึงสรุปเต็ม
-          const finalRes = await fetchWithTimeout(SERVER_API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify({
-              action: "importTimeRecords",
-              fileContent: selectedTxtFileContent,
-              dryRun: false
-            }),
-            timeout: 0
-          });
-          
-          if (finalRes.status !== 'success') throw finalRes;
-          res = finalRes;
+          // สรุปผลหลังบันทึกจริง
+          initialRes.data.summary.written = totalWritten;
+          initialRes.data.summary.updated = totalUpdated;
+          initialRes.data.summary.savedRecords = totalWritten + totalUpdated;
+          res = initialRes;
         }
 
         const endTime = Date.now();
