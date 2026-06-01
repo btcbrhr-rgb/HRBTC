@@ -4824,16 +4824,28 @@ function updateEmployeeProfileUI() {
           timeout: 0
         });
         
-        if (initialRes.status !== 'success') {
-          throw new Error(initialRes.message || JSON.stringify(initialRes));
+        console.log(`[TXT Import] Raw response:`, initialRes);
+        
+        if (!initialRes) {
+          throw new Error(`No response from API`);
         }
-        if (!initialRes.data) {
-          throw new Error(`Import API returned success but no data: ${JSON.stringify(initialRes)}`);
+        
+        if (initialRes.status !== 'success') {
+          throw new Error(`API Error: ${initialRes.message || JSON.stringify(initialRes)}`);
+        }
+        
+        if (!initialRes.data || typeof initialRes.data !== 'object') {
+          console.error(`[TXT Import] Invalid data structure:`, initialRes);
+          throw new Error(`Import API returned success but invalid data structure: ${JSON.stringify(initialRes)}`);
         }
         
         let res = initialRes;
-        initialRes.data.summary = initialRes.data.summary || {};
-        initialRes.data.records = Array.isArray(initialRes.data.records) ? initialRes.data.records : [];
+        if (!initialRes.data.summary || typeof initialRes.data.summary !== 'object') {
+          initialRes.data.summary = {};
+        }
+        if (!Array.isArray(initialRes.data.records)) {
+          initialRes.data.records = initialRes.data.records ? [initialRes.data.records] : [];
+        }
         
         console.log(`[TXT Import] dryRun=${dryRun}, initialRes.data:`, initialRes.data);
         
@@ -4892,12 +4904,21 @@ function updateEmployeeProfileUI() {
             });
             clearInterval(counterTimer);
             
-            if (batchRes.status !== 'success') {
-              throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message}`);
+            if (!batchRes) {
+              throw new Error(`Batch ${batchIdx + 1}: No response from API`);
             }
             
-            totalWritten += batchRes.data.summary?.written || 0;
-            totalUpdated += batchRes.data.summary?.updated || 0;
+            if (batchRes.status !== 'success') {
+              throw new Error(`Batch ${batchIdx + 1} failed: ${batchRes.message || JSON.stringify(batchRes)}`);
+            }
+            
+            if (!batchRes.data || !batchRes.data.summary) {
+              console.warn(`[TXT Import] Batch ${batchIdx + 1}: Invalid response structure:`, batchRes);
+              throw new Error(`Batch ${batchIdx + 1}: Invalid response structure - missing data.summary`);
+            }
+            
+            totalWritten += batchRes.data.summary.written || 0;
+            totalUpdated += batchRes.data.summary.updated || 0;
             
             if (counterEl) {
               counterEl.textContent = `${batchEnd} / ${records.length} แถว (batch ${batchIdx + 1}/${totalBatches})`;
