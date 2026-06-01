@@ -255,6 +255,41 @@
     <!-- === ระบบแจ้งเตือนแจ้งข่าวด้านบน (Real-time Toasts) === -->
     <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-[340px] pointer-events-none flex flex-col gap-2"></div>
 
+    <div id="notification-panel" class="fixed inset-0 z-[9999] hidden bg-slate-950/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div class="mx-auto max-w-md h-full flex flex-col justify-center">
+        <div class="bg-white rounded-[30px] shadow-2xl overflow-hidden border border-slate-200">
+          <div class="flex items-start justify-between gap-3 p-5 border-b border-slate-200">
+            <div>
+              <p class="text-xs uppercase tracking-[0.2em] text-slate-400 font-semibold">ศูนย์ข่าวสาร</p>
+              <h3 class="text-base font-bold text-slate-900">การแจ้งเตือนและข่าวสารล่าสุด</h3>
+            </div>
+            <button onclick="closeNotificationCenter()" class="text-slate-400 hover:text-slate-700 text-xl"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="p-5 space-y-5">
+            <div>
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <p class="text-xs uppercase tracking-[0.2em] text-slate-400 font-semibold">การแจ้งเตือนเดือนนี้</p>
+                </div>
+              </div>
+              <div id="notification-reminders" class="space-y-3"></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <p class="text-xs uppercase tracking-[0.2em] text-slate-400 font-semibold">ประกาศข่าวสาร</p>
+                </div>
+              </div>
+              <div id="notification-announcements" class="space-y-3"></div>
+            </div>
+          </div>
+          <div class="border-t border-slate-200 p-4 text-right">
+            <button onclick="closeNotificationCenter()" class="text-xs font-semibold text-blue-600 hover:text-blue-800">ปิด</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ============================================== -->
     <!-- 0. หน้าเข้าสู่ระบบ (Login Page) -->
     <!-- ============================================== -->
@@ -506,6 +541,17 @@
             </div>
             <span class="text-xs text-violet-700 bg-violet-100 font-semibold px-2 py-1 rounded-lg">รอบบัญชีปัจจุบัน</span>
           </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">การแจ้งเตือนเดือนนี้</p>
+              <h3 class="text-sm font-bold text-slate-800">เตือนความจำและข่าวสารสำคัญ</h3>
+            </div>
+            <button onclick="showNotificationCenter()" class="text-xs font-semibold text-blue-600 hover:text-blue-800">ดูรายละเอียดทั้งหมด</button>
+          </div>
+          <div id="home-reminders-list" class="grid grid-cols-1 gap-3 sm:grid-cols-2"></div>
         </div>
 
         <!-- ประวัติและกิจกรรมล่าสุดตามรอบบัญชี -->
@@ -823,6 +869,28 @@
         </div>
       </section>
 
+      <!-- ============================================== -->
+      <!-- 7. ข่าวสารและประกาศ (Announcements) -->
+      <!-- ============================================== -->
+      <section id="page-announcements" class="hidden space-y-4">
+        <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h3 class="font-semibold text-base text-slate-800">ข่าวสารภายในองค์กร</h3>
+              <p class="text-xs text-slate-400">ติดตามประกาศและเตือนความจำสำคัญได้ที่นี่</p>
+            </div>
+            <button onclick="displayAnnouncements(); displayMonthlyReminders();" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">รีเฟรช</button>
+          </div>
+          <div id="page-announcements-reminders" class="grid grid-cols-1 gap-3 sm:grid-cols-2"></div>
+          <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+            <h4 class="text-sm font-semibold text-slate-700 mb-3">ประกาศล่าสุด</h4>
+            <div id="page-announcements-list" class="space-y-3 text-slate-600">
+              <div class="py-6 text-center text-slate-400 italic">ยังไม่มีประกาศข่าวสาร</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <!-- === [MODAL: คำขอแก้ไขเวลา] === -->
@@ -998,6 +1066,10 @@
         <span class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><i class="fa-solid fa-file-invoice-dollar"></i></span>
         <span>สลิปเงินเดือน</span>
       </button>
+      <button onclick="selectMoreMenu('announcements')" class="w-full text-left flex items-center gap-2.5 px-2.5 py-2 hover:bg-slate-50 rounded-xl text-xs text-slate-700">
+        <span class="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><i class="fa-solid fa-bell"></i></span>
+        <span>ข่าวสาร</span>
+      </button>
       <hr class="border-slate-100">
       <button onclick="logout()" class="w-full text-left flex items-center gap-2.5 px-2.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold">
         <span class="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600"><i class="fa-solid fa-right-from-bracket"></i></span>
@@ -1036,10 +1108,10 @@
             <span class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2.5">งานประจำวันและการอนุมัติ</span>
             <div class="space-y-1">
               <button onclick="switchAdminTab('import-time')" id="admin-menu-import-time" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
-                <i class="fa-solid fa-file-import text-slate-400"></i> นำเข้าเวลางาน (.txt)
+                <i class="fa-solid fa-file-import text-slate-400"></i> นำเข้าเวลางานใหม่ (.txt)
               </button>
               <button onclick="switchAdminTab('import-payslip')" id="admin-menu-import-payslip" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
-                <i class="fa-solid fa-file-invoice text-slate-400"></i> นำเข้าสลิปเงินเดือน (.pdf)
+                <i class="fa-solid fa-file-invoice text-slate-400"></i> นำเข้าสลิปเงินเดือนใหม่ (.pdf)
               </button>
               <button onclick="switchAdminTab('approve-leave')" id="admin-menu-approve-leave" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
                 <i class="fa-solid fa-plane-departure text-slate-400"></i> อนุมัติใบลางาน
@@ -1049,6 +1121,24 @@
               </button>
               <button onclick="switchAdminTab('approve-advance')" id="admin-menu-approve-advance" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
                 <i class="fa-solid fa-hand-holding-dollar text-slate-400"></i> อนุมัติเบิกเงินสำรอง
+              </button>
+              <button onclick="switchAdminTab('announcements')" id="admin-menu-announcements" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                <i class="fa-solid fa-megaphone text-slate-400"></i> ประกาศข่าวสาร
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <span class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2.5">ผลการอนุมัติของพนักงาน</span>
+            <div class="space-y-1">
+              <button onclick="switchAdminTab('approval-results-leave')" id="admin-menu-approval-results-leave" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                <i class="fa-solid fa-list-check text-slate-400"></i> ผลการอนุมัติใบลา
+              </button>
+              <button onclick="switchAdminTab('approval-results-correction')" id="admin-menu-approval-results-correction" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                <i class="fa-solid fa-list-check text-slate-400"></i> ผลการอนุมัติแก้ไขเวลา
+              </button>
+              <button onclick="switchAdminTab('approval-results-advance')" id="admin-menu-approval-results-advance" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                <i class="fa-solid fa-list-check text-slate-400"></i> ผลการอนุมัติเบิกเงิน
               </button>
             </div>
           </div>
@@ -1405,7 +1495,148 @@
           </div>
         </section>
 
-        <!-- SECTION 6: จัดการพนักงาน & กำหนดสิทธิ์ -->
+        <!-- SECTION 6: ประกาศข่าวสาร -->
+        <section id="admin-sec-announcements" class="admin-sec hidden space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 shadow-sm">
+            <div class="flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-slate-800">ประกาศข่าวสารภายในองค์กร</h3>
+                <p class="text-xs text-slate-500">สร้างหรืออัปเดตข่าวสารที่พนักงานจะเห็นในศูนย์แจ้งเตือน</p>
+              </div>
+              <button onclick="loadAdminAnnouncements()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div class="lg:col-span-1 bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                <div class="space-y-3">
+                  <div>
+                    <label class="text-[10px] font-semibold uppercase text-slate-500">หัวข้อประกาศ</label>
+                    <input id="admin-announcement-title" type="text" placeholder="เช่น ประกาศปิดทำการ" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="text-[10px] font-semibold uppercase text-slate-500">วันที่ประกาศ</label>
+                    <input id="admin-announcement-date" type="date" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="text-[10px] font-semibold uppercase text-slate-500">ข้อความ</label>
+                    <textarea id="admin-announcement-message" rows="5" placeholder="รายละเอียดข่าวสาร" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                  </div>
+                  <button onclick="saveAdminAnnouncement()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-3 rounded-xl transition-all">เพิ่มประกาศ</button>
+                </div>
+              </div>
+              <div class="lg:col-span-2 space-y-4">
+                <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                  <h4 class="text-sm font-semibold text-slate-700">รายการประกาศ</h4>
+                  <div id="admin-announcements-list" class="mt-3 space-y-3 text-[13px] text-slate-600">
+                    <div class="py-6 text-center text-slate-400 italic">ยังไม่มีประกาศในระบบ</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 7: ผลการอนุมัติใบลา -->
+        <section id="admin-sec-approval-results-leave" class="admin-sec hidden space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
+            <div class="flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-slate-700">ผลการอนุมัติใบลา</h3>
+                <p class="text-xs text-slate-500">ดูคำขอใบลาที่ได้รับการอนุมัติหรือปฏิเสธแล้ว</p>
+              </div>
+              <button onclick="loadAdminApprovalResults('leave')" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-200 text-slate-500">
+                    <th class="py-2.5 font-semibold">เลขที่เอกสาร</th>
+                    <th class="py-2.5 font-semibold">พนักงาน</th>
+                    <th class="py-2.5 font-semibold">ประเภทการลา</th>
+                    <th class="py-2.5 font-semibold">ช่วงวันที่</th>
+                    <th class="py-2.5 font-semibold text-center">จำนวนวัน</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
+                    <th class="py-2.5 font-semibold">หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-approval-results-leave-body" class="divide-y divide-slate-200 text-slate-600">
+                  <tr>
+                    <td colspan="7" class="py-6 text-center text-slate-500 italic">กำลังดึงข้อมูลผลการอนุมัติใบลา...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 8: ผลการอนุมัติแก้ไขเวลา -->
+        <section id="admin-sec-approval-results-correction" class="admin-sec hidden space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
+            <div class="flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-slate-700">ผลการอนุมัติแก้ไขเวลา</h3>
+                <p class="text-xs text-slate-500">ดูคำขอแก้ไขเวลาที่ได้รับการตัดสินใจแล้ว</p>
+              </div>
+              <button onclick="loadAdminApprovalResults('correction')" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-200 text-slate-500">
+                    <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                    <th class="py-2.5 font-semibold">วันที่</th>
+                    <th class="py-2.5 font-semibold">เวลาเข้าใหม่</th>
+                    <th class="py-2.5 font-semibold">เวลาออกใหม่</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
+                    <th class="py-2.5 font-semibold">หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-approval-results-correction-body" class="divide-y divide-slate-200 text-slate-600">
+                  <tr>
+                    <td colspan="6" class="py-6 text-center text-slate-500 italic">กำลังดึงข้อมูลผลการอนุมัติแก้ไขเวลา...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 9: ผลการอนุมัติเบิกเงิน -->
+        <section id="admin-sec-approval-results-advance" class="admin-sec hidden space-y-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
+            <div class="flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-slate-700">ผลการอนุมัติเบิกเงิน</h3>
+                <p class="text-xs text-slate-500">ดูคำขอเบิกเงินที่ได้รับการอนุมัติหรือปฏิเสธแล้ว</p>
+              </div>
+              <button onclick="loadAdminApprovalResults('advance')" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-200 text-slate-500">
+                    <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                    <th class="py-2.5 font-semibold">จำนวนเงิน</th>
+                    <th class="py-2.5 font-semibold">วันที่ส่ง</th>
+                    <th class="py-2.5 font-semibold">รอบจ่าย</th>
+                    <th class="py-2.5 font-semibold">สถานะ</th>
+                    <th class="py-2.5 font-semibold">หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-approval-results-advance-body" class="divide-y divide-slate-200 text-slate-600">
+                  <tr>
+                    <td colspan="6" class="py-6 text-center text-slate-500 italic">กำลังดึงข้อมูลผลการอนุมัติเบิกเงิน...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 10: จัดการพนักงาน & กำหนดสิทธิ์ -->
         <section id="admin-sec-employees" class="admin-sec hidden space-y-6">
           <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
             <div class="flex justify-between items-center">
@@ -2514,12 +2745,196 @@ async function handleLogin(e) {
 
         document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
         showToast("✅ อัปเดตข้อมูลสำเร็จ", "success");
+        displayMonthlyReminders();
+        displayAnnouncements();
       } catch (error) {
         console.error(error);
         document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-rose-500";
         showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
       }
 }
+
+    function showNotificationCenter() {
+      displayMonthlyReminders();
+      displayAnnouncements();
+      document.getElementById("notification-panel").classList.remove("hidden");
+    }
+
+    function closeNotificationCenter() {
+      document.getElementById("notification-panel").classList.add("hidden");
+    }
+
+    const ANNOUNCEMENTS_STORAGE_KEY = 'hrbtc_announcements';
+
+    function getStoredAnnouncements() {
+      try {
+        return JSON.parse(localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY) || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveStoredAnnouncements(list) {
+      localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function loadAdminAnnouncements() {
+      const list = getStoredAnnouncements();
+      const container = document.getElementById('admin-announcements-list');
+      if (!container) return;
+      if (list.length === 0) {
+        container.innerHTML = '<div class="py-6 text-center text-slate-400 italic">ยังไม่มีประกาศในระบบ</div>';
+        return;
+      }
+      container.innerHTML = '';
+      list.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'bg-slate-50 rounded-2xl p-4 border border-slate-200';
+        div.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-slate-800">${escapeHtml(item.title)}</p>
+              <p class="text-[10px] text-slate-500 mt-1">${formatThaiDate(item.date || new Date().toISOString().split('T')[0])}</p>
+            </div>
+            <button onclick="deleteAdminAnnouncement(${index})" class="text-rose-600 text-[10px] font-semibold hover:text-rose-800">ลบ</button>
+          </div>
+          <p class="text-xs text-slate-600 mt-3 whitespace-pre-line">${escapeHtml(item.message)}</p>
+        `;
+        container.appendChild(div);
+      });
+      displayAnnouncements();
+    }
+
+    function saveAdminAnnouncement() {
+      const titleInput = document.getElementById('admin-announcement-title');
+      const dateInput = document.getElementById('admin-announcement-date');
+      const messageInput = document.getElementById('admin-announcement-message');
+      const title = titleInput.value.trim();
+      const date = dateInput.value;
+      const message = messageInput.value.trim();
+      if (!title || !message) {
+        showToast('⚠️ กรุณากรอกหัวข้อและข้อความประกาศ', 'warning');
+        return;
+      }
+      const list = getStoredAnnouncements();
+      list.unshift({ title, date: date || new Date().toISOString().split('T')[0], message });
+      saveStoredAnnouncements(list.slice(0, 12));
+      titleInput.value = '';
+      dateInput.value = '';
+      messageInput.value = '';
+      showToast('✅ บันทึกประกาศเรียบร้อยแล้ว', 'success');
+      loadAdminAnnouncements();
+    }
+
+    function deleteAdminAnnouncement(index) {
+      const list = getStoredAnnouncements();
+      if (index < 0 || index >= list.length) return;
+      list.splice(index, 1);
+      saveStoredAnnouncements(list);
+      loadAdminAnnouncements();
+    }
+
+    function displayAnnouncements() {
+      const list = getStoredAnnouncements();
+      const panelContainer = document.getElementById('notification-announcements');
+      const pageContainer = document.getElementById('page-announcements-list');
+      const fallbackHtml = '<div class="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-slate-500 text-xs text-center">ไม่พบข่าวสารล่าสุด</div>';
+
+      [panelContainer, pageContainer].forEach(container => {
+        if (!container) return;
+        if (list.length === 0) {
+          container.innerHTML = fallbackHtml;
+          return;
+        }
+        container.innerHTML = '';
+        list.slice(0, 6).forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'bg-slate-50 rounded-2xl p-4 border border-slate-200';
+          div.innerHTML = `
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold text-slate-800">${escapeHtml(item.title)}</p>
+              <span class="text-[10px] text-slate-500">${formatThaiDate(item.date)}</span>
+            </div>
+            <p class="text-[12px] text-slate-600 mt-2 whitespace-pre-line">${escapeHtml(item.message)}</p>
+          `;
+          container.appendChild(div);
+        });
+      });
+    }
+
+    function displayMonthlyReminders() {
+      const container = document.getElementById('home-reminders-list');
+      const notificationContainer = document.getElementById('notification-reminders');
+      const announcementPageContainer = document.getElementById('page-announcements-reminders');
+      const currentCycle = getCurrentCycleRange();
+      const daysLeft = getDaysUntil(currentCycle.end);
+      const reminders = [
+        {
+          title: 'สิ้นสุดรอบบัญชี',
+          description: `รอบบัญชีปัจจุบันสิ้นสุดวันที่ ${formatThaiDate(currentCycle.end)} (${daysLeft} วันเหลือ)`,
+          icon: 'fa-calendar-days',
+          color: 'bg-blue-50 text-blue-700'
+        },
+        {
+          title: 'การยื่นคำขอแก้ไขเวลา',
+          description: 'หากต้องการแก้ไขเวลางาน โปรดยื่นคำขอภายในรอบบัญชีนี้ก่อนวันสิ้นสุดรอบ',
+          icon: 'fa-clock-rotate-left',
+          color: 'bg-amber-50 text-amber-700'
+        },
+        {
+          title: 'การขออนุมัติใบลา',
+          description: 'ตรวจสอบวันลาคงเหลือและยื่นใบลาล่วงหน้าในกรณีที่ต้องการ',
+          icon: 'fa-plane-departure',
+          color: 'bg-violet-50 text-violet-700'
+        },
+        {
+          title: 'ตรวจสอบประกาศใหม่',
+          description: 'เปิดศูนย์ข่าวสารเพื่อดูประกาศล่าสุดและแจ้งเตือนภายในองค์กร',
+          icon: 'fa-bell',
+          color: 'bg-emerald-50 text-emerald-700'
+        }
+      ];
+      const html = reminders.map(r => `
+          <div class="rounded-2xl border border-slate-200 p-4 bg-white shadow-sm">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-2xl ${r.color} flex items-center justify-center text-lg">
+                <i class="fa-solid ${r.icon}"></i>
+              </div>
+              <div>
+                <p class="text-[11px] text-slate-500 uppercase tracking-[0.18em] font-semibold">${r.title}</p>
+                <p class="text-sm font-semibold text-slate-800 mt-1">${r.description}</p>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      if (container) {
+        container.innerHTML = html;
+      }
+      if (notificationContainer) {
+        notificationContainer.innerHTML = reminders.map(r => `
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <div class="flex items-center gap-2 text-slate-700 font-semibold text-xs mb-2">
+              <i class="fa-solid ${r.icon}"></i> ${r.title}
+            </div>
+            <p class="text-[12px] text-slate-600">${r.description}</p>
+          </div>
+        `).join('');
+      }
+      if (announcementPageContainer) {
+        announcementPageContainer.innerHTML = html;
+      }
+    }
+
+    function getDaysUntil(dateString) {
+      const today = new Date();
+      const target = new Date(dateString);
+      const diffMs = target.setHours(23,59,59,999) - today;
+      return diffMs < 0 ? 0 : Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
 
     async function fetchWithTimeout(resource, options = {}) {
       const { timeout = 8000 } = options;
@@ -3510,7 +3925,7 @@ function updateEmployeeProfileUI() {
     function navigateTo(target) {
       activePage = target;
       
-      const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
+      const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip", "announcements"];
       pages.forEach(p => {
         const section = document.getElementById(`page-${p}`);
         if (section) {
@@ -3533,13 +3948,19 @@ function updateEmployeeProfileUI() {
         updateAttendanceStatus();
       }
 
+      if (target === "announcements") {
+        displayMonthlyReminders();
+        displayAnnouncements();
+      }
+
       const navItems = {
         home: "nav-home",
         calendar: "nav-calendar",
         attendance: "nav-attendance",
         leave: "nav-leave",
         advance: "nav-more",
-        payslip: "nav-more"
+        payslip: "nav-more",
+        announcements: "nav-more"
       };
 
       Object.values(navItems).forEach(id => {
@@ -3698,7 +4119,7 @@ function updateEmployeeProfileUI() {
       adminActiveTab = tabId;
       
       // ปิดสีปุ่มเมนูเดิมทั้งหมด
-      const menus = ['import-time', 'import-payslip', 'approve-leave', 'approve-correction', 'approve-advance', 'employees', 'settings'];
+      const menus = ['import-time', 'import-payslip', 'approve-leave', 'approve-correction', 'approve-advance', 'announcements', 'approval-results-leave', 'approval-results-correction', 'approval-results-advance', 'employees', 'settings'];
       menus.forEach(m => {
         const btn = document.getElementById(`admin-menu-${m}`);
         if (btn) {
@@ -3723,11 +4144,11 @@ function updateEmployeeProfileUI() {
       const descEl = document.getElementById("admin-page-desc");
 
       if (tabId === 'import-time') {
-        titleEl.textContent = "นำเข้าเวลางาน (.txt)";
-        descEl.textContent = "นำเข้าประวัติการแสกนนิ้วของพนักงานทั้งหมดผ่านไฟล์บันทึกเวลา";
+        titleEl.textContent = "นำเข้าเวลางานใหม่ (.txt)";
+        descEl.textContent = "นำเข้าประวัติการสแกนนิ้วล่าสุดของพนักงานผ่านไฟล์บันทึกเวลา";
       } else if (tabId === 'import-payslip') {
-        titleEl.textContent = "นำเข้าสลิปเงินเดือน (.pdf)";
-        descEl.textContent = "แยกหน้าสลิปเงินเดือน สแกนรหัสพนักงานอัตโนมัติ และเซฟขึ้นระบบ Drive แยกคน";
+        titleEl.textContent = "นำเข้าสลิปเงินเดือนใหม่ (.pdf)";
+        descEl.textContent = "แยกหน้าสลิปเงินเดือน สแกนรหัสพนักงานอัตโนมัติ และเก็บไฟล์ขึ้นระบบ Drive แบบแยกบุคคล";
       } else if (tabId === 'approve-leave') {
         titleEl.textContent = "อนุมัติใบลางาน";
         descEl.textContent = "ตรวจสอบความสมบูรณ์และอนุมัติวันลางานประเภทต่างๆ ของพนักงาน";
@@ -3740,6 +4161,22 @@ function updateEmployeeProfileUI() {
         titleEl.textContent = "อนุมัติเบิกเงินสำรอง";
         descEl.textContent = "จัดการคำขอรับเงินสะสมกลางเดือน (Advance Salary)";
         loadAdminApprovals();
+      } else if (tabId === 'announcements') {
+        titleEl.textContent = "ประกาศข่าวสาร";
+        descEl.textContent = "จัดการประกาศและแจ้งข่าวสารสำคัญแก่พนักงาน";
+        loadAdminAnnouncements();
+      } else if (tabId === 'approval-results-leave') {
+        titleEl.textContent = "ผลการอนุมัติใบลา";
+        descEl.textContent = "ตรวจสอบคำขอใบลาที่ได้รับการอนุมัติหรือปฏิเสธแล้ว";
+        loadAdminApprovalResults('leave');
+      } else if (tabId === 'approval-results-correction') {
+        titleEl.textContent = "ผลการอนุมัติแก้ไขเวลา";
+        descEl.textContent = "ดูผลคำขอแก้ไขเวลางานที่ได้รับการตัดสินใจแล้ว";
+        loadAdminApprovalResults('correction');
+      } else if (tabId === 'approval-results-advance') {
+        titleEl.textContent = "ผลการอนุมัติเบิกเงิน";
+        descEl.textContent = "ดูผลคำขอเบิกเงินล่วงหน้าที่ได้รับการอนุมัติหรือไม่อนุมัติ";
+        loadAdminApprovalResults('advance');
       } else if (tabId === 'employees') {
         titleEl.textContent = "จัดการข้อมูลพนักงาน & กำหนดสิทธิ์";
         descEl.textContent = "เพิ่ม/แก้ไขรายชื่อ ข้อมูลบัญชีธนาคาร ตำแหน่ง และสิทธิ์เมนูเข้าถึงแอป";
@@ -3968,6 +4405,87 @@ function updateEmployeeProfileUI() {
         }
       } catch (err) {
         showToast("❌ ซิงค์ข้อมูลคำขออนุมัติล้มเหลว: " + err.message, "error");
+      }
+    }
+
+    async function loadAdminApprovalResults(type) {
+      const config = {
+        leave: {
+          url: `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*`,
+          bodyId: 'admin-approval-results-leave-body',
+          headers: ['เลขที่เอกสาร', 'พนักงาน', 'ประเภทการลา', 'ช่วงวันที่', 'สถานะ', 'หมายเหตุ'],
+          buildRow: req => {
+            const status = req['สถานะ'] || '-';
+            const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
+            return `
+              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
+                <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['เลขที่เอกสาร'] || 'N/A')}</td>
+                <td class="py-3 text-slate-600">${escapeHtml(req['รหัสพนักงาน'] || 'N/A')}</td>
+                <td class="py-3 text-slate-700">${escapeHtml(req['ประเภทการลา'] || 'N/A')}</td>
+                <td class="py-3 text-slate-500">${escapeHtml(formatThaiDateShort(req['วันที่เริ่ม']) + ' - ' + formatThaiDateShort(req['วันที่สิ้นสุด']))}</td>
+                <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
+                <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</td>
+              </tr>
+            `;
+          }
+        },
+        correction: {
+          url: `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*`,
+          bodyId: 'admin-approval-results-correction-body',
+          headers: ['รหัสพนักงาน', 'วันที่', 'เวลาเข้าใหม่', 'เวลาออกใหม่', 'สถานะ', 'หมายเหตุ'],
+          buildRow: req => {
+            const status = req['สถานะ'] || '-';
+            const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
+            return `
+              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
+                <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['รหัสพนักงาน'] || 'N/A')}</td>
+                <td class="py-3 text-slate-600">${escapeHtml(formatThaiDate(req['วันที่']))}</td>
+                <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาเข้าใหม่'] || '-')}</td>
+                <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาออกใหม่'] || '-')}</td>
+                <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
+                <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</td>
+              </tr>
+            `;
+          }
+        },
+        advance: {
+          url: `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*`,
+          bodyId: 'admin-approval-results-advance-body',
+          headers: ['รหัสพนักงาน', 'จำนวนเงิน', 'วันที่', 'รอบจ่าย', 'สถานะ', 'หมายเหตุ'],
+          buildRow: req => {
+            const status = req['สถานะ'] || '-';
+            const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
+            return `
+              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
+                <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['รหัสพนักงาน'] || 'N/A')}</td>
+                <td class="py-3 text-emerald-600 font-bold">฿${Number(req['จำนวนเงิน'] || 0).toLocaleString()}</td>
+                <td class="py-3 text-slate-600">${escapeHtml(formatThaiDate(req['วันที่เบิก']))}</td>
+                <td class="py-3 text-slate-500">${escapeHtml(req['รอบจ่าย'] || '-')}</td>
+                <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
+                <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</td>
+              </tr>
+            `;
+          }
+        }
+      };
+
+      const bodyEl = document.getElementById(config[type].bodyId);
+      if (!bodyEl) return;
+      bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic">⏳ กำลังโหลดผลการอนุมัติ...</td></tr>`;
+      try {
+        const res = await fetchWithTimeout(config[type].url);
+        if (res.status === 'success') {
+          const items = res.data.filter(r => r['สถานะ'] && r['สถานะ'] !== 'รออนุมัติ');
+          if (items.length === 0) {
+            bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
+            return;
+          }
+          bodyEl.innerHTML = items.map(req => config[type].buildRow(req)).join('');
+        } else {
+          bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ ${escapeHtml(res.message)}</td></tr>`;
+        }
+      } catch (err) {
+        bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาดในการโหลด: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -5012,11 +5530,6 @@ ${slip.textSample}
         binary += String.fromCharCode(bytes[i]);
       }
       return window.btoa(binary);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    function showNotificationCenter() {
-      showToast("🔔 ข่าวสารล่าสุด: ระบบประมวลผลรอบบัญชีพร้อมใช้งานแล้ว!", "info");
     }
 
     // ─────────────────────────────────────────────────────────────
