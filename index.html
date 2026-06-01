@@ -4163,7 +4163,7 @@ function updateEmployeeProfileUI() {
       }
 
       try {
-        const pdfjsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(selectedPdfBuffer) }).promise;
+        const pdfjsDoc = await pdfjsLib.getDocument({ data: new Uint8Array(selectedPdfBuffer), disableWorker: true }).promise;
         const pdfLibDoc = await PDFLib.PDFDocument.load(selectedPdfBuffer);
         const numPages = pdfLibDoc.getPageCount();
 
@@ -4198,7 +4198,7 @@ function updateEmployeeProfileUI() {
 
           // Fallback regex match ID 5-7 หลัก
           if (!empId) {
-            const mId = text.match(/(\d{5,7})/);
+            const mId = text.match(/\b(\d{5,7})\b/);
             if (mId) empId = mId[1];
           }
 
@@ -4218,13 +4218,16 @@ function updateEmployeeProfileUI() {
           }
 
           // ค้นหาเดือน/รอบเงินเดือน
-          let monthStr = "";
-          const mMonth = text.match(/(\d{2})\/(\d{4})/);
-          if (mMonth) {
-            monthStr = `${mMonth[1]}/${mMonth[2]}`;
-          } else {
-            const now = new Date();
-            monthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+          // หากผู้ใช้เลือกเดือน/ปีจาก dropdown แล้ว ให้ใช้ค่าที่เลือกเป็นหลัก
+          let monthStr = selectedPayslipMonth;
+          if (!monthStr) {
+            const mMonth = text.match(/\b(\d{1,2})[\/\\-](\d{4})\b/);
+            if (mMonth) {
+              monthStr = `${String(mMonth[1]).padStart(2, '0')}/${mMonth[2]}`;
+            } else {
+              const now = new Date();
+              monthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+            }
           }
 
           if (empName !== 'ไม่ระบุ') matchedCount++; else unmatchedCount++;
@@ -4262,7 +4265,8 @@ function updateEmployeeProfileUI() {
 
       } catch (err) {
         document.getElementById("pdf-parse-status").textContent = "❌ วิเคราะห์ผิดพลาด";
-        showToast("❌ การวิเคราะห์ PDF ขัดข้อง: " + err.message, "error");
+        console.error(err);
+        showToast("❌ การวิเคราะห์ PDF ขัดข้อง: " + (err.name ? err.name + ': ' : '') + (err.message || err), "error");
       }
     }
 
