@@ -1235,12 +1235,13 @@
                     <th class="py-2.5 font-semibold w-24">รอบเงินเดือน</th>
                     <th class="py-2.5 font-semibold w-28">ยอดโอนสุทธิ</th>
                     <th class="py-2.5 font-semibold w-80">ข้อมูลที่สกัดออก</th>
+                    <th class="py-2.5 font-semibold w-20 text-center">ดู PDF</th>
                     <th class="py-2.5 font-semibold">สถานะ</th>
                   </tr>
                 </thead>
                 <tbody id="pdf-preview-table-body" class="divide-y divide-slate-200 text-slate-600">
                   <tr>
-                    <td colspan="6" class="py-6 text-center text-slate-500 italic">โปรดอัปโหลดไฟล์สลิปรวม PDF และทำการวิเคราะห์ก่อนส่งบันทึก</td>
+                    <td colspan="8" class="py-6 text-center text-slate-500 italic">โปรดอัปโหลดไฟล์สลิปรวม PDF และทำการวิเคราะห์ก่อนส่งบันทึก</td>
                   </tr>
                 </tbody>
               </table>
@@ -1796,6 +1797,77 @@
       <div class="flex gap-2">
         <button id="admin-decision-reject-btn" class="flex-1 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-semibold text-xs rounded-xl border border-rose-200 transition-all">ปฏิเสธคำขอ</button>
         <button id="admin-decision-approve-btn" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-emerald-100">อนุมัติคำขอ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- [MODAL: ดู PDF Preview สลิปเงินเดือน]                            -->
+  <!-- =============================================================== -->
+  <div id="payslip-pdf-modal" class="fixed inset-0 z-[9999] hidden bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
+      <!-- Header -->
+      <div class="flex justify-between items-center px-6 py-4 border-b border-slate-200">
+        <div>
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-file-pdf text-red-500"></i> ตัวอย่างสลิปเงินเดือน
+          </h3>
+          <p class="text-xs text-slate-500 mt-1" id="payslip-preview-page">หน้า 1</p>
+        </div>
+        <button onclick="closePayslipPdfModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+
+      <!-- Body - PDF Viewer + Info -->
+      <div class="flex-1 overflow-hidden flex gap-4 p-6">
+        <!-- PDF Viewer (Left) -->
+        <div class="flex-1 border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+          <iframe 
+            id="payslip-pdf-viewer"
+            class="w-full h-full border-none"
+            type="application/pdf"
+          ></iframe>
+        </div>
+
+        <!-- Info Panel (Right) -->
+        <div class="w-64 space-y-4 overflow-y-auto pr-2">
+          <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+            <div>
+              <p class="text-[10px] text-indigo-600 font-bold uppercase">รหัสพนักงาน</p>
+              <p class="text-sm font-bold text-slate-800 mt-1" id="payslip-preview-id">-</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-indigo-600 font-bold uppercase">ชื่อ-นามสกุล</p>
+              <p class="text-sm font-bold text-slate-800 mt-1" id="payslip-preview-name">-</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-indigo-600 font-bold uppercase">รอบเงินเดือน</p>
+              <p class="text-sm font-bold text-slate-800 mt-1" id="payslip-preview-month">-</p>
+            </div>
+            <div class="bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg p-3 text-white">
+              <p class="text-[9px] font-semibold uppercase">ยอดโอนสุทธิ</p>
+              <p class="text-lg font-bold mt-1" id="payslip-preview-amount">0.00</p>
+              <p class="text-xs opacity-90">บาท</p>
+            </div>
+          </div>
+
+          <div class="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 space-y-2">
+            <p><strong>💡 เคล็ดลับ:</strong></p>
+            <ul class="list-disc list-inside space-y-1">
+              <li>ตรวจสอบข้อมูลให้ถูกต้อง</li>
+              <li>แก้ไขตัวเลขที่พลาดได้ที่ตาราง</li>
+              <li>กดปิดเมื่อเสร็จสิ้นการตรวจสอบ</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
+        <button onclick="closePayslipPdfModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-4 py-2 rounded-xl transition-all">
+          ปิด
+        </button>
       </div>
     </div>
   </div>
@@ -4402,6 +4474,11 @@ function updateEmployeeProfileUI() {
             <input type="number" value="${slip.netAmount}" onchange="updatePayslipRowNetAmount(${idx}, this.value)" placeholder="0.00" class="bg-white border ${slip.netAmount === 0 ? 'border-rose-300 bg-rose-50' : 'border-slate-200'} text-slate-800 text-xs rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-indigo-500" step="0.01">
           </td>
           <td class="py-3 text-slate-500 text-xs font-mono bg-slate-50 rounded px-2 max-w-xs overflow-hidden text-ellipsis" title="${slip.extractedDetails}" onclick="showPayslipDebugInfo(${idx})" style="cursor: pointer;">${slip.extractedDetails}</td>
+          <td class="py-3 text-center">
+            <button onclick="showPayslipPdfPreview(${idx})" class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-medium transition-colors">
+              👁️ ดู PDF
+            </button>
+          </td>
           <td class="py-3" id="pdf-row-status-${idx}">${statusText}</td>
         `;
         container.appendChild(tr);
@@ -4475,6 +4552,33 @@ ${slip.textSample}
       alert(debugMsg);
     }
 
+    // 👁️ ฟังก์ชันแสดง PDF preview สลิปเงินเดือนแต่ละรายการ
+    function showPayslipPdfPreview(index) {
+      const slip = parsedPayslips[index];
+      
+      // โหลด iframe
+      const pdfIframe = document.getElementById("payslip-pdf-viewer");
+      pdfIframe.src = slip.pdfBase64;
+      
+      // แสดงข้อมูล metadata
+      document.getElementById("payslip-preview-page").textContent = `หน้า ${slip.pageNumber}`;
+      document.getElementById("payslip-preview-id").textContent = slip.empId || "ไม่ระบุ";
+      document.getElementById("payslip-preview-name").textContent = slip.empName;
+      document.getElementById("payslip-preview-month").textContent = slip.month;
+      document.getElementById("payslip-preview-amount").textContent = slip.netAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      
+      // แสดง modal
+      document.getElementById("payslip-pdf-modal").classList.remove("hidden");
+      document.getElementById("payslip-pdf-modal").classList.add("flex");
+    }
+
+    // ปิด modal PDF preview
+    function closePayslipPdfModal() {
+      document.getElementById("payslip-pdf-modal").classList.add("hidden");
+      document.getElementById("payslip-pdf-modal").classList.remove("flex");
+      document.getElementById("payslip-pdf-viewer").src = "";
+    }
+
     // ฟังก์ชันสั่งอัพโหลด PDF ทั้งหมดขึ้นระบบ
     async function uploadParsedPayslips() {
       const unmatched = parsedPayslips.filter(s => s.status === 'UNMATCHED');
@@ -4538,7 +4642,7 @@ ${slip.textSample}
       selectedPdfBuffer = null;
       parsedPayslips = [];
       document.getElementById("pdf-file-label").textContent = "เลือกไฟล์ .pdf ที่นี่";
-      document.getElementById("pdf-preview-table-body").innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic">การทำรายการอัปโหลดเสร็จสิ้น ข้อมูลถูกจัดส่งเข้าตารางคลาวด์แล้ว</td></tr>`;
+      document.getElementById("pdf-preview-table-body").innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 italic">การทำรายการอัปโหลดเสร็จสิ้น ข้อมูลถูกจัดส่งเข้าตารางคลาวด์แล้ว</td></tr>`;
     }
 
     function getSelectedPayslipMonth() {
