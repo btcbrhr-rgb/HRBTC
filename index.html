@@ -1163,12 +1163,13 @@
                   <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider">เลือกเดือนสลิป</label>
                   <div class="grid grid-cols-2 gap-2">
                     <select id="pdf-month-input" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" aria-label="เลือกเดือน">
+                      <option value="">- เลือกเดือน -</option>
                       <option value="01">มกราคม</option>
                       <option value="02">กุมภาพันธ์</option>
                       <option value="03">มีนาคม</option>
                       <option value="04">เมษายน</option>
                       <option value="05">พฤษภาคม</option>
-                      <option value="06" selected>มิถุนายน</option>
+                      <option value="06">มิถุนายน</option>
                       <option value="07">กรกฎาคม</option>
                       <option value="08">สิงหาคม</option>
                       <option value="09">กันยายน</option>
@@ -1178,7 +1179,7 @@
                     </select>
                     <select id="pdf-year-input" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-indigo-500" aria-label="เลือกปี พ.ศ.">
                       <option value="2568">2568</option>
-                      <option value="2569" selected>2569</option>
+                      <option value="2569">2569</option>
                       <option value="2570">2570</option>
                       <option value="2571">2571</option>
                       <option value="2572">2572</option>
@@ -4297,8 +4298,8 @@ function updateEmployeeProfileUI() {
       const reader = new FileReader();
       reader.onload = function(e) {
         selectedPdfBuffer = e.target.result;
-        document.getElementById("pdf-btn-parse").disabled = false;
         document.getElementById("pdf-btn-upload").disabled = true;
+        updatePdfButtonStates();
         showToast("📄 โหลดไฟล์ PDF เข้าหน่วยความจำแล้ว กดวิเคราะห์ข้อความเพื่อเริ่ม", "success");
       };
       reader.readAsArrayBuffer(file);
@@ -4675,6 +4676,7 @@ ${slip.textSample}
 
     // ฟังก์ชันสั่งอัพโหลด PDF ทั้งหมดขึ้นระบบ
     async function uploadParsedPayslips() {
+      updatePdfButtonStates();
       const unmatched = parsedPayslips.filter(s => s.status === 'UNMATCHED');
       if (unmatched.length > 0) {
         if (!confirm(`⚠️ พบบางรายการ (${unmatched.length} หน้า) ที่ยังไม่ได้กำหนดคู่รหัสพนักงานที่ถูกต้อง\nต้องการอัปโหลดเฉพาะรายการที่จับคู่พนักงานแล้วใช่หรือไม่?`)) {
@@ -4739,12 +4741,49 @@ ${slip.textSample}
       document.getElementById("pdf-preview-table-body").innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 italic">การทำรายการอัปโหลดเสร็จสิ้น ข้อมูลถูกจัดส่งเข้าตารางคลาวด์แล้ว</td></tr>`;
     }
 
+    function updatePdfButtonStates() {
+      const parseButton = document.getElementById("pdf-btn-parse");
+      const uploadButton = document.getElementById("pdf-btn-upload");
+      const hasSelectedMonth = !!getSelectedPayslipMonth();
+      const hasPdf = !!selectedPdfBuffer;
+      if (parseButton) parseButton.disabled = !hasPdf || !hasSelectedMonth;
+      if (uploadButton && parsedPayslips && parsedPayslips.length > 0) {
+        uploadButton.disabled = !hasSelectedMonth || parsedPayslips.length === 0;
+      }
+    }
+
+    function initializePayslipImportControls() {
+      const monthSelect = document.getElementById("pdf-month-input");
+      const yearSelect = document.getElementById("pdf-year-input");
+      if (!monthSelect || !yearSelect) return;
+
+      const now = new Date();
+      const buddhistYear = now.getFullYear() + 543;
+      const yearOption = Array.from(yearSelect.options).find(opt => opt.value === buddhistYear.toString());
+      if (yearOption) {
+        yearOption.selected = true;
+      } else {
+        const newOption = document.createElement("option");
+        newOption.value = buddhistYear.toString();
+        newOption.textContent = buddhistYear.toString();
+        newOption.selected = true;
+        yearSelect.appendChild(newOption);
+      }
+
+      monthSelect.value = "";
+      monthSelect.addEventListener("change", updatePdfButtonStates);
+      yearSelect.addEventListener("change", updatePdfButtonStates);
+      updatePdfButtonStates();
+    }
+
     function getSelectedPayslipMonth() {
       const month = (document.getElementById("pdf-month-input").value || "").trim();
       const year = (document.getElementById("pdf-year-input").value || "").trim();
       if (!month || !year) return "";
       return `${month}/${year}`;
     }
+
+    window.addEventListener("DOMContentLoaded", initializePayslipImportControls);
 
     // Helper: แปลง ArrayBuffer เป็น Base64
     function arrayBufferToBase64(buffer) {
