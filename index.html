@@ -938,19 +938,6 @@
             คุณกำลังทำรายการแก้ไขของวันที่: <strong id="correction-date-display">...</strong>
           </div>
 
-          <div class="bg-slate-50 text-slate-700 text-xs p-2.5 rounded-lg space-y-1">
-            <div class="grid grid-cols-2 gap-3">
-              <div class="space-y-0.5">
-                <span class="text-[10px] text-slate-500 font-semibold">เวลาเข้าเดิม:</span>
-                <div id="correction-original-time-in" class="font-semibold">-</div>
-              </div>
-              <div class="space-y-0.5">
-                <span class="text-[10px] text-slate-500 font-semibold">เวลาออกเดิม:</span>
-                <div id="correction-original-time-out" class="font-semibold">-</div>
-              </div>
-            </div>
-          </div>
-
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1">
               <label for="correction-time-in" class="text-[11px] text-slate-500 font-semibold">เวลาเข้าใหม่ (IN)</label>
@@ -3757,14 +3744,12 @@ function updateEmployeeProfileUI() {
       document.getElementById("correction-date").value = dateStr;
       document.getElementById("correction-date-display").textContent = formatThaiDate(dateStr);
       
-      // Reset original time display
-      document.getElementById("correction-original-time-in").textContent = "-";
-      document.getElementById("correction-original-time-out").textContent = "-";
+      // Reset form fields
       document.getElementById("correction-time-in").value = "";
       document.getElementById("correction-time-out").value = "";
       document.getElementById("correction-reason").value = "";
       
-      // Fetch time records to get original times
+      // Fetch time records to get original times and pre-fill inputs
       try {
         const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}`);
         if (res.status === "success" && res.data) {
@@ -3772,7 +3757,7 @@ function updateEmployeeProfileUI() {
           if (record) {
             let inTime = record['เวลาเข้า'] || "";
             let outTime = record['เวลาออก'] || "";
-            // Format for display and input (HH:MM)
+            // Format for input (HH:MM)
             if (inTime) {
               const parts = inTime.split(':');
               inTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
@@ -3781,8 +3766,6 @@ function updateEmployeeProfileUI() {
               const parts = outTime.split(':');
               outTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
             }
-            document.getElementById("correction-original-time-in").textContent = inTime || "-";
-            document.getElementById("correction-original-time-out").textContent = outTime || "-";
             // Pre-fill original times into new time inputs
             document.getElementById("correction-time-in").value = inTime;
             document.getElementById("correction-time-out").value = outTime;
