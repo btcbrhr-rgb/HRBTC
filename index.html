@@ -448,6 +448,37 @@
         </div>
       </div>
 
+      <!-- === [MODAL: LINE Link Confirmation] === -->
+      <div id="line-link-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-4 shadow-2xl animate-slide-up">
+          <div class="text-center space-y-2">
+            <div class="w-14 h-14 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner">
+              <i class="fa-brands fa-line"></i>
+            </div>
+            <h3 class="font-bold text-base text-slate-800">ยืนยันการเชื่อมต่อ</h3>
+            <p class="text-xs text-slate-500">กรุณาตรวจสอบข้อมูลของคุณให้ถูกต้อง</p>
+          </div>
+          <div class="bg-slate-50 rounded-xl p-4 space-y-2 text-xs">
+            <div class="flex justify-between gap-2">
+              <span class="text-slate-500">รหัสพนักงาน:</span>
+              <span id="line-confirm-emp-id" class="font-bold text-slate-800"></span>
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-slate-500">ชื่อ:</span>
+              <span id="line-confirm-name" class="font-bold text-slate-800"></span>
+            </div>
+            <div class="flex justify-between gap-2">
+              <span class="text-slate-500">ตำแหน่ง:</span>
+              <span id="line-confirm-position" class="font-bold text-slate-800"></span>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="confirmLineLink()" class="btn-press w-full bg-gradient-to-r from-[#06C755] to-[#05B149] text-white font-semibold py-3.5 rounded-xl shadow-md shadow-green-500/10 hover:shadow-lg transition-all">ยืนยันและเชื่อมต่อ</button>
+            <button onclick="closeLineLinkConfirm()" class="w-full text-center text-xs text-slate-400 hover:text-slate-600 transition-all">ยกเลิก</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ส่วนท้ายโลโก้ -->
       <div class="text-center space-y-4">
         <p id="company-copyright" class="text-[10px] text-slate-600">© 2026 บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด. All Rights Reserved.</p>
@@ -2721,6 +2752,49 @@
       }
     }
 
+    // --- LINE Link Confirmation Modal ---
+    let pendingEmpIdForLineLink = null;
+
+    function closeLineLinkConfirm() {
+      document.getElementById('line-link-confirm-modal').classList.add('hidden');
+      pendingEmpIdForLineLink = null;
+    }
+
+    async function confirmLineLink() {
+      if (!pendingEmpIdForLineLink || !currentLineUserId) return;
+
+      const res = await fetchWithTimeout(SERVER_API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "linkEmployeeToLine",
+          empId: pendingEmpIdForLineLink,
+          lineId: currentLineUserId
+        })
+      });
+
+      if (res && res.status === "success") {
+        // Link successful! Now login!
+        showToast('เชื่อมต่อ LINE สำเร็จ!', 'success');
+        isLoggedIn = true;
+        currentEmployeeId = pendingEmpIdForLineLink;
+        employeeData = res.data;
+        localStorage.setItem("is_logged_in", "true");
+        localStorage.setItem("hr_emp_id", currentEmployeeId);
+
+        closeLineLinkConfirm();
+        hideLoginContainer();
+        generateCycleOptions();
+        const currentCycle = getCurrentCycleRange();
+        document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+        document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+        loadAllData();
+
+        if (targetPage) navigateTo(targetPage);
+      } else {
+        showToast('เชื่อมต่อไม่สำเร็จ: ' + (res?.message || 'ข้อผิดพลาด'), 'error');
+      }
+    }
+
     // --- LINE Login Handler ---
     async function handleLineLogin() {
       // Parse URL params for target page
@@ -2940,52 +3014,25 @@ async function handleLogin(e) {
         return;
       }
 
-      // If we have lineId, do LINE linking instead of normal login
+      // If we have lineId, show confirmation modal first
       if (currentLineUserId) {
-        showToast("⏳ กำลังเชื่อมต่อบัญชี LINE...", "info");
         try {
-          const linkRes = await fetchWithTimeout(SERVER_API_URL, {
-            method: "POST",
-            body: JSON.stringify({
-              action: "linkEmployeeToLine",
-              empId: empIdInput,
-              lineId: currentLineUserId
-            })
-          });
-
-          if (linkRes && linkRes.status === "success") {
-            // Linking successful! Now log them in!
-            // Now get employee data
-            const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${empIdInput}`);
-            if (empRes && empRes.status === "success") {
-              currentEmployeeId = empIdInput;
-              isLoggedIn = true;
-              employeeData = empRes.data || {};
-              localStorage.setItem("is_logged_in", "true");
-              localStorage.setItem("hr_emp_id", currentEmployeeId);
-
-              showToast("🎉 เชื่อมต่อบัญชี LINE เรียบร้อยแล้ว!", "success");
-
-              hideLoginContainer();
-              generateCycleOptions();
-              const currentCycle = getCurrentCycleRange();
-              document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-              document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-              loadAllData();
-
-              // Navigate to target page if specified
-              if (targetPage) {
-                navigateTo(targetPage);
-              } else {
-                navigateTo("home");
-              }
-            }
+          // Step 1: Fetch employee data first to show for confirmation
+          const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${empIdInput}`);
+          
+          if (empRes && empRes.status === "success") {
+            // Populate and show confirmation modal
+            document.getElementById("line-confirm-emp-id").textContent = empRes.data["รหัสพนักงาน"] || empIdInput;
+            document.getElementById("line-confirm-name").textContent = empRes.data["ชื่อพนักงาน"] || empRes.data["ชื่อ-นามสกุล"] || "-";
+            document.getElementById("line-confirm-position").textContent = empRes.data["ตำแหน่ง"] || "-";
+            pendingEmpIdForLineLink = empIdInput;
+            document.getElementById("line-link-confirm-modal").classList.remove("hidden");
           } else {
-            showToast("❌ " + (linkRes?.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ LINE"), "error");
+            showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูล", "error");
           }
         } catch (err) {
           console.error(err);
-          showToast("❌ เชื่อมต่อ LINE ไม่ได้", "error");
+          showToast("❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้", "error");
         }
       } else {
         // Normal login flow
