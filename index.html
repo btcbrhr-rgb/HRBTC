@@ -2957,8 +2957,8 @@
       const loadingUserIdEl = document.getElementById("loading-userid");
       loadingModal.classList.remove("hidden");
       
-      // First get LineUserId if we don't have it and we're in LINE
-      if (isLINE && !currentLineUserId) {
+      // ถ้าอยู่ใน LINE → init LIFF และ get profile ทุกครั้ง!
+      if (isLINE) {
         try {
           await liff.init({ liffId: LIFF_ID });
           
@@ -2968,7 +2968,7 @@
             return;
           }
 
-          // ถ้ายังไม่มี LineUserId → get profile!
+          // Get profile จาก LINE ทุกครั้ง!
           const profile = await liff.getProfile();
           currentLineUserId = profile.userId;
           saveTargetPageAndLineUserId(null, currentLineUserId);
@@ -2989,8 +2989,6 @@
         showLoginContainer();
       } else {
         // Now check if LineUserId is linked to an employee
-        // Small delay to show loading modal
-        await new Promise(resolve => setTimeout(resolve, 1000));
         try {
           const res = await fetchWithTimeout(SERVER_API_URL, {
             method: "POST",
