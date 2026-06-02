@@ -448,6 +448,17 @@
         </div>
       </div>
 
+      <!-- === [MODAL: Loading - ตรวจสอบสิทธิ์] === -->
+      <div id="loading-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-4 shadow-2xl animate-slide-up">
+          <div class="text-center space-y-3">
+            <i class="fa-solid fa-circle-notch animate-spin text-3xl text-blue-500"></i>
+            <h3 class="font-bold text-base text-slate-800">กำลังตรวจสอบสิทธิ์การเข้าถึง</h3>
+            <div id="loading-userid" class="text-center text-sm text-slate-600 font-mono hidden"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- === [MODAL: LINE Link Confirmation] === -->
       <div id="line-link-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-4 shadow-2xl animate-slide-up">
@@ -2936,23 +2947,18 @@
         return;
       }
 
-      // แสดง login page ก่อนเลย!
-      showLoginContainer();
-
       // For testing, set fake LineUserId to see the display
       currentLineUserId = "U1234567890abcdef1234567890abcdef";
-      showLineUserId();
-
       // Get isLINE from window._inappInfo, or re‑check user agent
       const isLINE = (window._inappInfo && window._inappInfo.isLINE) || /Line\//i.test(navigator.userAgent);
-
-      // ถ้ามี LineUserId จาก storage → แสดง UserId เลย!
-      if (currentLineUserId) {
-        showLineUserId();
-      }
-
-      // ถ้าอยู่ใน LINE → init LIFF เพื่อ get profile (ถ้ายังไม่มี)
-      if (isLINE) {
+      
+      // Show loading modal
+      const loadingModal = document.getElementById("loading-modal");
+      const loadingUserIdEl = document.getElementById("loading-userid");
+      loadingModal.classList.remove("hidden");
+      
+      // First get LineUserId if we don't have it and we're in LINE
+      if (isLINE && !currentLineUserId) {
         try {
           await liff.init({ liffId: LIFF_ID });
           
@@ -2963,16 +2969,29 @@
           }
 
           // ถ้ายังไม่มี LineUserId → get profile!
-          if (!currentLineUserId) {
-            const profile = await liff.getProfile();
-            currentLineUserId = profile.userId;
-            saveTargetPageAndLineUserId(null, currentLineUserId);
-            showLineUserId();
-          } else {
-            showLineUserId();
-          }
-
-          // Check if LineUserId is linked to an employee
+          const profile = await liff.getProfile();
+          currentLineUserId = profile.userId;
+          saveTargetPageAndLineUserId(null, currentLineUserId);
+        } catch (err) {
+          console.error("LIFF check failed, showing normal login", err);
+        }
+      }
+      
+      // Update loading modal with user id if we have it
+      if (currentLineUserId) {
+        loadingUserIdEl.textContent = `UserId: ${currentLineUserId}`;
+        loadingUserIdEl.classList.remove("hidden");
+      }
+      
+      // If we don't have LineUserId at all, just go to login page
+      if (!currentLineUserId) {
+        loadingModal.classList.add("hidden");
+        showLoginContainer();
+      } else {
+        // Now check if LineUserId is linked to an employee
+        // Small delay to show loading modal
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
           const res = await fetchWithTimeout(SERVER_API_URL, {
             method: "POST",
             body: JSON.stringify({
@@ -2981,13 +3000,24 @@
             })
           });
 
+          // Hide loading modal
+          loadingModal.classList.add("hidden");
+
           if (res && res.status === "success" && res.data) {
+            // ถ้ามี UserId ในชีตแล้ว: ทะลุเข้าระบบ อัตโนมัติ เปิดหน้าตาม Rich Menu
             autoLoginAndNavigate(res.data);
           } else {
+            // ถ้ายังไม่มี: เปิดที่หน้า Login ปกติ → แสดง UserId → แสดงข้อความ
+            showLoginContainer();
+            showLineUserId();
             showLineLinkingUI();
           }
         } catch (err) {
-          console.error("LIFF check failed, showing normal login", err);
+          console.error("Error checking employee by line id", err);
+          loadingModal.classList.add("hidden");
+          showLoginContainer();
+          showLineUserId();
+          showLineLinkingUI();
         }
       }
 
