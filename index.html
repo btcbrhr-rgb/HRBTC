@@ -347,6 +347,21 @@
           <span>เข้าสู่ระบบ</span>
           <i class="fa-solid fa-arrow-right text-xs"></i>
         </button>
+        
+        <!-- Login with LINE Button -->
+        <div class="relative">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-slate-200"></div>
+          </div>
+          <div class="relative flex justify-center text-xs">
+            <span class="bg-white px-4 text-slate-400">หรือ</span>
+          </div>
+        </div>
+        
+        <button type="button" onclick="handleLineLogin()" class="btn-press w-full bg-[#06C755] hover:bg-[#05B149] text-white font-semibold py-3.5 rounded-xl shadow-md shadow-[#06C755]/10 transition-all flex items-center justify-center gap-2">
+          <i class="fa-brands fa-line text-lg"></i>
+          <span>เข้าสู่ระบบด้วย LINE</span>
+        </button>
       </form>
 
       <!-- === [MODAL: PIN Setup - ครั้งแรกเข้าแอป] === -->
@@ -2697,111 +2712,98 @@
       return storedHash === pinHash;
     }
 
-    // --- เริ่มต้นโหลดแอป (App Initialization) ---
-    window.onload = async function() {
-      // ตรวจสอบ PWA standalone mode
-      isPWAApp = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-      localStorage.setItem("isPWAApp", isPWAApp ? "true" : "false");
-
-      // Parse URL params (fallback if LIFF fails)
+    // --- LINE Login Handler ---
+    async function handleLineLogin() {
+      // Parse URL params for target page
       const urlParams = getUrlParams();
       targetPage = urlParams.page;
 
       // Initialize LIFF
       try {
         await liff.init({ liffId: LIFF_ID });
-        if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          currentLineUserId = profile.userId;
-        } else {
-          // If not logged in to LIFF, try to log in
+        if (!liff.isLoggedIn()) {
           await liff.login();
+          return; // Wait for login to redirect back
         }
-      } catch (err) {
-        console.warn("LIFF initialization failed, falling back to URL param", err);
-        // Fallback to URL param for lineId
-        currentLineUserId = urlParams.lineId || "";
-      }
 
-      // Special case for page=login: always show login page, skip auto-login
-      if (targetPage === "login") {
-        isLoggedIn = false;
-        showLoginContainer();
-        const loginTitle = document.getElementById("login-container").querySelector("h3");
-        if (loginTitle) loginTitle.textContent = "เข้าสู่ระบบ";
-      } else if (currentLineUserId) {
-        // If we have lineId, check if it's linked
-        try {
-          const res = await fetchWithTimeout(SERVER_API_URL, {
-            method: "POST",
-            body: JSON.stringify({
-              action: "getEmployeeByLineId",
-              lineId: currentLineUserId
-            })
-          });
-          
-          if (res && res.status === "success" && res.data) {
-            // Line is linked! Auto login
-            isLoggedIn = true;
-            currentEmployeeId = res.data["รหัสพนักงาน"];
-            employeeData = res.data;
-            localStorage.setItem("is_logged_in", "true");
-            localStorage.setItem("hr_emp_id", currentEmployeeId);
-            
-            hideLoginContainer();
-            generateCycleOptions();
-            const currentCycle = getCurrentCycleRange();
-            document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-            document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-            loadAllData();
+        const profile = await liff.getProfile();
+        currentLineUserId = profile.userId;
 
-            // Navigate to target page if specified
-            if (targetPage) {
-              navigateTo(targetPage);
-            }
-          } else {
-            // Line not linked yet, show login form with linking prompt
-            isLoggedIn = false;
-            showLoginContainer();
-            const loginTitle = document.getElementById("login-container").querySelector("h3");
-            if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
-            
-            // Update login button text
-            const loginBtn = document.getElementById("login-submit-btn");
-            if (loginBtn) loginBtn.textContent = "เชื่อมต่อบัญชี LINE";
-          }
-        } catch (err) {
-          console.error("Error checking line id:", err);
-          isLoggedIn = false;
-          showLoginContainer();
-        }
-      } else {
-        // Normal login flow without LINE
-        const savedEmpId = localStorage.getItem("hr_emp_id");
-        const savedLoginStatus = localStorage.getItem("is_logged_in");
+        // Check if LineUserId is linked to an employee
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "getEmployeeByLineId",
+            lineId: currentLineUserId
+          })
+        });
 
-        if (savedLoginStatus === "true" && savedEmpId) {
+        if (res && res.status === "success" && res.data) {
+          // Already linked! Log in automatically
           isLoggedIn = true;
-          currentEmployeeId = savedEmpId;
-
-          // PWA mode + มี PIN ที่ตั้งไว้ → แสดงหน้าใส่ PIN
-          if (isPWAApp && localStorage.getItem(getPinStorageKey(savedEmpId))) {
-            document.getElementById("pin-login-emp-id").value = savedEmpId;
-            showModal("pin-login-modal");
-            return;
-          }
+          currentEmployeeId = res.data["รหัสพนักงาน"];
+          employeeData = res.data;
+          localStorage.setItem("is_logged_in", "true");
+          localStorage.setItem("hr_emp_id", currentEmployeeId);
 
           hideLoginContainer();
-          
           generateCycleOptions();
           const currentCycle = getCurrentCycleRange();
           document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
           document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
           loadAllData();
+
+          // Navigate to target page if specified
+          if (targetPage) {
+            navigateTo(targetPage);
+          }
         } else {
+          // Not linked yet! Show form to enter employee ID and link
           isLoggedIn = false;
           showLoginContainer();
+
+          const loginTitle = document.getElementById("login-container").querySelector("h3");
+          if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
+          const loginBtn = document.querySelector("#login-container button[type='submit']");
+          if (loginBtn) loginBtn.innerHTML = `<span>เชื่อมต่อบัญชี LINE</span><i class="fa-solid fa-arrow-right text-xs"></i>`;
         }
+      } catch (err) {
+        console.error("Error in LINE login:", err);
+        showToast("❌ เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE", "error");
+      }
+    }
+
+    // --- เริ่มต้นโหลดแอป (App Initialization) ---
+    window.onload = async function() {
+      // ตรวจสอบ PWA standalone mode
+      isPWAApp = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      localStorage.setItem("isPWAApp", isPWAApp ? "true" : "false");
+
+      // Normal login flow without LINE
+      const savedEmpId = localStorage.getItem("hr_emp_id");
+      const savedLoginStatus = localStorage.getItem("is_logged_in");
+
+      if (savedLoginStatus === "true" && savedEmpId) {
+        isLoggedIn = true;
+        currentEmployeeId = savedEmpId;
+
+        // PWA mode + มี PIN ที่ตั้งไว้ → แสดงหน้าใส่ PIN
+        if (isPWAApp && localStorage.getItem(getPinStorageKey(savedEmpId))) {
+          document.getElementById("pin-login-emp-id").value = savedEmpId;
+          showModal("pin-login-modal");
+          return;
+        }
+
+        hideLoginContainer();
+        
+        generateCycleOptions();
+        const currentCycle = getCurrentCycleRange();
+        document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+        document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+        loadAllData();
+      } else {
+        isLoggedIn = false;
+        showLoginContainer();
       }
 
       startLiveTime();
