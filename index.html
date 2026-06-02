@@ -3807,6 +3807,33 @@ function updateEmployeeProfileUI() {
       }
     }
 
+    // Helper function to format payslip cycle to "เดือนไทย พ.ศ."
+    function formatPayslipCycle(cycleStr) {
+      if (!cycleStr || cycleStr === "N/A") return cycleStr;
+      
+      // Handle formats like "2569-01" or "2569-01-01"
+      let year, month;
+      const parts = cycleStr.split("-");
+      if (parts.length >= 2) {
+        year = parseInt(parts[0]);
+        month = parseInt(parts[1]);
+      } else {
+        // If it's not in expected format, just return it
+        return cycleStr;
+      }
+      
+      const thaiMonths = [
+        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+      ];
+      
+      if (month >= 1 && month <= 12 && year) {
+        return `${thaiMonths[month - 1]} ${year}`;
+      }
+      
+      return cycleStr;
+    }
+
     // --- ส่วนสลิปเงินเดือน (Payslip Portal) ---
     function displayPayslipList() {
       const container = document.getElementById("payslip-records-list");
@@ -3819,6 +3846,7 @@ function updateEmployeeProfileUI() {
 
       payslipsList.forEach(slip => {
         const cycle = slip["รอบเงินเดือน"] || "N/A";
+        const formattedCycle = formatPayslipCycle(cycle);
         const net = slip["ยอดสุทธิ"] || 0;
         const date = slip["วันที่บันทึก"] || "N/A";
 
@@ -3831,7 +3859,7 @@ function updateEmployeeProfileUI() {
               <i class="fa-solid fa-file-invoice-dollar"></i>
             </div>
             <div>
-              <p class="text-xs font-bold text-slate-800">รอบเงินเดือนประจำ ${cycle}</p>
+              <p class="text-xs font-bold text-slate-800">รอบเงินเดือนประจำ ${formattedCycle}</p>
               <p class="text-[9px] text-slate-400">วันที่ส่งเอกสาร: ${formatThaiDate(date)}</p>
             </div>
           </div>
@@ -3847,6 +3875,7 @@ function updateEmployeeProfileUI() {
     function openPayslipModal(slip) {
       const content = document.getElementById("payslip-detail-content");
       const cycle = slip["รอบเงินเดือน"] || "N/A";
+      const formattedCycle = formatPayslipCycle(cycle);
       const net = slip["ยอดสุทธิ"] || 0;
       
       content.innerHTML = `
@@ -3863,7 +3892,7 @@ function updateEmployeeProfileUI() {
           </div>
           <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
             <span class="text-slate-400">รอบบัญชีสลิป:</span>
-            <span class="font-semibold text-slate-700">${cycle}</span>
+            <span class="font-semibold text-slate-700">${formattedCycle}</span>
           </div>
           <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
             <span class="text-slate-400">ชื่อเอกสารอ้างอิง:</span>
