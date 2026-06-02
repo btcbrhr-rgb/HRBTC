@@ -6287,6 +6287,34 @@ ${slip.textSample}
     // --- โปรไฟล์พนักงาน ---
     let currentProfileData = null;
     
+    // Helper function to format date values correctly for inputs
+    function formatDateForInput(value) {
+      if (!value) return "";
+      
+      let date;
+      if (typeof value === "string") {
+        // If it's an ISO string or other date string
+        date = new Date(value);
+      } else if (value instanceof Date) {
+        date = value;
+      }
+      
+      if (date && !isNaN(date.getTime())) {
+        // Format to YYYY-MM-DD for input type="date"
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+      
+      // If it's already in YYYY-MM-DD format, just return it
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return value;
+      }
+      
+      return value.toString();
+    }
+
     async function loadProfileData() {
       showToast("⏳ กำลังโหลดข้อมูลโปรไฟล์...", "info");
       try {
@@ -6298,7 +6326,7 @@ ${slip.textSample}
           document.getElementById("profile-emp-id").value = res.data["รหัสพนักงาน"] || "";
           document.getElementById("profile-name").value = res.data["ชื่อ-นามสกุล"] || "";
           document.getElementById("profile-position").value = res.data["ตำแหน่ง"] || "";
-          document.getElementById("profile-start-date").value = res.data["วันที่เริ่มงาน"] || "";
+          document.getElementById("profile-start-date").value = formatDateForInput(res.data["วันที่เริ่มงาน"]);
           document.getElementById("profile-id-card").value = res.data["เลขบัตรประชาชน"] || "";
           document.getElementById("profile-status").value = res.data["สถานะ"] || "";
           document.getElementById("profile-dayoff").value = res.data["วันหยุดประจําสัปดาห์"] || "";
@@ -6310,7 +6338,7 @@ ${slip.textSample}
           // Update editable fields
           document.getElementById("profile-phone").value = res.data["เบอร์โทรศัพท์"] || "";
           document.getElementById("profile-address").value = res.data["ที่อยู่"] || "";
-          document.getElementById("profile-birthdate").value = res.data["วันเดือนปีเกิด"] || "";
+          document.getElementById("profile-birthdate").value = formatDateForInput(res.data["วันเดือนปีเกิด"]);
           
           // Update profile photo
           const photoUrl = convertDriveUrl(res.data["ลิ้งภาพโปรไฟล์"]);
