@@ -3008,7 +3008,19 @@ async function handleLogin(e) {
     // Google Drive URL Utilities
     // ─────────────────────────────────────────────────────────
     function convertDriveUrl(url) {
-      if (!url || typeof url !== 'string') return url;
+      if (!url) return url;
+      // Check if input is a JSON string and extract the actual URL
+      if (typeof url === 'string' && (url.startsWith('{') || url.startsWith('['))) {
+        try {
+          const parsed = JSON.parse(url);
+          if (parsed && parsed.url) {
+            url = parsed.url;
+          }
+        } catch (e) {
+          // If parsing fails, just use the original string
+        }
+      }
+      if (typeof url !== 'string') return url;
       if (!url.includes('drive.google.com')) return url;
       let fileId = null;
       const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
@@ -3025,6 +3037,17 @@ async function handleLogin(e) {
       if (!url || url === 'N/A' || url === '') {
         showToast('ไม่พบลิงก์เอกสาร', 'warning');
         return;
+      }
+      // Check if input is a JSON string and extract the actual URL
+      if (typeof url === 'string' && (url.startsWith('{') || url.startsWith('['))) {
+        try {
+          const parsed = JSON.parse(url);
+          if (parsed && parsed.url) {
+            url = parsed.url;
+          }
+        } catch (e) {
+          // If parsing fails, just use the original string
+        }
       }
       let fileId = null;
       const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
