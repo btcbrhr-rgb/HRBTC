@@ -448,17 +448,7 @@
         </div>
       </div>
 
-      <!-- === [MODAL: Loading - ตรวจสอบสิทธิ์] === -->
-      <div id="loading-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-4 shadow-2xl animate-slide-up">
-          <div class="text-center space-y-3">
-            <i class="fa-solid fa-circle-notch animate-spin text-3xl text-blue-500"></i>
-            <h3 class="font-bold text-base text-slate-800">กำลังตรวจสอบสิทธิ์การเข้าถึง</h3>
-            <div id="loading-debug" class="text-center text-xs text-slate-500"></div>
-            <div id="loading-userid" class="text-center text-sm text-slate-600 font-mono hidden"></div>
-          </div>
-        </div>
-      </div>
+
 
       <!-- === [MODAL: LINE Link Confirmation] === -->
       <div id="line-link-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
@@ -2798,39 +2788,29 @@
       // Parse URL params for target page
       const urlParams = getUrlParams();
       targetPage = urlParams.page;
-      
-      const loadingDebugEl = document.getElementById("loading-debug");
 
       // Initialize LIFF
       try {
         // First, check if liff is already initialized by trying to call liff.isInClient()!
         try {
-          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ checking if liff is already initialized...</div>`;
           liff.isInClient(); // If this doesn't throw, liff is already initialized!
-          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ liff already initialized!</div>`;
         } catch (e) {
           // liff is NOT initialized yet! Let's initialize it now!
-          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ liff not initialized, calling liff.init()...</div>`;
           await liff.init({ liffId: LIFF_ID });
-          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ liff.init success</div>`;
         }
         
         if (!liff.isLoggedIn()) {
-          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>⚠️ liff not logged in - redirecting</div>`;
           saveTargetPageAndLineUserId(targetPage, null);
           await liff.login();
           return; // Wait for login to redirect back
         }
 
-        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ getting profile...</div>`;
         const profile = await liff.getProfile();
         currentLineUserId = profile.userId;
         saveTargetPageAndLineUserId(null, currentLineUserId);
-        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ got LineUserId: ${currentLineUserId}</div>`;
         showLineUserId();
 
         // Check if LineUserId is linked to an employee
-        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ checking employee...</div>`;
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           body: JSON.stringify({
@@ -2840,18 +2820,12 @@
         });
 
         if (res && res.status === "success" && res.data) {
-          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ employee found - auto login</div>`;
           autoLoginAndNavigate(res.data);
         } else {
-          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ no employee found - show linking UI</div>`;
           showLineLinkingUI();
         }
       } catch (err) {
         console.error("Error in LINE login:", err);
-        if (loadingDebugEl) {
-          loadingDebugEl.innerHTML += `<div class="text-red-600">❌ Error: ${err.message || err}</div>`;
-          loadingDebugEl.innerHTML += `<div class="text-red-500">${JSON.stringify(err)}</div>`;
-        }
         showToast("❌ เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE", "error");
       }
     }
@@ -2971,71 +2945,15 @@
         return;
       }
 
-      // For testing, set fake LineUserId to see the display
-      // currentLineUserId = "U1234567890abcdef1234567890abcdef";
       // Get isLINE from window._inappInfo, or re‑check user agent
       const isLINE = (window._inappInfo && window._inappInfo.isLINE) || /Line\//i.test(navigator.userAgent);
       
-      // Show loading modal
-      const loadingModal = document.getElementById("loading-modal");
-      const loadingUserIdEl = document.getElementById("loading-userid");
-      const loadingDebugEl = document.getElementById("loading-debug");
-      loadingModal.classList.remove("hidden");
-      
-      // Show debug info in loading modal
-      loadingDebugEl.innerHTML = `
-        <div>isLINE: <span class="font-bold">${isLINE}</span></div>
-        <div>userAgent: ${navigator.userAgent}</div>
-        <div>window._inappInfo: ${JSON.stringify(window._inappInfo || {})}</div>
-      `;
-      
       // ถ้าอยู่ใน LINE → init LIFF และ get profile ทุกครั้ง!
       if (isLINE) {
-        loadingDebugEl.innerHTML += `<div>✅ อยู่ใน LINE, calling handleLineLogin()...</div>`;
         await handleLineLogin();
-        loadingDebugEl.innerHTML += `<div>✅ handleLineLogin() completed!</div>`;
-      }
-      
-      // Update loading modal with user id if we have it
-      if (currentLineUserId) {
-        loadingUserIdEl.textContent = `UserId: ${currentLineUserId}`;
-        loadingUserIdEl.classList.remove("hidden");
-      }
-      
-      // If we don't have LineUserId at all, just go to login page
-      if (!currentLineUserId) {
-        loadingModal.classList.add("hidden");
-        showLoginContainer();
       } else {
-        // Now check if LineUserId is linked to an employee
-        try {
-          const res = await fetchWithTimeout(SERVER_API_URL, {
-            method: "POST",
-            body: JSON.stringify({
-              action: "getEmployeeByLineId",
-              lineId: currentLineUserId
-            })
-          });
-
-          // Hide loading modal
-          loadingModal.classList.add("hidden");
-
-          if (res && res.status === "success" && res.data) {
-            // ถ้ามี UserId ในชีตแล้ว: ทะลุเข้าระบบ อัตโนมัติ เปิดหน้าตาม Rich Menu
-            autoLoginAndNavigate(res.data);
-          } else {
-            // ถ้ายังไม่มี: เปิดที่หน้า Login ปกติ → แสดง UserId → แสดงข้อความ
-            showLoginContainer();
-            showLineUserId();
-            showLineLinkingUI();
-          }
-        } catch (err) {
-          console.error("Error checking employee by line id", err);
-          loadingModal.classList.add("hidden");
-          showLoginContainer();
-          showLineUserId();
-          showLineLinkingUI();
-        }
+        // ถ้าไม่ได้อยู่ใน LINE → แสดงหน้า login ปกติ
+        showLoginContainer();
       }
 
       startLiveTime();
