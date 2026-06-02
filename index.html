@@ -2813,67 +2813,73 @@
         return;
       }
 
-      // If not logged in yet, try to check LINE automatically
-      try {
-        await liff.init({ liffId: LIFF_ID });
-        if (!liff.isLoggedIn()) {
-          await liff.login();
-          return; // Wait for login to redirect back
-        }
-
-        const profile = await liff.getProfile();
-        currentLineUserId = profile.userId;
-
-        // Check if LineUserId is linked to an employee
-        const res = await fetchWithTimeout(SERVER_API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "getEmployeeByLineId",
-            lineId: currentLineUserId
-          })
-        });
-
-        if (res && res.status === "success" && res.data) {
-          // Already linked! Auto login
-          isLoggedIn = true;
-          currentEmployeeId = res.data["รหัสพนักงาน"];
-          employeeData = res.data;
-          localStorage.setItem("is_logged_in", "true");
-          localStorage.setItem("hr_emp_id", currentEmployeeId);
-
-          hideLoginContainer();
-          generateCycleOptions();
-          const currentCycle = getCurrentCycleRange();
-          document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-          document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-          loadAllData();
-
-          // Navigate to target page if specified
-          if (targetPage) {
-            navigateTo(targetPage);
+      // If not logged in yet, try to check LINE automatically ONLY IF IN LINE IN-APP BROWSER
+      if (isLINE || window.location.hostname === "liff.line.me") {
+        try {
+          await liff.init({ liffId: LIFF_ID });
+          if (!liff.isLoggedIn()) {
+            await liff.login();
+            return; // Wait for login to redirect back
           }
-        } else {
-          // Not linked yet! Show login page with message
+
+          const profile = await liff.getProfile();
+          currentLineUserId = profile.userId;
+
+          // Check if LineUserId is linked to an employee
+          const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: "POST",
+            body: JSON.stringify({
+              action: "getEmployeeByLineId",
+              lineId: currentLineUserId
+            })
+          });
+
+          if (res && res.status === "success" && res.data) {
+            // Already linked! Auto login
+            isLoggedIn = true;
+            currentEmployeeId = res.data["รหัสพนักงาน"];
+            employeeData = res.data;
+            localStorage.setItem("is_logged_in", "true");
+            localStorage.setItem("hr_emp_id", currentEmployeeId);
+
+            hideLoginContainer();
+            generateCycleOptions();
+            const currentCycle = getCurrentCycleRange();
+            document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+            document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+            loadAllData();
+
+            // Navigate to target page if specified
+            if (targetPage) {
+              navigateTo(targetPage);
+            }
+          } else {
+            // Not linked yet! Show login page with message
+            isLoggedIn = false;
+            showLoginContainer();
+            // Add a message above the login form
+            const loginForm = document.querySelector("#login-container form");
+            if (loginForm && !document.getElementById("line-link-message")) {
+              const messageDiv = document.createElement("div");
+              messageDiv.id = "line-link-message";
+              messageDiv.className = "text-center p-3 mb-3 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium";
+              messageDiv.textContent = "กรุณากรอกรหัสพนักงานของคุณ เพื่อเชื่อมต่อบัญชี LINE ในครั้งแรก";
+              loginForm.insertBefore(messageDiv, loginForm.firstChild);
+            }
+
+            const loginTitle = document.getElementById("login-container").querySelector("h3");
+            if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
+            const loginBtn = document.querySelector("#login-container button[type='submit']");
+            if (loginBtn) loginBtn.innerHTML = `<span>เชื่อมต่อบัญชี LINE</span><i class="fa-solid fa-arrow-right text-xs"></i>`;
+          }
+        } catch (err) {
+          console.warn("LIFF check failed, showing normal login", err);
+          // If LIFF fails, show normal login page
           isLoggedIn = false;
           showLoginContainer();
-          // Add a message above the login form
-          const loginForm = document.querySelector("#login-container form");
-          if (loginForm && !document.getElementById("line-link-message")) {
-            const messageDiv = document.createElement("div");
-            messageDiv.id = "line-link-message";
-            messageDiv.className = "text-center p-3 mb-3 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium";
-            messageDiv.textContent = "กรุณากรอกรหัสพนักงานของคุณ เพื่อเชื่อมต่อบัญชี LINE ในครั้งแรก";
-            loginForm.insertBefore(messageDiv, loginForm.firstChild);
-          }
-
-          const loginTitle = document.getElementById("login-container").querySelector("h3");
-          if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
-          const loginBtn = document.querySelector("#login-container button[type='submit']");
-          if (loginBtn) loginBtn.innerHTML = `<span>เชื่อมต่อบัญชี LINE</span><i class="fa-solid fa-arrow-right text-xs"></i>`;
         }
-      } catch (err) {
-        console.warn("LIFF check failed, showing normal login", err);
-        // If LIFF fails, show normal login page
+      } else {
+        // If not in LINE, just show normal login page
         isLoggedIn = false;
         showLoginContainer();
       }
