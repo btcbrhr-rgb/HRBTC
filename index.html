@@ -2798,22 +2798,31 @@
       // Parse URL params for target page
       const urlParams = getUrlParams();
       targetPage = urlParams.page;
+      
+      const loadingDebugEl = document.getElementById("loading-debug");
 
       // Initialize LIFF
       try {
+        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ liff.init called</div>`;
         await liff.init({ liffId: LIFF_ID });
+        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ liff.init success</div>`;
+        
         if (!liff.isLoggedIn()) {
+          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>⚠️ liff not logged in - redirecting</div>`;
           saveTargetPageAndLineUserId(targetPage, null);
           await liff.login();
           return; // Wait for login to redirect back
         }
 
+        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ getting profile...</div>`;
         const profile = await liff.getProfile();
         currentLineUserId = profile.userId;
         saveTargetPageAndLineUserId(null, currentLineUserId);
+        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ got LineUserId: ${currentLineUserId}</div>`;
         showLineUserId();
 
         // Check if LineUserId is linked to an employee
+        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ checking employee...</div>`;
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           body: JSON.stringify({
@@ -2823,12 +2832,18 @@
         });
 
         if (res && res.status === "success" && res.data) {
+          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ employee found - auto login</div>`;
           autoLoginAndNavigate(res.data);
         } else {
+          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ no employee found - show linking UI</div>`;
           showLineLinkingUI();
         }
       } catch (err) {
         console.error("Error in LINE login:", err);
+        if (loadingDebugEl) {
+          loadingDebugEl.innerHTML += `<div class="text-red-600">❌ Error: ${err.message || err}</div>`;
+          loadingDebugEl.innerHTML += `<div class="text-red-500">${JSON.stringify(err)}</div>`;
+        }
         showToast("❌ เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE", "error");
       }
     }
@@ -2968,40 +2983,9 @@
       
       // ถ้าอยู่ใน LINE → init LIFF และ get profile ทุกครั้ง!
       if (isLINE) {
-        loadingDebugEl.innerHTML += `<div>✅ อยู่ใน LINE, กำลัง init LIFF...</div>`;
-        try {
-          // Add a timeout for liff.init to prevent hanging
-          const initPromise = liff.init({ liffId: LIFF_ID });
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("LIFF init timeout after 5 seconds")), 5000)
-          );
-          
-          await Promise.race([initPromise, timeoutPromise]);
-          loadingDebugEl.innerHTML += `<div>✅ LIFF init สำเร็จ!</div>`;
-          
-          if (!liff.isLoggedIn()) {
-            loadingDebugEl.innerHTML += `<div>⚠️ ยังไม่ได้ login LINE, กำลัง redirect...</div>`;
-            saveTargetPageAndLineUserId(targetPage, null);
-            await liff.login();
-            return;
-          }
-
-          // Get profile จาก LINE ทุกครั้ง!
-          loadingDebugEl.innerHTML += `<div>✅ กำลัง get profile...</div>`;
-          const profilePromise = liff.getProfile();
-          const profileTimeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("getProfile timeout after 5 seconds")), 5000)
-          );
-          
-          const profile = await Promise.race([profilePromise, profileTimeout]);
-          currentLineUserId = profile.userId;
-          saveTargetPageAndLineUserId(null, currentLineUserId);
-          loadingDebugEl.innerHTML += `<div>✅ ได้ LineUserId: ${currentLineUserId}</div>`;
-        } catch (err) {
-          console.error("LIFF check failed, showing normal login", err);
-          loadingDebugEl.innerHTML += `<div class="text-red-600">❌ LIFF ผิดพลาด: ${err.message || err}</div>`;
-          loadingDebugEl.innerHTML += `<div class="text-red-500">${JSON.stringify(err)}</div>`;
-        }
+        loadingDebugEl.innerHTML += `<div>✅ อยู่ใน LINE, calling handleLineLogin()...</div>`;
+        await handleLineLogin();
+        loadingDebugEl.innerHTML += `<div>✅ handleLineLogin() completed!</div>`;
       }
       
       // Update loading modal with user id if we have it
