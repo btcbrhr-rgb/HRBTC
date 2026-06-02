@@ -2970,7 +2970,13 @@
       if (isLINE) {
         loadingDebugEl.innerHTML += `<div>✅ อยู่ใน LINE, กำลัง init LIFF...</div>`;
         try {
-          await liff.init({ liffId: LIFF_ID });
+          // Add a timeout for liff.init to prevent hanging
+          const initPromise = liff.init({ liffId: LIFF_ID });
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("LIFF init timeout after 5 seconds")), 5000)
+          );
+          
+          await Promise.race([initPromise, timeoutPromise]);
           loadingDebugEl.innerHTML += `<div>✅ LIFF init สำเร็จ!</div>`;
           
           if (!liff.isLoggedIn()) {
@@ -2982,13 +2988,19 @@
 
           // Get profile จาก LINE ทุกครั้ง!
           loadingDebugEl.innerHTML += `<div>✅ กำลัง get profile...</div>`;
-          const profile = await liff.getProfile();
+          const profilePromise = liff.getProfile();
+          const profileTimeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("getProfile timeout after 5 seconds")), 5000)
+          );
+          
+          const profile = await Promise.race([profilePromise, profileTimeout]);
           currentLineUserId = profile.userId;
           saveTargetPageAndLineUserId(null, currentLineUserId);
           loadingDebugEl.innerHTML += `<div>✅ ได้ LineUserId: ${currentLineUserId}</div>`;
         } catch (err) {
           console.error("LIFF check failed, showing normal login", err);
-          loadingDebugEl.innerHTML += `<div class="text-red-600">❌ LIFF ผิดพลาด: ${err.message}</div>`;
+          loadingDebugEl.innerHTML += `<div class="text-red-600">❌ LIFF ผิดพลาด: ${err.message || err}</div>`;
+          loadingDebugEl.innerHTML += `<div class="text-red-500">${JSON.stringify(err)}</div>`;
         }
       }
       
