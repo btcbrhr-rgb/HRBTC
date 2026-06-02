@@ -2803,9 +2803,17 @@
 
       // Initialize LIFF
       try {
-        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ liff.init called</div>`;
-        await liff.init({ liffId: LIFF_ID });
-        if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ liff.init success</div>`;
+        // First, check if liff is already initialized by trying to call liff.isInClient()!
+        try {
+          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ checking if liff is already initialized...</div>`;
+          liff.isInClient(); // If this doesn't throw, liff is already initialized!
+          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ liff already initialized!</div>`;
+        } catch (e) {
+          // liff is NOT initialized yet! Let's initialize it now!
+          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>ℹ️ liff not initialized, calling liff.init()...</div>`;
+          await liff.init({ liffId: LIFF_ID });
+          if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>✅ liff.init success</div>`;
+        }
         
         if (!liff.isLoggedIn()) {
           if (loadingDebugEl) loadingDebugEl.innerHTML += `<div>⚠️ liff not logged in - redirecting</div>`;
