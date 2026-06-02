@@ -2773,6 +2773,7 @@ async function handleLogin(e) {
           timeRecordsList = timeResponse.data;
           calculateAndDisplayStats();
           displayActivitiesList();
+          updateAttendanceStatus(); // Update check-in/out buttons
         }
 
         const leaveResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
@@ -3162,8 +3163,33 @@ function updateEmployeeProfileUI() {
       if (text) {
         text.innerHTML = `<span class="font-semibold">${info.label}</span><br>${info.description}`;
       }
-      if (btnIn) btnIn.disabled = false;
-      if (btnOut) btnOut.disabled = false;
+
+      // Check today's time record to disable buttons
+      if (btnIn || btnOut) {
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
+        const todayRecord = timeRecordsList.find(r => r["วันที่"] === todayStr);
+        
+        let hasIn = false;
+        let hasOut = false;
+        if (todayRecord) {
+          hasIn = !!todayRecord["เวลาเข้า"];
+          hasOut = !!todayRecord["เวลาออก"];
+        }
+
+        if (btnIn) {
+          btnIn.disabled = hasIn;
+          // Also update button styling when disabled
+          btnIn.classList.toggle("opacity-50", hasIn);
+          btnIn.classList.toggle("cursor-not-allowed", hasIn);
+        }
+        if (btnOut) {
+          btnOut.disabled = hasOut;
+          btnOut.classList.toggle("opacity-50", hasOut);
+          btnOut.classList.toggle("cursor-not-allowed", hasOut);
+        }
+      }
     }
 
     function applyRolePermissions() {
