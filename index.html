@@ -2978,17 +2978,43 @@
         return;
       }
 
-      // ถ้าอยู่ใน LINE → init LIFF และ get profile ทุกครั้ง!
-      if (isLINE) {
-        await handleLineLogin();
-      } else {
-        // ถ้าไม่ได้อยู่ใน LINE → แสดงหน้า login ปกติ
-        showLoginContainer();
-        // ซ่อน LINE section ถ้าเป็น desktop (ไม่ใช่มือถือ)
-        if (!isMobile) {
-          const lineSection = document.getElementById("line-login-section");
-          if (lineSection) lineSection.classList.add("hidden");
+      // ลอง init LIFF ก่อน - ถ้าสำเร็จ = เปิดจาก LINE
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        // LIFF init สำเร็จ → เปิดจาก LINE แน่นอน
+        const profile = await liff.getProfile();
+        currentLineUserId = profile.userId;
+        
+        // ตรวจว่า UserId มีในชีตพนักงานหรือยัง
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "getEmployeeByLineId",
+            lineId: currentLineUserId
+          })
+        });
+
+        if (res && res.status === "success" && res.data) {
+          // มีในชีต → auto login + navigate
+          autoLoginAndNavigate(res.data);
+        } else {
+          // ไม่มี → แสดง login + UserId + ข้อความ
+          showLoginContainer();
+          showLineUserId();
+          showLineLinkingUI();
         }
+        return;
+      } catch (e) {
+        // LIFF init ล้มเหลว = ไม่ได้เปิดจาก LINE
+      }
+
+      // ถ้าไม่ได้เปิดจาก LINE → แสดงหน้า login ปกติ
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      showLoginContainer();
+      // ซ่อน LINE section ถ้าเป็น desktop
+      if (!isMobile) {
+        const lineSection = document.getElementById("line-login-section");
+        if (lineSection) lineSection.classList.add("hidden");
       }
       
       startLiveTime();
