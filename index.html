@@ -1308,14 +1308,23 @@
               <button onclick="switchAdminTab('import-payslip')" id="admin-menu-import-payslip" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
                 <i class="fa-solid fa-file-invoice text-slate-400"></i> นำเข้าสลิปเงินเดือนใหม่ (.pdf)
               </button>
-              <button onclick="switchAdminTab('approve-leave')" id="admin-menu-approve-leave" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
-                <i class="fa-solid fa-plane-departure text-slate-400"></i> อนุมัติใบลางาน
+              <button onclick="switchAdminTab('approve-leave')" id="admin-menu-approve-leave" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                <div class="flex items-center gap-3">
+                  <i class="fa-solid fa-plane-departure text-slate-400"></i> อนุมัติใบลางาน
+                </div>
+                <span id="admin-menu-approve-leave-badge" class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold border border-amber-200 hidden"></span>
               </button>
-              <button onclick="switchAdminTab('approve-correction')" id="admin-menu-approve-correction" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
-                <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> อนุมัติแก้ไขเวลา
+              <button onclick="switchAdminTab('approve-correction')" id="admin-menu-approve-correction" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                <div class="flex items-center gap-3">
+                  <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> อนุมัติแก้ไขเวลา
+                </div>
+                <span id="admin-menu-approve-correction-badge" class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold border border-amber-200 hidden"></span>
               </button>
-              <button onclick="switchAdminTab('approve-advance')" id="admin-menu-approve-advance" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
-                <i class="fa-solid fa-hand-holding-dollar text-slate-400"></i> อนุมัติเบิกเงินสำรอง
+              <button onclick="switchAdminTab('approve-advance')" id="admin-menu-approve-advance" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                <div class="flex items-center gap-3">
+                  <i class="fa-solid fa-hand-holding-dollar text-slate-400"></i> อนุมัติเบิกเงินสำรอง
+                </div>
+                <span id="admin-menu-approve-advance-badge" class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold border border-amber-200 hidden"></span>
               </button>
               <button onclick="switchAdminTab('announcements')" id="admin-menu-announcements" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
                 <i class="fa-solid fa-bullhorn text-slate-400"></i> ประกาศข่าวสาร
@@ -4673,6 +4682,7 @@ function updateEmployeeProfileUI() {
         
         showToast("🛠️ เข้าสู่โหมดผู้ดูแลระบบ (เต็มหน้าจอ)", "info");
         switchAdminTab(adminActiveTab);
+        loadAdminApprovals();
       } else {
         adminContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
@@ -4844,6 +4854,20 @@ function updateEmployeeProfileUI() {
       }
     }
 
+    // Helper: Calculate days between two dates (date1 - date2)
+    function getDaysDifference(dateStr1, dateStr2) {
+      const d1 = new Date(dateStr1);
+      const d2 = new Date(dateStr2);
+      const timeDiff = d1.getTime() - d2.getTime();
+      return Math.floor(timeDiff / (1000 * 3600 * 24));
+    }
+    
+    // Helper: Get today's date as YYYY-MM-DD string
+    function getTodayDateString() {
+      const today = new Date();
+      return today.toISOString().split('T')[0];
+    }
+    
     // จัดการแท็บข้อมูลการอนุมัติ (ลา, แก้ไขเวลา, เบิกเงิน)
     async function loadAdminApprovals() {
       const leaveContainer = document.getElementById("admin-leave-table-body");
@@ -4854,12 +4878,34 @@ function updateEmployeeProfileUI() {
       correctionContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดข้อมูลคำขอแก้ไขเวลา...</td></tr>`;
       advanceContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ โหลดคำขอเบิกเงินสะสมกลางเดือน...</td></tr>`;
 
+      const today = getTodayDateString();
+      
       try {
+        let leavePendingCount = 0;
+        let leaveDueToday = 0;
+        let leaveDueIn1 = 0;
+        let leaveDueIn3 = 0;
+        let leaveDueIn5 = 0;
+
         // 1. โหลดข้อมูลใบลางานทั้งหมด
         const leaveRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*`);
         if (leaveRes.status === 'success') {
           leaveContainer.innerHTML = "";
           const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
+          leavePendingCount = pending.length;
+          
+          // Calculate due dates for leave requests
+          pending.forEach(req => {
+            const startDate = req["วันที่เริ่ม"];
+            if (startDate) {
+              const daysUntil = getDaysDifference(startDate, today);
+              if (daysUntil === 0) leaveDueToday++;
+              else if (daysUntil === 1) leaveDueIn1++;
+              else if (daysUntil === 3) leaveDueIn3++;
+              else if (daysUntil === 5) leaveDueIn5++;
+            }
+          });
+
           if (pending.length === 0) {
             leaveContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
           } else {
@@ -4900,12 +4946,51 @@ function updateEmployeeProfileUI() {
             });
           }
         }
-
+        
+        // Update leave badge
+        const leaveBadge = document.getElementById("admin-menu-approve-leave-badge");
+        if (leaveBadge) {
+          if (leavePendingCount > 0) {
+            leaveBadge.textContent = leavePendingCount;
+            leaveBadge.classList.remove("hidden");
+            // Change color to red if any are due today
+            if (leaveDueToday > 0) {
+              leaveBadge.classList.add("bg-rose-100", "text-rose-700", "border-rose-200");
+              leaveBadge.classList.remove("bg-amber-100", "text-amber-700", "border-amber-200");
+            } else {
+              leaveBadge.classList.add("bg-amber-100", "text-amber-700", "border-amber-200");
+              leaveBadge.classList.remove("bg-rose-100", "text-rose-700", "border-rose-200");
+            }
+          } else {
+            leaveBadge.classList.add("hidden");
+          }
+        }
+        
+        let corrPendingCount = 0;
+        let corrDueToday = 0;
+        let corrDueIn1 = 0;
+        let corrDueIn3 = 0;
+        let corrDueIn5 = 0;
+        
         // 2. โหลดคำขอแก้ไขเวลาทั้งหมด
         const corrRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*`);
         if (corrRes.status === 'success') {
           correctionContainer.innerHTML = "";
           const pending = corrRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
+          corrPendingCount = pending.length;
+          
+          // Calculate due dates for correction requests
+          pending.forEach(req => {
+            const reqDate = req["วันที่"];
+            if (reqDate) {
+              const daysUntil = getDaysDifference(reqDate, today);
+              if (daysUntil === 0) corrDueToday++;
+              else if (daysUntil === 1) corrDueIn1++;
+              else if (daysUntil === 3) corrDueIn3++;
+              else if (daysUntil === 5) corrDueIn5++;
+            }
+          });
+
           if (pending.length === 0) {
             correctionContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ</td></tr>`;
           } else {
@@ -4937,12 +5022,50 @@ function updateEmployeeProfileUI() {
             });
           }
         }
-
+        
+        // Update correction badge
+        const corrBadge = document.getElementById("admin-menu-approve-correction-badge");
+        if (corrBadge) {
+          if (corrPendingCount > 0) {
+            corrBadge.textContent = corrPendingCount;
+            corrBadge.classList.remove("hidden");
+            if (corrDueToday > 0) {
+              corrBadge.classList.add("bg-rose-100", "text-rose-700", "border-rose-200");
+              corrBadge.classList.remove("bg-amber-100", "text-amber-700", "border-amber-200");
+            } else {
+              corrBadge.classList.add("bg-amber-100", "text-amber-700", "border-amber-200");
+              corrBadge.classList.remove("bg-rose-100", "text-rose-700", "border-rose-200");
+            }
+          } else {
+            corrBadge.classList.add("hidden");
+          }
+        }
+        
+        let advPendingCount = 0;
+        let advDueToday = 0;
+        let advDueIn1 = 0;
+        let advDueIn3 = 0;
+        let advDueIn5 = 0;
+        
         // 3. โหลดคำขอเบิกเงินล่วงหน้า
         const advRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*`);
         if (advRes.status === 'success') {
           advanceContainer.innerHTML = "";
           const pending = advRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ' || r["สถานะ"] === 'รอตรวจสอบ');
+          advPendingCount = pending.length;
+          
+          // Calculate due dates for advance requests
+          pending.forEach(req => {
+            const reqDate = req["วันที่เบิก"];
+            if (reqDate) {
+              const daysUntil = getDaysDifference(reqDate, today);
+              if (daysUntil === 0) advDueToday++;
+              else if (daysUntil === 1) advDueIn1++;
+              else if (daysUntil === 3) advDueIn3++;
+              else if (daysUntil === 5) advDueIn5++;
+            }
+          });
+
           if (pending.length === 0) {
             advanceContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอเบิกเงินที่รอการอนุมัติ</td></tr>`;
           } else {
@@ -4973,6 +5096,24 @@ function updateEmployeeProfileUI() {
               `;
               advanceContainer.appendChild(tr);
             });
+          }
+        }
+        
+        // Update advance badge
+        const advBadge = document.getElementById("admin-menu-approve-advance-badge");
+        if (advBadge) {
+          if (advPendingCount > 0) {
+            advBadge.textContent = advPendingCount;
+            advBadge.classList.remove("hidden");
+            if (advDueToday > 0) {
+              advBadge.classList.add("bg-rose-100", "text-rose-700", "border-rose-200");
+              advBadge.classList.remove("bg-amber-100", "text-amber-700", "border-amber-200");
+            } else {
+              advBadge.classList.add("bg-amber-100", "text-amber-700", "border-amber-200");
+              advBadge.classList.remove("bg-rose-100", "text-rose-700", "border-rose-200");
+            }
+          } else {
+            advBadge.classList.add("hidden");
           }
         }
       } catch (err) {
