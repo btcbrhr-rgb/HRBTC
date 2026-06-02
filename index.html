@@ -768,12 +768,21 @@
               </div>
               
               <div class="space-y-1">
-                <label for="leave-period-select" class="text-xs text-slate-500 font-semibold">ระยะเวลา</label>
-                <select id="leave-period-select" required title="ระยะเวลา" aria-label="ระยะเวลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700" onchange="calculateLeaveDays()">
-                  <option value="เต็มวัน" selected>ลาเต็มวัน</option>
-                  <option value="ครึ่งวันเช้า">ลาครึ่งวันเช้า</option>
-                  <option value="ครึ่งวันบ่าย">ลาครึ่งวันบ่าย</option>
-                </select>
+                <label class="text-xs text-slate-500 font-semibold">ระยะเวลา</label>
+                <div class="flex gap-2">
+                  <label class="leave-period-option flex-1 flex items-center justify-center gap-1 border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-700 cursor-pointer transition-all">
+                    <input type="radio" name="leave-period" id="leave-period-full" value="เต็มวัน" checked onchange="calculateLeaveDays()" class="w-3 h-3 text-blue-600">
+                    <span>เต็มวัน</span>
+                  </label>
+                  <label class="leave-period-option flex-1 flex items-center justify-center gap-1 border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-700 cursor-pointer transition-all">
+                    <input type="radio" name="leave-period" id="leave-period-morning" value="ครึ่งวันเช้า" onchange="calculateLeaveDays()" class="w-3 h-3 text-blue-600">
+                    <span>เช้า</span>
+                  </label>
+                  <label class="leave-period-option flex-1 flex items-center justify-center gap-1 border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-700 cursor-pointer transition-all">
+                    <input type="radio" name="leave-period" id="leave-period-afternoon" value="ครึ่งวันบ่าย" onchange="calculateLeaveDays()" class="w-3 h-3 text-blue-600">
+                    <span>บ่าย</span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -1090,6 +1099,34 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- === [MODAL: ลายมือเขียน] === -->
+    <div id="signature-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-signature text-blue-500"></i> เช็นลายมือชื่อ</h3>
+          <button onclick="closeSignatureModal()" title="ปิด" aria-label="ปิด" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="space-y-3">
+          <p class="text-xs text-slate-500">กรุณาเช็นลายมือชื่อในช่องด้านล่าง</p>
+          
+          <!-- Signature Canvas -->
+          <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-2">
+            <canvas id="signature-canvas" width="300" height="150" class="w-full bg-white rounded-lg cursor-crosshair"></canvas>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="clearSignatureCanvas()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1">
+              <i class="fa-solid fa-eraser"></i> ล้างลายมือ
+            </button>
+            <button onclick="submitLeaveWithSignature()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1">
+              <i class="fa-solid fa-paper-plane"></i> ส่งคำขอ
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2503,6 +2540,37 @@
     let streamRef = null;
     let cameraMode = "user";
     let leaveAttachmentBase64 = "";
+    let pendingLeavePayload = null;
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+    let signatureCanvas = null;
+    let signatureCtx = null;
+
+    // Initialize leave period radio buttons styling
+    function initLeavePeriodStyling() {
+      const radioButtons = document.querySelectorAll('input[name="leave-period"]');
+      radioButtons.forEach(radio => {
+        radio.addEventListener('change', () => {
+          updateLeavePeriodStyling();
+        });
+      });
+      updateLeavePeriodStyling();
+    }
+
+    function updateLeavePeriodStyling() {
+      const options = document.querySelectorAll('.leave-period-option');
+      options.forEach(option => {
+        const radio = option.querySelector('input[type="radio"]');
+        if (radio.checked) {
+          option.classList.add('bg-blue-50', 'border-blue-300', 'text-blue-800');
+          option.classList.remove('bg-slate-50', 'border-slate-200', 'text-slate-700');
+        } else {
+          option.classList.remove('bg-blue-50', 'border-blue-300', 'text-blue-800');
+          option.classList.add('bg-slate-50', 'border-slate-200', 'text-slate-700');
+        }
+      });
+    }
     let isPWAApp = false; // true = ติดตั้งเป็นแอปมือถือ
 
     // --- ข้อมูลพนักงานและข้อมูลเชิงโครงสร้างปัจจุบัน ---
@@ -3630,7 +3698,7 @@ function updateEmployeeProfileUI() {
         return;
       }
 
-      leaveRequestsList.forEach(l => {
+        leaveRequestsList.forEach(l => {
         const docId = l["เลขที่เอกสาร"] || "N/A";
         const type = l["ประเภทการลา"] || "ลาอื่นๆ";
         const period = l["ระยะเวลา"] || "เต็มวัน";
@@ -3639,6 +3707,7 @@ function updateEmployeeProfileUI() {
         const days = l["จำนวนวัน"] || 1;
         const status = l["สถานะ"] || "รออนุมัติ";
         const reason = l["เหตุผล"] || "ไม่มีการระบุ";
+        const signatureUrl = l["ลายมือชื่อ"] || "";
 
         let badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
         if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
@@ -3660,6 +3729,13 @@ function updateEmployeeProfileUI() {
             <p><strong>ช่วงวันลา:</strong> ${formatThaiDate(start)} ถึง ${formatThaiDate(end)}</p>
             <p class="mt-0.5 text-slate-400 truncate"><strong>เหตุผล:</strong> ${reason}</p>
           </div>
+          
+          ${signatureUrl ? `
+            <div class="mt-1.5 pt-1.5 border-t border-slate-50">
+              <p class="text-[9px] text-slate-400 mb-1"><i class="fa-solid fa-signature"></i> ลายมือชื่อ:</p>
+              <img src="${convertDriveUrl(signatureUrl)}" alt="Signature" class="w-full h-16 object-contain bg-slate-50 rounded border border-slate-100">
+            </div>
+          ` : ""}
           
           <div class="text-[9px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-50">
             <span>เลขที่ใบคำขอ: ${docId}</span>
@@ -3689,11 +3765,11 @@ function updateEmployeeProfileUI() {
       const startDateInput = document.getElementById("leave-start-input");
       const endDateInput = document.getElementById("leave-end-input");
       const daysInput = document.getElementById("leave-days-input");
-      const periodInput = document.getElementById("leave-period-select");
+      const selectedPeriod = document.querySelector('input[name="leave-period"]:checked');
       
       const startDateStr = startDateInput.value;
       const endDateStr = endDateInput.value;
-      const period = periodInput.value;
+      const period = selectedPeriod ? selectedPeriod.value : "เต็มวัน";
       
       // If half day is selected, make end date equal to start date
       if (period === "ครึ่งวันเช้า" || period === "ครึ่งวันบ่าย") {
@@ -3728,7 +3804,8 @@ function updateEmployeeProfileUI() {
       e.preventDefault();
       
       const type = document.getElementById("leave-type-select").value;
-      const period = document.getElementById("leave-period-select").value;
+      const selectedPeriod = document.querySelector('input[name="leave-period"]:checked');
+      const period = selectedPeriod ? selectedPeriod.value : "";
       const days = parseFloat(document.getElementById("leave-days-input").value);
       const start = document.getElementById("leave-start-input").value;
       const end = document.getElementById("leave-end-input").value;
@@ -3754,7 +3831,7 @@ function updateEmployeeProfileUI() {
         return;
       }
 
-      const payload = {
+      pendingLeavePayload = {
         action: "submitLeave",
         empId: currentEmployeeId,
         type: type,
@@ -3768,18 +3845,139 @@ function updateEmployeeProfileUI() {
         lng: currentGpsLocation.lng || "103.1008"
       };
 
+      openSignatureModal();
+    }
+
+    // --- Signature Modal Functions ---
+    function openSignatureModal() {
+      document.getElementById("signature-modal").classList.remove("hidden");
+      initSignatureCanvas();
+    }
+
+    function closeSignatureModal() {
+      document.getElementById("signature-modal").classList.add("hidden");
+      pendingLeavePayload = null;
+    }
+
+    function initSignatureCanvas() {
+      signatureCanvas = document.getElementById("signature-canvas");
+      signatureCtx = signatureCanvas.getContext("2d");
+      
+      // Set canvas background white
+      signatureCtx.fillStyle = "#ffffff";
+      signatureCtx.fillRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      
+      // Set drawing style
+      signatureCtx.strokeStyle = "#000000";
+      signatureCtx.lineWidth = 2;
+      signatureCtx.lineCap = "round";
+      signatureCtx.lineJoin = "round";
+
+      // Mouse events
+      signatureCanvas.addEventListener("mousedown", startDrawing);
+      signatureCanvas.addEventListener("mousemove", draw);
+      signatureCanvas.addEventListener("mouseup", stopDrawing);
+      signatureCanvas.addEventListener("mouseout", stopDrawing);
+
+      // Touch events
+      signatureCanvas.addEventListener("touchstart", startDrawingTouch);
+      signatureCanvas.addEventListener("touchmove", drawTouch);
+      signatureCanvas.addEventListener("touchend", stopDrawing);
+    }
+
+    function startDrawing(e) {
+      isDrawing = true;
+      const rect = signatureCanvas.getBoundingClientRect();
+      lastX = e.clientX - rect.left;
+      lastY = e.clientY - rect.top;
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const rect = signatureCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      signatureCtx.beginPath();
+      signatureCtx.moveTo(lastX, lastY);
+      signatureCtx.lineTo(x, y);
+      signatureCtx.stroke();
+      
+      lastX = x;
+      lastY = y;
+    }
+
+    function startDrawingTouch(e) {
+      e.preventDefault();
+      isDrawing = true;
+      const rect = signatureCanvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      lastX = touch.clientX - rect.left;
+      lastY = touch.clientY - rect.top;
+    }
+
+    function drawTouch(e) {
+      e.preventDefault();
+      if (!isDrawing) return;
+      const rect = signatureCanvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+      
+      signatureCtx.beginPath();
+      signatureCtx.moveTo(lastX, lastY);
+      signatureCtx.lineTo(x, y);
+      signatureCtx.stroke();
+      
+      lastX = x;
+      lastY = y;
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+    }
+
+    function clearSignatureCanvas() {
+      if (signatureCtx) {
+        signatureCtx.fillStyle = "#ffffff";
+        signatureCtx.fillRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      }
+    }
+
+    function isCanvasEmpty() {
+      const imageData = signatureCtx.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height);
+      const pixels = imageData.data;
+      for (let i = 3; i < pixels.length; i += 4) {
+        if (pixels[i] > 0) {
+          return false; // Found a non-transparent pixel
+        }
+      }
+      return true;
+    }
+
+    async function submitLeaveWithSignature() {
+      if (isCanvasEmpty()) {
+        showToast("⚠️ กรุณาเช็นลายมือชื่อก่อนส่งคำขอ", "warning");
+        return;
+      }
+
+      // Get signature as base64
+      const signatureBase64 = signatureCanvas.toDataURL("image/png");
+      pendingLeavePayload.signature = signatureBase64;
+
       showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล...", "info");
 
       try {
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
-          body: JSON.stringify(payload)
+          body: JSON.stringify(pendingLeavePayload)
         });
         
         if (res.status === "success") {
           showToast("🎉 ส่งใบลาเรียบร้อยแล้ว รอ HR ตรวจสอบ", "success");
           document.getElementById("leave-request-form").reset();
           leaveAttachmentBase64 = "";
+          closeSignatureModal();
           loadAllData();
         } else {
           showToast("❌ ล้มเหลว: " + res.message, "error");
@@ -6030,6 +6228,7 @@ ${slip.textSample}
     }
 
     window.addEventListener("DOMContentLoaded", initializePayslipImportControls);
+    window.addEventListener("DOMContentLoaded", initLeavePeriodStyling);
 
     // Helper: แปลง ArrayBuffer เป็น Base64
     function arrayBufferToBase64(buffer) {
