@@ -2774,23 +2774,9 @@
       });
 
       if (res && res.status === "success") {
-        // Link successful! Now login!
         showToast('เชื่อมต่อ LINE สำเร็จ!', 'success');
-        isLoggedIn = true;
-        currentEmployeeId = pendingEmpIdForLineLink;
-        employeeData = res.data;
-        localStorage.setItem("is_logged_in", "true");
-        localStorage.setItem("hr_emp_id", currentEmployeeId);
-
         closeLineLinkConfirm();
-        hideLoginContainer();
-        generateCycleOptions();
-        const currentCycle = getCurrentCycleRange();
-        document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-        document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-        loadAllData();
-
-        if (targetPage) navigateTo(targetPage);
+        autoLoginAndNavigate(res.data);
       } else {
         showToast('เชื่อมต่อไม่สำเร็จ: ' + (res?.message || 'ข้อผิดพลาด'), 'error');
       }
@@ -2806,18 +2792,14 @@
       try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) {
-          // บันทึก targetPage ไว้ก่อน redirect
-          if (targetPage) {
-            localStorage.setItem("saved_target_page", targetPage);
-          }
+          saveTargetPageAndLineUserId(targetPage, null);
           await liff.login();
           return; // Wait for login to redirect back
         }
 
         const profile = await liff.getProfile();
         currentLineUserId = profile.userId;
-        // บันทึก LineUserId ลง localStorage เผื่อหน้าโหลดใหม่
-        localStorage.setItem("saved_line_user_id", currentLineUserId);
+        saveTargetPageAndLineUserId(null, currentLineUserId);
         showLineUserId();
 
         // Check if LineUserId is linked to an employee
@@ -2830,38 +2812,84 @@
         });
 
         if (res && res.status === "success" && res.data) {
-          // Already linked! Log in automatically
-          isLoggedIn = true;
-          currentEmployeeId = res.data["รหัสพนักงาน"];
-          employeeData = res.data;
-          localStorage.setItem("is_logged_in", "true");
-          localStorage.setItem("hr_emp_id", currentEmployeeId);
-
-          hideLoginContainer();
-          generateCycleOptions();
-          const currentCycle = getCurrentCycleRange();
-          document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-          document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-          loadAllData();
-
-          // Navigate to target page if specified
-          if (targetPage) {
-            navigateTo(targetPage);
-          }
+          autoLoginAndNavigate(res.data);
         } else {
-          // Not linked yet! Show form to enter employee ID and link
-          isLoggedIn = false;
-          showLoginContainer();
-
-          const loginTitle = document.getElementById("login-container").querySelector("h3");
-          if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
-          const loginBtn = document.querySelector("#login-container button[type='submit']");
-          if (loginBtn) loginBtn.innerHTML = `<span>เชื่อมต่อบัญชี LINE</span><i class="fa-solid fa-arrow-right text-xs"></i>`;
+          showLineLinkingUI();
         }
       } catch (err) {
         console.error("Error in LINE login:", err);
         showToast("❌ เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE", "error");
       }
+    }
+
+    // --- Helper functions for LINE workflow ---
+    function saveTargetPageAndLineUserId(page, lineId) {
+      if (page) {
+        localStorage.setItem("saved_target_page", page);
+      }
+      if (lineId) {
+        localStorage.setItem("saved_line_user_id", lineId);
+      }
+    }
+
+    function loadSavedDataFromStorage() {
+      // โหลด target page
+      let page = localStorage.getItem("saved_target_page");
+      if (page) {
+        targetPage = page;
+        localStorage.removeItem("saved_target_page");
+      }
+      // โหลด Line User Id
+      let lineId = localStorage.getItem("saved_line_user_id");
+      if (lineId) {
+        currentLineUserId = lineId;
+        localStorage.removeItem("saved_line_user_id");
+      }
+    }
+
+    function initializeLoginPageAndShowLineStatus() {
+      showLoginContainer();
+      // ถ้ามี Line User Id ให้แสดงข้อความ
+      if (currentLineUserId) {
+        showLineUserId();
+      }
+    }
+
+    function autoLoginAndNavigate(employeeData, navigateToPage = null) {
+      isLoggedIn = true;
+      if (employeeData && employeeData["รหัสพนักงาน"]) {
+        currentEmployeeId = employeeData["รหัสพนักงาน"];
+      }
+      employeeData = employeeData;
+      localStorage.setItem("is_logged_in", "true");
+      localStorage.setItem("hr_emp_id", currentEmployeeId);
+      hideLoginContainer();
+      generateCycleOptions();
+      const currentCycle = getCurrentCycleRange();
+      document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
+      document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+      loadAllData();
+      if (navigateToPage || targetPage) {
+        navigateTo(navigateToPage || targetPage);
+      }
+    }
+
+    function showLineLinkingUI() {
+      initializeLoginPageAndShowLineStatus();
+      // Add message
+      const loginForm = document.querySelector("#login-container form");
+      if (loginForm && !document.getElementById("line-link-message")) {
+        const messageDiv = document.createElement("div");
+        messageDiv.id = "line-link-message";
+        messageDiv.className = "text-center p-3 mb-3 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium";
+        messageDiv.textContent = "กรุณากรอกรหัสพนักงานของคุณ เพื่อเชื่อมต่อบัญชี LINE ในครั้งแรก";
+        loginForm.insertBefore(messageDiv, loginForm.firstChild);
+      }
+      // Update UI
+      const loginTitle = document.getElementById("login-container").querySelector("h3");
+      if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
+      const loginBtn = document.querySelector("#login-container button[type='submit']");
+      if (loginBtn) loginBtn.innerHTML = `<span>เชื่อมต่อบัญชี LINE</span><i class="fa-solid fa-arrow-right text-xs"></i>`;
     }
 
     // --- เริ่มต้นโหลดแอป (App Initialization) ---
@@ -2874,21 +2902,8 @@
       const urlParams = getUrlParams();
       targetPage = urlParams.page;
       
-      // ถ้ามี saved target page จาก localStorage ก็ใช้ (กรณี redirect กลับมาจาก liff.login)
-      if (!targetPage) {
-        targetPage = localStorage.getItem("saved_target_page") || "";
-      }
-      // เคลียร์ saved target page ทันทีหลังใช้
-      localStorage.removeItem("saved_target_page");
-      
-      // โหลด saved LineUserId จาก localStorage ถ้ามี
-      const savedLineUserId = localStorage.getItem("saved_line_user_id");
-      if (savedLineUserId) {
-        currentLineUserId = savedLineUserId;
-        showLineUserId();
-        // เคลียร์หลังใช้
-        localStorage.removeItem("saved_line_user_id");
-      }
+      // โหลด saved data จาก localStorage
+      loadSavedDataFromStorage();
 
       // First, check if already logged in with localStorage
       const savedEmpId = localStorage.getItem("hr_emp_id");
@@ -2905,15 +2920,13 @@
           return;
         }
 
+        // No PIN needed, login directly
         hideLoginContainer();
-        
         generateCycleOptions();
         const currentCycle = getCurrentCycleRange();
         document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
         document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
         loadAllData();
-
-        // Navigate to target page if specified
         if (targetPage) {
           navigateTo(targetPage);
         }
@@ -2922,8 +2935,6 @@
 
       // Get isLINE from window._inappInfo, or re‑check user agent
       const isLINE = (window._inappInfo && window._inappInfo.isLINE) || /Line\//i.test(navigator.userAgent);
-      
-
       
       console.log('=== Debug Line Check ===');
       console.log('isLINE:', isLINE);
@@ -2941,10 +2952,7 @@
           
           if (!liff.isLoggedIn()) {
             console.log('Not logged in to LIFF, calling liff.login()...');
-            // บันทึก targetPage ไว้ก่อน redirect
-            if (targetPage) {
-              localStorage.setItem("saved_target_page", targetPage);
-            }
+            saveTargetPageAndLineUserId(targetPage, null);
             await liff.login();
             return; // Wait for login to redirect back
           }
@@ -2953,7 +2961,7 @@
           const profile = await liff.getProfile();
           currentLineUserId = profile.userId;
           // บันทึก LineUserId ลง localStorage เผื่อหน้าโหลดใหม่
-          localStorage.setItem("saved_line_user_id", currentLineUserId);
+          saveTargetPageAndLineUserId(null, currentLineUserId);
           console.log('Got profile, currentLineUserId:', currentLineUserId);
           showLineUserId();
 
@@ -2969,54 +2977,18 @@
           console.log('Got getEmployeeByLineId response:', res);
           if (res && res.status === "success" && res.data) {
             console.log('Already linked! Auto login...');
-            // Already linked! Auto login
-            isLoggedIn = true;
-            currentEmployeeId = res.data["รหัสพนักงาน"];
-            employeeData = res.data;
-            localStorage.setItem("is_logged_in", "true");
-            localStorage.setItem("hr_emp_id", currentEmployeeId);
-
-            hideLoginContainer();
-            generateCycleOptions();
-            const currentCycle = getCurrentCycleRange();
-            document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-            document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-            loadAllData();
-
-            // Navigate to target page if specified
-            if (targetPage) {
-              navigateTo(targetPage);
-            }
+            autoLoginAndNavigate(res.data);
           } else {
             console.log('Not linked yet! Showing login page...');
-            // Not linked yet! Show login page with message
-            isLoggedIn = false;
-            showLoginContainer();
-            // Add a message above the login form
-            const loginForm = document.querySelector("#login-container form");
-            if (loginForm && !document.getElementById("line-link-message")) {
-              const messageDiv = document.createElement("div");
-              messageDiv.id = "line-link-message";
-              messageDiv.className = "text-center p-3 mb-3 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium";
-              messageDiv.textContent = "กรุณากรอกรหัสพนักงานของคุณ เพื่อเชื่อมต่อบัญชี LINE ในครั้งแรก";
-              loginForm.insertBefore(messageDiv, loginForm.firstChild);
-            }
-
-            const loginTitle = document.getElementById("login-container").querySelector("h3");
-            if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
-            const loginBtn = document.querySelector("#login-container button[type='submit']");
-            if (loginBtn) loginBtn.innerHTML = `<span>เชื่อมต่อบัญชี LINE</span><i class="fa-solid fa-arrow-right text-xs"></i>`;
+            showLineLinkingUI();
           }
         } catch (err) {
           console.error("LIFF check failed, showing normal login", err);
-          // If LIFF fails, show normal login page
-          isLoggedIn = false;
-          showLoginContainer();
+          initializeLoginPageAndShowLineStatus();
         }
       } else {
         // If not in LINE, just show normal login page
-        isLoggedIn = false;
-        showLoginContainer();
+        initializeLoginPageAndShowLineStatus();
       }
 
       startLiveTime();
