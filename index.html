@@ -2747,8 +2747,9 @@
     function showLineUserId() {
       const displayEl = document.getElementById("line-user-id-display");
       if (displayEl && currentLineUserId) {
-        displayEl.textContent = `Line User ID: ${currentLineUserId}`;
+        displayEl.innerHTML = `<i class="fa-brands fa-line mr-1"></i> เชื่อมต่อกับ LINE แล้ว`;
         displayEl.classList.remove("hidden");
+        displayEl.classList.add("text-green-600", "font-semibold");
       }
     }
 
@@ -2805,12 +2806,18 @@
       try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) {
+          // บันทึก targetPage ไว้ก่อน redirect
+          if (targetPage) {
+            localStorage.setItem("saved_target_page", targetPage);
+          }
           await liff.login();
           return; // Wait for login to redirect back
         }
 
         const profile = await liff.getProfile();
         currentLineUserId = profile.userId;
+        // บันทึก LineUserId ลง localStorage เผื่อหน้าโหลดใหม่
+        localStorage.setItem("saved_line_user_id", currentLineUserId);
         showLineUserId();
 
         // Check if LineUserId is linked to an employee
@@ -2866,6 +2873,22 @@
       // Parse URL params
       const urlParams = getUrlParams();
       targetPage = urlParams.page;
+      
+      // ถ้ามี saved target page จาก localStorage ก็ใช้ (กรณี redirect กลับมาจาก liff.login)
+      if (!targetPage) {
+        targetPage = localStorage.getItem("saved_target_page") || "";
+      }
+      // เคลียร์ saved target page ทันทีหลังใช้
+      localStorage.removeItem("saved_target_page");
+      
+      // โหลด saved LineUserId จาก localStorage ถ้ามี
+      const savedLineUserId = localStorage.getItem("saved_line_user_id");
+      if (savedLineUserId) {
+        currentLineUserId = savedLineUserId;
+        showLineUserId();
+        // เคลียร์หลังใช้
+        localStorage.removeItem("saved_line_user_id");
+      }
 
       // First, check if already logged in with localStorage
       const savedEmpId = localStorage.getItem("hr_emp_id");
@@ -2918,6 +2941,10 @@
           
           if (!liff.isLoggedIn()) {
             console.log('Not logged in to LIFF, calling liff.login()...');
+            // บันทึก targetPage ไว้ก่อน redirect
+            if (targetPage) {
+              localStorage.setItem("saved_target_page", targetPage);
+            }
             await liff.login();
             return; // Wait for login to redirect back
           }
@@ -2925,6 +2952,8 @@
           console.log('Getting profile...');
           const profile = await liff.getProfile();
           currentLineUserId = profile.userId;
+          // บันทึก LineUserId ลง localStorage เผื่อหน้าโหลดใหม่
+          localStorage.setItem("saved_line_user_id", currentLineUserId);
           console.log('Got profile, currentLineUserId:', currentLineUserId);
           showLineUserId();
 
