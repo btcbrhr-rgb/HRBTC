@@ -2775,6 +2775,37 @@
       }
     }
 
+    async function ensureLiffProfile() {
+      if (typeof liff === "undefined") {
+        console.warn("LIFF SDK is not loaded");
+        return false;
+      }
+
+      try {
+        try {
+          liff.isInClient();
+        } catch (e) {
+          await liff.init({ liffId: LIFF_ID });
+        }
+
+        if (!liff.isLoggedIn()) {
+          await liff.login();
+          return false;
+        }
+
+        const profile = await liff.getProfile();
+        if (profile && profile.userId) {
+          currentLineUserId = profile.userId;
+          showLineUserId();
+          return true;
+        }
+      } catch (err) {
+        console.error("LIFF profile error:", err);
+      }
+
+      return false;
+    }
+
     // --- LINE Link Confirmation Modal ---
     let pendingEmpIdForLineLink = null;
 
@@ -2813,70 +2844,32 @@
 
     // --- LINE Login Handler ---
     async function handleLineLogin() {
-      // Parse URL params for target page
       const urlParams = getUrlParams();
       targetPage = urlParams.page;
 
-      if (currentLineUserId) {
-        showLineUserId();
-        const res = await fetchWithTimeout(SERVER_API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "getEmployeeByLineId",
-            lineId: currentLineUserId
-          })
-        });
-
-        if (res && res.status === "success" && res.data) {
-          autoLoginAndNavigate(res.data);
+      if (!currentLineUserId) {
+        const hasProfile = await ensureLiffProfile();
+        if (!hasProfile) {
           return;
         }
+      }
 
-        showLineLinkingUI();
+      showLineUserId();
+
+      const res = await fetchWithTimeout(SERVER_API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "getEmployeeByLineId",
+          lineId: currentLineUserId
+        })
+      });
+
+      if (res && res.status === "success" && res.data) {
+        autoLoginAndNavigate(res.data);
         return;
       }
 
-      // เปิด LIFF เพื่อดึง LineUserId ก่อน
-
-      // Initialize LIFF
-      try {
-        // First, check if liff is already initialized by trying to call liff.isInClient()!
-        try {
-          liff.isInClient(); // If this doesn't throw, liff is already initialized!
-        } catch (e) {
-          // liff is NOT initialized yet! Let's initialize it now!
-          await liff.init({ liffId: LIFF_ID });
-        }
-        
-        if (!liff.isLoggedIn()) {
-          saveTargetPageAndLineUserId(targetPage, null);
-          await liff.login();
-          return; // Wait for login to redirect back
-        }
-
-        const profile = await liff.getProfile();
-        currentLineUserId = profile.userId;
-        saveTargetPageAndLineUserId(null, currentLineUserId);
-        showLineUserId();
-
-        // Check if LineUserId is linked to an employee
-        const res = await fetchWithTimeout(SERVER_API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "getEmployeeByLineId",
-            lineId: currentLineUserId
-          })
-        });
-
-        if (res && res.status === "success" && res.data) {
-          autoLoginAndNavigate(res.data);
-        } else {
-          showLineLinkingUI();
-        }
-      } catch (err) {
-        console.error("Error in LINE login:", err);
-        showToast("❌ เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE", "error");
-      }
+      showLineLinkingUI();
     }
 
     // --- Helper functions for LINE workflow ---
@@ -3012,14 +3005,9 @@
         return;
       }
 
-      // ลอง init LIFF ก่อน - ถ้าสำเร็จ = เปิดจาก LINE
-      try {
-        await liff.init({ liffId: LIFF_ID });
-        // LIFF init สำเร็จ → เปิดจาก LINE แน่นอน
-        const profile = await liff.getProfile();
-        currentLineUserId = profile.userId;
-        
-        // ตรวจว่า UserId มีในชีตพนักงานหรือยัง
+      // ลอง init LIFF เพื่อดึง profile หากเปิดจาก LINE
+      const hasLiffProfile = await ensureLiffProfile();
+      if (hasLiffProfile && currentLineUserId) {
         const res = await fetchWithTimeout(SERVER_API_URL, {
           method: "POST",
           body: JSON.stringify({
@@ -3029,17 +3017,14 @@
         });
 
         if (res && res.status === "success" && res.data) {
-          // มีในชีต → auto login + navigate
           autoLoginAndNavigate(res.data);
-        } else {
-          // ไม่มี → แสดง login + UserId + ข้อความ
-          showLoginContainer();
-          showLineUserId();
-          showLineLinkingUI();
+          return;
         }
+
+        showLoginContainer();
+        showLineUserId();
+        showLineLinkingUI();
         return;
-      } catch (e) {
-        // LIFF init ล้มเหลว = ไม่ได้เปิดจาก LINE
       }
 
       // ถ้าไม่ได้เปิดจาก LINE → แสดงหน้า login ปกติ
