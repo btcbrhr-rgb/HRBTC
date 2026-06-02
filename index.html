@@ -758,6 +758,7 @@
               <div class="space-y-1">
                 <label for="leave-type-select" class="text-xs text-slate-500 font-semibold">ประเภทการลา</label>
                 <select id="leave-type-select" required title="ประเภทการลา" aria-label="ประเภทการลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+                  <option value="" disabled selected>-เลือกประเภทการลา-</option>
                   <option value="ลากิจ">ลากิจ</option>
                   <option value="ลาป่วย">ลาป่วย</option>
                   <option value="ลาพักร้อน">ลาพักร้อน</option>
@@ -767,21 +768,30 @@
               </div>
               
               <div class="space-y-1">
-                <label for="leave-days-input" class="text-xs text-slate-500 font-semibold">จำนวนวันลา</label>
-                <input id="leave-days-input" type="number" step="0.5" min="0.5" value="1" required title="จำนวนวันลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+                <label for="leave-period-select" class="text-xs text-slate-500 font-semibold">ระยะเวลา</label>
+                <select id="leave-period-select" required title="ระยะเวลา" aria-label="ระยะเวลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700" onchange="calculateLeaveDays()">
+                  <option value="เต็มวัน" selected>ลาเต็มวัน</option>
+                  <option value="ครึ่งวันเช้า">ลาครึ่งวันเช้า</option>
+                  <option value="ครึ่งวันบ่าย">ลาครึ่งวันบ่าย</option>
+                </select>
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div class="space-y-1">
-                <label for="leave-start-input" class="text-xs text-slate-500 font-semibold">วันที่เริ่มต้นลา</label>
-                <input id="leave-start-input" type="date" required title="วันที่เริ่มต้นลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+                <label for="leave-days-input" class="text-xs text-slate-500 font-semibold">จำนวนวันลา</label>
+                <input id="leave-days-input" type="number" step="0.5" min="0.5" value="1" required title="จำนวนวันลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
               </div>
-              
+
               <div class="space-y-1">
-                <label for="leave-end-input" class="text-xs text-slate-500 font-semibold">วันที่สิ้นสุดลา</label>
-                <input id="leave-end-input" type="date" required title="วันที่สิ้นสุดลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
+                <label for="leave-start-input" class="text-xs text-slate-500 font-semibold">วันที่เริ่มต้นลา</label>
+                <input id="leave-start-input" type="date" required title="วันที่เริ่มต้นลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700" onchange="calculateLeaveDays()">
               </div>
+            </div>
+            
+            <div class="space-y-1">
+              <label for="leave-end-input" class="text-xs text-slate-500 font-semibold">วันที่สิ้นสุดลา</label>
+              <input id="leave-end-input" type="date" required title="วันที่สิ้นสุดลา" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700" onchange="calculateLeaveDays()">
             </div>
 
             <div class="space-y-1">
@@ -3623,6 +3633,7 @@ function updateEmployeeProfileUI() {
       leaveRequestsList.forEach(l => {
         const docId = l["เลขที่เอกสาร"] || "N/A";
         const type = l["ประเภทการลา"] || "ลาอื่นๆ";
+        const period = l["ระยะเวลา"] || "เต็มวัน";
         const start = l["วันที่เริ่ม"] || l["วันที่"];
         const end = l["วันที่สิ้นสุด"] || start;
         const days = l["จำนวนวัน"] || 1;
@@ -3639,12 +3650,13 @@ function updateEmployeeProfileUI() {
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
               <span class="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center text-[10px]"><i class="fa-solid fa-plane-departure"></i></span>
-              <p class="text-xs font-bold text-slate-700">${type} (${days} วัน)</p>
+              <p class="text-xs font-bold text-slate-700">${type} (${period})</p>
             </div>
             <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeClass}">${status}</span>
           </div>
           
           <div class="text-[11px] text-slate-500">
+            <p><strong>จำนวนวัน:</strong> ${days} วัน</p>
             <p><strong>ช่วงวันลา:</strong> ${formatThaiDate(start)} ถึง ${formatThaiDate(end)}</p>
             <p class="mt-0.5 text-slate-400 truncate"><strong>เหตุผล:</strong> ${reason}</p>
           </div>
@@ -3673,15 +3685,65 @@ function updateEmployeeProfileUI() {
       reader.readAsDataURL(file);
     }
 
+    function calculateLeaveDays() {
+      const startDateInput = document.getElementById("leave-start-input");
+      const endDateInput = document.getElementById("leave-end-input");
+      const daysInput = document.getElementById("leave-days-input");
+      const periodInput = document.getElementById("leave-period-select");
+      
+      const startDateStr = startDateInput.value;
+      const endDateStr = endDateInput.value;
+      const period = periodInput.value;
+      
+      // If half day is selected, make end date equal to start date
+      if (period === "ครึ่งวันเช้า" || period === "ครึ่งวันบ่าย") {
+        if (startDateStr) {
+          endDateInput.value = startDateStr;
+          daysInput.value = 0.5;
+        }
+        return;
+      }
+      
+      // For full day, calculate normally
+      if (!startDateStr || !endDateStr) {
+        return;
+      }
+      
+      const startDate = new Date(startDateStr);
+      const endDate = new Date(endDateStr);
+      
+      if (startDate > endDate) {
+        return;
+      }
+      
+      // Calculate the difference in days (including both start and end)
+      const timeDiff = endDate.getTime() - startDate.getTime();
+      const dayDiff = timeDiff / (1000 * 3600 * 24);
+      const totalDays = dayDiff + 1;
+      
+      daysInput.value = totalDays;
+    }
+
     async function onLeaveSubmit(e) {
       e.preventDefault();
       
       const type = document.getElementById("leave-type-select").value;
+      const period = document.getElementById("leave-period-select").value;
       const days = parseFloat(document.getElementById("leave-days-input").value);
       const start = document.getElementById("leave-start-input").value;
       const end = document.getElementById("leave-end-input").value;
       const reason = document.getElementById("leave-reason-input").value;
 
+      if (!type) {
+        showToast("⚠️ กรุณาเลือกประเภทการลา", "warning");
+        return;
+      }
+      
+      if (!period) {
+        showToast("⚠️ กรุณาเลือกระยะเวลา", "warning");
+        return;
+      }
+      
       if (!start || !end || !reason) {
         showToast("⚠️ กรุณากรอกข้อมูลวันที่และเหตุผลให้ครบถ้วน", "warning");
         return;
@@ -3696,6 +3758,7 @@ function updateEmployeeProfileUI() {
         action: "submitLeave",
         empId: currentEmployeeId,
         type: type,
+        period: period,
         days: days,
         start: start,
         end: end,
