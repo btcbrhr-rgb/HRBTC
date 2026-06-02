@@ -2851,7 +2851,6 @@
       // ถ้ามี Line User Id ให้แสดงข้อความ
       if (currentLineUserId) {
         showLineUserId();
-        showToast(`✅ เชื่อมต่อ LINE แล้ว!`, "success");
       }
     }
 
@@ -2905,11 +2904,6 @@
       // โหลด saved data จาก localStorage
       loadSavedDataFromStorage();
 
-      // ถ้ามี LineUserId แล้ว (จาก storage) → แสดง UI ทันที!
-      if (currentLineUserId) {
-        initializeLoginPageAndShowLineStatus();
-      }
-
       // First, check if already logged in with localStorage
       const savedEmpId = localStorage.getItem("hr_emp_id");
       const savedLoginStatus = localStorage.getItem("is_logged_in");
@@ -2938,38 +2932,35 @@
         return;
       }
 
+      // แสดง login page ก่อนเลย!
+      showLoginContainer();
+
       // Get isLINE from window._inappInfo, or re‑check user agent
       const isLINE = (window._inappInfo && window._inappInfo.isLINE) || /Line\//i.test(navigator.userAgent);
-      
-      console.log('=== Debug Line Check ===');
-      console.log('isLINE:', isLINE);
-      console.log('window._inappInfo:', window._inappInfo);
-      console.log('User Agent:', navigator.userAgent);
-      console.log('window.location.hostname:', window.location.hostname);
-      console.log('targetPage:', targetPage);
 
-      // If not logged in yet, try to check LINE automatically ONLY IF IN LINE IN-APP BROWSER
+      // ถ้ามี LineUserId จาก storage → แสดง UserId เลย!
+      if (currentLineUserId) {
+        showLineUserId();
+      }
+
+      // ถ้าอยู่ใน LINE → init LIFF เพื่อ get profile (ถ้ายังไม่มี)
       if (isLINE) {
         try {
-          console.log('Starting LIFF init...');
           await liff.init({ liffId: LIFF_ID });
-          console.log('LIFF init done!');
           
           if (!liff.isLoggedIn()) {
-            console.log('Not logged in to LIFF, calling liff.login()...');
             saveTargetPageAndLineUserId(targetPage, null);
             await liff.login();
-            return; // Wait for login to redirect back
+            return;
           }
 
-          console.log('Getting profile...');
-          const profile = await liff.getProfile();
-          currentLineUserId = profile.userId;
-          // บันทึก LineUserId ลง localStorage เผื่อหน้าโหลดใหม่
-          saveTargetPageAndLineUserId(null, currentLineUserId);
-          console.log('Got profile, currentLineUserId:', currentLineUserId);
-          showToast(`✅ เชื่อมต่อ LINE แล้ว!`, "success");
-          showLineUserId();
+          // ถ้ายังไม่มี LineUserId → get profile!
+          if (!currentLineUserId) {
+            const profile = await liff.getProfile();
+            currentLineUserId = profile.userId;
+            saveTargetPageAndLineUserId(null, currentLineUserId);
+            showLineUserId();
+          }
 
           // Check if LineUserId is linked to an employee
           const res = await fetchWithTimeout(SERVER_API_URL, {
@@ -2980,21 +2971,14 @@
             })
           });
 
-          console.log('Got getEmployeeByLineId response:', res);
           if (res && res.status === "success" && res.data) {
-            console.log('Already linked! Auto login...');
             autoLoginAndNavigate(res.data);
           } else {
-            console.log('Not linked yet! Showing login page...');
             showLineLinkingUI();
           }
         } catch (err) {
           console.error("LIFF check failed, showing normal login", err);
-          initializeLoginPageAndShowLineStatus();
         }
-      } else {
-        // If not in LINE, just show normal login page
-        initializeLoginPageAndShowLineStatus();
       }
 
       startLiveTime();
