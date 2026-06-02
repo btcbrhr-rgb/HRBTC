@@ -2951,6 +2951,7 @@
       // currentLineUserId = "U1234567890abcdef1234567890abcdef";
       // Get isLINE from window._inappInfo, or re‑check user agent
       const isLINE = (window._inappInfo && window._inappInfo.isLINE) || /Line\//i.test(navigator.userAgent);
+      showToast(`isLINE: ${isLINE}, userAgent: ${navigator.userAgent}`, "info");
       
       // Show loading modal
       const loadingModal = document.getElementById("loading-modal");
@@ -2959,21 +2960,27 @@
       
       // ถ้าอยู่ใน LINE → init LIFF และ get profile ทุกครั้ง!
       if (isLINE) {
+        showToast("✅ อยู่ใน LINE, กำลัง init LIFF...", "info");
         try {
           await liff.init({ liffId: LIFF_ID });
+          showToast("✅ LIFF init สำเร็จ!", "success");
           
           if (!liff.isLoggedIn()) {
+            showToast("⚠️ ยังไม่ได้ login LINE, กำลัง redirect...", "warning");
             saveTargetPageAndLineUserId(targetPage, null);
             await liff.login();
             return;
           }
 
           // Get profile จาก LINE ทุกครั้ง!
+          showToast("✅ กำลัง get profile...", "info");
           const profile = await liff.getProfile();
           currentLineUserId = profile.userId;
           saveTargetPageAndLineUserId(null, currentLineUserId);
+          showToast(`✅ ได้ LineUserId: ${currentLineUserId}`, "success");
         } catch (err) {
           console.error("LIFF check failed, showing normal login", err);
+          showToast(`❌ LIFF ผิดพลาด: ${err.message}`, "error");
         }
       }
       
