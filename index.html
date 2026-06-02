@@ -2897,17 +2897,29 @@
         return;
       }
 
+      console.log('=== Debug Line Check ===');
+      console.log('isLINE:', isLINE);
+      console.log('User Agent:', navigator.userAgent);
+      console.log('window.location.hostname:', window.location.hostname);
+      console.log('targetPage:', targetPage);
+
       // If not logged in yet, try to check LINE automatically ONLY IF IN LINE IN-APP BROWSER
       if (isLINE) {
         try {
+          console.log('Starting LIFF init...');
           await liff.init({ liffId: LIFF_ID });
+          console.log('LIFF init done!');
+          
           if (!liff.isLoggedIn()) {
+            console.log('Not logged in to LIFF, calling liff.login()...');
             await liff.login();
             return; // Wait for login to redirect back
           }
 
+          console.log('Getting profile...');
           const profile = await liff.getProfile();
           currentLineUserId = profile.userId;
+          console.log('Got profile, currentLineUserId:', currentLineUserId);
           showLineUserId();
 
           // Check if LineUserId is linked to an employee
@@ -2919,7 +2931,9 @@
             })
           });
 
+          console.log('Got getEmployeeByLineId response:', res);
           if (res && res.status === "success" && res.data) {
+            console.log('Already linked! Auto login...');
             // Already linked! Auto login
             isLoggedIn = true;
             currentEmployeeId = res.data["รหัสพนักงาน"];
@@ -2939,6 +2953,7 @@
               navigateTo(targetPage);
             }
           } else {
+            console.log('Not linked yet! Showing login page...');
             // Not linked yet! Show login page with message
             isLoggedIn = false;
             showLoginContainer();
@@ -2958,7 +2973,7 @@
             if (loginBtn) loginBtn.innerHTML = `<span>เชื่อมต่อบัญชี LINE</span><i class="fa-solid fa-arrow-right text-xs"></i>`;
           }
         } catch (err) {
-          console.warn("LIFF check failed, showing normal login", err);
+          console.error("LIFF check failed, showing normal login", err);
           // If LIFF fails, show normal login page
           isLoggedIn = false;
           showLoginContainer();
