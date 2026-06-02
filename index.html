@@ -2886,8 +2886,9 @@
         currentEmployeeId = employeeData["รหัสพนักงาน"];
       }
       employeeData = employeeData;
-      localStorage.setItem("is_logged_in", "true");
       localStorage.setItem("hr_emp_id", currentEmployeeId);
+      // ใช้ sessionStorage สำหรับ login status - ล้างเมื่อปิดเบราว์เซอร์
+      sessionStorage.setItem("is_logged_in", "true");
       hideLoginContainer();
       generateCycleOptions();
       const currentCycle = getCurrentCycleRange();
@@ -2944,11 +2945,16 @@
       // โหลด saved data จาก localStorage
       loadSavedDataFromStorage();
 
-      // First, check if already logged in with localStorage
+      // First, check if already logged in with localStorage (แต่ถ้าเปิดจาก LINE ให้ข้าม auto-login)
       const savedEmpId = localStorage.getItem("hr_emp_id");
-      const savedLoginStatus = localStorage.getItem("is_logged_in");
+      const savedLoginStatus = sessionStorage.getItem("is_logged_in");
 
-      if (savedLoginStatus === "true" && savedEmpId) {
+      // ตรวจสอบว่าเปิดจาก LINE บนมือถือ (ไม่รวม desktop)
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      const isLINE = (window._inappInfo && window._inappInfo.isLINE) || /Line\/[0-9.]+\s*\((iOS|Android)\)/i.test(navigator.userAgent);
+
+      if (savedLoginStatus === "true" && savedEmpId && !isLINE) {
+        // Auto login สำหรับเบราว์เซอร์ทั่วไป (ไม่ใช่ LINE)
         isLoggedIn = true;
         currentEmployeeId = savedEmpId;
 
@@ -2972,10 +2978,6 @@
         return;
       }
 
-      // ตรวจสอบว่าเปิดจาก LINE บนมือถือ (ไม่รวม desktop)
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-      const isLINE = (window._inappInfo && window._inappInfo.isLINE) || /Line\/[0-9.]+\s*\((iOS|Android)\)/i.test(navigator.userAgent);
-      
       // ถ้าอยู่ใน LINE → init LIFF และ get profile ทุกครั้ง!
       if (isLINE) {
         await handleLineLogin();
@@ -3065,7 +3067,7 @@ async function handleLogin(e) {
             currentEmployeeId = empIdInput;
             isLoggedIn = true;
             employeeData = empResponse.data || {};
-            localStorage.setItem("is_logged_in", "true");
+            sessionStorage.setItem("is_logged_in", "true");
             localStorage.setItem("hr_emp_id", currentEmployeeId);
 
             // PWA mode: ตรวจสอบว่ามี PIN หรือยัง
@@ -3102,12 +3104,8 @@ async function handleLogin(e) {
       }
 }
 
-    // Auto logout เมื่อปิดเว็บ/แท็บ
-    window.addEventListener("beforeunload", function() {
-      if (isLoggedIn) {
-        logout();
-      }
-    });
+    // Auto logout เมื่อปิดเว็บ/แท็บ - ใช้ sessionStorage ล้างเมื่อปิดเบราว์เซอร์
+    // (localStorage ถูกเก็บไว้เพื่อ remember employee ID สำหรับเติมรหัส)
 
     function logout() {
       isLoggedIn = false;
