@@ -2972,7 +2972,8 @@ async function handleLogin(e) {
           updateAttendanceStatus(); // Update check-in/out buttons
         }
 
-        const leaveResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+        // Fetch ALL leave requests (no period filter)
+        const leaveResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=${currentEmployeeId}`);
         if (leaveResponse.status === "success") {
           leaveRequestsList = leaveResponse.data;
           displayLeaveHistory();
@@ -4947,24 +4948,73 @@ function updateEmployeeProfileUI() {
           }
         }
         
-        // Update leave badge
-        const leaveBadge = document.getElementById("admin-menu-approve-leave-badge");
-        if (leaveBadge) {
-          if (leavePendingCount > 0) {
-            leaveBadge.textContent = leavePendingCount;
-            leaveBadge.classList.remove("hidden");
-            // Change color to red if any are due today
-            if (leaveDueToday > 0) {
-              leaveBadge.classList.add("bg-rose-100", "text-rose-700", "border-rose-200");
-              leaveBadge.classList.remove("bg-amber-100", "text-amber-700", "border-amber-200");
+        // Helper function to update menu item and badge
+        function updateApprovalMenu(menuId, badgeId, counts) {
+          const menuBtn = document.getElementById(menuId);
+          const badge = document.getElementById(badgeId);
+          
+          if (!menuBtn || !badge) return;
+
+          if (counts.total > 0) {
+            // Build badge text with details
+            let badgeText = counts.total.toString();
+            let urgencyText = [];
+            if (counts.today > 0) urgencyText.push(`${counts.today} ถึงวันแล้ว`);
+            if (counts.oneDay > 0) urgencyText.push(`${counts.oneDay} 1วัน`);
+            if (counts.threeDays > 0) urgencyText.push(`${counts.threeDays} 3วัน`);
+            if (counts.fiveDays > 0) urgencyText.push(`${counts.fiveDays} 5วัน`);
+            
+            if (urgencyText.length > 0) {
+              badgeText += ` (${urgencyText.join(', ')})`;
+            }
+            badge.textContent = badgeText;
+            badge.classList.remove("hidden");
+            
+            // Determine priority color: today (red) > 1 (orange) > 3 (yellow) > 5 (light yellow)
+            let badgeClasses = "";
+            let menuClasses = "";
+            
+            if (counts.today > 0) {
+              badgeClasses = "bg-rose-100 text-rose-700 border-rose-200";
+              menuClasses = "bg-rose-50 text-rose-700 border-rose-100";
+            } else if (counts.oneDay > 0) {
+              badgeClasses = "bg-orange-100 text-orange-700 border-orange-200";
+              menuClasses = "bg-orange-50 text-orange-700 border-orange-100";
+            } else if (counts.threeDays > 0) {
+              badgeClasses = "bg-amber-100 text-amber-700 border-amber-200";
+              menuClasses = "bg-amber-50 text-amber-700 border-amber-100";
+            } else if (counts.fiveDays > 0) {
+              badgeClasses = "bg-yellow-100 text-yellow-700 border-yellow-200";
+              menuClasses = "bg-yellow-50 text-yellow-700 border-yellow-100";
             } else {
-              leaveBadge.classList.add("bg-amber-100", "text-amber-700", "border-amber-200");
-              leaveBadge.classList.remove("bg-rose-100", "text-rose-700", "border-rose-200");
+              badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
+              menuClasses = "";
+            }
+            
+            // Update badge classes
+            badge.className = `inline-flex items-center justify-center px-1 rounded-full text-[9px] font-bold border ${badgeClasses}`;
+            
+            // Update menu button classes (add urgency background if needed)
+            if (menuClasses) {
+              menuBtn.classList.add(menuClasses);
+            } else {
+              menuBtn.classList.remove("bg-rose-50", "text-rose-700", "border-rose-100", "bg-orange-50", "text-orange-700", "border-orange-100", "bg-amber-50", "text-amber-700", "border-amber-100", "bg-yellow-50", "text-yellow-700", "border-yellow-100");
             }
           } else {
-            leaveBadge.classList.add("hidden");
+            badge.classList.add("hidden");
+            badge.textContent = "";
+            menuBtn.classList.remove("bg-rose-50", "text-rose-700", "border-rose-100", "bg-orange-50", "text-orange-700", "border-orange-100", "bg-amber-50", "text-amber-700", "border-amber-100", "bg-yellow-50", "text-yellow-700", "border-yellow-100");
           }
         }
+
+        // Update leave menu
+        updateApprovalMenu("admin-menu-approve-leave", "admin-menu-approve-leave-badge", {
+          total: leavePendingCount,
+          today: leaveDueToday,
+          oneDay: leaveDueIn1,
+          threeDays: leaveDueIn3,
+          fiveDays: leaveDueIn5
+        });
         
         let corrPendingCount = 0;
         let corrDueToday = 0;
@@ -5023,23 +5073,14 @@ function updateEmployeeProfileUI() {
           }
         }
         
-        // Update correction badge
-        const corrBadge = document.getElementById("admin-menu-approve-correction-badge");
-        if (corrBadge) {
-          if (corrPendingCount > 0) {
-            corrBadge.textContent = corrPendingCount;
-            corrBadge.classList.remove("hidden");
-            if (corrDueToday > 0) {
-              corrBadge.classList.add("bg-rose-100", "text-rose-700", "border-rose-200");
-              corrBadge.classList.remove("bg-amber-100", "text-amber-700", "border-amber-200");
-            } else {
-              corrBadge.classList.add("bg-amber-100", "text-amber-700", "border-amber-200");
-              corrBadge.classList.remove("bg-rose-100", "text-rose-700", "border-rose-200");
-            }
-          } else {
-            corrBadge.classList.add("hidden");
-          }
-        }
+        // Update correction menu
+        updateApprovalMenu("admin-menu-approve-correction", "admin-menu-approve-correction-badge", {
+          total: corrPendingCount,
+          today: corrDueToday,
+          oneDay: corrDueIn1,
+          threeDays: corrDueIn3,
+          fiveDays: corrDueIn5
+        });
         
         let advPendingCount = 0;
         let advDueToday = 0;
@@ -5099,23 +5140,14 @@ function updateEmployeeProfileUI() {
           }
         }
         
-        // Update advance badge
-        const advBadge = document.getElementById("admin-menu-approve-advance-badge");
-        if (advBadge) {
-          if (advPendingCount > 0) {
-            advBadge.textContent = advPendingCount;
-            advBadge.classList.remove("hidden");
-            if (advDueToday > 0) {
-              advBadge.classList.add("bg-rose-100", "text-rose-700", "border-rose-200");
-              advBadge.classList.remove("bg-amber-100", "text-amber-700", "border-amber-200");
-            } else {
-              advBadge.classList.add("bg-amber-100", "text-amber-700", "border-amber-200");
-              advBadge.classList.remove("bg-rose-100", "text-rose-700", "border-rose-200");
-            }
-          } else {
-            advBadge.classList.add("hidden");
-          }
-        }
+        // Update advance menu
+        updateApprovalMenu("admin-menu-approve-advance", "admin-menu-approve-advance-badge", {
+          total: advPendingCount,
+          today: advDueToday,
+          oneDay: advDueIn1,
+          threeDays: advDueIn3,
+          fiveDays: advDueIn5
+        });
       } catch (err) {
         showToast("❌ ซิงค์ข้อมูลคำขออนุมัติล้มเหลว: " + err.message, "error");
       }
