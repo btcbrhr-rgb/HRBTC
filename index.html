@@ -11,6 +11,8 @@
   <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <!-- LINE LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <!-- Google Fonts Prompt -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2562,6 +2564,7 @@
     // LINE Integration
     let currentLineUserId = "";
     let targetPage = "";
+    const LIFF_ID = "2010049815-rNT19KuD";
 
     // Helper: Parse URL search params
     function getUrlParams() {
@@ -2700,16 +2703,32 @@
       isPWAApp = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
       localStorage.setItem("isPWAApp", isPWAApp ? "true" : "false");
 
-      // Parse URL params
+      // Parse URL params (fallback if LIFF fails)
       const urlParams = getUrlParams();
-      currentLineUserId = urlParams.lineId;
       targetPage = urlParams.page;
+
+      // Initialize LIFF
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          currentLineUserId = profile.userId;
+        } else {
+          // If not logged in to LIFF, try to log in
+          await liff.login();
+        }
+      } catch (err) {
+        console.warn("LIFF initialization failed, falling back to URL param", err);
+        // Fallback to URL param for lineId
+        currentLineUserId = urlParams.lineId || "";
+      }
 
       // Special case for page=login: always show login page, skip auto-login
       if (targetPage === "login") {
         isLoggedIn = false;
         showLoginContainer();
-        document.getElementById("login-container").querySelector("h3").textContent = "เข้าสู่ระบบ";
+        const loginTitle = document.getElementById("login-container").querySelector("h3");
+        if (loginTitle) loginTitle.textContent = "เข้าสู่ระบบ";
       } else if (currentLineUserId) {
         // If we have lineId, check if it's linked
         try {
@@ -2744,7 +2763,7 @@
             // Line not linked yet, show login form with linking prompt
             isLoggedIn = false;
             showLoginContainer();
-            const loginTitle = document.querySelector("#login-container h3");
+            const loginTitle = document.getElementById("login-container").querySelector("h3");
             if (loginTitle) loginTitle.textContent = "เชื่อมต่อบัญชี LINE";
             
             // Update login button text
