@@ -182,13 +182,22 @@
             // Android WebView: has "wv" flag or not Chrome
             const isAndWV = isAndroid && (/\bwv\b/.test(ua) || (!/Chrome\/\d+/.test(ua) && /Version\/\d+/.test(ua)));
 
-            const needsRedirect = isFB || isIG || isTwitter || isTikTok || isIOSWV || isAndWV;
-            if (!needsRedirect) return;
-
-            // LINE special: DON'T open external browser, use LIFF in-app instead
+            // Auto-redirect for LINE using native query parameter
             if (isLINE) {
-                return;
+                try {
+                    const url = new URL(window.location.href);
+                    if (!url.searchParams.has('openExternalBrowser')) {
+                        url.searchParams.set('openExternalBrowser', '1');
+                        window.location.replace(url.toString());
+                        return; // Stop execution to wait for redirect
+                    }
+                } catch (e) {
+                    console.error('URL parse error:', e);
+                }
             }
+
+            const needsRedirect = isLINE || isFB || isIG || isTwitter || isTikTok || isIOSWV || isAndWV;
+            if (!needsRedirect) return;
 
             // Show overlay once DOM is ready
             document.addEventListener('DOMContentLoaded', function () {
@@ -243,6 +252,12 @@
         function inappTryOpenExternal() {
             var info = window._inappInfo || {};
             var cleanUrl = window.location.href.replace(/[?&]openExternalBrowser=1/, '');
+
+            if (info.isLINE) {
+                var lineUrl = cleanUrl + (cleanUrl.includes('?') ? '&' : '?') + 'openExternalBrowser=1';
+                window.location.href = lineUrl;
+                return;
+            }
 
             if (info.isAndroid) {
                 // Intent URL to force Chrome on Android
