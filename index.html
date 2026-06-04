@@ -1724,6 +1724,17 @@
                                         title="เลือกไฟล์เวลางาน .txt" aria-label="เลือกไฟล์เวลางาน .txt"
                                         onchange="handleTxtFileSelect(event)">
                                 </div>
+                                <!-- เลือกโครงการสำหรับไฟล์นำเข้านี้ -->
+                                <div class="space-y-1.5 pt-2">
+                                    <label for="txt-project-select" class="block text-[11px] font-bold text-slate-500">
+                                        <i class="fa-solid fa-map-pin text-rose-500"></i> เลือกโครงการสำหรับไฟล์นำเข้านี้
+                                    </label>
+                                    <select id="txt-project-select" title="เลือกโครงการสำหรับไฟล์นำเข้านี้"
+                                        aria-label="เลือกโครงการสำหรับไฟล์นำเข้านี้"
+                                        class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                        <!-- Populate dynamically -->
+                                    </select>
+                                </div>
                             </div>
                             <div class="pt-4 flex gap-2">
                                 <button onclick="processTxtImport(true)"
@@ -1805,12 +1816,13 @@
                                         <th class="py-2.5 font-semibold">เวลาเข้า</th>
                                         <th class="py-2.5 font-semibold">เวลาออก</th>
                                         <th class="py-2.5 font-semibold">สถานะสรุป</th>
+                                        <th class="py-2.5 font-semibold">โครงการ</th>
                                         <th class="py-2.5 font-semibold">ข้อมูลแสกนนิ้วซ้ำ</th>
                                     </tr>
                                 </thead>
                                 <tbody id="txt-preview-table-body" class="divide-y divide-slate-200 text-slate-600">
                                     <tr>
-                                        <td colspan="6" class="py-6 text-center text-slate-500 italic">
+                                        <td colspan="7" class="py-6 text-center text-slate-500 italic">
                                             โปรดอัปโหลดไฟล์เวลางานและกดพรีวิวเพื่อแสดงข้อมูลที่นี่</td>
                                     </tr>
                                 </tbody>
@@ -3161,6 +3173,61 @@
             let leaveRequestsList = [];
             let advanceRequestsList = [];
             let payslipsList = [];
+            let projectsList = [];
+
+            async function loadProjects() {
+                try {
+                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=getProjects`);
+                    if (response && response.status === "success") {
+                        projectsList = response.data || [];
+                    } else {
+                        console.warn("Failed to load projects from sheet, using fallback list:", response?.message);
+                        projectsList = ["(00)บุรีรัมย์", "สำนักงานใหญ่", "หน้างานก่อสร้าง A", "ไซด์งาน B"];
+                    }
+                } catch (e) {
+                    console.error("Error loading projects from sheet, using fallback list:", e);
+                    projectsList = ["(00)บุรีรัมย์", "สำนักงานใหญ่", "หน้างานก่อสร้าง A", "ไซด์งาน B"];
+                }
+                populateProjectDropdowns();
+            }
+
+            function populateProjectDropdowns() {
+                // Ensure (00)บุรีรัมย์ is the first option
+                const sortedProjects = [...projectsList];
+                sortedProjects.sort((a, b) => {
+                    const isBuriramA = a === "(00)บุรีรัมย์" || a.includes("(00)บุรีรัมย์");
+                    const isBuriramB = b === "(00)บุรีรัมย์" || b.includes("(00)บุรีรัมย์");
+                    if (isBuriramA && !isBuriramB) return -1;
+                    if (!isBuriramA && isBuriramB) return 1;
+                    return a.localeCompare(b, "th");
+                });
+
+                const dropdownIds = ["attendance-project-select", "correction-project", "txt-project-select"];
+                dropdownIds.forEach(id => {
+                    const select = document.getElementById(id);
+                    if (!select) return;
+                    
+                    select.innerHTML = "";
+                    
+                    // เพิ่มตัวเลือกเริ่มต้น
+                    const defaultOpt = document.createElement("option");
+                    defaultOpt.value = "";
+                    defaultOpt.textContent = "-เลือกโครงการ-";
+                    select.appendChild(defaultOpt);
+
+                    sortedProjects.forEach(proj => {
+                        const opt = document.createElement("option");
+                        opt.value = proj;
+                        if (id === "attendance-project-select" && (proj === "(00)บุรีรัมย์" || proj.includes("(00)บุรีรัมย์"))) {
+                            opt.textContent = `${proj} (โครงการหลัก)`;
+                        } else {
+                            opt.textContent = proj;
+                        }
+                        select.appendChild(opt);
+                    });
+                });
+            }
+
 
             // --- การคิดรอบบัญชี (Accounting Cycle Helper) ---
             function getCycleDateRange(year, month) {
@@ -3561,6 +3628,7 @@
                 const currentCycle = getCurrentCycleRange();
 
                 try {
+                    await loadProjects();
                     const empResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${currentEmployeeId}`);
                     if (empResponse.status === "success") {
                         employeeData = empResponse.data;
@@ -6121,7 +6189,14 @@
                 if (statErrors) statErrors.textContent = "0";
 
                 const previewTable = document.getElementById("txt-preview-table-body");
-                if (previewTable) previewTable.innerHTML = "";
+                if (previewTable) {
+                    previewTable.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="py-6 text-center text-slate-500 italic">
+                                โปรดอัปโหลดไฟล์เวลางานและกดพรีวิวเพื่อแสดงข้อมูลที่นี่</td>
+                        </tr>
+                    `;
+                }
 
                 const warnLog = document.getElementById("txt-warnings-log");
                 if (warnLog) warnLog.innerHTML = `<span class="text-slate-500 italic block">ไม่มีคำเตือนความผิดปกติ</span>`;
@@ -6159,10 +6234,12 @@
 
                 console.log(`[TXT Import] Starting ${modeStr} with ${selectedTxtFileContent.length} bytes`);
 
+                const selectedProject = document.getElementById("txt-project-select")?.value || "";
                 const payload = {
                     action: "importTimeRecords",
                     fileContent: selectedTxtFileContent,
-                    dryRun: true
+                    dryRun: true,
+                    project: selectedProject
                 };
 
                 // Animate progress bar while waiting for response
@@ -6282,7 +6359,8 @@
                                     batchOnly: true,
                                     batchRecords: batchRecords,
                                     batchNum: batchIdx,
-                                    totalBatches: totalBatches
+                                    totalBatches: totalBatches,
+                                    project: selectedProject
                                 };
 
                                 const batchStatusText = document.getElementById("txt-import-status-text");
@@ -6440,6 +6518,7 @@
               <td class="py-2.5 text-emerald-600 font-semibold">${clockIn}</td>
               <td class="py-2.5 text-emerald-600 font-semibold">${clockOut}</td>
               <td class="py-2.5">${statusBadge}</td>
+              <td class="py-2.5 text-slate-600">${selectedProject || "-"}</td>
               <td class="py-2.5 text-slate-500">${duplicates} รายการซ้อน</td>
             `;
                             previewTable.appendChild(tr);
