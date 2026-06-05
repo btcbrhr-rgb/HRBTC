@@ -1355,7 +1355,7 @@
                             class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1">
                             <i class="fa-solid fa-eraser"></i> ล้างลายมือ
                         </button>
-                        <button onclick="submitLeaveWithSignature()"
+                        <button onclick="submitLeaveWithSignature()" id="btn-submit-leave"
                             class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1">
                             <i class="fa-solid fa-paper-plane"></i> ส่งคำขอ
                         </button>
@@ -3133,6 +3133,7 @@
             let cameraMode = "user";
             let leaveAttachmentBase64 = "";
             let pendingLeavePayload = null;
+            let isSubmittingLeave = false;
             let isDrawing = false;
             let lastX = 0;
             let lastY = 0;
@@ -4643,6 +4644,8 @@
             }
 
             async function submitLeaveWithSignature() {
+                if (isSubmittingLeave) return;
+
                 if (isCanvasEmpty()) {
                     showToast("⚠️ กรุณาเช็นลายมือชื่อก่อนส่งคำขอ", "warning");
                     return;
@@ -4652,6 +4655,17 @@
                 const signatureBase64 = signatureCanvas.toDataURL("image/png");
                 pendingLeavePayload.signature = signatureBase64;
 
+                const submitBtn = document.getElementById("btn-submit-leave");
+                let originalBtnHtml = "";
+                if (submitBtn) {
+                    originalBtnHtml = submitBtn.innerHTML;
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> กำลังส่ง...`;
+                    submitBtn.classList.remove("bg-blue-600", "hover:bg-blue-700");
+                    submitBtn.classList.add("bg-slate-400", "cursor-not-allowed");
+                }
+
+                isSubmittingLeave = true;
                 showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล...", "info");
 
                 try {
@@ -4671,6 +4685,14 @@
                     }
                 } catch (err) {
                     showToast("❌ ขัดข้องทางการเชื่อมต่อเซิร์ฟเวอร์", "error");
+                } finally {
+                    isSubmittingLeave = false;
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnHtml;
+                        submitBtn.classList.remove("bg-slate-400", "cursor-not-allowed");
+                        submitBtn.classList.add("bg-blue-600", "hover:bg-blue-700");
+                    }
                 }
             }
 
