@@ -5743,11 +5743,15 @@
                         pending.forEach(req => {
                             const reqDate = req["วันที่"];
                             if (reqDate) {
-                                const daysUntil = getDaysDifference(reqDate, today);
-                                if (daysUntil === 0) corrDueToday++;
-                                else if (daysUntil === 1) corrDueIn1++;
-                                else if (daysUntil === 3) corrDueIn3++;
-                                else if (daysUntil === 5) corrDueIn5++;
+                                try {
+                                    const daysUntil = getDaysDifference(reqDate, today);
+                                    if (daysUntil === 0) corrDueToday++;
+                                    else if (daysUntil === 1) corrDueIn1++;
+                                    else if (daysUntil === 3) corrDueIn3++;
+                                    else if (daysUntil === 5) corrDueIn5++;
+                                } catch (e) {
+                                    console.warn('⚠️ [CORRECTIONS] getDaysDifference error:', e, 'reqDate:', reqDate);
+                                }
                             }
                         });
 
@@ -5756,6 +5760,8 @@
                         } else {
                             console.log('🔍 [CORRECTIONS] About to render', pending.length, 'rows');
                             console.log('🔍 [CORRECTIONS] Container:', correctionContainer);
+                            let successCount = 0;
+                            let errorCount = 0;
                             pending.forEach((req, idx) => {
                                 try {
                                     const tr = document.createElement("tr");
@@ -5782,11 +5788,14 @@
                 </td>
               `;
                                     correctionContainer.appendChild(tr);
+                                    successCount++;
                                     if (idx === 0) console.log('✓ [CORRECTIONS] First row appended successfully');
                                 } catch (e) {
-                                    console.error('❌ [CORRECTIONS] Error rendering row', idx, e);
+                                    errorCount++;
+                                    console.error('❌ [CORRECTIONS] Error rendering row', idx, e, 'Record:', req);
                                 }
                             });
+                            console.log(`✓ [CORRECTIONS] Rendered: ${successCount}/${pending.length}, Errors: ${errorCount}`);
                         }
                     }
 
