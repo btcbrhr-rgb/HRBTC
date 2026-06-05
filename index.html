@@ -3899,11 +3899,18 @@
                 try {
                     const response = await fetch(resource, { ...options, signal: controller.signal });
                     if (id !== null) clearTimeout(id);
-                    if (!response.ok) throw new Error("Network response was not ok");
-                    return await response.json();
+                    if (!response.ok) {
+                        return { status: 'error', message: 'Network response was not ok', code: response.status };
+                    }
+                    try {
+                        return await response.json();
+                    } catch (parseErr) {
+                        return { status: 'error', message: 'Invalid JSON response: ' + parseErr.message };
+                    }
                 } catch (err) {
                     if (id !== null) clearTimeout(id);
-                    throw err;
+                    // คืนค่าเป็น object แทนการ throw เพื่อลด Uncaught (in promise) AbortError
+                    return { status: 'error', message: err.message, name: err.name || 'Error' };
                 }
             }
 
