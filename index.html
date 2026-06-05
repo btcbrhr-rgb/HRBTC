@@ -2845,8 +2845,9 @@
                     <option value="น.ส.ศุลีพร นพสุวรรณวงศ์">น.ส.ศุลีพร นพสุวรรณวงศ์</option>
                 </select>
 
-                <textarea id="admin-decision-note" rows="3" placeholder="ระบุเหตุผล หรือความคิดเห็นของผู้บริหาร..."
+                <textarea id="admin-decision-note" rows="3" placeholder="ระบุเหตุผล หรือความคิดเห็นของผู้บริหาร (ไม่บังคับ)"
                     class="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"></textarea>
+                <p class="text-[10px] text-slate-400">สำหรับการอนุมัติ ไม่ต้องกรอกก็ได้</p>
             </div>
             <div class="flex gap-2">
                 <button id="admin-decision-reject-btn"
@@ -3390,6 +3391,7 @@
                     document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                     document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
                     loadAllData();
+                    navigateTo("home");
                     return;
                 }
 
@@ -6043,22 +6045,28 @@
                     payload.status = action;
                 }
 
-                try {
-                    const response = await fetchWithTimeout(url, {
-                        method: "POST",
-                        body: JSON.stringify(payload)
-                    });
+                return withSubmitLock("adminDecision", async () => {
+                    try {
+                        const response = await fetchWithTimeout(url, {
+                            method: "POST",
+                            body: JSON.stringify(payload)
+                        });
 
-                    if (response.status === 'success') {
-                        showToast(`✅ พิจารณาคำร้องเสร็จสิ้น: ${response.message}`, "success");
-                        closeDecisionModal();
-                        loadAdminApprovals();
-                    } else {
-                        showToast("❌ พิจารณาล้มเหลว: " + response.message, "error");
+                        if (response.status === 'success') {
+                            showToast(`✅ พิจารณาคำร้องเสร็จสิ้น: ${response.message}`, "success");
+                            closeDecisionModal();
+                            loadAdminApprovals();
+                        } else {
+                            showToast("❌ พิจารณาล้มเหลว: " + response.message, "error");
+                        }
+                    } catch (err) {
+                        showToast("❌ เกิดข้อผิดพลาดในการเชื่อมโยงเครือข่าย", "error");
                     }
-                } catch (err) {
-                    showToast("❌ เกิดข้อผิดพลาดในการเชื่อมโยงเครือข่าย", "error");
-                }
+                }, {
+                    buttonId: action === 'อนุมัติแล้ว' ? "admin-decision-approve-btn" : "admin-decision-reject-btn",
+                    activeLabel: action === 'อนุมัติแล้ว' ? "ยืนยันอนุมัติ" : "ยืนยันการปฏิเสธ",
+                    loadingLabel: action === 'อนุมัติแล้ว' ? "กำลังอนุมัติ..." : "กำลังปฏิเสธ..."
+                });
             }
 
             // เปิดโมดอลการสร้างหรือแก้ไขผู้ใช้พนักงาน
