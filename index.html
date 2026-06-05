@@ -3629,7 +3629,7 @@
                 const currentCycle = getCurrentCycleRange();
 
                 try {
-                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=getDashboardData&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=getDashboardData&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`, { timeout: 30000 });
                     
                     if (response && response.status === "success" && response.data) {
                         const d = response.data;
@@ -3675,7 +3675,11 @@
                 } catch (error) {
                     console.error("Error loading dashboard data:", error);
                     document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-rose-500";
-                    showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
+                    if (error.name === "AbortError") {
+                        showToast("⏱️ การโหลดข้อมูลใช้เวลานานเกินไป กรุณาลองใหม่", "error");
+                    } else {
+                        showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
+                    }
                 }
             }
 
@@ -3873,7 +3877,7 @@
 
                 // ถ้า timeout = 0 หรือ null → ไม่มี timeout
                 if (timeout > 0) {
-                    id = setTimeout(() => controller.abort(), timeout);
+                    id = setTimeout(() => controller.abort(new DOMException("Request timed out", "AbortError")), timeout);
                 }
 
                 try {
