@@ -183,24 +183,7 @@
             const isAndWV = isAndroid && (/\bwv\b/.test(ua) || (!/Chrome\/\d+/.test(ua) && /Version\/\d+/.test(ua)));
 
             // Auto-redirect for LINE using native query parameter
-            if (isLINE) {
-                try {
-                    const url = new URL(window.location.href);
-                    if (!url.searchParams.has('openExternalBrowser')) {
-                        url.searchParams.set('openExternalBrowser', '1');
-                        window.location.replace(url.toString());
-                        return; // Stop execution to wait for redirect
-                    }
-                } catch (e) {
-                    console.error('URL parse error:', e);
-                }
-            }
-
-            const needsRedirect = isLINE || isFB || isIG || isTwitter || isTikTok || isIOSWV || isAndWV;
-            if (!needsRedirect) return;
-
-            // Show overlay once DOM is ready
-            document.addEventListener('DOMContentLoaded', function () {
+            // (handled later via helper functions when attempting to open externally)
                 var overlay = document.getElementById('inapp-overlay');
                 var stepsEl = document.getElementById('inapp-steps');
                 var subtitle = document.getElementById('inapp-subtitle');
@@ -245,7 +228,6 @@
                 subtitle.textContent = 'คุณกำลังเปิดจาก ' + appName + ' · กรุณาเปิดใน ' + browserTarget + ' เพื่อใช้งานกล้องและ GPS';
                 openLabel.textContent = 'เปิดใน ' + browserTarget;
                 overlay.classList.remove('hidden');
-            });
         })();
 
         // Helper: Try to open in external browser
@@ -1970,11 +1952,22 @@
                                 <i class="fa-solid fa-arrows-rotate mr-1"></i> ซิงค์ข้อมูลล่าสุด
                             </button>
                         </div>
+                        <div class="flex items-center justify-end gap-3">
+                            <label class="text-xs text-slate-600 flex items-center gap-2"><input id="admin-leave-select-all-control" type="checkbox" onchange="toggleSelectAll('leave', this.checked)"> เลือกทั้งหมด</label>
+                            <button id="admin-batch-approve-leave-btn" onclick="batchApproveSelected('leave')" class="text-xs py-1.5 px-3 rounded-lg bg-emerald-600 text-white">อนุมัติที่เลือก</button>
+                            <button id="admin-batch-reject-leave-btn" onclick="batchRejectSelected('leave')" class="text-xs py-1.5 px-3 rounded-lg bg-rose-600 text-white">ปฏิเสธที่เลือก</button>
+                        </div>
+                    <div class="flex items-center justify-end gap-3">
+                        <label class="text-xs text-slate-600 flex items-center gap-2"><input id="admin-correction-select-all-control" type="checkbox" onchange="toggleSelectAll('correction', this.checked)"> เลือกทั้งหมด</label>
+                        <button id="admin-batch-approve-correction-btn" onclick="batchApproveSelected('correction')" class="text-xs py-1.5 px-3 rounded-lg bg-emerald-600 text-white">อนุมัติที่เลือก</button>
+                        <button id="admin-batch-reject-correction-btn" onclick="batchRejectSelected('correction')" class="text-xs py-1.5 px-3 rounded-lg bg-rose-600 text-white">ปฏิเสธที่เลือก</button>
+                    </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs border-collapse">
                                 <thead>
                                     <tr class="border-b border-slate-200 text-slate-500">
-                                        <th class="py-2.5 font-semibold">เลขที่เอกสาร</th>
+                                            <th class="py-2.5 font-semibold w-8 text-center"><input id="admin-leave-select-all" type="checkbox" onchange="toggleSelectAll('leave', this.checked)"></th>
+                                            <th class="py-2.5 font-semibold">เลขที่เอกสาร</th>
                                         <th class="py-2.5 font-semibold">พนักงาน</th>
                                         <th class="py-2.5 font-semibold">ประเภทการลา</th>
                                         <th class="py-2.5 font-semibold">ช่วงวันที่</th>
@@ -1986,10 +1979,10 @@
                                     </tr>
                                 </thead>
                                 <tbody id="admin-leave-table-body" class="divide-y divide-slate-200 text-slate-600">
-                                    <tr>
-                                        <td colspan="9" class="py-6 text-center text-slate-500 italic">
-                                            อยู่ระหว่างการโหลดคำขอลาจากฐานข้อมูล...</td>
-                                    </tr>
+                                        <tr>
+                                            <td colspan="10" class="py-6 text-center text-slate-500 italic">
+                                                อยู่ระหว่างการโหลดคำขอลาจากฐานข้อมูล...</td>
+                                        </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -2006,10 +1999,16 @@
                                 <i class="fa-solid fa-arrows-rotate mr-1"></i> ซิงค์ข้อมูลล่าสุด
                             </button>
                         </div>
+                    <div class="flex items-center justify-end gap-3">
+                        <label class="text-xs text-slate-600 flex items-center gap-2"><input id="admin-advance-select-all" type="checkbox" onchange="toggleSelectAll('advance', this.checked)"> เลือกทั้งหมด</label>
+                        <button id="admin-batch-approve-advance-btn" onclick="batchApproveSelected('advance')" class="text-xs py-1.5 px-3 rounded-lg bg-emerald-600 text-white">อนุมัติที่เลือก</button>
+                        <button id="admin-batch-reject-advance-btn" onclick="batchRejectSelected('advance')" class="text-xs py-1.5 px-3 rounded-lg bg-rose-600 text-white">ปฏิเสธที่เลือก</button>
+                    </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs border-collapse">
                                 <thead>
                                     <tr class="border-b border-slate-200 text-slate-500">
+                                        <th class="py-2.5 font-semibold w-8 text-center"></th>
                                         <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
                                         <th class="py-2.5 font-semibold">วันที่ร้องขอ</th>
                                         <th class="py-2.5 font-semibold">เวลาเข้าใหม่</th>
@@ -2022,7 +2021,7 @@
                                 <tbody id="admin-correction-table-body"
                                     class="divide-y divide-slate-200 text-slate-600">
                                     <tr>
-                                        <td colspan="7" class="py-6 text-center text-slate-500 italic">
+                                        <td colspan="8" class="py-6 text-center text-slate-500 italic">
                                             อยู่ระหว่างการโหลดข้อมูลเวลางานจากระบบ...</td>
                                     </tr>
                                 </tbody>
@@ -2045,6 +2044,7 @@
                             <table class="w-full text-left text-xs border-collapse">
                                 <thead>
                                     <tr class="border-b border-slate-200 text-slate-500">
+                                        <th class="py-2.5 font-semibold w-8 text-center"></th>
                                         <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
                                         <th class="py-2.5 font-semibold">จำนวนเงินที่เบิก</th>
                                         <th class="py-2.5 font-semibold">วันที่ส่งคำขอ</th>
@@ -2056,7 +2056,7 @@
                                 </thead>
                                 <tbody id="admin-advance-table-body" class="divide-y divide-slate-200 text-slate-600">
                                     <tr>
-                                        <td colspan="7" class="py-6 text-center text-slate-500 italic">
+                                        <td colspan="8" class="py-6 text-center text-slate-500 italic">
                                             กำลังดึงข้อมูลเบิกเงินสำรองพนักงาน...</td>
                                     </tr>
                                 </tbody>
@@ -3173,9 +3173,9 @@
                 decreaseApprovalBadgeCount(type);
 
                 const placeholderMap = {
-                    leave: { id: "admin-leave-table-body", colspan: 9, message: "ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้" },
-                    correction: { id: "admin-correction-table-body", colspan: 7, message: "ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ" },
-                    advance: { id: "admin-advance-table-body", colspan: 7, message: "ไม่มีคำขอเบิกเงินที่รอการอนุมัติ" }
+                    leave: { id: "admin-leave-table-body", colspan: 10, message: "ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้" },
+                    correction: { id: "admin-correction-table-body", colspan: 8, message: "ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ" },
+                    advance: { id: "admin-advance-table-body", colspan: 8, message: "ไม่มีคำขอเบิกเงินที่รอการอนุมัติ" }
                 };
                 const cfg = placeholderMap[type];
                 if (cfg) {
@@ -3185,6 +3185,88 @@
                     }
                 }
                 return true;
+            }
+
+            // Batch selection helpers
+            function toggleSelectAll(type, checked) {
+                const boxes = document.querySelectorAll(`tr[data-approval-row-type="${type}"] input.approval-row-checkbox`);
+                boxes.forEach(b => b.checked = !!checked);
+            }
+
+            function getSelectedApprovalCheckboxes(type) {
+                return Array.from(document.querySelectorAll(`tr[data-approval-row-type="${type}"] input.approval-row-checkbox:checked`));
+            }
+
+            async function batchApproveSelected(type) {
+                return batchProcessSelected(type, true);
+            }
+
+            async function batchRejectSelected(type) {
+                return batchProcessSelected(type, false);
+            }
+
+            async function batchProcessSelected(type, approve) {
+                const boxes = getSelectedApprovalCheckboxes(type);
+                if (!boxes.length) return showToast('⚠️ โปรดเลือกอย่างน้อยหนึ่งรายการเพื่อดำเนินการ', 'error');
+
+                const approveBtn = document.getElementById(`admin-batch-approve-${type}-btn`);
+                const rejectBtn = document.getElementById(`admin-batch-reject-${type}-btn`);
+                if (approveBtn) approveBtn.disabled = true;
+                if (rejectBtn) rejectBtn.disabled = true;
+
+                const results = { success: 0, failed: 0, errors: [] };
+                try {
+                    for (const cb of boxes) {
+                        const tr = cb.closest('tr');
+                        const rowKey = tr?.dataset?.approvalRowKey || '';
+                        let record = null;
+                        try { record = JSON.parse(tr.dataset.approvalRowPayload || '{}'); } catch (e) { record = null; }
+                        if (!record) {
+                            results.failed++;
+                            results.errors.push(`${rowKey}: อ่านข้อมูลแถวไม่สำเร็จ`);
+                            continue;
+                        }
+
+                        const payloadBase = { approvedBy: (employeeData['ชื่อ-นามสกุล'] || 'Admin'), note: '', adminId: currentEmployeeId };
+                        const status = approve ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ';
+                        if (type === 'leave') {
+                            payloadBase.action = 'approveLeave';
+                            payloadBase.docId = record['เลขที่เอกสาร'];
+                            payloadBase.status = status;
+                        } else if (type === 'correction') {
+                            payloadBase.action = 'approveTimeCorrection';
+                            payloadBase.empId = record['รหัสพนักงาน'];
+                            payloadBase.date = record['วันที่'];
+                            payloadBase.status = status;
+                        } else if (type === 'advance') {
+                            payloadBase.action = 'approveAdvance';
+                            payloadBase.empId = record['รหัสพนักงาน'];
+                            payloadBase.date = record['วันที่เบิก'];
+                            payloadBase.amount = record['จำนวนเงิน'];
+                            payloadBase.status = status;
+                        }
+
+                        try {
+                            const res = await fetchWithTimeout(SERVER_API_URL, { method: 'POST', body: JSON.stringify(payloadBase), timeout: 30000 });
+                            if (res && res.status === 'success') {
+                                results.success++;
+                                removeApprovalPendingRow(type, rowKey);
+                            } else {
+                                results.failed++;
+                                results.errors.push(`${rowKey}: ${res?.message || 'ล้มเหลว'}`);
+                            }
+                        } catch (err) {
+                            results.failed++;
+                            results.errors.push(`${rowKey}: ${err?.message || err}`);
+                        }
+                    }
+
+                    showToast(`✅ ดำเนินการเสร็จ: สำเร็จ ${results.success}, ล้มเหลว ${results.failed}` + (results.failed ? ' — ดูคอนโซลสำหรับรายละเอียด' : ''), results.failed ? 'error' : 'success');
+                    if (results.errors && results.errors.length) console.warn('batchProcessSelected errors', results.errors);
+                } finally {
+                    if (approveBtn) approveBtn.disabled = false;
+                    if (rejectBtn) rejectBtn.disabled = false;
+                }
             }
 
             let parsedPayslips = []; // Holds list of parsed/split payslip pages
@@ -5701,9 +5783,9 @@
                 const correctionContainer = document.getElementById("admin-correction-table-body");
                 const advanceContainer = document.getElementById("admin-advance-table-body");
 
-                leaveContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic">⏳ กำลังซิงค์ข้อมูลใบลาทั้งหมด...</td></tr>`;
-                correctionContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดข้อมูลคำขอแก้ไขเวลา...</td></tr>`;
-                advanceContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ โหลดคำขอเบิกเงินสะสมกลางเดือน...</td></tr>`;
+                leaveContainer.innerHTML = `<tr><td colspan="10" class="py-5 text-center text-slate-500 italic">⏳ กำลังซิงค์ข้อมูลใบลาทั้งหมด...</td></tr>`;
+                correctionContainer.innerHTML = `<tr><td colspan="8" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดข้อมูลคำขอแก้ไขเวลา...</td></tr>`;
+                advanceContainer.innerHTML = `<tr><td colspan="8" class="py-5 text-center text-slate-500 italic">⏳ โหลดคำขอเบิกเงินสะสมกลางเดือน...</td></tr>`;
 
                 const today = getTodayDateString();
                 const leaveUrl = `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`;
@@ -5804,9 +5886,9 @@
                   </td>
                 </tr>`;
                         });
-                        leaveContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
+                        leaveContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="10" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
                     } else {
-                        leaveContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(leaveRes.message || 'โหลดข้อมูลใบลาล้มเหลว')}</td></tr>`;
+                        leaveContainer.innerHTML = `<tr><td colspan="10" class="py-6 text-center text-rose-600">❌ ${escapeHtml(leaveRes.message || 'โหลดข้อมูลใบลาล้มเหลว')}</td></tr>`;
                     }
                     updateApprovalMenu("admin-menu-approve-leave", "admin-menu-approve-leave-badge", {
                         total: leavePendingCount,
@@ -5840,25 +5922,26 @@
                                 else if (daysUntil === 3) corrDueIn3++;
                                 else if (daysUntil === 5) corrDueIn5++;
                             }
-                            return `
-                <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(empId + '::' + (req["วันที่"] || ''))}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
-                  <td class="py-3 font-semibold text-slate-700">${empId}</td>
-                  <td class="py-3 text-slate-600">${date}</td>
-                  <td class="py-3 text-emerald-600 font-semibold">${newIn}</td>
-                  <td class="py-3 text-emerald-600 font-semibold">${newOut}</td>
-                  <td class="py-3 text-slate-400 max-w-[200px] truncate" title="${reason}">${reason}</td>
-                  <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
-                  <td class="py-3 text-right">
-                    <div class="flex justify-end gap-1.5">
-                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
-                    </div>
-                  </td>
-                </tr>`;
+                                                        return `
+                                <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(empId + '::' + (req["วันที่"] || ''))}" data-approval-row-payload='${safeJson(req)}' class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
+                                    <td class="py-3 text-center w-8"><input type="checkbox" class="approval-row-checkbox"></td>
+                                    <td class="py-3 font-semibold text-slate-700">${empId}</td>
+                                    <td class="py-3 text-slate-600">${date}</td>
+                                    <td class="py-3 text-emerald-600 font-semibold">${newIn}</td>
+                                    <td class="py-3 text-emerald-600 font-semibold">${newOut}</td>
+                                    <td class="py-3 text-slate-400 max-w-[200px] truncate" title="${reason}">${reason}</td>
+                                    <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
+                                    <td class="py-3 text-right">
+                                        <div class="flex justify-end gap-1.5">
+                                            <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
+                                            <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                                        </div>
+                                    </td>
+                                </tr>`;
                         });
-                        correctionContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ</td></tr>`;
+                        correctionContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="8" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ</td></tr>`;
                     } else {
-                        correctionContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
+                        correctionContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
                     }
                     updateApprovalMenu("admin-menu-approve-correction", "admin-menu-approve-correction-badge", {
                         total: corrPendingCount,
@@ -5893,25 +5976,26 @@
                                 else if (daysUntil === 3) advDueIn3++;
                                 else if (daysUntil === 5) advDueIn5++;
                             }
-                            return `
-                <tr data-approval-row-type="advance" data-approval-row-key="${escapeHtml(empId + '::' + (req["วันที่เบิก"] || '') + '::' + (req["จำนวนเงิน"] || ''))}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
-                  <td class="py-3 font-semibold text-slate-700">${empId}</td>
-                  <td class="py-3 text-emerald-600 font-bold">฿${amount}</td>
-                  <td class="py-3 text-slate-600">${date}</td>
-                  <td class="py-3 text-slate-500">${cycle}</td>
-                  <td class="py-3 text-slate-600 font-medium">${channel}</td>
-                  <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">${status}</span></td>
-                  <td class="py-3 text-right">
-                    <div class="flex justify-end gap-1.5">
-                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
-                    </div>
-                  </td>
-                </tr>`;
+                                                        return `
+                                <tr data-approval-row-type="advance" data-approval-row-key="${escapeHtml(empId + '::' + (req["วันที่เบิก"] || '') + '::' + (req["จำนวนเงิน"] || ''))}" data-approval-row-payload='${safeJson(req)}' class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
+                                    <td class="py-3 text-center w-8"><input type="checkbox" class="approval-row-checkbox"></td>
+                                    <td class="py-3 font-semibold text-slate-700">${empId}</td>
+                                    <td class="py-3 text-emerald-600 font-bold">฿${amount}</td>
+                                    <td class="py-3 text-slate-600">${date}</td>
+                                    <td class="py-3 text-slate-500">${cycle}</td>
+                                    <td class="py-3 text-slate-600 font-medium">${channel}</td>
+                                    <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">${status}</span></td>
+                                    <td class="py-3 text-right">
+                                        <div class="flex justify-end gap-1.5">
+                                            <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
+                                            <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                                        </div>
+                                    </td>
+                                </tr>`;
                         });
-                        advanceContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอเบิกเงินที่รอการอนุมัติ</td></tr>`;
+                        advanceContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="8" class="py-6 text-center text-slate-500">ไม่มีคำขอเบิกเงินที่รอการอนุมัติ</td></tr>`;
                     } else {
-                        advanceContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ ${escapeHtml(advRes.message || 'โหลดข้อมูลคำขอเบิกเงินไม่สำเร็จ')}</td></tr>`;
+                        advanceContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(advRes.message || 'โหลดข้อมูลคำขอเบิกเงินไม่สำเร็จ')}</td></tr>`;
                     }
                     updateApprovalMenu("admin-menu-approve-advance", "admin-menu-approve-advance-badge", {
                         total: advPendingCount,
