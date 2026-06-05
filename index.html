@@ -183,7 +183,25 @@
             const isAndWV = isAndroid && (/\bwv\b/.test(ua) || (!/Chrome\/\d+/.test(ua) && /Version\/\d+/.test(ua)));
 
             // Auto-redirect for LINE using native query parameter
-            // (handled later via helper functions when attempting to open externally)
+            if (isLINE) {
+                                                        return `
+                                <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" data-approval-row-payload='${safeJson(req)}' class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
+                                    <td class="py-3 text-center w-8"><input type="checkbox" class="approval-row-checkbox"></td>
+                                    <td class="py-3 font-semibold text-slate-700">${docId}</td>
+                                    <td class="py-3 text-slate-600">${empId}</td>
+                                    <td class="py-3 text-slate-600 font-semibold">${type}</td>
+                                    <td class="py-3 text-slate-500">${range}</td>
+                                    <td class="py-3 text-center text-slate-700 font-bold">${days} วัน</td>
+                                    <td class="py-3 text-slate-400 max-w-[150px] truncate" title="${reason}">${reason}</td>
+                                    <td class="py-3">${attachHtml}</td>
+                                    <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
+                                    <td class="py-3 text-right">
+                                        <div class="flex justify-end gap-1.5">
+                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
+                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                                        </div>
+                                    </td>
+                                </tr>`;
                 var overlay = document.getElementById('inapp-overlay');
                 var stepsEl = document.getElementById('inapp-steps');
                 var subtitle = document.getElementById('inapp-subtitle');
@@ -228,6 +246,7 @@
                 subtitle.textContent = 'คุณกำลังเปิดจาก ' + appName + ' · กรุณาเปิดใน ' + browserTarget + ' เพื่อใช้งานกล้องและ GPS';
                 openLabel.textContent = 'เปิดใน ' + browserTarget;
                 overlay.classList.remove('hidden');
+            });
         })();
 
         // Helper: Try to open in external browser
