@@ -6013,6 +6013,8 @@
                 document.getElementById("admin-decision-modal").classList.add("hidden");
                 document.getElementById("admin-decision-approve-btn").classList.remove("hidden");
                 document.getElementById("admin-decision-reject-btn").classList.remove("hidden");
+                const noteInput = document.getElementById("admin-decision-note");
+                if (noteInput) noteInput.value = "";
                 adminCurrentDecisionData = null;
             }
 
@@ -6047,21 +6049,28 @@
 
                 return withSubmitLock("adminDecision", async () => {
                     try {
+                        console.log('[adminDecision] payload:', payload);
                         const response = await fetchWithTimeout(url, {
                             method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
                             body: JSON.stringify(payload),
                             timeout: 30000
                         });
 
-                        if (response.status === 'success') {
+                        console.log('[adminDecision] response:', response);
+                        if (!response || typeof response !== 'object') {
+                            showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
+                        } else if (response.status === 'success') {
                             showToast(`✅ พิจารณาคำร้องเสร็จสิ้น: ${response.message}`, "success");
                             closeDecisionModal();
                             loadAdminApprovals();
                         } else {
-                            showToast("❌ พิจารณาล้มเหลว: " + response.message, "error");
+                            showToast(`❌ พิจารณาล้มเหลว: ${response.message || 'ไม่ทราบสาเหตุ'}${response.code ? ' (' + response.code + ')' : ''}`, "error");
                         }
                     } catch (err) {
-                        showToast("❌ เกิดข้อผิดพลาดในการเชื่อมโยงเครือข่าย", "error");
+                        showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมโยงเครือข่าย: ${err.message || err}`, "error");
                     }
                 }, {
                     buttonId: action === 'อนุมัติแล้ว' ? "admin-decision-approve-btn" : "admin-decision-reject-btn",
