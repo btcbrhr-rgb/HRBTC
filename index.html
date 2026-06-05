@@ -402,6 +402,20 @@
 
             </form>
 
+            <!-- === [Loading Screen: แสดงระหว่างโหลดข้อมูลหลังล็อกอิน] === -->
+            <div id="app-loading-screen" class="fixed inset-0 z-[99998] bg-slate-950/90 text-white flex flex-col items-center justify-center p-6 hidden">
+                <div class="max-w-sm w-full rounded-3xl border border-white/10 bg-slate-900/95 p-8 text-center shadow-2xl">
+                    <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10 text-blue-200 text-3xl">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                    </div>
+                    <h2 class="text-xl font-semibold mb-2">กำลังเตรียมระบบให้พร้อม</h2>
+                    <p class="loading-message text-sm text-slate-300 mb-6">กรุณารอสักครู่ ขณะดึงข้อมูลพนักงาน...</p>
+                    <div class="mx-auto mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div class="h-full w-1/2 animate-pulse rounded-full bg-blue-500"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- === [MODAL: PIN Setup - ครั้งแรกเข้าแอป] === -->
             <div id="pin-setup-modal"
                 class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
@@ -3539,6 +3553,7 @@
 
                     // No PIN needed, login directly
                     hideLoginContainer();
+                    showAppLoading(`กำลังโหลดข้อมูลของคุณ...`);
                     generateCycleOptions();
                     const currentCycle = getCurrentCycleRange();
                     document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
@@ -3577,6 +3592,20 @@
                     loginCont.classList.add("hidden");
                     if (bottomNav) bottomNav.classList.remove("hidden");
                 }, 300);
+            }
+
+            function showAppLoading(message = "กำลังโหลดข้อมูลระบบ... โปรดรอสักครู่") {
+                const loadingScreen = document.getElementById("app-loading-screen");
+                if (!loadingScreen) return;
+                const messageEl = loadingScreen.querySelector(".loading-message");
+                if (messageEl) messageEl.textContent = message;
+                loadingScreen.classList.remove("hidden");
+            }
+
+            function hideAppLoading() {
+                const loadingScreen = document.getElementById("app-loading-screen");
+                if (!loadingScreen) return;
+                loadingScreen.classList.add("hidden");
             }
 
             function setLoginQuick(empId) {
@@ -3622,6 +3651,7 @@
 
                         showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
                         hideLoginContainer();
+                        showAppLoading(`กำลังโหลดข้อมูลของคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}...`);
                         generateCycleOptions();
                         const currentCycle = getCurrentCycleRange();
                         document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
@@ -3793,6 +3823,7 @@
             async function loadAllData() {
                 if (!isLoggedIn) return;
 
+                showAppLoading();
                 showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
                 document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
 
@@ -3850,6 +3881,8 @@
                     } else {
                         showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
                     }
+                } finally {
+                    hideAppLoading();
                 }
             }
 
