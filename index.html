@@ -4721,19 +4721,38 @@
                     pendingLeavePayload.signature = signatureBase64;
 
                     showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล...", "info");
-                    const res = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(pendingLeavePayload)
-                    });
 
-                    if (res.status === "success") {
+                    // Retry logic: 3 attempts with exponential backoff, extended timeout
+                    let res = null;
+                    let attempt = 0;
+                    const maxAttempts = 3;
+                    while (attempt < maxAttempts) {
+                        try {
+                            res = await fetchWithTimeout(SERVER_API_URL, {
+                                method: "POST",
+                                body: JSON.stringify(pendingLeavePayload),
+                                timeout: 20000 // 20s for slower networks
+                            });
+                            break; // success
+                        } catch (err) {
+                            attempt++;
+                            if (attempt >= maxAttempts) {
+                                showToast("❌ ล้มเหลว: " + err.message, "error");
+                                return;
+                            }
+                            // wait before retrying (exponential backoff)
+                            await new Promise(r => setTimeout(r, 1000 * attempt));
+                        }
+                    }
+
+                    if (res && res.status === "success") {
                         showToast("🎉 ส่งใบลาเรียบร้อยแล้ว รอ HR ตรวจสอบ", "success");
                         document.getElementById("leave-request-form").reset();
                         leaveAttachmentBase64 = "";
                         closeSignatureModal();
                         loadAllData();
                     } else {
-                        showToast("❌ ล้มเหลว: " + res.message, "error");
+                        showToast("❌ ล้มเหลว: " + (res && res.message ? res.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์'), "error");
                     }
                 }, {
                     buttonId: "btn-submit-leave",
