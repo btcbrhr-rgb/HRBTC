@@ -5730,9 +5730,11 @@
 
                     // 2. โหลดคำขอแก้ไขเวลาทั้งหมด
                     const corrRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`);
+                    console.log('🔍 [CORRECTIONS] API Response:', corrRes);
                     if (corrRes.status === 'success') {
                         correctionContainer.innerHTML = "";
                         const pending = corrRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
+                        console.log('🔍 [CORRECTIONS] Pending count:', pending.length, 'Records:', pending);
                         corrPendingCount = pending.length;
 
                         // Calculate due dates for correction requests
@@ -5750,17 +5752,20 @@
                         if (pending.length === 0) {
                             correctionContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ</td></tr>`;
                         } else {
-                            pending.forEach(req => {
-                                const tr = document.createElement("tr");
-                                tr.className = "border-b border-slate-100 hover:bg-slate-50 transition-all text-xs";
+                            console.log('🔍 [CORRECTIONS] About to render', pending.length, 'rows');
+                            console.log('🔍 [CORRECTIONS] Container:', correctionContainer);
+                            pending.forEach((req, idx) => {
+                                try {
+                                    const tr = document.createElement("tr");
+                                    tr.className = "border-b border-slate-100 hover:bg-slate-50 transition-all text-xs";
 
-                                const empId = req["รหัสพนักงาน"] || "N/A";
-                                const date = formatThaiDate(req["วันที่"]);
-                                const newIn = req["เวลาเข้าใหม่"] || "-";
-                                const newOut = req["เวลาออกใหม่"] || "-";
-                                const reason = req["เหตุผล"] || "-";
+                                    const empId = req["รหัสพนักงาน"] || "N/A";
+                                    const date = formatThaiDate(req["วันที่"]);
+                                    const newIn = req["เวลาเข้าใหม่"] || "-";
+                                    const newOut = req["เวลาออกใหม่"] || "-";
+                                    const reason = req["เหตุผล"] || "-";
 
-                                tr.innerHTML = `
+                                    tr.innerHTML = `
                 <td class="py-3 font-semibold text-slate-700">${empId}</td>
                 <td class="py-3 text-slate-600">${date}</td>
                 <td class="py-3 text-emerald-600 font-semibold">${newIn}</td>
@@ -5774,7 +5779,11 @@
                   </div>
                 </td>
               `;
-                                correctionContainer.appendChild(tr);
+                                    correctionContainer.appendChild(tr);
+                                    if (idx === 0) console.log('✓ [CORRECTIONS] First row appended successfully');
+                                } catch (e) {
+                                    console.error('❌ [CORRECTIONS] Error rendering row', idx, e);
+                                }
                             });
                         }
                     }
@@ -5796,9 +5805,11 @@
 
                     // 3. โหลดคำขอเบิกเงินล่วงหน้า
                     const advRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`);
+                    console.log('🔍 [ADVANCES] API Response:', advRes);
                     if (advRes.status === 'success') {
                         advanceContainer.innerHTML = "";
                         const pending = advRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ' || r["สถานะ"] === 'รอตรวจสอบ');
+                        console.log('🔍 [ADVANCES] Pending count:', pending.length, 'Records:', pending);
                         advPendingCount = pending.length;
 
                         // Calculate due dates for advance requests
