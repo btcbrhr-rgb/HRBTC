@@ -3629,49 +3629,51 @@
                 const currentCycle = getCurrentCycleRange();
 
                 try {
-                    await loadProjects();
-                    const empResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${currentEmployeeId}`);
-                    if (empResponse.status === "success") {
-                        employeeData = empResponse.data;
-                        updateEmployeeProfileUI();
-                        applyRolePermissions(); // ตรวจสิทธิ์และแสดง/ซ่อนปุ่มสลับโหมดและเมนู
-                    } else {
-                        showToast("❌ โหลดข้อมูลพนักงานไม่สำเร็จ: " + empResponse.message, "error");
-                    }
-
-                    const timeResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
-                    if (timeResponse.status === "success") {
-                        timeRecordsList = timeResponse.data;
+                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=getDashboardData&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
+                    
+                    if (response && response.status === "success" && response.data) {
+                        const d = response.data;
+                        
+                        // 1. Projects
+                        projectsList = d.projects || [];
+                        populateProjectDropdowns();
+                        
+                        // 2. Employee profile
+                        if (d.employee) {
+                            employeeData = d.employee;
+                            updateEmployeeProfileUI();
+                            applyRolePermissions(); // ตรวจสิทธิ์และแสดง/ซ่อนปุ่มสลับโหมดและเมนู
+                        } else {
+                            showToast("❌ ไม่พบข้อมูลพนักงานสำหรับรหัสนี้", "error");
+                        }
+                        
+                        // 3. Time records
+                        timeRecordsList = d.timeRecords || [];
                         calculateAndDisplayStats();
                         displayActivitiesList();
                         updateAttendanceStatus(); // Update check-in/out buttons
-                    }
-
-                    // Fetch ALL leave requests (no period filter)
-                    const leaveResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=${currentEmployeeId}`);
-                    if (leaveResponse.status === "success") {
-                        leaveRequestsList = leaveResponse.data;
+                        
+                        // 4. Leave requests
+                        leaveRequestsList = d.leaveRequests || [];
                         displayLeaveHistory();
-                    }
-
-                    const advanceResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`);
-                    if (advanceResponse.status === "success") {
-                        advanceRequestsList = advanceResponse.data;
+                        
+                        // 5. Advance requests
+                        advanceRequestsList = d.advanceRequests || [];
                         displayAdvanceHistory();
-                    }
-
-                    const payslipResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getPayslips&empId=${currentEmployeeId}`);
-                    if (payslipResponse.status === "success") {
-                        payslipsList = payslipResponse.data;
+                        
+                        // 6. Payslips
+                        payslipsList = d.payslips || [];
                         displayPayslipList();
+                        
+                        document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
+                        showToast("✅ อัปเดตข้อมูลสำเร็จ", "success");
+                        displayMonthlyReminders();
+                        displayAnnouncements();
+                    } else {
+                        throw new Error(response ? response.message : "โครงสร้างข้อมูลตอบกลับไม่ถูกต้อง");
                     }
-
-                    document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
-                    showToast("✅ อัปเดตข้อมูลสำเร็จ", "success");
-                    displayMonthlyReminders();
-                    displayAnnouncements();
                 } catch (error) {
-                    console.error(error);
+                    console.error("Error loading dashboard data:", error);
                     document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-rose-500";
                     showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
                 }
@@ -6804,11 +6806,13 @@
 
                     if (idsToValidate.length > 0) {
                         try {
-                            const validationResult = await new Promise((resolve, reject) => {
-                                google.script.run
-                                    .withSuccessHandler(res => resolve(res))
-                                    .withFailureHandler(err => reject(err))
-                                    .validatePayslipEmployees(idsToValidate);
+                            const validationResult = await fetchWithTimeout(SERVER_API_URL, {
+                                method: "POST",
+                                body: JSON.stringify({
+                                    action: "validatePayslipEmployees",
+                                    empIds: idsToValidate,
+                                    adminId: currentEmployeeId
+                                })
                             });
 
                             if (validationResult && validationResult.success && validationResult.data) {
