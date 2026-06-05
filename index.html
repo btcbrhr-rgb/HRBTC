@@ -5586,136 +5586,108 @@
                 advanceContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ โหลดคำขอเบิกเงินสะสมกลางเดือน...</td></tr>`;
 
                 const today = getTodayDateString();
+                const leaveUrl = `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`;
+                const corrUrl = `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`;
+                const advUrl = `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`;
 
-                try {
+                const safeJson = obj => JSON.stringify(obj).replace(/'/g, "\\'");
+
+                const updateApprovalMenu = (menuId, badgeId, counts) => {
+                    const menuBtn = document.getElementById(menuId);
+                    const badge = document.getElementById(badgeId);
+                    if (!menuBtn || !badge) return;
+
+                    if (counts.total > 0) {
+                        let badgeText = counts.total.toString();
+                        let urgencyText = [];
+                        if (counts.today > 0) urgencyText.push(`${counts.today} ถึงวันแล้ว`);
+                        if (counts.oneDay > 0) urgencyText.push(`${counts.oneDay} 1วัน`);
+                        if (counts.threeDays > 0) urgencyText.push(`${counts.threeDays} 3วัน`);
+                        if (counts.fiveDays > 0) urgencyText.push(`${counts.fiveDays} 5วัน`);
+                        if (urgencyText.length > 0) badgeText += ` (${urgencyText.join(', ')})`;
+                        badge.textContent = badgeText;
+                        badge.classList.remove("hidden");
+
+                        let badgeClasses = "";
+                        let menuClasses = "";
+                        if (counts.today > 0) {
+                            badgeClasses = "bg-rose-100 text-rose-700 border-rose-200";
+                            menuClasses = "bg-rose-50 text-rose-700 border-rose-100";
+                        } else if (counts.oneDay > 0) {
+                            badgeClasses = "bg-orange-100 text-orange-700 border-orange-200";
+                            menuClasses = "bg-orange-50 text-orange-700 border-orange-100";
+                        } else if (counts.threeDays > 0) {
+                            badgeClasses = "bg-amber-100 text-amber-700 border-amber-200";
+                            menuClasses = "bg-amber-50 text-amber-700 border-amber-100";
+                        } else if (counts.fiveDays > 0) {
+                            badgeClasses = "bg-yellow-100 text-yellow-700 border-yellow-200";
+                            menuClasses = "bg-yellow-50 text-yellow-700 border-yellow-100";
+                        } else {
+                            badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
+                            menuClasses = "";
+                        }
+
+                        badge.className = `inline-flex items-center justify-center px-1 rounded-full text-[9px] font-bold border ${badgeClasses}`;
+                        if (menuClasses) menuBtn.classList.add(...menuClasses.split(/\s+/));
+                        else menuBtn.classList.remove("bg-rose-50", "text-rose-700", "border-rose-100", "bg-orange-50", "text-orange-700", "border-orange-100", "bg-amber-50", "text-amber-700", "border-amber-100", "bg-yellow-50", "text-yellow-700", "border-yellow-100");
+                    } else {
+                        badge.classList.add("hidden");
+                        badge.textContent = "";
+                        menuBtn.classList.remove("bg-rose-50", "text-rose-700", "border-rose-100", "bg-orange-50", "text-orange-700", "border-orange-100", "bg-amber-50", "text-amber-700", "border-amber-100", "bg-yellow-50", "text-yellow-700", "border-yellow-100");
+                    }
+                };
+
+                const renderLeave = leaveRes => {
                     let leavePendingCount = 0;
                     let leaveDueToday = 0;
                     let leaveDueIn1 = 0;
                     let leaveDueIn3 = 0;
                     let leaveDueIn5 = 0;
 
-                    // 1. โหลดข้อมูลใบลางานทั้งหมด
-                    const leaveRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`);
                     if (leaveRes.status === 'success') {
-                        leaveContainer.innerHTML = "";
                         const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
                         leavePendingCount = pending.length;
-
-                        // Calculate due dates for leave requests
-                        pending.forEach(req => {
-                            const startDate = req["วันที่เริ่ม"];
-                            if (startDate) {
-                                const daysUntil = getDaysDifference(startDate, today);
+                        const rows = pending.map(req => {
+                            const docId = req["เลขที่เอกสาร"] || "N/A";
+                            const empId = req["รหัสพนักงาน"] || "N/A";
+                            const type = req["ประเภทการลา"] || "ลาพักร้อน";
+                            const range = `${formatThaiDateShort(req["วันที่เริ่ม"])} - ${formatThaiDateShort(req["วันที่สิ้นสุด"])}`;
+                            const days = req["จำนวนวัน"] || "0";
+                            const reason = req["เหตุผล"] || "-";
+                            const attachment = req["เอกสารแนบ"] || "";
+                            let attachHtml = `<span class="text-slate-500 italic">ไม่มีแนบ</span>`;
+                            if (attachment && attachment !== 'N/A') {
+                                attachHtml = `<button onclick="openDriveFile('${attachment}')" class="text-indigo-600 hover:text-indigo-300 font-semibold flex items-center gap-1"><i class="fa-solid fa-paperclip"></i> ดูเอกสาร</button>`;
+                            }
+                            if (req["วันที่เริ่ม"]) {
+                                const daysUntil = getDaysDifference(req["วันที่เริ่ม"], today);
                                 if (daysUntil === 0) leaveDueToday++;
                                 else if (daysUntil === 1) leaveDueIn1++;
                                 else if (daysUntil === 3) leaveDueIn3++;
                                 else if (daysUntil === 5) leaveDueIn5++;
                             }
+                            return `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
+                  <td class="py-3 font-semibold text-slate-700">${docId}</td>
+                  <td class="py-3 text-slate-600">${empId}</td>
+                  <td class="py-3 text-slate-600 font-semibold">${type}</td>
+                  <td class="py-3 text-slate-500">${range}</td>
+                  <td class="py-3 text-center text-slate-700 font-bold">${days} วัน</td>
+                  <td class="py-3 text-slate-400 max-w-[150px] truncate" title="${reason}">${reason}</td>
+                  <td class="py-3">${attachHtml}</td>
+                  <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
+                  <td class="py-3 text-right">
+                    <div class="flex justify-end gap-1.5">
+                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
+                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                    </div>
+                  </td>
+                </tr>`;
                         });
-
-                        if (pending.length === 0) {
-                            leaveContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
-                        } else {
-                            pending.forEach(req => {
-                                const tr = document.createElement("tr");
-                                tr.className = "border-b border-slate-100 hover:bg-slate-50 transition-all text-xs";
-
-                                const docId = req["เลขที่เอกสาร"] || "N/A";
-                                const empId = req["รหัสพนักงาน"] || "N/A";
-                                const type = req["ประเภทการลา"] || "ลาพักร้อน";
-                                const range = `${formatThaiDateShort(req["วันที่เริ่ม"])} - ${formatThaiDateShort(req["วันที่สิ้นสุด"])}`;
-                                const days = req["จำนวนวัน"] || "0";
-                                const reason = req["เหตุผล"] || "-";
-                                const attachment = req["เอกสารแนบ"] || "";
-
-                                let attachHtml = `<span class="text-slate-500 italic">ไม่มีแนบ</span>`;
-                                if (attachment && attachment !== 'N/A') {
-                                    attachHtml = `<button onclick="openDriveFile('${attachment}')" class="text-indigo-600 hover:text-indigo-300 font-semibold flex items-center gap-1"><i class="fa-solid fa-paperclip"></i> ดูเอกสาร</button>`;
-                                }
-
-                                tr.innerHTML = `
-                <td class="py-3 font-semibold text-slate-700">${docId}</td>
-                <td class="py-3 text-slate-600">${empId}</td>
-                <td class="py-3 text-slate-600 font-semibold">${type}</td>
-                <td class="py-3 text-slate-500">${range}</td>
-                <td class="py-3 text-center text-slate-700 font-bold">${days} วัน</td>
-                <td class="py-3 text-slate-400 max-w-[150px] truncate" title="${reason}">${reason}</td>
-                <td class="py-3">${attachHtml}</td>
-                <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
-                <td class="py-3 text-right">
-                  <div class="flex justify-end gap-1.5">
-                    <button onclick='openDecisionModal("leave", ${JSON.stringify(req).replace(/'/g, "\\'")}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                    <button onclick='openDecisionModal("leave", ${JSON.stringify(req).replace(/'/g, "\\'")}, "ไม่อนุมัติ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
-                  </div>
-                </td>
-              `;
-                                leaveContainer.appendChild(tr);
-                            });
-                        }
+                        leaveContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
                     } else {
                         leaveContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(leaveRes.message || 'โหลดข้อมูลใบลาล้มเหลว')}</td></tr>`;
                     }
-
-                    // Helper function to update menu item and badge
-                    function updateApprovalMenu(menuId, badgeId, counts) {
-                        const menuBtn = document.getElementById(menuId);
-                        const badge = document.getElementById(badgeId);
-
-                        if (!menuBtn || !badge) return;
-
-                        if (counts.total > 0) {
-                            // Build badge text with details
-                            let badgeText = counts.total.toString();
-                            let urgencyText = [];
-                            if (counts.today > 0) urgencyText.push(`${counts.today} ถึงวันแล้ว`);
-                            if (counts.oneDay > 0) urgencyText.push(`${counts.oneDay} 1วัน`);
-                            if (counts.threeDays > 0) urgencyText.push(`${counts.threeDays} 3วัน`);
-                            if (counts.fiveDays > 0) urgencyText.push(`${counts.fiveDays} 5วัน`);
-
-                            if (urgencyText.length > 0) {
-                                badgeText += ` (${urgencyText.join(', ')})`;
-                            }
-                            badge.textContent = badgeText;
-                            badge.classList.remove("hidden");
-
-                            // Determine priority color: today (red) > 1 (orange) > 3 (yellow) > 5 (light yellow)
-                            let badgeClasses = "";
-                            let menuClasses = "";
-
-                            if (counts.today > 0) {
-                                badgeClasses = "bg-rose-100 text-rose-700 border-rose-200";
-                                menuClasses = "bg-rose-50 text-rose-700 border-rose-100";
-                            } else if (counts.oneDay > 0) {
-                                badgeClasses = "bg-orange-100 text-orange-700 border-orange-200";
-                                menuClasses = "bg-orange-50 text-orange-700 border-orange-100";
-                            } else if (counts.threeDays > 0) {
-                                badgeClasses = "bg-amber-100 text-amber-700 border-amber-200";
-                                menuClasses = "bg-amber-50 text-amber-700 border-amber-100";
-                            } else if (counts.fiveDays > 0) {
-                                badgeClasses = "bg-yellow-100 text-yellow-700 border-yellow-200";
-                                menuClasses = "bg-yellow-50 text-yellow-700 border-yellow-100";
-                            } else {
-                                badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
-                                menuClasses = "";
-                            }
-
-                            // Update badge classes
-                            badge.className = `inline-flex items-center justify-center px-1 rounded-full text-[9px] font-bold border ${badgeClasses}`;
-
-                            // Update menu button classes (add urgency background if needed)
-                            if (menuClasses) {
-                                menuBtn.classList.add(...menuClasses.split(/\s+/));
-                            } else {
-                                menuBtn.classList.remove("bg-rose-50", "text-rose-700", "border-rose-100", "bg-orange-50", "text-orange-700", "border-orange-100", "bg-amber-50", "text-amber-700", "border-amber-100", "bg-yellow-50", "text-yellow-700", "border-yellow-100");
-                            }
-                        } else {
-                            badge.classList.add("hidden");
-                            badge.textContent = "";
-                            menuBtn.classList.remove("bg-rose-50", "text-rose-700", "border-rose-100", "bg-orange-50", "text-orange-700", "border-orange-100", "bg-amber-50", "text-amber-700", "border-amber-100", "bg-yellow-50", "text-yellow-700", "border-yellow-100");
-                        }
-                    }
-
-                    // Update leave menu
                     updateApprovalMenu("admin-menu-approve-leave", "admin-menu-approve-leave-badge", {
                         total: leavePendingCount,
                         today: leaveDueToday,
@@ -5723,87 +5695,51 @@
                         threeDays: leaveDueIn3,
                         fiveDays: leaveDueIn5
                     });
+                };
 
+                const renderCorrections = corrRes => {
                     let corrPendingCount = 0;
                     let corrDueToday = 0;
                     let corrDueIn1 = 0;
                     let corrDueIn3 = 0;
                     let corrDueIn5 = 0;
 
-                    // 2. โหลดคำขอแก้ไขเวลาทั้งหมด
-                    const corrRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`);
-                    console.log('🔍 [CORRECTIONS] API Response:', corrRes);
-                    console.log('🔍 [CORRECTIONS] Data sample:', corrRes.data ? corrRes.data[0] : 'NO DATA');
                     if (corrRes.status === 'success') {
-                        correctionContainer.innerHTML = "";
                         const pending = corrRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
-                        console.log('🔍 [CORRECTIONS] All statuses:', corrRes.data.map(r => r["สถานะ"]));
-                        console.log('🔍 [CORRECTIONS] Pending count:', pending.length, 'Records:', pending);
                         corrPendingCount = pending.length;
-
-                        // Calculate due dates for correction requests
-                        pending.forEach(req => {
-                            const reqDate = req["วันที่"];
-                            if (reqDate) {
-                                try {
-                                    const daysUntil = getDaysDifference(reqDate, today);
-                                    if (daysUntil === 0) corrDueToday++;
-                                    else if (daysUntil === 1) corrDueIn1++;
-                                    else if (daysUntil === 3) corrDueIn3++;
-                                    else if (daysUntil === 5) corrDueIn5++;
-                                } catch (e) {
-                                    console.warn('⚠️ [CORRECTIONS] getDaysDifference error:', e, 'reqDate:', reqDate);
-                                }
+                        const rows = pending.map(req => {
+                            const empId = req["รหัสพนักงาน"] || "N/A";
+                            const date = formatThaiDate(req["วันที่"]);
+                            const newIn = req["เวลาเข้าใหม่"] || "-";
+                            const newOut = req["เวลาออกใหม่"] || "-";
+                            const reason = req["เหตุผล"] || "-";
+                            if (req["วันที่"]) {
+                                const daysUntil = getDaysDifference(req["วันที่"], today);
+                                if (daysUntil === 0) corrDueToday++;
+                                else if (daysUntil === 1) corrDueIn1++;
+                                else if (daysUntil === 3) corrDueIn3++;
+                                else if (daysUntil === 5) corrDueIn5++;
                             }
+                            return `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
+                  <td class="py-3 font-semibold text-slate-700">${empId}</td>
+                  <td class="py-3 text-slate-600">${date}</td>
+                  <td class="py-3 text-emerald-600 font-semibold">${newIn}</td>
+                  <td class="py-3 text-emerald-600 font-semibold">${newOut}</td>
+                  <td class="py-3 text-slate-400 max-w-[200px] truncate" title="${reason}">${reason}</td>
+                  <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
+                  <td class="py-3 text-right">
+                    <div class="flex justify-end gap-1.5">
+                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
+                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                    </div>
+                  </td>
+                </tr>`;
                         });
-
-                        if (pending.length === 0) {
-                            correctionContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ</td></tr>`;
-                        } else {
-                            console.log('🔍 [CORRECTIONS] About to render', pending.length, 'rows');
-                            console.log('🔍 [CORRECTIONS] Container:', correctionContainer);
-                            let successCount = 0;
-                            let errorCount = 0;
-                            pending.forEach((req, idx) => {
-                                try {
-                                    const tr = document.createElement("tr");
-                                    tr.className = "border-b border-slate-100 hover:bg-slate-50 transition-all text-xs";
-
-                                    const empId = req["รหัสพนักงาน"] || "N/A";
-                                    const date = formatThaiDate(req["วันที่"]);
-                                    const newIn = req["เวลาเข้าใหม่"] || "-";
-                                    const newOut = req["เวลาออกใหม่"] || "-";
-                                    const reason = req["เหตุผล"] || "-";
-
-                                    tr.innerHTML = `
-                <td class="py-3 font-semibold text-slate-700">${empId}</td>
-                <td class="py-3 text-slate-600">${date}</td>
-                <td class="py-3 text-emerald-600 font-semibold">${newIn}</td>
-                <td class="py-3 text-emerald-600 font-semibold">${newOut}</td>
-                <td class="py-3 text-slate-400 max-w-[200px] truncate" title="${reason}">${reason}</td>
-                <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
-                <td class="py-3 text-right">
-                  <div class="flex justify-end gap-1.5">
-                    <button onclick='openDecisionModal("correction", ${JSON.stringify(req).replace(/'/g, "\\'")}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                    <button onclick='openDecisionModal("correction", ${JSON.stringify(req).replace(/'/g, "\\'")}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
-                  </div>
-                </td>
-              `;
-                                    correctionContainer.appendChild(tr);
-                                    successCount++;
-                                    if (idx === 0) console.log('✓ [CORRECTIONS] First row appended successfully');
-                                } catch (e) {
-                                    errorCount++;
-                                    console.error('❌ [CORRECTIONS] Error rendering row', idx, e, 'Record:', req);
-                                }
-                            });
-                            console.log(`✓ [CORRECTIONS] Rendered: ${successCount}/${pending.length}, Errors: ${errorCount}`);
-                        }
+                        correctionContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ</td></tr>`;
                     } else {
                         correctionContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
                     }
-
-                    // Update correction menu
                     updateApprovalMenu("admin-menu-approve-correction", "admin-menu-approve-correction-badge", {
                         total: corrPendingCount,
                         today: corrDueToday,
@@ -5811,70 +5747,52 @@
                         threeDays: corrDueIn3,
                         fiveDays: corrDueIn5
                     });
+                };
 
+                const renderAdvance = advRes => {
                     let advPendingCount = 0;
                     let advDueToday = 0;
                     let advDueIn1 = 0;
                     let advDueIn3 = 0;
                     let advDueIn5 = 0;
 
-                    // 3. โหลดคำขอเบิกเงินล่วงหน้า
-                    const advRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`);
-                    console.log('🔍 [ADVANCES] API Response:', advRes);
                     if (advRes.status === 'success') {
-                        advanceContainer.innerHTML = "";
                         const pending = advRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ' || r["สถานะ"] === 'รอตรวจสอบ');
-                        console.log('🔍 [ADVANCES] Pending count:', pending.length, 'Records:', pending);
                         advPendingCount = pending.length;
-
-                        // Calculate due dates for advance requests
-                        pending.forEach(req => {
-                            const reqDate = req["วันที่เบิก"];
-                            if (reqDate) {
-                                const daysUntil = getDaysDifference(reqDate, today);
+                        const rows = pending.map(req => {
+                            const empId = req["รหัสพนักงาน"] || "N/A";
+                            const amount = Number(req["จำนวนเงิน"] || 0).toLocaleString();
+                            const date = formatThaiDate(req["วันที่เบิก"]);
+                            const cycle = req["รอบจ่าย"] || "-";
+                            const channel = req["ช่องทางรับเงิน"] || "-";
+                            const status = req["สถานะ"] || "รออนุมัติ";
+                            if (req["วันที่เบิก"]) {
+                                const daysUntil = getDaysDifference(req["วันที่เบิก"], today);
                                 if (daysUntil === 0) advDueToday++;
                                 else if (daysUntil === 1) advDueIn1++;
                                 else if (daysUntil === 3) advDueIn3++;
                                 else if (daysUntil === 5) advDueIn5++;
                             }
+                            return `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
+                  <td class="py-3 font-semibold text-slate-700">${empId}</td>
+                  <td class="py-3 text-emerald-600 font-bold">฿${amount}</td>
+                  <td class="py-3 text-slate-600">${date}</td>
+                  <td class="py-3 text-slate-500">${cycle}</td>
+                  <td class="py-3 text-slate-600 font-medium">${channel}</td>
+                  <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">${status}</span></td>
+                  <td class="py-3 text-right">
+                    <div class="flex justify-end gap-1.5">
+                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
+                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                    </div>
+                  </td>
+                </tr>`;
                         });
-
-                        if (pending.length === 0) {
-                            advanceContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอเบิกเงินที่รอการอนุมัติ</td></tr>`;
-                        } else {
-                            pending.forEach(req => {
-                                const tr = document.createElement("tr");
-                                tr.className = "border-b border-slate-100 hover:bg-slate-50 transition-all text-xs";
-
-                                const empId = req["รหัสพนักงาน"] || "N/A";
-                                const amount = Number(req["จำนวนเงิน"] || 0).toLocaleString();
-                                const date = formatThaiDate(req["วันที่เบิก"]);
-                                const cycle = req["รอบจ่าย"] || "-";
-                                const channel = req["ช่องทางรับเงิน"] || "-";
-                                const status = req["สถานะ"] || "รออนุมัติ";
-
-                                tr.innerHTML = `
-                <td class="py-3 font-semibold text-slate-700">${empId}</td>
-                <td class="py-3 text-emerald-600 font-bold">฿${amount}</td>
-                <td class="py-3 text-slate-600">${date}</td>
-                <td class="py-3 text-slate-500">${cycle}</td>
-                <td class="py-3 text-slate-600 font-medium">${channel}</td>
-                <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">${status}</span></td>
-                <td class="py-3 text-right">
-                  <div class="flex justify-end gap-1.5">
-                    <button onclick='openDecisionModal("advance", ${JSON.stringify(req).replace(/'/g, "\\'")}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                    <button onclick='openDecisionModal("advance", ${JSON.stringify(req).replace(/'/g, "\\'")}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
-                  </div>
-                </td>
-              `;
-                                advanceContainer.appendChild(tr);
-                            });
-                        }
+                        advanceContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีคำขอเบิกเงินที่รอการอนุมัติ</td></tr>`;
                     } else {
                         advanceContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ ${escapeHtml(advRes.message || 'โหลดข้อมูลคำขอเบิกเงินไม่สำเร็จ')}</td></tr>`;
                     }
-
-                    // Update advance menu
                     updateApprovalMenu("admin-menu-approve-advance", "admin-menu-approve-advance-badge", {
                         total: advPendingCount,
                         today: advDueToday,
@@ -5882,6 +5800,18 @@
                         threeDays: advDueIn3,
                         fiveDays: advDueIn5
                     });
+                };
+
+                try {
+                    const [leaveRes, corrRes, advRes] = await Promise.all([
+                        fetchWithTimeout(leaveUrl).catch(err => ({ status: 'error', message: err.message })),
+                        fetchWithTimeout(corrUrl).catch(err => ({ status: 'error', message: err.message })),
+                        fetchWithTimeout(advUrl).catch(err => ({ status: 'error', message: err.message }))
+                    ]);
+
+                    renderLeave(leaveRes);
+                    renderCorrections(corrRes);
+                    renderAdvance(advRes);
                 } catch (err) {
                     showToast("❌ ซิงค์ข้อมูลคำขออนุมัติล้มเหลว: " + err.message, "error");
                 }
