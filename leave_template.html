@@ -527,7 +527,7 @@
             }
 
             const runViaGoogleScript = typeof google !== 'undefined' && google && google.script && google.script.run;
-            const currentWebAppUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (window.location.protocol.startsWith('http') ? window.location.origin + window.location.pathname : null);
+            const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : null;
 
             if (runViaGoogleScript) {
                 return new Promise((resolve) => {
@@ -574,7 +574,12 @@
                 });
             }
 
-            if (currentWebAppUrl && (docId || empId)) {
+            if (!webAppApiUrl) {
+                showToast('ไม่สามารถเชื่อมต่อ API ได้: ต้องตั้งค่า GAS_WEB_APP_URL หรือใช้ google.script.run', 'error');
+                return Promise.resolve(null);
+            }
+
+            if (docId || empId) {
                 const params = new URLSearchParams();
                 if (docId) {
                     params.set('action', 'getLeaveRecord');
@@ -583,8 +588,16 @@
                     params.set('action', 'getEmployee');
                     params.set('empId', empId);
                 }
-                return fetch(`${currentWebAppUrl}?${params.toString()}`, { method: 'GET' })
-                    .then(response => response.json())
+                return fetch(`${webAppApiUrl}?${params.toString()}`, { method: 'GET' })
+                    .then(async response => {
+                        const text = await response.text();
+                        try {
+                            return JSON.parse(text);
+                        } catch (err) {
+                            console.error('API response was not JSON', text);
+                            throw new Error('API response ไม่ใช่ JSON');
+                        }
+                    })
                     .then(res => {
                         if (!res || res.status !== 'success') {
                             showToast('ไม่สามารถดึงข้อมูลจริงจาก API ได้', 'error');
