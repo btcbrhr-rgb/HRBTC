@@ -5402,7 +5402,20 @@
             }
 
             function onConfigModeChange() {
-                // ไม่จำเป็นอีกต่อไป แต่เก็บไว้เผื่อใช้งานในอนาคต
+                // ไม่จำเป็นอีกต่อไป แต่เก็บไว้เผื่อตรวจสอบเพิ่มเติมในอนาคต
+            }
+
+            function isValidAppsScriptUrl(url) {
+                if (!url || typeof url !== 'string') return false;
+                try {
+                    const parsed = new URL(url);
+                    return parsed.protocol === 'https:' &&
+                        parsed.hostname.endsWith('google.com') &&
+                        parsed.pathname.includes('/macros/s/') &&
+                        parsed.pathname.endsWith('/exec');
+                } catch (err) {
+                    return false;
+                }
             }
 
             function saveSystemConfig() {
@@ -5410,6 +5423,11 @@
 
                 if (!url) {
                     showToast("⚠️ กรุณาระบุ Google Sheets Web App URL", "warning");
+                    return;
+                }
+
+                if (!isValidAppsScriptUrl(url)) {
+                    showToast("⚠️ URL ไม่ถูกต้อง ต้องเป็น Apps Script Web App URL ที่ลงท้ายด้วย /exec", "warning");
                     return;
                 }
 
