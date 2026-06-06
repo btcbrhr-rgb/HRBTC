@@ -366,10 +366,12 @@
                 <div class="flex flex-col justify-between h-24 border border-slate-200 p-1.5 rounded-md bg-slate-50/10">
                     <p class="text-[8px] font-bold text-slate-500 uppercase tracking-wider">ผู้เสนอคำขอลา / Employee</p>
                     <div class="my-0.5">
-                        <div class="border-b border-dashed border-slate-300 w-4/5 mx-auto py-0.5"></div>
+                        <div class="border-b border-dashed border-slate-300 w-4/5 mx-auto py-0.5">
+                            <span id="emp_signature" data-bind="metadata.employee_signature" class="block text-[10px] text-slate-700"></span>
+                        </div>
                         <span class="text-[8px] text-slate-400 block mt-0.5">(ลงลายมือชื่อพนักงาน)</span>
                     </div>
-                    <p class="text-[8px] text-slate-500 font-medium">วันที่ / Date: ...../...../.....</p>
+                    <p class="text-[8px] text-slate-500 font-medium">วันที่ / Date: <span id="emp_submission_date" data-bind="metadata.doc_date">...../...../.....</span></p>
                 </div>
 
                 <!-- Approver Signature -->
@@ -433,9 +435,17 @@
             bindableElements.forEach(element => {
                 const path = element.getAttribute('data-bind');
                 const value = getValueByPath(data, path);
+                const isSignatureField = path && path.toLowerCase().includes('signature');
 
                 if (value !== undefined) {
-                    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
+                    if (isSignatureField && element.tagName !== 'INPUT' && element.tagName !== 'TEXTAREA' && element.tagName !== 'SELECT') {
+                        const signature = getSignatureDisplay(value);
+                        if (signature && signature.type === 'image') {
+                            element.innerHTML = `<img src="${signature.src}" alt="Signature" class="mx-auto max-h-14 object-contain" />`;
+                        } else {
+                            element.textContent = signature ? signature.text : '';
+                        }
+                    } else if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
                         element.value = value;
                     } else {
                         element.textContent = value;
@@ -494,6 +504,29 @@
         // Helper function to resolve dot-notation paths (e.g., 'employee.name') within JSON
         function getValueByPath(object, path) {
             return path.split('.').reduce((acc, part) => acc && acc[part], object);
+        }
+
+        function getSignatureDisplay(value) {
+            if (value === undefined || value === null) return null;
+            const str = String(value).trim();
+            if (!str) return null;
+
+            const dataImageMatch = str.match(/^(data:image\/(png|jpeg|jpg|gif);base64,)/i);
+            if (dataImageMatch) {
+                return { type: 'image', src: str };
+            }
+
+            const driveMatch = str.match(/(?:https?:\/\/)?drive\.google\.com\/(?:file\/d\/([^\/]+)\/view|open\?id=([^&]+))/i);
+            const driveId = driveMatch && (driveMatch[1] || driveMatch[2]);
+            if (driveId) {
+                return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveId}` };
+            }
+
+            if (/\.(png|jpe?g|gif|svg)(?:[?#].*)?$/i.test(str)) {
+                return { type: 'image', src: str };
+            }
+
+            return { type: 'text', text: str };
         }
 
         function normalizeDateForInput(rawDate) {
@@ -620,7 +653,8 @@
                 out.metadata = {
                     doc_no: rec['เลขที่เอกสาร'] || rec['เลขที่'] || rec['doc_no'] || rec['document_no'] || rec['docId'] || rec['documentId'] || '',
                     written_at: rec['เขียนที่'] || rec['written_at'] || rec['attention_to'] || '',
-                    doc_date: normalizeDateForInput(rec['วันที่ส่ง'] || rec['วันที่'] || rec['date'] || rec['วันที่อนุมัติ'] || '')
+                    doc_date: normalizeDateForInput(rec['วันที่ส่ง'] || rec['วันที่'] || rec['date'] || rec['วันที่อนุมัติ'] || ''),
+                    employee_signature: rec['ลายมือชื่อ'] || rec['signature'] || rec['employee_signature'] || rec['sign'] || ''
                 };
                 out.employee = {
                     name: rec['ชื่อ-นามสกุล'] || rec['ชื่อพนักงาน'] || rec['employeeName'] || '',
