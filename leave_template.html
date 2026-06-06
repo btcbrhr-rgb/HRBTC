@@ -94,6 +94,9 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            width: 210mm;
+            max-width: 210mm;
+            margin: 0 auto !important;
             background-color: #ffffff;
             font-size: 10.5px;
             line-height: 1.25;
@@ -107,7 +110,11 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            width: 100%;
+            max-width: 100%;
             transform: none !important;
+            padding: 0 !important;
+            box-shadow: none !important;
         }
         .pdf-render .page-bottom-blocks {
             margin-top: auto;
@@ -121,6 +128,9 @@
             max-width: 100% !important;
             height: auto !important;
             object-fit: contain !important;
+        }
+        .page-break {
+            page-break-after: always;
         }
         #loading-overlay {
             position: fixed;
@@ -1118,23 +1128,26 @@
 
             // Temporarily set fixed width to match A4 content width
             const prevWidth = element.style.width || '';
+            const prevMaxWidth = element.style.maxWidth || '';
             element.style.width = A4_WIDTH_PX + 'px';
+            element.style.maxWidth = A4_WIDTH_PX + 'px';
 
             const options = {
                 margin:       [6, 8, 6, 8],  // mm: top, left, bottom, right (jsPDF units)
                 filename:     `Leave_Request_Form_${new Date().toISOString().slice(0,10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { 
+                html2canvas:  {
                     scale: (window.devicePixelRatio || 2),  // use device pixel ratio for crispness
-                    useCORS: true, 
+                    useCORS: true,
                     letterRendering: false,
                     scrollY: -window.scrollY,
                     scrollX: 0,
                     width: A4_WIDTH_PX,
-                    height: element.scrollHeight,
+                    backgroundColor: '#ffffff',
                     allowTaint: true
                 },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['css', 'legacy'], avoid: ['tr', 'img'] }
             };
 
             try {
@@ -1146,6 +1159,7 @@
             } finally {
                 // restore styles and class
                 element.style.width = prevWidth;
+                element.style.maxWidth = prevMaxWidth;
                 element.classList.remove('pdf-render');
             }
         }
