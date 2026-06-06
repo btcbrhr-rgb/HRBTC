@@ -440,23 +440,7 @@
                 if (value !== undefined) {
                     if (isSignatureField && element.tagName !== 'INPUT' && element.tagName !== 'TEXTAREA' && element.tagName !== 'SELECT') {
                         const signature = getSignatureDisplay(value);
-                        if (signature && signature.type === 'image') {
-                            element.innerHTML = '';
-                            const img = document.createElement('img');
-                            img.src = signature.src;
-                            img.alt = 'Signature';
-                            img.className = 'mx-auto max-h-14 object-contain';
-                            img.onerror = function() {
-                                console.error('Signature image load failed:', signature.src);
-                                const fallback = document.createElement('span');
-                                fallback.textContent = '[ไม่สามารถโหลดภาพลายเซ็นได้] ' + signature.src;
-                                element.innerHTML = '';
-                                element.appendChild(fallback);
-                            };
-                            element.appendChild(img);
-                        } else {
-                            element.textContent = signature ? signature.text : '';
-                        }
+                        renderSignatureField(element, signature);
                     } else if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
                         element.value = value;
                     } else {
@@ -537,9 +521,58 @@
                 if (match) fileId = match[1];
             }
             if (fileId) {
-                return `https://drive.google.com/uc?export=view&id=${fileId}`;
+                return `https://lh3.googleusercontent.com/u/0/d/${fileId}`;
             }
             return trimmed;
+        }
+
+        function renderSignatureField(element, signature) {
+            element.innerHTML = '';
+            if (!signature) {
+                element.textContent = '';
+                return;
+            }
+
+            if (signature.type === 'image') {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-center justify-center';
+
+                const img = document.createElement('img');
+                img.src = signature.src;
+                img.alt = 'Signature';
+                img.className = 'mx-auto max-h-14 object-contain';
+                img.style.maxWidth = '100%';
+                let triedThumbnail = false;
+                img.onerror = function() {
+                    console.error('Signature image load failed:', img.src);
+                    if (!triedThumbnail && /drive\.google\.com\/uc\?export=view&id=([^&]+)/i.test(signature.src)) {
+                        triedThumbnail = true;
+                        const idMatch = signature.src.match(/drive\.google\.com\/uc\?export=view&id=([^&]+)/i);
+                        if (idMatch && idMatch[1]) {
+                            img.src = `https://drive.google.com/thumbnail?authuser=0&sz=w640&id=${idMatch[1]}`;
+                            return;
+                        }
+                    }
+                    wrapper.innerHTML = '';
+                    const fallback = document.createElement('span');
+                    fallback.textContent = '[ไม่สามารถโหลดภาพลายเซ็นได้]';
+                    fallback.className = 'text-[9px] text-rose-600';
+                    const link = document.createElement('a');
+                    link.href = signature.src;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = 'เปิดลิงก์ลายเซ็น';
+                    link.className = 'block text-[9px] text-slate-600 underline mt-1';
+                    wrapper.appendChild(fallback);
+                    wrapper.appendChild(link);
+                };
+
+                wrapper.appendChild(img);
+                element.appendChild(wrapper);
+                return;
+            }
+
+            element.textContent = signature.text || String(signature) || '';
         }
 
         function getSignatureDisplay(value) {
