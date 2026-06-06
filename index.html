@@ -4862,37 +4862,33 @@
             // Render a printable window from a leave record and open print dialog or PDF generator
             async function printLeaveRecord(recordOrDoc) {
                 try {
-                    // Determine docId
-                    let docId = null;
                     if (!recordOrDoc) return showToast('ไม่พบข้อมูลสำหรับพิมพ์', 'error');
-                    if (typeof recordOrDoc === 'string') docId = recordOrDoc;
-                    else if (recordOrDoc['เลขที่เอกสาร']) docId = recordOrDoc['เลขที่เอกสาร'];
-                    else if (recordOrDoc.docId) docId = recordOrDoc.docId;
-                    else if (recordOrDoc['เลขที่']) docId = recordOrDoc['เลขที่'];
 
-                    const data = (typeof recordOrDoc === 'object') ? recordOrDoc : null;
+                    const docId = (() => {
+                        if (typeof recordOrDoc === 'string') return recordOrDoc;
+                        if (typeof recordOrDoc !== 'object' || !recordOrDoc) return null;
+                        return recordOrDoc.docId || recordOrDoc.documentId || recordOrDoc['เลขที่เอกสาร'] || recordOrDoc['เลขที่'] || recordOrDoc['doc_no'] || recordOrDoc['document_no'] || recordOrDoc['id'] || null;
+                    })();
+
                     const url = new URL('leave_template.html', window.location.href);
+                    const data = (typeof recordOrDoc === 'object') ? recordOrDoc : null;
 
-                    if (!docId) {
-                        if (data) {
-                            url.searchParams.set('data', JSON.stringify(data));
-                            const w = window.open(url.toString(), '_blank', 'noopener');
-                            if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
-                            w.focus && w.focus();
-                            return;
-                        }
+                    if (docId) {
+                        url.searchParams.set('docId', docId);
+                    }
+                    if (data) {
+                        url.searchParams.set('data', JSON.stringify(data));
+                    }
+                    if (!docId && !data) {
                         return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
                     }
-
-                    // Open the leave template immediately and let it fetch the record by docId
-                    url.searchParams.set('docId', docId);
                     if (isAdminMode) {
                         url.searchParams.set('adminMode', '1');
                     }
+
                     const w = window.open(url.toString(), '_blank', 'noopener');
                     if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
                     w.focus && w.focus();
-                    return;
                 } catch (e) {
                     console.error('printLeaveRecord error', e);
                     showToast('เกิดข้อผิดพลาดขณะเตรียมพิมพ์: ' + e.message, 'error');
