@@ -268,6 +268,8 @@
 
         </div>
 
+        <div id="leave_warning" class="mb-3"></div>
+
         <!-- Section 4: Leave Records (For HR / Populated dynamically or manually) -->
         <div class="mb-3">
             <h2 class="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded mb-1.5 border-l-4 border-slate-700 uppercase tracking-wide">4. สถิติการลาสะสมในปีนี้ (Leave Record - สำหรับเจ้าหน้าที่บุคคลกรอก)</h2>
@@ -459,6 +461,7 @@
                     el.classList.add('opacity-80');
                 });
 
+                updateLeaveWarning(data);
             } catch (err) {
                 console.error('post-bind adjustments failed', err);
             }
@@ -501,6 +504,54 @@
 
         // If you serve this HTML outside Apps Script, set your web app URL here:
         const GAS_WEB_APP_URL = '';
+
+        function parseLeaveNumber(value) {
+            if (value === undefined || value === null) return 0;
+            const num = parseFloat(String(value).replace(/[^0-9.-]/g, '').trim());
+            return Number.isFinite(num) ? num : 0;
+        }
+
+        function getLeaveTypeLabel(typeKey) {
+            switch ((typeKey || '').toString().toLowerCase()) {
+                case 'sick': return 'ลาป่วย';
+                case 'personal': return 'ลากิจส่วนตัว';
+                case 'annual': return 'ลาพักร้อนประจำปี';
+                case 'maternity': return 'ลาคลอด/ลาดูแลภรรยา';
+                case 'religious': return 'ลาอุปสมบท/พิธีทางศาสนา';
+                case 'other': return 'ลาอื่นๆ';
+                default: return typeKey || 'ประเภทการลา';
+            }
+        }
+
+        function updateLeaveWarning(data) {
+            const warningContainer = document.getElementById('leave_warning');
+            if (!warningContainer) return;
+            warningContainer.innerHTML = '';
+
+            if (!data || !data.leave_records || typeof data.leave_records !== 'object') return;
+
+            const exceeded = [];
+            Object.entries(data.leave_records).forEach(([key, record]) => {
+                if (!record || typeof record !== 'object') return;
+                const entitled = parseLeaveNumber(record.entitled);
+                const used = parseLeaveNumber(record.used);
+                const current = parseLeaveNumber(record.current);
+                const over = used + current - entitled;
+                if (over > 0) {
+                    exceeded.push(`${getLeaveTypeLabel(key)} เกินสิทธิ์ ${over} วัน`);
+                }
+            });
+
+            if (exceeded.length > 0) {
+                warningContainer.innerHTML = `
+                    <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                        <p class="font-semibold mb-1">แจ้งเตือน: พบการใช้งานสิทธิ์เกิน</p>
+                        <p>${exceeded.join(' , ')}.</p>
+                        <p class="mt-1 font-medium">หากลาต่อไปจะไม่ได้รับค่าจ้างสำหรับวันเกินสิทธิ์</p>
+                    </div>
+                `;
+            }
+        }
 
         /**
          * 2. REAL-WORLD API INTEGRATION TEMPLATE (Ready for developers)
