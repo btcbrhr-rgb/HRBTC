@@ -441,7 +441,13 @@
                     if (isSignatureField && element.tagName !== 'INPUT' && element.tagName !== 'TEXTAREA' && element.tagName !== 'SELECT') {
                         const signature = getSignatureDisplay(value);
                         if (signature && signature.type === 'image') {
-                            element.innerHTML = `<img src="${signature.src}" alt="Signature" class="mx-auto max-h-14 object-contain" />`;
+                            element.innerHTML = '';
+                            const img = document.createElement('img');
+                            img.src = signature.src;
+                            img.alt = 'Signature';
+                            img.className = 'mx-auto max-h-14 object-contain';
+                            img.crossOrigin = 'anonymous';
+                            element.appendChild(img);
                         } else {
                             element.textContent = signature ? signature.text : '';
                         }
@@ -516,8 +522,18 @@
                 return { type: 'image', src: str };
             }
 
-            const driveMatch = str.match(/(?:https?:\/\/)?drive\.google\.com\/(?:file\/d\/([^\/]+)\/view|open\?id=([^&]+))/i);
-            const driveId = driveMatch && (driveMatch[1] || driveMatch[2]);
+            // Try to extract Google Drive file ID from various URL formats
+            let driveId = null;
+            const driveFileMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/file\/d\/([^\/\?\#&]+)/i);
+            if (driveFileMatch) {
+                driveId = driveFileMatch[1];
+            } else {
+                const driveOpenMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/open\?id=([^&]+)/i);
+                if (driveOpenMatch) {
+                    driveId = driveOpenMatch[1];
+                }
+            }
+            
             if (driveId) {
                 return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveId}` };
             }
@@ -527,6 +543,30 @@
             }
 
             return { type: 'text', text: str };
+        }
+
+        function waitForImages(container, timeout = 2500) {
+            return new Promise(resolve => {
+                if (!container) return resolve();
+                const images = Array.from(container.querySelectorAll('img'));
+                if (!images.length) return resolve();
+                let remaining = images.length;
+                const checkDone = () => {
+                    remaining -= 1;
+                    if (remaining <= 0) resolve();
+                };
+
+                images.forEach(img => {
+                    if (img.complete && img.naturalWidth !== 0) {
+                        checkDone();
+                    } else {
+                        img.addEventListener('load', checkDone, { once: true });
+                        img.addEventListener('error', checkDone, { once: true });
+                    }
+                });
+
+                setTimeout(resolve, timeout);
+            });
         }
 
         function normalizeDateForInput(rawDate) {
@@ -820,21 +860,23 @@
         }
 
         // Prepare data from server then trigger browser print
-        function prepareAndPrint() {
+        async function prepareAndPrint() {
             showToast('กำลังดึงข้อมูลก่อนพิมพ์...', 'info');
             const docNoValue = document.getElementById('doc_no')?.value?.trim() || null;
             const empIdValue = document.getElementById('emp_id')?.value?.trim() || null;
 
-            loadDataFromServer({ docId: docNoValue, empId: empIdValue, forceServer: true }).then((result) => {
+            try {
+                const result = await loadDataFromServer({ docId: docNoValue, empId: empIdValue, forceServer: true });
                 if (!result && !docNoValue && !empIdValue) {
                     showToast('ไม่พบตัวระบุสำหรับดึงข้อมูลจริง, จะพิมพ์เฉพาะข้อมูลที่กรอกแล้ว', 'info');
                 }
-                setTimeout(() => window.print(), 300);
-            }).catch(err => {
+                await waitForImages(document.getElementById('capture-target'), 1500);
+            } catch (err) {
                 console.error(err);
                 showToast('เกิดข้อผิดพลาดขณะดึงข้อมูลก่อนพิมพ์', 'error');
-                setTimeout(() => window.print(), 500);
-            });
+            }
+
+            setTimeout(() => window.print(), 300);
         }
 
         // Auto-run when the template is rendered/loaded in the user's browser
@@ -934,10 +976,12 @@
         /**
          * 5. MOBILE-FRIENDLY PDF RENDER ENGINE
          */
-        function generatePDF() {
+        async function generatePDF() {
             const element = document.getElementById('capture-target');
             showToast("กำลังประมวลผล PDF...", "info");
             element.classList.add('pdf-render');
+
+            await waitForImages(element, 1500);
 
             const options = {
                 margin:       [6, 8, 6, 8],
