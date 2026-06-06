@@ -195,16 +195,16 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs mb-1.5">
                 <div>
                     <label class="block text-[9px] font-semibold text-slate-500">เริ่มหยุดงานตั้งแต่วันที่ / From Date</label>
-                    <input type="date" id="start_date" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
+                    <input type="date" id="start_date" data-bind="start_date" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
                 </div>
                 <div>
                     <label class="block text-[9px] font-semibold text-slate-500">ถึงวันที่ / To Date</label>
-                    <input type="date" id="end_date" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
+                    <input type="date" id="end_date" data-bind="end_date" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
                 </div>
                 <div>
                     <label class="block text-[9px] font-semibold text-slate-500">รวมระยะเวลาที่ลา / Total</label>
                     <div class="flex items-center space-x-1 mt-0.5">
-                        <input type="number" id="total_days" placeholder="0" class="w-16 text-center border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
+                        <input type="number" id="total_days" data-bind="total_days" placeholder="0" class="w-16 text-center border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
                         <span class="text-slate-600 text-[10px] font-medium">วัน (Days)</span>
                     </div>
                 </div>
@@ -214,11 +214,11 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs mb-1.5">
                 <div class="sm:col-span-2">
                     <label class="block text-[9px] font-semibold text-slate-500">เหตุผลความจำเป็นในการขอลาครั้งนี้ / Reason for Leave</label>
-                    <input type="text" id="leave_reason" placeholder="ระบุเหตุผลและรายละเอียดความจำเป็นในการลา..." class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
+                    <input type="text" id="leave_reason" data-bind="leave_reason" placeholder="ระบุเหตุผลและรายละเอียดความจำเป็นในการลา..." class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
                 </div>
                 <div>
                     <label class="block text-[9px] font-semibold text-slate-500">เบอร์โทรติดต่อ / Emergency Phone</label>
-                    <input type="text" id="contact_no" placeholder="เบอร์โทรศัพท์ที่ติดต่อได้" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
+                    <input type="text" id="contact_no" data-bind="contact_no" placeholder="เบอร์โทรศัพท์ที่ติดต่อได้" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
                 </div>
             </div>
 
@@ -228,7 +228,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
                     <div class="flex items-center space-x-1">
                         <label class="text-[9px] font-medium text-slate-500 shrink-0">ชื่อผู้รับมอบงาน:</label>
-                        <input type="text" id="handover_name" placeholder="ชื่อเพื่อนร่วมงาน..." class="w-full border-b border-slate-300 bg-transparent focus:border-indigo-500 focus:outline-none py-0 text-[11px]">
+                        <input type="text" id="handover_name" data-bind="handover_name" placeholder="ชื่อเพื่อนร่วมงาน..." class="w-full border-b border-slate-300 bg-transparent focus:border-indigo-500 focus:outline-none py-0 text-[11px]">
                     </div>
                     <div class="flex items-center space-x-1">
                         <label class="text-[9px] font-medium text-slate-500 shrink-0">ลงชื่อผู้รับมอบงาน:</label>
@@ -375,11 +375,11 @@
             if (!data) return;
 
             const bindableElements = document.querySelectorAll('[data-bind]');
-            
+
             bindableElements.forEach(element => {
                 const path = element.getAttribute('data-bind');
                 const value = getValueByPath(data, path);
-                
+
                 if (value !== undefined) {
                     if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
                         element.value = value;
@@ -388,6 +388,52 @@
                     }
                 }
             });
+
+            // Post-bind adjustments: map leave type checkboxes and make template read-only
+            try {
+                const leaveTypeRaw = data && (data._leaveType || data.type || data['ประเภทการลา'] || data['type']);
+                const lc = leaveTypeRaw ? String(leaveTypeRaw).toLowerCase() : '';
+
+                // Reset and disable known leave-type checkboxes
+                ['check_sick','check_personal','check_annual','check_maternity','check_religious','check_other'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        try { el.checked = false; } catch (e) {}
+                        try { el.disabled = true; } catch (e) {}
+                        el.classList.add('opacity-80');
+                    }
+                });
+
+                if (lc) {
+                    if (lc.indexOf('sick') !== -1 || lc.indexOf('ป่วย') !== -1) { const e = document.getElementById('check_sick'); if (e) e.checked = true; }
+                    if (lc.indexOf('personal') !== -1 || lc.indexOf('ลากิจ') !== -1) { const e = document.getElementById('check_personal'); if (e) e.checked = true; }
+                    if (lc.indexOf('annual') !== -1 || lc.indexOf('พักร้อน') !== -1) { const e = document.getElementById('check_annual'); if (e) e.checked = true; }
+                    if (lc.indexOf('matern') !== -1 || lc.indexOf('คลอด') !== -1) { const e = document.getElementById('check_maternity'); if (e) e.checked = true; }
+                    if (lc.indexOf('relig') !== -1 || lc.indexOf('อุปสมบท') !== -1) { const e = document.getElementById('check_religious'); if (e) e.checked = true; }
+                    if (lc.indexOf('other') !== -1 || lc.indexOf('อื่น') !== -1) { const e = document.getElementById('check_other'); if (e) e.checked = true; }
+                }
+
+                // Show other description when provided
+                const otherDesc = data && (data.other_reason || data.other || data['เหตุผลเพิ่มเติม'] || data['other_reason'] || data['อื่นๆ'] || '');
+                if (otherDesc) {
+                    const od = document.getElementById('other_leave_desc');
+                    if (od) {
+                        if (od.tagName === 'INPUT' || od.tagName === 'TEXTAREA') od.value = otherDesc;
+                        else od.textContent = otherDesc;
+                    }
+                }
+
+                // Disable editing for all form controls (but keep print/pdf buttons active in .no-print)
+                document.querySelectorAll('input,textarea,select').forEach(el => {
+                    if (el.closest && el.closest('.no-print')) return;
+                    try { el.disabled = true; } catch (e) {}
+                    try { el.readOnly = true; } catch (e) {}
+                    el.classList.add('opacity-80');
+                });
+
+            } catch (err) {
+                console.error('post-bind adjustments failed', err);
+            }
         }
 
         // Helper function to resolve dot-notation paths (e.g., 'employee.name') within JSON
