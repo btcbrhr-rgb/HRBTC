@@ -1105,7 +1105,17 @@
             showToast("กำลังประมวลผล PDF...", "info");
             element.classList.add('pdf-render');
 
-            await waitForImages(element, 1500);
+            // wait for images to load (longer timeout helps slow networks)
+            await waitForImages(element, 3000);
+
+            // Small delay to allow layout & CSS paint to settle
+            await new Promise(r => setTimeout(r, 220));
+
+            // Temporarily override transform/width to get consistent capture
+            const prevTransform = element.style.transform || '';
+            const prevWidth = element.style.width || '';
+            element.style.transform = 'none';
+            element.style.width = element.offsetWidth + 'px';
 
             const options = {
                 margin:       [6, 8, 6, 8],
@@ -1116,19 +1126,25 @@
                     useCORS: true, 
                     letterRendering: true,
                     scrollY: 0,
-                    scrollX: 0
+                    scrollX: 0,
+                    width: element.scrollWidth,
+                    height: element.scrollHeight
                 },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            html2pdf().set(options).from(element).save().then(() => {
-                element.classList.remove('pdf-render');
+            try {
+                await html2pdf().set(options).from(element).save();
                 showToast("ดาวน์โหลด PDF สำเร็จ!", "success");
-            }).catch(error => {
+            } catch (error) {
                 console.error("PDF generation error: ", error);
-                element.classList.remove('pdf-render');
                 showToast("เกิดข้อผิดพลาดในการดาวน์โหลด PDF", "error");
-            });
+            } finally {
+                // restore styles and class
+                element.style.transform = prevTransform;
+                element.style.width = prevWidth;
+                element.classList.remove('pdf-render');
+            }
         }
     </script>
 </body>
