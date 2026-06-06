@@ -467,6 +467,8 @@
             const params = new URLSearchParams(window.location.search);
             const docId = options.docId || params.get('docId') || params.get('documentId') || params.get('id') || null;
             const empId = options.empId || params.get('empId') || params.get('employeeId') || null;
+            const openedFromIndex = params.get('openedFromIndex') === '1';
+            const apiUrlFromQuery = params.get('apiUrl');
             const forceServer = options.forceServer === true;
 
             if (!docId && !empId) {
@@ -528,7 +530,13 @@
 
             const runViaGoogleScript = typeof google !== 'undefined' && google && google.script && google.script.run;
             const apiUrlFromStorage = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem) ? window.localStorage.getItem('hr_api_url') : null;
-            const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (apiUrlFromStorage ? apiUrlFromStorage.trim() : null);
+            const apiUrlFromQueryClean = apiUrlFromQuery ? decodeURIComponent(apiUrlFromQuery) : null;
+            const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (apiUrlFromQueryClean ? apiUrlFromQueryClean.trim() : (apiUrlFromStorage ? apiUrlFromStorage.trim() : null));
+
+            if (!openedFromIndex) {
+                showToast('ต้องเปิดจากหน้า index.html เท่านั้น', 'error');
+                return Promise.resolve(null);
+            }
 
             if (runViaGoogleScript) {
                 return new Promise((resolve) => {
@@ -641,13 +649,31 @@
         document.addEventListener("DOMContentLoaded", () => {
             const today = new Date().toISOString().split('T')[0];
             const dateInput = document.getElementById("doc_date");
-            if (dateInput) {
+            if (dateInput && !dateInput.value) {
                 dateInput.value = today;
             }
             
-            // Trigger dynamic data binding sequence only when identifiers exist
             const params = new URLSearchParams(window.location.search);
             const hasSource = params.has('docId') || params.has('documentId') || params.has('id') || params.has('empId') || params.has('employeeId');
+            const openedFromIndex = params.get('openedFromIndex') === '1';
+
+            if (!openedFromIndex) {
+                const message = document.createElement('div');
+                message.className = 'max-w-2xl mx-auto mt-8 p-6 bg-red-50 border border-red-200 rounded-lg text-center text-slate-800';
+                message.innerHTML = `
+                    <h2 class="text-lg font-bold mb-3">ห้ามเปิดไฟล์โดยตรง</h2>
+                    <p class="text-sm mb-4">ใบลานี้ต้องเปิดจากหน้า <strong>index.html</strong> เท่านั้น โดยใช้ปุ่ม <strong>พิมพ์ใบลา</strong> จากรายการคำขอ</p>
+                    <a href="index.html" class="inline-block px-4 py-2 rounded bg-slate-800 text-white text-xs">กลับสู่หน้าหลัก</a>
+                `;
+                const target = document.getElementById('capture-target');
+                if (target) target.style.display = 'none';
+                const controls = document.querySelector('.no-print');
+                if (controls) controls.style.display = 'none';
+                document.body.insertBefore(message, document.body.firstChild);
+                showToast('ต้องเปิดจากหน้า index.html เท่านั้น', 'error');
+                return;
+            }
+
             if (hasSource) {
                 showToast('กำลังดึงข้อมูลจากระบบ...', 'info');
                 loadDataFromServer();
