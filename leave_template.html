@@ -357,36 +357,10 @@
             </svg>
             ดาวน์โหลด PDF (Download PDF)
         </button>
-        <!-- Reset data -->
-        <button onclick="openResetModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium rounded-lg text-xs transition flex items-center justify-center">
-            ล้างข้อมูล (Reset Form)
-        </button>
     </div>
 
-    <!-- Sleek Custom Confirmation Modal (No browser alerts used) -->
-    <div id="resetConfirmModal" class="no-print fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-250">
-        <div class="bg-white p-6 rounded-xl max-w-sm w-full mx-4 shadow-xl border border-slate-100 transform scale-95 transition-transform duration-250">
-            <div class="flex items-center space-x-3 mb-4">
-                <div class="bg-amber-100 p-2 rounded-full text-amber-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                </div>
-                <h3 class="text-sm font-bold text-slate-800">ยืนยันการล้างข้อมูล?</h3>
-            </div>
-            <p class="text-xs text-slate-500 mb-5 leading-relaxed">
-                การดำเนินการนี้จะทำการลบข้อมูลทั้งหมดที่คุณได้กรอกไว้ในแบบฟอร์มใบลาหยุดงานนี้ คุณแน่ใจว่าต้องการล้างข้อมูลเพื่อเริ่มกรอกใหม่หรือไม่?
-            </p>
-            <div class="flex justify-end space-x-2 text-xs">
-                <button onclick="closeResetModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium rounded-lg transition">
-                    ยกเลิก (Cancel)
-                </button>
-                <button onclick="confirmReset()" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition">
-                    ล้างข้อมูลทั้งหมด (Clear)
-                </button>
-            </div>
-        </div>
-    </div>
+    <!-- Beautiful floating Toast Notifications for user feedback -->
+    <div id="toast-container" class="no-print fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
 
     <!-- Beautiful floating Toast Notifications for user feedback -->
     <div id="toast-container" class="no-print fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
@@ -435,9 +409,21 @@
          */
         async function loadDataFromServer(options = {}) {
             const params = new URLSearchParams(window.location.search);
+            const rawDataParam = params.get('data');
             const docId = options.docId || params.get('docId') || params.get('documentId') || params.get('id') || null;
             const empId = options.empId || params.get('empId') || params.get('employeeId') || null;
             const forceServer = options.forceServer === true;
+
+            if (rawDataParam) {
+                try {
+                    const recordData = JSON.parse(rawDataParam);
+                    const payload = mapLeaveRecordPayload(recordData);
+                    bindDatabaseData(payload);
+                    return Promise.resolve(payload);
+                } catch (err) {
+                    console.error('leave_template.html loadDataFromServer: invalid data param', err);
+                }
+            }
 
             // Helper: map employee sheet row object (Thai headers) to template shape
             function mapEmployeePayload(empRaw) {
@@ -609,52 +595,6 @@
             }
         });
 
-
-        /**
-         * 3. CLIENT CONTROLS AND CONFIRMATION SYSTEM
-         */
-        const modal = document.getElementById('resetConfirmModal');
-
-        function openResetModal() {
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                modal.querySelector('div').classList.remove('scale-95');
-            }, 10);
-        }
-
-        function closeResetModal() {
-            modal.classList.add('opacity-0');
-            modal.querySelector('div').classList.add('scale-95');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 250);
-        }
-
-        function confirmReset() {
-            const inputs = document.querySelectorAll('input');
-            inputs.forEach(input => {
-                if (input.type === 'checkbox') {
-                    input.checked = false;
-                } else if (input.type !== 'button' && input.type !== 'submit' && input.readOnly !== true) {
-                    input.value = '';
-                }
-            });
-            
-            const textareas = document.querySelectorAll('textarea');
-            textareas.forEach(textarea => {
-                textarea.value = '';
-            });
-
-            const today = new Date().toISOString().split('T')[0];
-            const dateInput = document.getElementById("doc_date");
-            if (dateInput) {
-                dateInput.value = today;
-            }
-
-            closeResetModal();
-            showToast("ล้างข้อมูลในฟอร์มเรียบร้อยแล้ว", "success");
-        }
 
         /**
          * 4. CUSTOM TOAST NOTIFICATION SYSTEM
