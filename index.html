@@ -4806,10 +4806,14 @@
                     }
 
                     if (res && res.status === "success") {
-                        showToast("🎉 ส่งใบลาเรียบร้อยแล้ว รอ HR ตรวจสอบ", "success");
+                        showToast("🎉 ส่งใบลาเรียบร้อยแล้ว", "success");
+                        // Keep a reference to the saved leave for optional printing
+                        const savedLeaveRecord = (res.data && typeof res.data === 'object') ? res.data : pendingLeavePayload;
                         document.getElementById("leave-request-form").reset();
                         leaveAttachmentBase64 = "";
                         closeSignatureModal();
+                        // Offer user choice to Print or Just Save
+                        showLeavePrintChoice(savedLeaveRecord);
                         loadAllData();
                     } else {
                         showToast("❌ ล้มเหลว: " + (res && res.message ? res.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์'), "error");
@@ -4819,6 +4823,108 @@
                     activeLabel: "ส่งคำขอ",
                     loadingLabel: "กำลังส่ง..."
                 });
+            }
+
+            // --- Print choice modal (appears after successful leave submit) ---
+            function showLeavePrintChoice(leaveRecord) {
+                const existing = document.getElementById('leave-print-choice-modal');
+                if (!existing) {
+                    const div = document.createElement('div');
+                    div.id = 'leave-print-choice-modal';
+                    div.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
+                    div.innerHTML = `
+                      <div class="absolute inset-0 bg-black/40"></div>
+                      <div class="relative bg-white rounded-xl shadow-lg w-full max-w-md p-5">
+                        <h3 class="text-lg font-bold mb-2">ต้องการพิมพ์ใบลาหรือไม่?</h3>
+                        <p class="text-sm text-slate-600 mb-4">คุณสามารถพิมพ์หรือบันทึกเป็น PDF เพื่อเก็บไว้เป็นสำเนาได้</p>
+                        <div class="flex justify-end gap-2">
+                          <button id="leave-print-save-only" class="px-4 py-2 bg-slate-200 rounded">บันทึกเท่านั้น</button>
+                          <button id="leave-print-now" class="px-4 py-2 bg-blue-600 text-white rounded">พิมพ์/บันทึกเป็น PDF</button>
+                        </div>
+                      </div>`;
+                    document.body.appendChild(div);
+                    document.getElementById('leave-print-now').addEventListener('click', () => {
+                        document.body.removeChild(div);
+                        printLeaveRecord(leaveRecord);
+                    });
+                    document.getElementById('leave-print-save-only').addEventListener('click', () => {
+                        document.body.removeChild(div);
+                        showToast('บันทึกคำขอลาเรียบร้อย', 'success');
+                    });
+                } else {
+                    existing.style.display = 'flex';
+                    // Re-wire handlers if needed
+                    document.getElementById('leave-print-now').onclick = () => { existing.remove(); printLeaveRecord(leaveRecord); };
+                    document.getElementById('leave-print-save-only').onclick = () => { existing.remove(); showToast('บันทึกคำขอลาเรียบร้อย','success'); };
+                }
+            }
+
+            // Render a printable window from a leave record and open print dialog or PDF generator
+            async function printLeaveRecord(recordOrDoc) {
+                try {
+                    // Determine docId
+                    let docId = null;
+                    if (!recordOrDoc) return showToast('ไม่พบข้อมูลสำหรับพิมพ์', 'error');
+                    if (typeof recordOrDoc === 'string') docId = recordOrDoc;
+                    else if (recordOrDoc['เลขที่เอกสาร']) docId = recordOrDoc['เลขที่เอกสาร'];
+                    else if (recordOrDoc.docId) docId = recordOrDoc.docId;
+                    else if (recordOrDoc['เลขที่']) docId = recordOrDoc['เลขที่'];
+
+                    if (!docId) {
+                        // If object contains full data, use it directly
+                        const data = (typeof recordOrDoc === 'object') ? recordOrDoc : null;
+                        if (data) {
+                            const url = new URL('leave_template.html', window.location.href);
+                            url.searchParams.set('data', JSON.stringify(data));
+                            const w = window.open(url.toString(), '_blank', 'noopener');
+                            if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                            w.focus && w.focus();
+                            return;
+                        }
+                        return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
+                    }
+
+                    // Build backend URL to fetch record securely
+                    let fetchUrl = `${SERVER_API_URL}?action=getLeaveRecord&docId=${encodeURIComponent(docId)}`;
+                    if (isAdminMode) {
+                        fetchUrl += `&empId=*ALL*&adminId=${encodeURIComponent(currentEmployeeId)}`;
+                    } else {
+                        fetchUrl += `&empId=${encodeURIComponent(currentEmployeeId)}`;
+                    }
+
+                    // Retry logic: 3 attempts with exponential backoff
+                    let res = null;
+                    const maxAttempts = 3;
+                    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                        try {
+                            res = await fetchWithTimeout(fetchUrl, { timeout: 15000 });
+                            if (res && res.status === 'success' && res.data) break;
+                            // If server returned structured error, break to show message
+                            if (res && res.status && res.status !== 'success') break;
+                        } catch (err) {
+                            if (attempt === maxAttempts) throw err;
+                        }
+                        // wait before retrying
+                        await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
+                    }
+                    if (!res || res.status !== 'success' || !res.data) {
+                        return showToast('ไม่สามารถดึงข้อมูลใบลาจากเซิร์ฟเวอร์: ' + (res && res.message ? res.message : 'ไม่ทราบสาเหตุ'), 'error');
+                    }
+
+                    const url = new URL('leave_template.html', window.location.href);
+                    url.searchParams.set('data', JSON.stringify(res.data));
+                    const w = window.open(url.toString(), '_blank', 'noopener');
+                    if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                    w.focus && w.focus();
+                } catch (e) {
+                    console.error('printLeaveRecord error', e);
+                    showToast('เกิดข้อผิดพลาดขณะเตรียมพิมพ์: ' + e.message, 'error');
+                }
+            }
+
+            function escapeHtml(s) {
+                if (!s && s !== 0) return '';
+                return String(s).replace(/[&<>\"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':"&#39;"}[c]; });
             }
 
             // --- ส่วนเบิกเงินเดือนล่วงหน้า ---
@@ -5814,12 +5920,13 @@
                   <td class="py-3 text-slate-400 max-w-[150px] truncate" title="${reason}">${reason}</td>
                   <td class="py-3">${attachHtml}</td>
                   <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
-                  <td class="py-3 text-right">
-                    <div class="flex justify-end gap-1.5">
-                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
-                    </div>
-                  </td>
+                                    <td class="py-3 text-right">
+                                        <div class="flex justify-end gap-1.5">
+                                            <button onclick='printLeaveRecord(${safeJson(req)})' class="bg-slate-500 hover:bg-slate-600 text-white font-semibold transition-all">พิมพ์ใบลา</button>
+                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
+                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                                        </div>
+                                    </td>
                 </tr>`;
                         });
                         leaveContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
@@ -5971,7 +6078,14 @@
                 <td class="py-3 text-slate-700">${escapeHtml(req['ประเภทการลา'] || 'N/A')}</td>
                 <td class="py-3 text-slate-500">${escapeHtml(formatThaiDateShort(req['วันที่เริ่ม']) + ' - ' + formatThaiDateShort(req['วันที่สิ้นสุด']))}</td>
                 <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
-                <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</td>
+                                <td class="py-3 text-slate-600 max-w-[240px]" title="${escapeHtml(req['เหตุผล'] || '')}">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <div class="truncate text-slate-600">${escapeHtml(req['เหตุผล'] || '-')}</div>
+                                        <div class="flex-shrink-0">
+                                            <button onclick='printLeaveRecord(${safeJson(req)})' class="px-2 py-1 bg-slate-500 text-white rounded text-[12px]">พิมพ์</button>
+                                        </div>
+                                    </div>
+                                </td>
               </tr>
             `;
                         }
