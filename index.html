@@ -4870,11 +4870,11 @@
                     else if (recordOrDoc.docId) docId = recordOrDoc.docId;
                     else if (recordOrDoc['เลขที่']) docId = recordOrDoc['เลขที่'];
 
+                    const data = (typeof recordOrDoc === 'object') ? recordOrDoc : null;
+                    const url = new URL('leave_template.html', window.location.href);
+
                     if (!docId) {
-                        // If object contains full data, use it directly
-                        const data = (typeof recordOrDoc === 'object') ? recordOrDoc : null;
                         if (data) {
-                            const url = new URL('leave_template.html', window.location.href);
                             url.searchParams.set('data', JSON.stringify(data));
                             const w = window.open(url.toString(), '_blank', 'noopener');
                             if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
@@ -4884,38 +4884,15 @@
                         return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
                     }
 
-                    // Build backend URL to fetch record securely
-                    let fetchUrl = `${SERVER_API_URL}?action=getLeaveRecord&docId=${encodeURIComponent(docId)}`;
+                    // Open the leave template immediately and let it fetch the record by docId
+                    url.searchParams.set('docId', docId);
                     if (isAdminMode) {
-                        fetchUrl += `&empId=*ALL*&adminId=${encodeURIComponent(currentEmployeeId)}`;
-                    } else {
-                        fetchUrl += `&empId=${encodeURIComponent(currentEmployeeId)}`;
+                        url.searchParams.set('adminMode', '1');
                     }
-
-                    // Retry logic: 3 attempts with exponential backoff
-                    let res = null;
-                    const maxAttempts = 3;
-                    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                        try {
-                            res = await fetchWithTimeout(fetchUrl, { timeout: 15000 });
-                            if (res && res.status === 'success' && res.data) break;
-                            // If server returned structured error, break to show message
-                            if (res && res.status && res.status !== 'success') break;
-                        } catch (err) {
-                            if (attempt === maxAttempts) throw err;
-                        }
-                        // wait before retrying
-                        await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
-                    }
-                    if (!res || res.status !== 'success' || !res.data) {
-                        return showToast('ไม่สามารถดึงข้อมูลใบลาจากเซิร์ฟเวอร์: ' + (res && res.message ? res.message : 'ไม่ทราบสาเหตุ'), 'error');
-                    }
-
-                    const url = new URL('leave_template.html', window.location.href);
-                    url.searchParams.set('data', JSON.stringify(res.data));
                     const w = window.open(url.toString(), '_blank', 'noopener');
                     if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
                     w.focus && w.focus();
+                    return;
                 } catch (e) {
                     console.error('printLeaveRecord error', e);
                     showToast('เกิดข้อผิดพลาดขณะเตรียมพิมพ์: ' + e.message, 'error');
