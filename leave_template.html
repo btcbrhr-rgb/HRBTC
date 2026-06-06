@@ -27,12 +27,15 @@
                 size: A4 portrait;
                 margin: 6mm 8mm 6mm 8mm; /* Optimized margins to guarantee 1-page fit */
             }
-            body {
+            html, body {
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                padding: 0;
                 background-color: #ffffff;
-                font-size: 10.5px;
-                line-height: 1.25;
-                padding: 0 !important;
-                margin: 0 !important;
+                font-size: 10.2px;
+                line-height: 1.2;
+                overflow: hidden;
             }
             .no-print {
                 display: none !important;
@@ -54,18 +57,22 @@
                 padding: 0 !important;
                 height: auto !important;
             }
-            /* Scale form slightly down if browser defaults add extra padding */
+            /* Scale form slightly down so the entire layout fits one A4 page */
             .printable-content {
-                transform: scale(0.97);
+                width: 100%;
+                max-width: 100%;
+                transform: scale(0.92);
                 transform-origin: top center;
-            }
-            .printable-content {
-                display: flex;
-                flex-direction: column;
-                min-height: 100vh;
+                margin: 0 auto;
+                min-height: auto !important;
+                padding: 0 !important;
             }
             .page-bottom-blocks {
-                margin-top: auto;
+                margin-top: 0 !important;
+            }
+            /* Avoid page breaks inside major blocks */
+            .printable-content, .printable-content > * {
+                page-break-inside: avoid !important;
             }
         }
 
@@ -90,12 +97,17 @@
 
         /* PDF specific styles to override before render */
         .pdf-render {
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
+            display: block !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
+            min-height: auto !important;
+            transform: none !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            box-sizing: border-box;
         }
         .pdf-render .page-bottom-blocks {
-            margin-top: auto;
+            margin-top: 0 !important;
         }
         .pdf-render input, .pdf-render textarea {
             border-bottom: 1px dotted #94a3b8 !important;
@@ -1089,11 +1101,13 @@
                 filename:     `Leave_Request_Form_${new Date().toISOString().slice(0,10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { 
-                    scale: 2, 
+                    scale: 1.75,
                     useCORS: true, 
-                    letterRendering: true,
+                    backgroundColor: '#ffffff',
                     scrollY: 0,
-                    scrollX: 0
+                    scrollX: 0,
+                    windowWidth: element.scrollWidth,
+                    windowHeight: element.scrollHeight
                 },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
