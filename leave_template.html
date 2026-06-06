@@ -446,7 +446,9 @@
                             img.src = signature.src;
                             img.alt = 'Signature';
                             img.className = 'mx-auto max-h-14 object-contain';
-                            img.crossOrigin = 'anonymous';
+                            img.onerror = function() {
+                                this.replaceWith(document.createTextNode('[ไม่สามารถโหลดภาพลายเซ็นได้]'));
+                            };
                             element.appendChild(img);
                         } else {
                             element.textContent = signature ? signature.text : '';
@@ -553,6 +555,11 @@
 
                     if (driveId) {
                         return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveId}` };
+                    }
+
+                    const driveUcMatch2 = str.match(/(?:https?:\/\/)?drive\.google\.com\/uc\?export=view&id=([^&]+)/i);
+                    if (driveUcMatch2) {
+                        return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveUcMatch2[1]}` };
                     }
 
                     if (/\.(png|jpe?g|gif|svg)(?:[?#].*)?$/i.test(str)) {
