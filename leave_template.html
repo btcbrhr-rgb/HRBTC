@@ -514,40 +514,67 @@
 
         function getSignatureDisplay(value) {
             if (value === undefined || value === null) return null;
-            const str = String(value).trim();
-            if (!str) return null;
 
-            const dataImageMatch = str.match(/^(data:image\/(png|jpeg|jpg|gif);base64,)/i);
-            if (dataImageMatch) {
-                return { type: 'image', src: str };
-            }
-
-            // Try to extract Google Drive file ID from various URL formats
-            let driveId = null;
-            const driveFileMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/file\/d\/([^\/\?\#&]+)/i);
-            if (driveFileMatch) {
-                driveId = driveFileMatch[1];
+            let parsedValue = null;
+            if (typeof value === 'object') {
+                parsedValue = value;
             } else {
-                const driveOpenMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/open\?id=([^&]+)/i);
-                if (driveOpenMatch) {
-                    driveId = driveOpenMatch[1];
-                } else {
-                    const driveUcMatch = str.match(/(?:https?:\/\/)?(?:docs|drive)\.google\.com\/uc\?(?:[^#]*&)?id=([^&]+)/i);
-                    if (driveUcMatch) {
-                        driveId = driveUcMatch[1];
+                const str = String(value).trim();
+                if (!str) return null;
+
+                try {
+                    parsedValue = JSON.parse(str);
+                } catch (err) {
+                    parsedValue = null;
+                }
+
+                if (!parsedValue) {
+                    const dataImageMatch = str.match(/^(data:image\/(png|jpeg|jpg|gif);base64,)/i);
+                    if (dataImageMatch) {
+                        return { type: 'image', src: str };
                     }
+
+                    // Try to extract Google Drive file ID from various URL formats
+                    let driveId = null;
+                    const driveFileMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/file\/d\/([^\/\?\#&]+)/i);
+                    if (driveFileMatch) {
+                        driveId = driveFileMatch[1];
+                    } else {
+                        const driveOpenMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/open\?id=([^&]+)/i);
+                        if (driveOpenMatch) {
+                            driveId = driveOpenMatch[1];
+                        } else {
+                            const driveUcMatch = str.match(/(?:https?:\/\/)?(?:docs|drive)\.google\.com\/uc\?(?:[^#]*&)?id=([^&]+)/i);
+                            if (driveUcMatch) {
+                                driveId = driveUcMatch[1];
+                            }
+                        }
+                    }
+
+                    if (driveId) {
+                        return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveId}` };
+                    }
+
+                    if (/\.(png|jpe?g|gif|svg)(?:[?#].*)?$/i.test(str)) {
+                        return { type: 'image', src: str };
+                    }
+
+                    return { type: 'text', text: str };
                 }
             }
 
-            if (driveId) {
-                return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveId}` };
+            if (parsedValue) {
+                const url = parsedValue.url || parsedValue.imageUrl || parsedValue.avatarUrl || parsedValue.thumbnailLink || parsedValue.src;
+                const fileId = parsedValue.fileId || parsedValue.file_id || parsedValue.id;
+                if (url && typeof url === 'string' && url.trim()) {
+                    return { type: 'image', src: url.trim() };
+                }
+                if (fileId && typeof fileId === 'string' && fileId.trim()) {
+                    return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${fileId.trim()}` };
+                }
             }
 
-            if (/\.(png|jpe?g|gif|svg)(?:[?#].*)?$/i.test(str)) {
-                return { type: 'image', src: str };
-            }
-
-            return { type: 'text', text: str };
+            return { type: 'text', text: String(value) };
         }
 
         function waitForImages(container, timeout = 2500) {
