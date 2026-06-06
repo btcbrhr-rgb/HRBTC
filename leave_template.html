@@ -430,6 +430,36 @@
             return path.split('.').reduce((acc, part) => acc && acc[part], object);
         }
 
+        function normalizeDateForInput(rawDate) {
+            if (!rawDate && rawDate !== 0) return '';
+            if (rawDate instanceof Date) {
+                return rawDate.toISOString().slice(0, 10);
+            }
+            const value = rawDate.toString().trim();
+            if (!value) return '';
+            const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
+            const dmy = value.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (dmy) {
+                const d = dmy[1].padStart(2, '0');
+                const m = dmy[2].padStart(2, '0');
+                const y = dmy[3];
+                return `${y}-${m}-${d}`;
+            }
+            const ymd = value.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+            if (ymd) {
+                const y = ymd[1];
+                const m = ymd[2].padStart(2, '0');
+                const d = ymd[3].padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+            const parsed = Date.parse(value);
+            if (!isNaN(parsed)) {
+                return new Date(parsed).toISOString().slice(0, 10);
+            }
+            return '';
+        }
+
         // If you serve this HTML outside Apps Script, set your web app URL here:
         const GAS_WEB_APP_URL = '';
 
@@ -462,6 +492,7 @@
                     position: empRaw['ตำแหน่ง'] || empRaw['Position'] || '',
                     department: empRaw['แผนก'] || empRaw['แผนก-ฝ่าย'] || empRaw['Department'] || ''
                 };
+                e.contact_no = empRaw['เบอร์โทรศัพท์'] || empRaw['เบอร์โทร'] || empRaw['โทรศัพท์'] || empRaw['Phone'] || empRaw['mobile'] || empRaw['Mobile'] || '';
                 e.metadata = { written_at: empRaw['ชื่อบริษัท'] || '' };
                 return e;
             }
@@ -474,7 +505,7 @@
                 out.metadata = {
                     doc_no: rec['เลขที่เอกสาร'] || rec['เลขที่'] || rec['docId'] || rec['documentId'] || '',
                     written_at: rec['เขียนที่'] || rec['written_at'] || rec['attention_to'] || '',
-                    doc_date: rec['วันที่ส่ง'] || rec['วันที่'] || rec['date'] || rec['วันที่อนุมัติ'] || ''
+                    doc_date: normalizeDateForInput(rec['วันที่ส่ง'] || rec['วันที่'] || rec['date'] || rec['วันที่อนุมัติ'] || '')
                 };
                 out.employee = {
                     name: rec['ชื่อ-นามสกุล'] || rec['ชื่อพนักงาน'] || rec['employeeName'] || '',
@@ -483,8 +514,8 @@
                     department: rec['แผนก'] || rec['department'] || ''
                 };
                 // Period / reason
-                if (rec['จากวันที่'] || rec['เริ่มวันที่'] || rec['start']) out.start_date = rec['จากวันที่'] || rec['เริ่มวันที่'] || rec['start'];
-                if (rec['ถึงวันที่'] || rec['end']) out.end_date = rec['ถึงวันที่'] || rec['end'];
+                if (rec['วันที่เริ่ม'] || rec['จากวันที่'] || rec['เริ่มวันที่'] || rec['start']) out.start_date = normalizeDateForInput(rec['วันที่เริ่ม'] || rec['จากวันที่'] || rec['เริ่มวันที่'] || rec['start'] || '');
+                if (rec['วันที่สิ้นสุด'] || rec['ถึงวันที่'] || rec['end']) out.end_date = normalizeDateForInput(rec['วันที่สิ้นสุด'] || rec['ถึงวันที่'] || rec['end'] || '');
                 if (rec['จำนวนวัน'] || rec['days'] || rec['รวมระยะเวลา']) out.total_days = rec['จำนวนวัน'] || rec['days'] || rec['รวมระยะเวลา'];
                 if (rec['เหตุผล'] || rec['reason']) out.leave_reason = rec['เหตุผล'] || rec['reason'];
                 if (rec['เบอร์โทร'] || rec['contact_no']) out.contact_no = rec['เบอร์โทร'] || rec['contact_no'];
@@ -664,6 +695,10 @@
             const params = new URLSearchParams(window.location.search);
             const hasSource = params.has('docId') || params.has('documentId') || params.has('id') || params.has('empId') || params.has('employeeId');
             const openedFromIndex = params.get('openedFromIndex') === '1';
+
+            if (!hasSource && dateInput && !dateInput.value) {
+                dateInput.value = today;
+            }
 
             if (!openedFromIndex) {
                 const message = document.createElement('div');
