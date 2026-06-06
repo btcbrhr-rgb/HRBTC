@@ -107,8 +107,7 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
-            transform: scale(0.97);
-            transform-origin: top center;
+            transform: none !important;
         }
         .pdf-render .page-bottom-blocks {
             margin-top: auto;
@@ -1111,27 +1110,29 @@
             await new Promise(r => setTimeout(r, 220));
 
             // A4 dimensions in mm: 210 x 297 mm
-            // With margins [6, 8, 6, 8] mm, content area is: (210 - 16) x (297 - 12) = 194 x 285 mm
-            // At 96 DPI: 194mm ≈ 734px, 285mm ≈ 1080px
-            const A4_WIDTH_PX = 735;  // Width in pixels for A4 content area at 96 DPI
-            
-            // Temporarily set fixed width to match A4 (similar to print media)
+            // With margins [6, 8, 6, 8] mm, content area is: (210 - 16) = 194 mm width
+            // Convert mm to px at 96 DPI: px = mm * 96 / 25.4
+            const mmToPx = mm => Math.round(mm * 96 / 25.4);
+            const contentWidthMm = 210 - (8 + 8); // left+right margins
+            const A4_WIDTH_PX = mmToPx(contentWidthMm);
+
+            // Temporarily set fixed width to match A4 content width
             const prevWidth = element.style.width || '';
             element.style.width = A4_WIDTH_PX + 'px';
 
             const options = {
-                margin:       [6, 8, 6, 8],  // mm: top, left, bottom, right
+                margin:       [6, 8, 6, 8],  // mm: top, left, bottom, right (jsPDF units)
                 filename:     `Leave_Request_Form_${new Date().toISOString().slice(0,10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { 
-                    scale: 2,  // Higher scale for better quality
+                    scale: (window.devicePixelRatio || 2),  // use device pixel ratio for crispness
                     useCORS: true, 
-                    letterRendering: true,
-                    scrollY: 0,
+                    letterRendering: false,
+                    scrollY: -window.scrollY,
                     scrollX: 0,
-                    windowHeight: element.scrollHeight,
-                    windowWidth: A4_WIDTH_PX,
-                    allowTaint: true  // Allow rendering of cross-origin content
+                    width: A4_WIDTH_PX,
+                    height: element.scrollHeight,
+                    allowTaint: true
                 },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
