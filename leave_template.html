@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ใบคำขอลาหยุดงาน - Leave Request Form (Production Template)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Sarabun) for Thai formal document style -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght=0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- html2pdf.js for Client-side PDF Generation on both Mobile & Desktop -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f8fafc;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        /* Specific rules to force exact single A4 layout on printing */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 6mm 8mm 6mm 8mm; /* Optimized margins to guarantee 1-page fit */
+            }
+            body {
+                background-color: #ffffff;
+                font-size: 10.5px;
+                line-height: 1.25;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-shadow-none {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+            }
+            /* Ensure inputs look clean when printed */
+            input[type="text"], input[type="date"], input[type="number"], textarea, select {
+                border-bottom: 1px dotted #64748b !important;
+                border-top: none !important;
+                border-left: none !important;
+                border-right: none !important;
+                background: transparent !important;
+                padding: 0 !important;
+                height: auto !important;
+            }
+            /* Scale form slightly down if browser defaults add extra padding */
+            .printable-content {
+                transform: scale(0.97);
+                transform-origin: top center;
+            }
+        }
+        /* PDF specific styles to override before render */
+        .pdf-render input, .pdf-render textarea {
+            border-bottom: 1px dotted #94a3b8 !important;
+            background-color: transparent !important;
+        }
+    </style>
+</head>
+<body class="py-6 px-4 sm:px-6">
+
+    <!-- Main Container - Sized optimally for A4 (794px approximate width at standard DPI) -->
+    <div id="capture-target" class="printable-content max-w-[820px] mx-auto bg-white p-5 md:p-6 rounded-xl shadow-sm border border-slate-200 print-shadow-none">
+        <!-- Header Section and rest of template omitted for brevity -->
+        <h1 class="text-lg font-bold">This is the leave template file used for printing via the system.</h1>
+        <div id="template-body"></div>
+    </div>
+
+    <script>
+        // This file primarily used as standalone reference template. The app will generate HTML
+        // dynamically using the same structure when printing from the main interface.
+
+        // Provide a helper to render data if this file is opened directly with JSON payload.
+        (function() {
+            function renderFromQuery() {
+                try {
+                    const q = new URLSearchParams(window.location.search || '');
+                    let payload = q.get('data');
+                    if (!payload) return;
+                    let obj = null;
+                    // Try to parse payload in flexible ways: raw JSON, percent-encoded JSON
+                    try {
+                        obj = JSON.parse(payload);
+                    } catch (err1) {
+                        try {
+                            obj = JSON.parse(decodeURIComponent(payload));
+                        } catch (err2) {
+                            // As a last resort, attempt replacing plus signs
+                            try {
+                                obj = JSON.parse(decodeURIComponent(payload.replace(/\+/g, ' ')));
+                            } catch (err3) {
+                                console.error('Template render parse failed', err1, err2, err3);
+                            }
+                        }
+                    }
+                    if (!obj) return;
+                    const container = document.getElementById('template-body');
+                    // Render a simple human-friendly document; consuming app may replace with a full layout
+                    container.innerHTML = `
+                        <div class="text-sm text-slate-700">
+                          <p><strong>เลขที่เอกสาร:</strong> ${escapeHtml(obj['เลขที่เอกสาร'] || obj.docId || '')}</p>
+                          <p><strong>พนักงาน:</strong> ${escapeHtml(obj['ชื่อ-นามสกุล'] || obj['พนักงาน'] || obj.empName || '')} (${escapeHtml(obj['รหัสพนักงาน'] || obj.empId || '')})</p>
+                          <p><strong>ประเภทการลา:</strong> ${escapeHtml(obj['ประเภทการลา'] || '')}</p>
+                          <p><strong>ช่วงวันที่:</strong> ${escapeHtml((obj['วันที่เริ่ม'] || '') + ' - ' + (obj['วันที่สิ้นสุด'] || ''))}</p>
+                          <p><strong>จำนวนวัน:</strong> ${escapeHtml(obj['จำนวนวัน'] || '')}</p>
+                          <p><strong>เหตุผล:</strong> ${escapeHtml(obj['เหตุผล'] || '')}</p>
+                        </div>
+                    `;
+                } catch (e) {
+                    console.error('Template render error', e);
+                }
+            }
+            renderFromQuery();
+        })();
+    </script>
+</body>
+</html>
