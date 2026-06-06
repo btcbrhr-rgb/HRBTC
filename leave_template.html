@@ -1110,22 +1110,28 @@
             // Small delay to allow layout & CSS paint to settle
             await new Promise(r => setTimeout(r, 220));
 
-            // Temporarily override width to get consistent capture
+            // A4 dimensions in mm: 210 x 297 mm
+            // With margins [6, 8, 6, 8] mm, content area is: (210 - 16) x (297 - 12) = 194 x 285 mm
+            // At 96 DPI: 194mm ≈ 734px, 285mm ≈ 1080px
+            const A4_WIDTH_PX = 735;  // Width in pixels for A4 content area at 96 DPI
+            
+            // Temporarily set fixed width to match A4 (similar to print media)
             const prevWidth = element.style.width || '';
-            element.style.width = element.offsetWidth + 'px';
+            element.style.width = A4_WIDTH_PX + 'px';
 
             const options = {
-                margin:       [6, 8, 6, 8],
+                margin:       [6, 8, 6, 8],  // mm: top, left, bottom, right
                 filename:     `Leave_Request_Form_${new Date().toISOString().slice(0,10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { 
-                    scale: 2, 
+                    scale: 2,  // Higher scale for better quality
                     useCORS: true, 
                     letterRendering: true,
                     scrollY: 0,
                     scrollX: 0,
-                    width: element.scrollWidth,
-                    height: element.scrollHeight
+                    windowHeight: element.scrollHeight,
+                    windowWidth: A4_WIDTH_PX,
+                    allowTaint: true  // Allow rendering of cross-origin content
                 },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
