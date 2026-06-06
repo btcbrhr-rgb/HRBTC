@@ -100,14 +100,10 @@
                 </div>
             </div>
             <!-- Header Meta Info including Document Number -->
-            <div class="mt-2 sm:mt-0 grid grid-cols-3 gap-x-2 w-full sm:w-auto text-[10px] md:text-xs">
+            <div class="mt-2 sm:mt-0 grid grid-cols-2 gap-x-2 w-full sm:w-auto text-[10px] md:text-xs">
                 <div>
                     <label class="block text-[9px] font-bold text-slate-500 uppercase">เลขที่เอกสาร / Doc No.</label>
                     <input type="text" id="doc_no" data-bind="metadata.doc_no" placeholder="LV-YYYYXXXX" class="w-full sm:w-24 border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-slate-800 font-semibold">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-bold text-slate-500 uppercase">เขียนที่ / Written At</label>
-                    <input type="text" id="written_at" data-bind="metadata.written_at" placeholder="สำนักงานใหญ่..." class="w-full sm:w-28 border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-slate-800 font-medium">
                 </div>
                 <div>
                     <label class="block text-[9px] font-bold text-slate-500 uppercase">วันที่ / Date</label>
@@ -117,14 +113,10 @@
         </div>
 
         <!-- Meta Info -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mb-3 text-xs">
+        <div class="grid grid-cols-1 gap-x-4 gap-y-1 mb-3 text-xs">
             <div>
                 <label class="block font-bold text-slate-700">เรียน / Attention To:</label>
                 <input type="text" id="attention_to" data-bind="metadata.attention_to" placeholder="ฝ่ายบุคคล และผู้บังคับบัญชาอนุมัติ" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-            </div>
-            <div>
-                <label class="block font-bold text-slate-700">เรื่อง / Subject:</label>
-                <input type="text" value="ขออนุมัติลาหยุดงาน" readonly class="mt-0.5 w-full border-b border-slate-200 bg-slate-50 font-semibold text-slate-700 py-0.5 px-2 rounded cursor-not-allowed">
             </div>
         </div>
 
@@ -235,22 +227,6 @@
                 </div>
             </div>
 
-            <!-- Compact Handover Box -->
-            <div class="border border-slate-200 rounded-md p-1.5 bg-slate-50/50 text-xs">
-                <p class="text-[8px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">ผู้รับมอบหมายงานแทนในระหว่างลา (Work Handover Person)</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
-                    <div class="flex items-center space-x-1">
-                        <label class="text-[9px] font-medium text-slate-500 shrink-0">ชื่อผู้รับมอบงาน:</label>
-                        <input type="text" id="handover_name" data-bind="handover_name" placeholder="ชื่อเพื่อนร่วมงาน..." class="w-full border-b border-slate-300 bg-transparent focus:border-indigo-500 focus:outline-none py-0 text-[11px]">
-                    </div>
-                    <div class="flex items-center space-x-1">
-                        <label class="text-[9px] font-medium text-slate-500 shrink-0">ลงชื่อผู้รับมอบงาน:</label>
-                        <div class="w-full border-b border-dashed border-slate-400 text-center text-[9px] text-slate-400 py-0 select-none">
-                            (ลงนามรับมอบหน้าที่แทน)
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Section 4: Leave Records (For HR / Populated dynamically or manually) -->
@@ -497,8 +473,8 @@
                 // Common mappings - try multiple header variants
                 out.metadata = {
                     doc_no: rec['เลขที่เอกสาร'] || rec['เลขที่'] || rec['docId'] || rec['documentId'] || '',
-                    written_at: rec['เขียนที่'] || rec['written_at'] || '',
-                    doc_date: rec['วันที่'] || rec['date'] || ''
+                    written_at: rec['เขียนที่'] || rec['written_at'] || rec['attention_to'] || '',
+                    doc_date: rec['วันที่'] || rec['date'] || rec['วันที่ส่ง'] || rec['วันที่อนุมัติ'] || ''
                 };
                 out.employee = {
                     name: rec['ชื่อ-นามสกุล'] || rec['ชื่อพนักงาน'] || rec['employeeName'] || '',
@@ -597,22 +573,50 @@
                     params.set('action', 'getEmployee');
                     params.set('empId', empId);
                 }
-                return fetch(`${webAppApiUrl}?${params.toString()}`, { method: 'GET' })
-                    .then(async response => {
-                        const text = await response.text();
-                        try {
-                            return JSON.parse(text);
-                        } catch (err) {
-                            console.error('API response was not JSON', text);
-                            throw new Error('API response ไม่ใช่ JSON');
-                        }
-                    })
+
+                const fetchJson = async (url) => {
+                    const response = await fetch(url, { method: 'GET' });
+                    const text = await response.text();
+                    try {
+                        return JSON.parse(text);
+                    } catch (err) {
+                        console.error('API response was not JSON', text);
+                        throw new Error('API response ไม่ใช่ JSON');
+                    }
+                };
+
+                if (docId) {
+                    return fetchJson(`${webAppApiUrl}?${params.toString()}`)
+                        .then(async res => {
+                            if (!res || res.status !== 'success') {
+                                showToast('ไม่สามารถดึงข้อมูลจริงจาก API ได้', 'error');
+                                return null;
+                            }
+                            const payload = mapLeaveRecordPayload(res.data);
+                            const empIdFromRec = payload.employee && payload.employee.id;
+                            if (empIdFromRec) {
+                                const empRes = await fetchJson(`${webAppApiUrl}?action=getEmployee&empId=${encodeURIComponent(empIdFromRec)}`);
+                                if (empRes && empRes.status === 'success') {
+                                    Object.assign(payload, mapEmployeePayload(empRes.data));
+                                }
+                            }
+                            bindDatabaseData(payload);
+                            showToast('ดึงข้อมูลจริงจาก API สำเร็จ', 'success');
+                            return payload;
+                        }).catch(error => {
+                            console.error('API fetch error', error);
+                            showToast('ไม่สามารถเชื่อมต่อ API ได้', 'error');
+                            return null;
+                        });
+                }
+
+                return fetchJson(`${webAppApiUrl}?${params.toString()}`)
                     .then(res => {
                         if (!res || res.status !== 'success') {
                             showToast('ไม่สามารถดึงข้อมูลจริงจาก API ได้', 'error');
                             return null;
                         }
-                        const payload = docId ? mapLeaveRecordPayload(res.data) : mapEmployeePayload(res.data);
+                        const payload = mapEmployeePayload(res.data);
                         bindDatabaseData(payload);
                         showToast('ดึงข้อมูลจริงจาก API สำเร็จ', 'success');
                         return payload;
