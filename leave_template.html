@@ -452,20 +452,13 @@
          */
         async function loadDataFromServer(options = {}) {
             const params = new URLSearchParams(window.location.search);
-            const rawDataParam = params.get('data');
             const docId = options.docId || params.get('docId') || params.get('documentId') || params.get('id') || null;
             const empId = options.empId || params.get('empId') || params.get('employeeId') || null;
             const forceServer = options.forceServer === true;
 
-            if (rawDataParam) {
-                try {
-                    const recordData = JSON.parse(rawDataParam);
-                    const payload = mapLeaveRecordPayload(recordData);
-                    bindDatabaseData(payload);
-                    return Promise.resolve(payload);
-                } catch (err) {
-                    console.error('leave_template.html loadDataFromServer: invalid data param', err);
-                }
+            if (!docId && !empId) {
+                showToast('ไม่พบตัวระบุข้อมูลเพื่อเรียกใช้งานข้อมูลจริง', 'info');
+                return Promise.resolve(null);
             }
 
             // Helper: map employee sheet row object (Thai headers) to template shape
@@ -593,11 +586,6 @@
                         showToast('ไม่สามารถเชื่อมต่อ API ได้', 'error');
                         return null;
                     });
-            }
-
-            if (!docId && !empId) {
-                showToast('ไม่พบตัวระบุข้อมูลเพื่อเรียกใช้งานข้อมูลจริง', 'info');
-                return Promise.resolve(null);
             }
 
             showToast('กำลังรอการเชื่อมต่อฐานข้อมูล...', 'info');
