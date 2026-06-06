@@ -542,7 +542,7 @@
             });
 
             if (exceeded.length > 0) {
-                warningContainer.innerHTML = `แจ้งเตือน: พบการใช้งานสิทธิ์เกิน ${exceeded.join(' , ')}; หากลาอีกครั้งจะไม่ได้รับค่าจ้างสำหรับวันเกินสิทธิ์`;
+                warningContainer.innerHTML = `แจ้งเตือน: พบการใช้งานสิทธิ์เกิน ${exceeded.join(' , ')}; หากมีการลาอีกครั้งถัดไปจะไม่ได้รับค่าจ้างสำหรับวันเกินสิทธิ์`;
             }
         }
 
@@ -644,7 +644,13 @@
                                 if (empIdFromRec) {
                                     google.script.run.withSuccessHandler(function(empRes) {
                                         if (empRes && empRes.status === 'success') {
-                                            Object.assign(payload, mapEmployeePayload(empRes.data));
+                                            const empPayload = mapEmployeePayload(empRes.data);
+                                            payload.employee = empPayload.employee || payload.employee;
+                                            if (empPayload.contact_no) payload.contact_no = empPayload.contact_no;
+                                            payload.metadata = payload.metadata || {};
+                                            if (empPayload.metadata && empPayload.metadata.written_at) {
+                                                payload.metadata.written_at = empPayload.metadata.written_at;
+                                            }
                                         }
                                         bindDatabaseData(payload);
                                         resolve(payload);
@@ -716,7 +722,13 @@
                             if (empIdFromRec) {
                                 const empRes = await fetchJson(`${webAppApiUrl}?action=getEmployee&empId=${encodeURIComponent(empIdFromRec)}`);
                                 if (empRes && empRes.status === 'success') {
-                                    Object.assign(payload, mapEmployeePayload(empRes.data));
+                                    const empPayload = mapEmployeePayload(empRes.data);
+                                    payload.employee = empPayload.employee || payload.employee;
+                                    if (empPayload.contact_no) payload.contact_no = empPayload.contact_no;
+                                    payload.metadata = payload.metadata || {};
+                                    if (empPayload.metadata && empPayload.metadata.written_at) {
+                                        payload.metadata.written_at = empPayload.metadata.written_at;
+                                    }
                                 }
                             }
                             bindDatabaseData(payload);
