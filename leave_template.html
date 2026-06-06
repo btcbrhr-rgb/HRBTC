@@ -447,7 +447,11 @@
                             img.alt = 'Signature';
                             img.className = 'mx-auto max-h-14 object-contain';
                             img.onerror = function() {
-                                this.replaceWith(document.createTextNode('[ไม่สามารถโหลดภาพลายเซ็นได้]'));
+                                console.error('Signature image load failed:', signature.src);
+                                const fallback = document.createElement('span');
+                                fallback.textContent = '[ไม่สามารถโหลดภาพลายเซ็นได้]';
+                                element.innerHTML = '';
+                                element.appendChild(fallback);
                             };
                             element.appendChild(img);
                         } else {
@@ -514,6 +518,30 @@
             return path.split('.').reduce((acc, part) => acc && acc[part], object);
         }
 
+        function normalizeDriveUrl(url) {
+            if (!url || typeof url !== 'string') return url;
+            const trimmed = url.trim();
+            let fileId = null;
+            let match = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+            if (match) fileId = match[1];
+            if (!fileId) {
+                match = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                if (match) fileId = match[1];
+            }
+            if (!fileId) {
+                match = trimmed.match(/\/uc\?export=view&id=([a-zA-Z0-9_-]+)/i);
+                if (match) fileId = match[1];
+            }
+            if (!fileId) {
+                match = trimmed.match(/\/uc\?export=download&id=([a-zA-Z0-9_-]+)/i);
+                if (match) fileId = match[1];
+            }
+            if (fileId) {
+                return `https://drive.google.com/uc?export=download&id=${fileId}`;
+            }
+            return trimmed;
+        }
+
         function getSignatureDisplay(value) {
             if (value === undefined || value === null) return null;
 
@@ -554,12 +582,12 @@
                     }
 
                     if (driveId) {
-                        return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveId}` };
+                        return { type: 'image', src: `https://drive.google.com/uc?export=download&id=${driveId}` };
                     }
 
                     const driveUcMatch2 = str.match(/(?:https?:\/\/)?drive\.google\.com\/uc\?export=view&id=([^&]+)/i);
                     if (driveUcMatch2) {
-                        return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveUcMatch2[1]}` };
+                        return { type: 'image', src: `https://drive.google.com/uc?export=download&id=${driveUcMatch2[1]}` };
                     }
 
                     if (/\.(png|jpe?g|gif|svg)(?:[?#].*)?$/i.test(str)) {
@@ -574,10 +602,11 @@
                 const url = parsedValue.url || parsedValue.imageUrl || parsedValue.avatarUrl || parsedValue.thumbnailLink || parsedValue.src;
                 const fileId = parsedValue.fileId || parsedValue.file_id || parsedValue.id;
                 if (url && typeof url === 'string' && url.trim()) {
-                    return { type: 'image', src: url.trim() };
+                    const normalizedUrl = normalizeDriveUrl(url.trim());
+                    return { type: 'image', src: normalizedUrl };
                 }
                 if (fileId && typeof fileId === 'string' && fileId.trim()) {
-                    return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${fileId.trim()}` };
+                    return { type: 'image', src: `https://drive.google.com/uc?export=download&id=${fileId.trim()}` };
                 }
             }
 
