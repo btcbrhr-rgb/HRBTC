@@ -103,24 +103,105 @@
                             }
                         }
                     }
-                    if (!obj) return;
-                    const container = document.getElementById('template-body');
-                    // Render a simple human-friendly document; consuming app may replace with a full layout
-                    container.innerHTML = `
-                        <div class="text-sm text-slate-700">
-                          <p><strong>เลขที่เอกสาร:</strong> ${escapeHtml(obj['เลขที่เอกสาร'] || obj.docId || '')}</p>
-                          <p><strong>พนักงาน:</strong> ${escapeHtml(obj['ชื่อ-นามสกุล'] || obj['พนักงาน'] || obj.empName || '')} (${escapeHtml(obj['รหัสพนักงาน'] || obj.empId || '')})</p>
-                          <p><strong>ประเภทการลา:</strong> ${escapeHtml(obj['ประเภทการลา'] || '')}</p>
-                          <p><strong>ช่วงวันที่:</strong> ${escapeHtml((obj['วันที่เริ่ม'] || '') + ' - ' + (obj['วันที่สิ้นสุด'] || ''))}</p>
-                          <p><strong>จำนวนวัน:</strong> ${escapeHtml(obj['จำนวนวัน'] || '')}</p>
-                          <p><strong>เหตุผล:</strong> ${escapeHtml(obj['เหตุผล'] || '')}</p>
-                        </div>
-                    `;
+                                    if (!obj) return;
+                                            const container = document.getElementById('template-body');
+                                            // Render a printable A4-ready layout
+                                            container.innerHTML = `
+                                                <div class="w-full">
+                                                    <div class="flex items-start justify-between">
+                                                        <div class="flex items-center gap-3">
+                                                            <div class="w-16 h-16 bg-slate-100 flex items-center justify-center rounded">
+                                                                <span class="text-xs text-slate-500">LOGO</span>
+                                                            </div>
+                                                            <div>
+                                                                <div class="text-base font-bold">บริษัท ตัวอย่าง จำกัด (มหาชน)</div>
+                                                                <div class="text-sm text-slate-600">ใบคำขอ ลาหยุดงาน / Leave Request Form</div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="text-right text-sm">
+                                                            <div><strong>เลขที่เอกสาร:</strong> ${escapeHtml(obj['เลขที่เอกสาร'] || obj.docId || '')}</div>
+                                                            <div><strong>วันที่ยื่น:</strong> ${escapeHtml(obj['วันที่ส่ง'] || obj['วันที่'] || '')}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <hr class="my-3 border-slate-200" />
+
+                                                    <div class="grid grid-cols-2 gap-4 text-sm">
+                                                        <div>
+                                                            <div class="text-xs text-slate-500">พนักงาน</div>
+                                                            <div class="font-semibold text-slate-800">${escapeHtml(obj['ชื่อ-นามสกุล'] || obj['พนักงาน'] || obj.empName || '')}</div>
+                                                            <div class="text-xs text-slate-500">รหัสพนักงาน</div>
+                                                            <div>${escapeHtml(obj['รหัสพนักงาน'] || obj.empId || '')}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-xs text-slate-500">ประเภทการลา</div>
+                                                            <div class="font-semibold">${escapeHtml(obj['ประเภทการลา'] || '')}</div>
+                                                            <div class="text-xs text-slate-500 mt-2">จำนวนวัน</div>
+                                                            <div>${escapeHtml(obj['จำนวนวัน'] || '')}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mt-4 text-sm">
+                                                        <div class="text-xs text-slate-500">ช่วงวันที่</div>
+                                                        <div class="font-medium">${escapeHtml((obj['วันที่เริ่ม'] || '') + ' - ' + (obj['วันที่สิ้นสุด'] || ''))}</div>
+                                                    </div>
+
+                                                    <div class="mt-4 text-sm">
+                                                        <div class="text-xs text-slate-500">เหตุผล / Remarks</div>
+                                                        <div class="mt-2 p-3 border border-slate-100 rounded bg-slate-50">${escapeHtml(obj['เหตุผล'] || '')}</div>
+                                                    </div>
+
+                                                    <div class="mt-6 grid grid-cols-3 gap-4 text-sm">
+                                                        <div class="text-center">
+                                                            <div class="h-10"></div>
+                                                            <div class="mt-3">ลงชื่อผู้ขอ</div>
+                                                            <div class="mt-2">( ______________________ )</div>
+                                                        </div>
+                                                        <div class="text-center">
+                                                            <div class="h-10"></div>
+                                                            <div class="mt-3">ลงชื่อหัวหน้างาน</div>
+                                                            <div class="mt-2">( ______________________ )</div>
+                                                        </div>
+                                                        <div class="text-center">
+                                                            <div class="h-10"></div>
+                                                            <div class="mt-3">ลงชื่อผู้อนุมัติ HR</div>
+                                                            <div class="mt-2">( ______________________ )</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `;
                 } catch (e) {
                     console.error('Template render error', e);
                 }
             }
             renderFromQuery();
+        })();
+        
+        // small helper for safe HTML output
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>\"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':"&#39;"}[c]; });
+        }
+
+        // Print and Export buttons (show only in non-print media)
+        (function attachControls(){
+            try {
+                const controls = document.createElement('div');
+                controls.className = 'no-print fixed right-4 bottom-6 space-x-2 z-50';
+                controls.innerHTML = `
+                  <button id="btn-print-doc" class="px-4 py-2 bg-blue-600 text-white rounded shadow">พิมพ์</button>
+                  <button id="btn-save-pdf" class="px-4 py-2 bg-slate-700 text-white rounded shadow">บันทึกเป็น PDF</button>
+                  <button id="btn-close" class="px-3 py-2 bg-slate-200 rounded">ปิด</button>
+                `;
+                document.body.appendChild(controls);
+                document.getElementById('btn-print-doc').addEventListener('click', () => { window.print(); });
+                document.getElementById('btn-close').addEventListener('click', () => { window.close(); });
+                document.getElementById('btn-save-pdf').addEventListener('click', () => {
+                    const element = document.getElementById('capture-target');
+                    const opt = { margin: 0.4, filename: `leave_${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
+                    html2pdf().set(opt).from(element).save();
+                });
+            } catch (e) { console.warn('attachControls failed', e); }
         })();
     </script>
 </body>
