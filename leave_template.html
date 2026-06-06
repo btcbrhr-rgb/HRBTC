@@ -78,9 +78,48 @@
             border-bottom: 1px dotted #94a3b8 !important;
             background-color: transparent !important;
         }
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.72);
+            z-index: 9999;
+            color: #f8fafc;
+            padding: 20px;
+            text-align: center;
+        }
+        #loading-overlay .loader-box {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 18px 24px;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.92);
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        #loading-overlay .loader-ring {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.24);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 0.95s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="py-6 px-4 sm:px-6">
+<div id="loading-overlay" class="no-print">
+    <div class="loader-box">
+        <div class="loader-ring"></div>
+        <div class="text-sm font-semibold">กำลังโหลดข้อมูล...</div>
+    </div>
+</div>
 
     <!-- Main Container - Sized optimally for A4 (794px approximate width at standard DPI) -->
     <div id="capture-target" class="printable-content max-w-[820px] mx-auto bg-white p-5 md:p-6 rounded-xl shadow-sm border border-slate-200 print-shadow-none">
@@ -482,6 +521,13 @@
                 return Promise.resolve(null);
             }
 
+            if (!openedFromIndex) {
+                showToast('ต้องเปิดจากหน้า index.html เท่านั้น', 'error');
+                return Promise.resolve(null);
+            }
+
+            showLoading();
+
             // Helper: map employee sheet row object (Thai headers) to template shape
             function mapEmployeePayload(empRaw) {
                 if (!empRaw) return {};
@@ -503,7 +549,7 @@
                 const out = {};
                 // Common mappings - try multiple header variants
                 out.metadata = {
-                    doc_no: rec['เลขที่เอกสาร'] || rec['เลขที่'] || rec['docId'] || rec['documentId'] || '',
+                    doc_no: rec['เลขที่เอกสาร'] || rec['เลขที่'] || rec['doc_no'] || rec['document_no'] || rec['docId'] || rec['documentId'] || '',
                     written_at: rec['เขียนที่'] || rec['written_at'] || rec['attention_to'] || '',
                     doc_date: normalizeDateForInput(rec['วันที่ส่ง'] || rec['วันที่'] || rec['date'] || rec['วันที่อนุมัติ'] || '')
                 };
@@ -544,13 +590,8 @@
             const apiUrlFromQueryClean = apiUrlFromQuery ? decodeURIComponent(apiUrlFromQuery) : null;
             const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (apiUrlFromQueryClean ? apiUrlFromQueryClean.trim() : (apiUrlFromStorage ? apiUrlFromStorage.trim() : null));
 
-            if (!openedFromIndex) {
-                showToast('ต้องเปิดจากหน้า index.html เท่านั้น', 'error');
-                return Promise.resolve(null);
-            }
-
             if (runViaGoogleScript) {
-                return new Promise((resolve) => {
+                const promise = new Promise((resolve) => {
                     if (docId) {
                         google.script.run.withSuccessHandler(function(res) {
                             if (res && res.status === 'success') {
@@ -562,12 +603,10 @@
                                             Object.assign(payload, mapEmployeePayload(empRes.data));
                                         }
                                         bindDatabaseData(payload);
-                                        showToast('ดึงข้อมูลเอกสารการลาเรียบร้อย', 'success');
                                         resolve(payload);
                                     }).getEmployeeData(empIdFromRec);
                                 } else {
                                     bindDatabaseData(payload);
-                                    showToast('ดึงข้อมูลเอกสารการลาเรียบร้อย', 'success');
                                     resolve(payload);
                                 }
                             } else {
@@ -580,7 +619,6 @@
                             if (empRes && empRes.status === 'success') {
                                 const payload = mapEmployeePayload(empRes.data);
                                 bindDatabaseData(payload);
-                                showToast('ดึงข้อมูลพนักงานจากฐานข้อมูล', 'success');
                                 resolve(payload);
                             } else {
                                 showToast('ไม่พบข้อมูลพนักงาน', 'error');
@@ -592,9 +630,11 @@
                         resolve(null);
                     }
                 });
+                return promise.finally(hideLoading);
             }
 
             if (!webAppApiUrl) {
+                hideLoading();
                 showToast('ไม่สามารถเชื่อมต่อ API ได้: ไม่พบ GAS_WEB_APP_URL, google.script.run หรือ hr_api_url', 'error');
                 return Promise.resolve(null);
             }
@@ -636,13 +676,12 @@
                                 }
                             }
                             bindDatabaseData(payload);
-                            showToast('ดึงข้อมูลจริงจาก API สำเร็จ', 'success');
                             return payload;
                         }).catch(error => {
                             console.error('API fetch error', error);
                             showToast('ไม่สามารถเชื่อมต่อ API ได้', 'error');
                             return null;
-                        });
+                        }).finally(hideLoading);
                 }
 
                 return fetchJson(`${webAppApiUrl}?${params.toString()}`)
@@ -653,13 +692,12 @@
                         }
                         const payload = mapEmployeePayload(res.data);
                         bindDatabaseData(payload);
-                        showToast('ดึงข้อมูลจริงจาก API สำเร็จ', 'success');
                         return payload;
                     }).catch(error => {
                         console.error('API fetch error', error);
                         showToast('ไม่สามารถเชื่อมต่อ API ได้', 'error');
                         return null;
-                    });
+                    }).finally(hideLoading);
             }
 
             showToast('กำลังรอการเชื่อมต่อฐานข้อมูล...', 'info');
@@ -718,7 +756,6 @@
             }
 
             if (hasSource) {
-                showToast('กำลังดึงข้อมูลจากระบบ...', 'info');
                 loadDataFromServer();
             }
         });
@@ -727,6 +764,19 @@
         /**
          * 4. CUSTOM TOAST NOTIFICATION SYSTEM
          */
+        function showLoading(message = 'กำลังโหลดข้อมูล...') {
+            const overlay = document.getElementById('loading-overlay');
+            if (!overlay) return;
+            overlay.querySelector('.loader-box div:last-child').textContent = message;
+            overlay.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loading-overlay');
+            if (!overlay) return;
+            overlay.style.display = 'none';
+        }
+
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
