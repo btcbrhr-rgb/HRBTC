@@ -424,18 +424,20 @@
             return path.split('.').reduce((acc, part) => acc && acc[part], object);
         }
 
+        // If you serve this HTML outside Apps Script, set your web app URL here:
+        const GAS_WEB_APP_URL = '';
+
         /**
          * 2. REAL-WORLD API INTEGRATION TEMPLATE (Ready for developers)
          * 
          * To connect this HTML template to a real database:
-         * A developer would simply change the 'apiUrl' below to point to their backend route
-         * (e.g., '/api/v1/employee/leave-profile') and call loadDataFromServer().
+         * A developer would simply change the 'GAS_WEB_APP_URL' above or use google.script.run.
          */
-        async function loadDataFromServer(forceServer = false) {
-            // Try to determine identifiers from URL parameters
+        async function loadDataFromServer(options = {}) {
             const params = new URLSearchParams(window.location.search);
-            const docId = params.get('docId') || params.get('documentId') || params.get('id') || null;
-            const empId = params.get('empId') || params.get('employeeId') || null;
+            const docId = options.docId || params.get('docId') || params.get('documentId') || params.get('id') || null;
+            const empId = options.empId || params.get('empId') || params.get('employeeId') || null;
+            const forceServer = options.forceServer === true;
 
             // Helper: map employee sheet row object (Thai headers) to template shape
             function mapEmployeePayload(empRaw) {
@@ -489,14 +491,15 @@
                 return out;
             }
 
-            // If Apps Script client API exists, use it to fetch data
-            if (typeof google !== 'undefined' && google && google.script && google.script.run) {
+            const runViaGoogleScript = typeof google !== 'undefined' && google && google.script && google.script.run;
+            const currentWebAppUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (window.location.protocol.startsWith('http') ? window.location.origin + window.location.pathname : null);
+
+            if (runViaGoogleScript) {
                 return new Promise((resolve) => {
                     if (docId) {
                         google.script.run.withSuccessHandler(function(res) {
                             if (res && res.status === 'success') {
                                 const payload = mapLeaveRecordPayload(res.data);
-                                // If server returned only emp id, also fetch employee details to complete profile
                                 const empIdFromRec = payload.employee && payload.employee.id;
                                 if (empIdFromRec) {
                                     google.script.run.withSuccessHandler(function(empRes) {
@@ -530,47 +533,62 @@
                             }
                         }).getEmployeeData(empId);
                     } else {
-                        // No identifiers provided — resolve with null to allow fallback
+                        showToast('ไม่พบตัวระบุข้อมูลในการดึงฐานข้อมูล', 'info');
                         resolve(null);
                     }
                 });
             }
 
-            // Fallback: local mock payload (for preview/testing)
-            const localMockPayload = {
-                employee: {
-                    name: "นายนพดล เด่นดวง",
-                    id: "EMP-2026048",
-                    position: "Senior System Analyst",
-                    department: "เทคโนโลยีสารสนเทศ (IT)"
-                },
-                leave_records: {
-                    sick: { entitled: 30, used: 4, current: 0, remaining: 26 },
-                    personal: { entitled: 7, used: 1, current: 0, remaining: 6 },
-                    annual: { entitled: 10, used: 2, current: 0, remaining: 8 }
-                },
-                metadata: {
-                    doc_no: "LV-20260530-0012",
-                    written_at: "สำนักงานใหญ่ กรุงเทพฯ",
-                    attention_to: "แผนกทรัพยากรบุคคล (HR)"
+            if (currentWebAppUrl && (docId || empId)) {
+                const params = new URLSearchParams();
+                if (docId) {
+                    params.set('action', 'getLeaveRecord');
+                    params.set('docId', docId);
+                } else {
+                    params.set('action', 'getEmployee');
+                    params.set('empId', empId);
                 }
-            };
+                return fetch(`${currentWebAppUrl}?${params.toString()}`, { method: 'GET' })
+                    .then(response => response.json())
+                    .then(res => {
+                        if (!res || res.status !== 'success') {
+                            showToast('ไม่สามารถดึงข้อมูลจริงจาก API ได้', 'error');
+                            return null;
+                        }
+                        const payload = docId ? mapLeaveRecordPayload(res.data) : mapEmployeePayload(res.data);
+                        bindDatabaseData(payload);
+                        showToast('ดึงข้อมูลจริงจาก API สำเร็จ', 'success');
+                        return payload;
+                    }).catch(error => {
+                        console.error('API fetch error', error);
+                        showToast('ไม่สามารถเชื่อมต่อ API ได้', 'error');
+                        return null;
+                    });
+            }
 
-            bindDatabaseData(localMockPayload);
-            showToast("ดึงข้อมูลตัวอย่าง (Preview)", "info");
-            return Promise.resolve(localMockPayload);
+            if (!docId && !empId) {
+                showToast('ไม่พบตัวระบุข้อมูลเพื่อเรียกใช้งานข้อมูลจริง', 'info');
+                return Promise.resolve(null);
+            }
+
+            showToast('กำลังรอการเชื่อมต่อฐานข้อมูล...', 'info');
+            return Promise.resolve(null);
         }
 
         // Prepare data from server then trigger browser print
         function prepareAndPrint() {
             showToast('กำลังดึงข้อมูลก่อนพิมพ์...', 'info');
-            loadDataFromServer(true).then(() => {
-                // Small delay to ensure DOM updates finished
+            const docNoValue = document.getElementById('doc_no')?.value?.trim() || null;
+            const empIdValue = document.getElementById('emp_id')?.value?.trim() || null;
+
+            loadDataFromServer({ docId: docNoValue, empId: empIdValue, forceServer: true }).then((result) => {
+                if (!result && !docNoValue && !empIdValue) {
+                    showToast('ไม่พบตัวระบุสำหรับดึงข้อมูลจริง, จะพิมพ์เฉพาะข้อมูลที่กรอกแล้ว', 'info');
+                }
                 setTimeout(() => window.print(), 300);
             }).catch(err => {
                 console.error(err);
                 showToast('เกิดข้อผิดพลาดขณะดึงข้อมูลก่อนพิมพ์', 'error');
-                // still allow print as fallback
                 setTimeout(() => window.print(), 500);
             });
         }
@@ -583,8 +601,12 @@
                 dateInput.value = today;
             }
             
-            // Trigger dynamic data binding sequence
-            loadDataFromServer();
+            // Trigger dynamic data binding sequence only when identifiers exist
+            const params = new URLSearchParams(window.location.search);
+            const hasSource = params.has('docId') || params.has('documentId') || params.has('id') || params.has('empId') || params.has('employeeId');
+            if (hasSource) {
+                loadDataFromServer();
+            }
         });
 
 
