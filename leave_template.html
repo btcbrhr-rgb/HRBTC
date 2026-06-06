@@ -93,7 +93,7 @@
         .pdf-render {
             display: flex;
             flex-direction: column;
-            min-height: 100vh;
+            min-height: auto;
             width: 210mm;
             max-width: 210mm;
             margin: 0 auto !important;
@@ -105,16 +105,18 @@
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             box-shadow: none !important;
+            page-break-inside: avoid !important;
         }
         .pdf-render .printable-content {
             display: flex;
             flex-direction: column;
-            min-height: 100vh;
+            min-height: auto;
             width: 100%;
             max-width: 100%;
             transform: none !important;
             padding: 0 !important;
             box-shadow: none !important;
+            page-break-inside: avoid !important;
         }
         .pdf-render .page-bottom-blocks {
             margin-top: auto;
@@ -1139,9 +1141,9 @@
             const clone = element.cloneNode(true);
             copyFormValues(element, clone);
             clone.classList.add('pdf-render');
-            clone.style.width = A4_WIDTH_PX + 'px';
-            clone.style.maxWidth = A4_WIDTH_PX + 'px';
-            clone.style.minHeight = '297mm';
+            clone.style.width = '210mm';
+            clone.style.maxWidth = '210mm';
+            clone.style.minHeight = 'auto';
             clone.style.margin = '0';
             clone.style.padding = '0';
             clone.style.boxShadow = 'none';
@@ -1149,10 +1151,11 @@
             clone.style.backgroundColor = '#ffffff';
 
             const wrapper = document.createElement('div');
-            wrapper.style.position = 'fixed';
-            wrapper.style.left = '-9999px';
-            wrapper.style.top = '-9999px';
-            wrapper.style.width = A4_WIDTH_PX + 'px';
+            wrapper.style.position = 'absolute';
+            wrapper.style.left = '0';
+            wrapper.style.top = '0';
+            wrapper.style.visibility = 'hidden';
+            wrapper.style.width = '210mm';
             wrapper.style.height = 'auto';
             wrapper.style.overflow = 'hidden';
             wrapper.appendChild(clone);
@@ -1161,6 +1164,7 @@
             await waitForImages(clone, 4000);
             await new Promise(r => setTimeout(r, 260));
 
+            const elementHeightPx = Math.ceil(clone.getBoundingClientRect().height);
             const options = {
                 margin:       [6, 8, 6, 8],
                 filename:     `Leave_Request_Form_${new Date().toISOString().slice(0,10)}.pdf`,
@@ -1169,9 +1173,10 @@
                     scale: Math.max(2, window.devicePixelRatio || 2),
                     useCORS: true,
                     letterRendering: false,
-                    scrollY: -window.scrollY,
+                    scrollY: 0,
                     scrollX: 0,
                     width: A4_WIDTH_PX,
+                    height: elementHeightPx,
                     backgroundColor: '#ffffff',
                     allowTaint: true,
                     dpi: 300
