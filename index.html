@@ -1951,6 +1951,10 @@
                                     class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3.5 py-1.5 rounded-lg border border-blue-700 transition-all">
                                     <i class="fa-solid fa-user-plus mr-1"></i> บันทึกใบลาแทนพนักงาน
                                 </button>
+                                <button onclick="openLeaveCyclePrintReport()"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-1.5 rounded-lg border border-emerald-700 transition-all">
+                                    <i class="fa-solid fa-print mr-1"></i> พิมพ์รายงาน
+                                </button>
                                 <button onclick="loadAdminApprovals()"
                                     class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
                                     <i class="fa-solid fa-arrows-rotate mr-1"></i> ซิงค์ข้อมูลล่าสุด
@@ -5032,6 +5036,30 @@
                 } catch (e) {
                     console.error('printLeaveRecord error', e);
                     showToast('เกิดข้อผิดพลาดขณะเตรียมพิมพ์: ' + e.message, 'error');
+                }
+            }
+
+            function openLeaveCyclePrintReport() {
+                try {
+                    if (!SERVER_API_URL) {
+                        return showToast('ไม่พบค่า SERVER_API_URL สำหรับพิมพ์รายงาน', 'error');
+                    }
+                    if (!currentEmployeeId) {
+                        return showToast('ไม่พบรหัสผู้ใช้งาน โปรดเข้าสู่ระบบใหม่', 'error');
+                    }
+                    const currentCycle = getCurrentCycleRange();
+                    const url = new URL('Print_LeaveCycle.html', window.location.href);
+                    url.searchParams.set('apiUrl', SERVER_API_URL);
+                    url.searchParams.set('empId', '*ALL*');
+                    url.searchParams.set('adminId', currentEmployeeId);
+                    url.searchParams.set('periodStart', currentCycle.start);
+                    url.searchParams.set('periodEnd', currentCycle.end);
+                    const w = window.open(url.toString(), '_blank', 'noopener');
+                    if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                    w.focus && w.focus();
+                } catch (e) {
+                    console.error('openLeaveCyclePrintReport error', e);
+                    showToast('เกิดข้อผิดพลาดขณะเปิดหน้ารายงาน: ' + e.message, 'error');
                 }
             }
 
