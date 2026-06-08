@@ -1965,10 +1965,16 @@
                         <div class="flex justify-between items-center">
                             <h3 class="text-sm font-bold text-slate-700">คำขอการลางานของพนักงานทั้งหมด
                                 (รอการตรวจสอบและอนุมัติ)</h3>
-                            <button onclick="loadAdminApprovals()"
+                            <div class="flex items-center gap-2">
+                                <button onclick="openCreateLeaveByHRModal()"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3.5 py-1.5 rounded-lg border border-blue-700 transition-all">
+                                    <i class="fa-solid fa-user-plus mr-1"></i> บันทึกใบลาแทนพนักงาน
+                                </button>
+                                <button onclick="loadAdminApprovals()"
                                 class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
                                 <i class="fa-solid fa-arrows-rotate mr-1"></i> ซิงค์ข้อมูลล่าสุด
                             </button>
+                            </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs border-collapse">
@@ -2854,6 +2860,74 @@
                     class="flex-1 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-semibold text-xs rounded-xl border border-rose-200 transition-all">ปฏิเสธคำขอ</button>
                 <button id="admin-decision-approve-btn"
                     class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-emerald-100">อนุมัติคำขอ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- [MODAL: HR สร้าง/บันทึกใบลาแทนพนักงาน]                         -->
+    <!-- =============================================================== -->
+    <div id="admin-create-leave-modal" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs hidden">
+        <div class="bg-white border border-slate-200 max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-file-circle-plus text-blue-600"></i> บันทึกใบลาแทนพนักงาน
+                </h3>
+                <button onclick="closeCreateLeaveByHRModal()" class="text-slate-400 hover:text-slate-600" title="ปิด">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-2 text-xs">
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="text-[11px] text-slate-500">รหัสพนักงาน</label>
+                        <input id="admin-create-leave-empid" type="text" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs" placeholder="รหัสพนักงาน" />
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-[11px] text-slate-500">ชื่อพนักงาน</label>
+                        <div id="admin-create-leave-empname" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-600">-</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[11px] text-slate-500">ประเภทการลา</label>
+                    <select id="admin-create-leave-type" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
+                        <option value="" disabled selected>-เลือกประเภทการลา-</option>
+                        <option value="ลากิจ">ลากิจ</option>
+                        <option value="ลาป่วย">ลาป่วย</option>
+                        <option value="ลาพักร้อน">ลาพักร้อน</option>
+                        <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
+                        <option value="ลาอื่นๆ">ลาอื่นๆ</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[11px] text-slate-500">วันที่เริ่มต้น</label>
+                        <input id="admin-create-leave-start" type="date" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs" onchange="calculateAdminLeaveDays()" />
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-slate-500">วันที่สิ้นสุด</label>
+                        <input id="admin-create-leave-end" type="date" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs" onchange="calculateAdminLeaveDays()" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[11px] text-slate-500">จำนวนวัน</label>
+                    <input id="admin-create-leave-days" type="number" step="0.5" min="0.5" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs" value="1" />
+                </div>
+
+                <div>
+                    <label class="text-[11px] text-slate-500">เหตุผล/คำชี้แจง</label>
+                    <textarea id="admin-create-leave-reason" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs" placeholder="ระบุเหตุผล..."></textarea>
+                </div>
+
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeCreateLeaveByHRModal()" class="px-4 py-2 bg-slate-100 rounded-lg text-slate-600">ยกเลิก</button>
+                <button id="admin-create-leave-submit" onclick="submitLeaveByAdminFromAdminUI()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">บันทึกและอนุมัติ</button>
             </div>
         </div>
     </div>
@@ -6308,6 +6382,94 @@
 
                 toggleMenuPermissionsUi();
                 document.getElementById("admin-employee-modal").classList.remove("hidden");
+            }
+
+            // --- HR: เปิดโมดอลบันทึกใบลาแทนพนักงาน ---
+            function openCreateLeaveByHRModal() {
+                const modal = document.getElementById('admin-create-leave-modal');
+                if (!modal) return;
+                document.getElementById('admin-create-leave-empid').value = '';
+                document.getElementById('admin-create-leave-empname').textContent = '-';
+                document.getElementById('admin-create-leave-type').value = '';
+                document.getElementById('admin-create-leave-start').value = '';
+                document.getElementById('admin-create-leave-end').value = '';
+                document.getElementById('admin-create-leave-days').value = '1';
+                document.getElementById('admin-create-leave-reason').value = '';
+                modal.classList.remove('hidden');
+            }
+
+            function closeCreateLeaveByHRModal() {
+                const modal = document.getElementById('admin-create-leave-modal');
+                if (!modal) return;
+                modal.classList.add('hidden');
+            }
+
+            async function calculateAdminLeaveDays() {
+                const start = document.getElementById('admin-create-leave-start').value;
+                const end = document.getElementById('admin-create-leave-end').value;
+                const input = document.getElementById('admin-create-leave-days');
+                if (!start || !end) return;
+                const s = new Date(start);
+                const e = new Date(end);
+                if (s > e) return;
+                const diff = (e.getTime() - s.getTime()) / (1000 * 3600 * 24);
+                input.value = diff + 1;
+            }
+
+            async function submitLeaveByAdminFromAdminUI() {
+                const empId = (document.getElementById('admin-create-leave-empid').value || '').toString().trim();
+                const type = (document.getElementById('admin-create-leave-type').value || '').toString().trim();
+                const start = (document.getElementById('admin-create-leave-start').value || '').toString().trim();
+                const end = (document.getElementById('admin-create-leave-end').value || '').toString().trim();
+                const days = parseFloat(document.getElementById('admin-create-leave-days').value || '1');
+                const reason = (document.getElementById('admin-create-leave-reason').value || '').toString().trim();
+
+                if (!empId) return showToast('⚠️ กรุณาระบุรหัสพนักงาน', 'warning');
+                if (!type) return showToast('⚠️ กรุณาเลือกประเภทการลา', 'warning');
+                if (!start || !end || !reason) return showToast('⚠️ กรอกข้อมูลให้ครบถ้วน', 'warning');
+
+                // Verify employee exists
+                try {
+                    const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`);
+                    if (!empRes || empRes.status !== 'success') {
+                        return showToast('❌ ไม่พบข้อมูลพนักงาน: ' + empId, 'error');
+                    }
+                    document.getElementById('admin-create-leave-empname').textContent = empRes.data['ชื่อ-นามสกุล'] || empRes.data.name || '-';
+                } catch (e) {
+                    return showToast('❌ ไม่สามารถตรวจสอบข้อมูลพนักงานได้: ' + e.message, 'error');
+                }
+
+                const payload = {
+                    action: 'submitLeaveByAdmin',
+                    adminId: currentEmployeeId,
+                    adminName: employeeData['ชื่อ-นามสกุล'] || '',
+                    empId: empId,
+                    type: type,
+                    period: 'เต็มวัน',
+                    days: days,
+                    start: start,
+                    end: end,
+                    reason: reason,
+                    attachment: '',
+                    lat: currentGpsLocation.lat || '',
+                    lng: currentGpsLocation.lng || ''
+                };
+
+                return withSubmitLock('adminCreateLeave', async () => {
+                    try {
+                        const res = await fetchWithTimeout(SERVER_API_URL, { method: 'POST', body: JSON.stringify(payload), timeout: 30000 });
+                        if (!res || typeof res !== 'object') return showToast('❌ ตอบจากเซิร์ฟเวอร์ไม่ถูกต้อง', 'error');
+                        if (res.status === 'success') {
+                            showToast('✅ บันทึกและอนุมัติใบลาเรียบร้อย', 'success');
+                            closeCreateLeaveByHRModal();
+                            loadAdminApprovals();
+                        } else {
+                            showToast('❌ ล้มเหลว: ' + (res.message || 'ไม่ทราบสาเหตุ'), 'error');
+                        }
+                    } catch (err) {
+                        showToast('❌ เกิดข้อผิดพลาดเชื่อมต่อ: ' + err.message, 'error');
+                    }
+                }, { buttonId: 'admin-create-leave-submit', activeLabel: 'บันทึกและอนุมัติ', loadingLabel: 'กำลังบันทึก...' });
             }
 
             function closeEmployeeModal() {
