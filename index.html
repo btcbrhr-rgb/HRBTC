@@ -1946,11 +1946,18 @@
                                 <h3 class="text-sm font-bold text-slate-700">คำขอการลางานของพนักงานทั้งหมด</h3>
                                 <p class="text-xs text-slate-500">ตรวจสอบคำขอลาที่ยังรออนุมัติ หรือดูผลการอนุมัติที่ผ่านมา</p>
                             </div>
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
                                 <button onclick="openCreateLeaveByHRModal()"
                                     class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3.5 py-1.5 rounded-lg border border-blue-700 transition-all">
                                     <i class="fa-solid fa-user-plus mr-1"></i> บันทึกใบลาแทนพนักงาน
                                 </button>
+                                <label class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700">
+                                    <span>รูปแบบรายงาน:</span>
+                                    <select id="leave-report-type-select" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700">
+                                        <option value="cycle" selected>รอบบัญชี</option>
+                                        <option value="year">ประจำปี</option>
+                                    </select>
+                                </label>
                                 <button onclick="openLeaveCyclePrintReport()"
                                     class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-1.5 rounded-lg border border-emerald-700 transition-all">
                                     <i class="fa-solid fa-print mr-1"></i> พิมพ์รายงาน
@@ -5047,12 +5054,21 @@
                     if (!currentEmployeeId) {
                         return showToast('ไม่พบรหัสผู้ใช้งาน โปรดเข้าสู่ระบบใหม่', 'error');
                     }
+                    const reportType = document.getElementById('leave-report-type-select')?.value || 'cycle';
                     const currentCycle = getCurrentCycleRange();
+                    const now = new Date();
                     const url = new URL('Print_LeaveCycle.html', window.location.href);
                     url.searchParams.set('apiUrl', SERVER_API_URL);
                     url.searchParams.set('empId', '*ALL*');
                     url.searchParams.set('adminId', currentEmployeeId);
-                    url.searchParams.set('periodStart', currentCycle.start);
+                    url.searchParams.set('reportType', reportType);
+                    if (reportType === 'year') {
+                        url.searchParams.set('periodStart', `${now.getFullYear()}-01-01`);
+                        url.searchParams.set('periodEnd', `${now.getFullYear()}-12-31`);
+                    } else {
+                        url.searchParams.set('periodStart', currentCycle.start);
+                        url.searchParams.set('periodEnd', currentCycle.end);
+                    }
                     url.searchParams.set('periodEnd', currentCycle.end);
                     const w = window.open(url.toString(), '_blank', 'noopener');
                     if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
