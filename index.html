@@ -3315,6 +3315,7 @@
             // --- ข้อมูลพนักงานและข้อมูลเชิงโครงสร้างปัจจุบัน ---
             let employeeData = {};
             let timeRecordsList = [];
+            let timeCorrectionsList = [];
             let leaveRequestsList = [];
             let advanceRequestsList = [];
             let payslipsList = [];
@@ -3793,6 +3794,7 @@
                         
                         // 3. Time records
                         timeRecordsList = d.timeRecords || [];
+                        timeCorrectionsList = d.timeCorrections || [];
                         calculateAndDisplayStats();
                         displayActivitiesList();
                         updateAttendanceStatus(); // Update check-in/out buttons
@@ -4436,12 +4438,24 @@
                 container.innerHTML = `<div class="text-center py-10"><i class="fa-solid fa-rotate animate-spin text-2xl text-blue-500 block mb-2 mx-auto"></i><span class="text-xs text-slate-500">กำลังเชื่อมต่อฐานข้อมูล...</span></div>`;
 
                 try {
-                    const url = `${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
-                    const res = await fetchWithTimeout(url);
-                    if (res.status === "success") {
-                        displayCalendarDays(res.data);
+                    const recordsUrl = `${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
+                    const correctionsUrl = `${SERVER_API_URL}?action=getTimeCorrections&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
+
+                    const [recordsRes, correctionsRes] = await Promise.all([
+                        fetchWithTimeout(recordsUrl),
+                        fetchWithTimeout(correctionsUrl)
+                    ]);
+
+                    if (correctionsRes.status === "success") {
+                        timeCorrectionsList = correctionsRes.data || [];
                     } else {
-                        showToast("❌ โหลดข้อมูลปฏิทินไม่สำเร็จ: " + res.message, "error");
+                        timeCorrectionsList = [];
+                    }
+
+                    if (recordsRes.status === "success") {
+                        displayCalendarDays(recordsRes.data);
+                    } else {
+                        showToast("❌ โหลดข้อมูลปฏิทินไม่สำเร็จ: " + recordsRes.message, "error");
                     }
                 } catch (err) {
                     showToast("❌ ขัดข้องในการเชื่อมต่อระบบปฏิทิน", "error");
@@ -4505,8 +4519,18 @@
                     else if (status.includes("ขาด")) badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
                     else if (status.includes("ลา")) badgeColor = "bg-violet-50 text-violet-700 border-violet-100";
 
+                    const correctionRecord = timeCorrectionsList.find(c => c['วันที่'] === dateStr && c['รหัสพนักงาน']?.toString().trim() === currentEmployeeId?.toString().trim());
+                    const correctionStatus = correctionRecord ? (correctionRecord['สถานะ'] || 'รออนุมัติ') : '';
+                    const hasCorrection = !!correctionRecord;
+                    const correctionLabel = hasCorrection ? `
+            <p class="text-[10px] text-slate-500">คำขอแก้ไข: <span class="font-semibold ${correctionStatus === 'อนุมัติแล้ว' ? 'text-emerald-700' : correctionStatus === 'รออนุมัติ' ? 'text-amber-700' : 'text-rose-700'}">${correctionStatus}</span></p>` : '';
+                    const requestButtonHtml = hasCorrection
+                        ? `<button disabled class="btn-press text-[10px] text-slate-400 font-semibold bg-slate-100 border border-slate-200 px-2 py-1 rounded-md flex items-center gap-1 transition-all cursor-not-allowed"><i class="fa-solid fa-user-pen"></i> ติดต่อฝ่ายบุคคล</button>`
+                        : `<button onclick="openCorrectionModal('${dateStr}')" class="btn-press text-[10px] text-blue-600 font-semibold bg-blue-50/70 hover:bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-all"><i class="fa-solid fa-user-pen"></i> ขอแก้ไขเวลา</button>`;
+                    const cardBorderClass = status === 'ปกติ' ? 'border-2 border-cyan-200' : 'border border-slate-100';
+
                     const card = document.createElement("div");
-                    card.className = "bg-white rounded-xl border border-slate-100 p-3.5 shadow-xs relative overflow-hidden space-y-2.5";
+                    card.className = `bg-white rounded-xl p-3.5 shadow-xs relative overflow-hidden space-y-2.5 ${cardBorderClass}`;
 
                     card.innerHTML = `
           <div class="flex items-center justify-between">
@@ -4533,10 +4557,9 @@
 
           <div class="flex items-center justify-between pt-1">
             <span class="text-[9px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || "ปกติ"}</span>
-            <button onclick="openCorrectionModal('${dateStr}')" class="btn-press text-[10px] text-blue-600 font-semibold bg-blue-50/70 hover:bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-all">
-              <i class="fa-solid fa-user-pen"></i> ขอแก้ไขเวลา
-            </button>
+            ${requestButtonHtml}
           </div>
+          ${correctionLabel}
         `;
                     container.appendChild(card);
                 });
