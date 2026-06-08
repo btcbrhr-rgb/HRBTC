@@ -3270,6 +3270,9 @@
             let adminActiveTab = "import-time";
             let adminEmployeesList = [];
             let adminCurrentDecisionData = null; // Holds target data for approval modal
+            let isBatchOperation = false; // Tracks if we're doing a batch approval/rejection
+            let batchOperationType = null; // "leave" | "correction" | "advance"
+            let batchOperationAction = null; // "approve" | "reject"
             let selectedLeaveItems = new Set(); // For batch leave approval
             let selectedCorrectionItems = new Set(); // For batch time correction approval
             let selectedAdvanceItems = new Set(); // For batch advance approval
@@ -6404,9 +6407,10 @@
                 }
             }
 
-            // เปิดโมดอลพิจารณาใบคำขอการลางาน/เบิกเงิน/แก้ไขเวลา
+            // เปิดโมดอลพิจารณาใบคำขอการลางาน/เบิกเงิน/แก้ไขเวลา (ทีละรายการ)
             function openDecisionModal(type, recordData, actionType) {
                 adminCurrentDecisionData = { type, data: recordData, action: actionType, rowKey: getApprovalRowKey(type, recordData) };
+                isBatchOperation = false;
 
                 const titleEl = document.getElementById("admin-decision-title");
                 const noteEl = document.getElementById("admin-decision-note");
@@ -6447,6 +6451,56 @@
                 }
             }
 
+            // เปิดโมดอลพิจารณาคำขอแบบหลายรายการ
+            function openBatchDecisionModal(type, action) {
+                isBatchOperation = true;
+                batchOperationType = type;
+                batchOperationAction = action;
+
+                const titleEl = document.getElementById("admin-decision-title");
+                const noteEl = document.getElementById("admin-decision-note");
+                noteEl.value = "";
+
+                let selectedCount = 0;
+                if (type === "leave") selectedCount = selectedLeaveItems.size;
+                if (type === "correction") selectedCount = selectedCorrectionItems.size;
+                if (type === "advance") selectedCount = selectedAdvanceItems.size;
+
+                const verb = action === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ';
+                titleEl.textContent = `พิจารณา ${verb} ${selectedCount} รายการ (${type.toUpperCase()})`;
+
+                document.getElementById("admin-decision-modal").classList.remove("hidden");
+
+                // ตั้งค่าปุ่มในโมดอล
+                const approveBtn = document.getElementById("admin-decision-approve-btn");
+                const rejectBtn = document.getElementById("admin-decision-reject-btn");
+
+                approveBtn.onclick = () => confirmDecision(true);
+                rejectBtn.onclick = () => confirmDecision(false);
+
+                // ปรับแต่งสีปุ่มตามแนวทาง action
+                if (action === 'approve') {
+                    approveBtn.className = "flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-emerald-500/20";
+                    approveBtn.textContent = "ยืนยันอนุมัติ";
+                    rejectBtn.classList.add("hidden");
+                } else {
+                    rejectBtn.className = "flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-rose-500/20";
+                    rejectBtn.textContent = "ยืนยันการปฏิเสธ";
+                    approveBtn.classList.add("hidden");
+                }
+                // ตั้งค่า select ผู้ลงนาม ให้แสดงข้อความหรือเลือกชื่อผู้ล็อกอิน (ถ้ามี)
+                try {
+                    const approverSelect = document.getElementById("admin-decision-approver-select");
+                    if (approverSelect) {
+                        const empName = employeeData["ชื่อ-นามสกุล"] || "";
+                        const placeholderOpt = approverSelect.querySelector('option[value=""]');
+                        if (placeholderOpt && empName) placeholderOpt.textContent = `ใช้ชื่อผู้ล็อกอิน (${empName}) หากไม่เลือก`;
+                    }
+                } catch (e) {
+                    console.warn('admin decision approver select init failed', e);
+                }
+            }
+
             function closeDecisionModal() {
                 document.getElementById("admin-decision-modal").classList.add("hidden");
                 document.getElementById("admin-decision-approve-btn").classList.remove("hidden");
@@ -6454,6 +6508,9 @@
                 const noteInput = document.getElementById("admin-decision-note");
                 if (noteInput) noteInput.value = "";
                 adminCurrentDecisionData = null;
+                isBatchOperation = false;
+                batchOperationType = null;
+                batchOperationAction = null;
             }
 
             // Batch functions for leave
@@ -6534,78 +6591,14 @@
                 updateBatchButtons();
             }
 
-            async function batchApproveAdvance() {
+            function batchApproveAdvance() {
                 if (selectedAdvanceItems.size === 0) return;
-                
-                const requests = Array.from(selectedAdvanceItems).map(item => ({ empId: item.empId, date: item.date, amount: item.amount }));
-                const approverSelect = document.getElementById("admin-decision-approver-select");
-                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
-
-                const payload = {
-                    action: "approveAdvance",
-                    adminId: currentEmployeeId,
-                    requests: requests,
-                    status: "อนุมัติแล้ว",
-                    approvedBy: approvedBy,
-                    note: "อนุมัติหลายรายการ"
-                };
-
-                try {
-                    showToast("⏳ กำลังอนุมัติหลายรายการ...", "info");
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                        timeout: 30000
-                    });
-
-                    if (response && response.status === 'success') {
-                        showToast(`✅ ${response.message}`, "success");
-                        selectedAdvanceItems.clear();
-                        updateBatchButtons();
-                        loadAdminApprovals();
-                    } else {
-                        showToast(`❌ ${response.message || 'เกิดข้อผิดพลาด'}`, "error");
-                    }
-                } catch (err) {
-                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, "error");
-                }
+                openBatchDecisionModal('advance', 'approve');
             }
 
-            async function batchRejectAdvance() {
+            function batchRejectAdvance() {
                 if (selectedAdvanceItems.size === 0) return;
-                
-                const requests = Array.from(selectedAdvanceItems).map(item => ({ empId: item.empId, date: item.date, amount: item.amount }));
-                const approverSelect = document.getElementById("admin-decision-approver-select");
-                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
-
-                const payload = {
-                    action: "approveAdvance",
-                    adminId: currentEmployeeId,
-                    requests: requests,
-                    status: "ไม่อนุมัติ",
-                    approvedBy: approvedBy,
-                    note: "ปฏิเสธหลายรายการ"
-                };
-
-                try {
-                    showToast("⏳ กำลังปฏิเสธหลายรายการ...", "info");
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                        timeout: 30000
-                    });
-
-                    if (response && response.status === 'success') {
-                        showToast(`✅ ${response.message}`, "success");
-                        selectedAdvanceItems.clear();
-                        updateBatchButtons();
-                        loadAdminApprovals();
-                    } else {
-                        showToast(`❌ ${response.message || 'เกิดข้อผิดพลาด'}`, "error");
-                    }
-                } catch (err) {
-                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, "error");
-                }
+                openBatchDecisionModal('advance', 'reject');
             }
 
             // Batch functions for correction
@@ -6633,154 +6626,24 @@
                 updateBatchButtons();
             }
 
-            async function batchApproveCorrection() {
+            function batchApproveCorrection() {
                 if (selectedCorrectionItems.size === 0) return;
-                
-                const requests = Array.from(selectedCorrectionItems).map(item => ({ empId: item.empId, date: item.date }));
-                const approverSelect = document.getElementById("admin-decision-approver-select");
-                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
-
-                const payload = {
-                    action: "approveTimeCorrection",
-                    adminId: currentEmployeeId,
-                    requests: requests,
-                    status: "อนุมัติแล้ว",
-                    approvedBy: approvedBy,
-                    note: "อนุมัติหลายรายการ"
-                };
-
-                try {
-                    showToast("⏳ กำลังอนุมัติหลายรายการ...", "info");
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                        timeout: 30000
-                    });
-
-                    if (response && response.status === 'success') {
-                        showToast(`✅ ${response.message}`, "success");
-                        selectedCorrectionItems.clear();
-                        updateBatchButtons();
-                        loadAdminApprovals();
-                        await loadAllData();
-                    } else {
-                        showToast(`❌ ${response.message || 'เกิดข้อผิดพลาด'}`, "error");
-                    }
-                } catch (err) {
-                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, "error");
-                }
+                openBatchDecisionModal('correction', 'approve');
             }
 
-            async function batchRejectCorrection() {
+            function batchRejectCorrection() {
                 if (selectedCorrectionItems.size === 0) return;
-                
-                const requests = Array.from(selectedCorrectionItems).map(item => ({ empId: item.empId, date: item.date }));
-                const approverSelect = document.getElementById("admin-decision-approver-select");
-                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
-
-                const payload = {
-                    action: "approveTimeCorrection",
-                    adminId: currentEmployeeId,
-                    requests: requests,
-                    status: "ไม่อนุมัติ",
-                    approvedBy: approvedBy,
-                    note: "ปฏิเสธหลายรายการ"
-                };
-
-                try {
-                    showToast("⏳ กำลังปฏิเสธหลายรายการ...", "info");
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                        timeout: 30000
-                    });
-
-                    if (response && response.status === 'success') {
-                        showToast(`✅ ${response.message}`, "success");
-                        selectedCorrectionItems.clear();
-                        updateBatchButtons();
-                        loadAdminApprovals();
-                        await loadAllData();
-                    } else {
-                        showToast(`❌ ${response.message || 'เกิดข้อผิดพลาด'}`, "error");
-                    }
-                } catch (err) {
-                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, "error");
-                }
+                openBatchDecisionModal('correction', 'reject');
             }
 
-            async function batchApproveLeave() {
+            function batchApproveLeave() {
                 if (selectedLeaveItems.size === 0) return;
-                
-                const docIds = Array.from(selectedLeaveItems);
-                const approverSelect = document.getElementById("admin-decision-approver-select");
-                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
-
-                const payload = {
-                    action: "approveLeave",
-                    adminId: currentEmployeeId,
-                    docIds: docIds,
-                    status: "อนุมัติแล้ว",
-                    approvedBy: approvedBy,
-                    note: "อนุมัติหลายรายการ"
-                };
-
-                try {
-                    showToast("⏳ กำลังอนุมัติหลายรายการ...", "info");
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                        timeout: 30000
-                    });
-
-                    if (response && response.status === 'success') {
-                        showToast(`✅ ${response.message}`, "success");
-                        selectedLeaveItems.clear();
-                        updateBatchButtons();
-                        loadAdminApprovals();
-                    } else {
-                        showToast(`❌ ${response.message || 'เกิดข้อผิดพลาด'}`, "error");
-                    }
-                } catch (err) {
-                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, "error");
-                }
+                openBatchDecisionModal('leave', 'approve');
             }
 
-            async function batchRejectLeave() {
+            function batchRejectLeave() {
                 if (selectedLeaveItems.size === 0) return;
-                
-                const docIds = Array.from(selectedLeaveItems);
-                const approverSelect = document.getElementById("admin-decision-approver-select");
-                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
-
-                const payload = {
-                    action: "approveLeave",
-                    adminId: currentEmployeeId,
-                    docIds: docIds,
-                    status: "ไม่อนุมัติ",
-                    approvedBy: approvedBy,
-                    note: "ปฏิเสธหลายรายการ"
-                };
-
-                try {
-                    showToast("⏳ กำลังปฏิเสธหลายรายการ...", "info");
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                        timeout: 30000
-                    });
-
-                    if (response && response.status === 'success') {
-                        showToast(`✅ ${response.message}`, "success");
-                        selectedLeaveItems.clear();
-                        updateBatchButtons();
-                        loadAdminApprovals();
-                    } else {
-                        showToast(`❌ ${response.message || 'เกิดข้อผิดพลาด'}`, "error");
-                    }
-                } catch (err) {
-                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, "error");
-                }
+                openBatchDecisionModal('leave', 'reject');
             }
 
             async function reapplyTimeCorrection(recordData) {
@@ -6828,38 +6691,109 @@
             }
 
             async function confirmDecision(isApproved) {
-                if (!adminCurrentDecisionData) return;
-                const { type, data, action } = adminCurrentDecisionData;
                 const note = document.getElementById("admin-decision-note").value.trim();
                 const approverSelect = document.getElementById("admin-decision-approver-select");
                 const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
 
-                let url = SERVER_API_URL;
-                let payload = { approvedBy, note, adminId: currentEmployeeId };
+                if (isBatchOperation && batchOperationType && batchOperationAction) {
+                    // Handle batch operation
+                    let payload = { approvedBy, note, adminId: currentEmployeeId };
+                    let status = batchOperationAction === 'approve' ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ';
 
-                showToast("⏳ กำลังบันทึกการตัดสินใจลงฐานข้อมูล...", "info");
+                    showToast("⏳ กำลังบันทึกการตัดสินใจลงฐานข้อมูล...", "info");
 
-                const approvedStatus = action === 'ปฏิเสธ' ? 'ไม่อนุมัติ' : action;
+                    if (batchOperationType === 'leave') {
+                        payload.action = "approveLeave";
+                        payload.docIds = Array.from(selectedLeaveItems);
+                        payload.status = status;
+                    } else if (batchOperationType === 'correction') {
+                        payload.action = "approveTimeCorrection";
+                        payload.requests = Array.from(selectedCorrectionItems).map(item => ({ empId: item.empId, date: item.date }));
+                        payload.status = status;
+                    } else if (batchOperationType === 'advance') {
+                        payload.action = "approveAdvance";
+                        payload.requests = Array.from(selectedAdvanceItems).map(item => ({ empId: item.empId, date: item.date, amount: item.amount }));
+                        payload.status = status;
+                    }
 
-                if (type === 'leave') {
-                    payload.action = "approveLeave";
-                    payload.docId = data["เลขที่เอกสาร"];
-                    payload.status = approvedStatus;
-                } else if (type === 'correction') {
-                    payload.action = "approveTimeCorrection";
-                    payload.empId = data["รหัสพนักงาน"];
-                    payload.date = data["วันที่"];
-                    payload.status = approvedStatus;
-                } else if (type === 'advance') {
-                    payload.action = "approveAdvance";
-                    payload.empId = data["รหัสพนักงาน"];
-                    payload.date = data["วันที่เบิก"];
-                    payload.amount = data["จำนวนเงิน"];
-                    payload.status = approvedStatus;
-                }
+                    closeDecisionModal();
 
-                return withSubmitLock("adminDecision", async () => {
-                    try {
+                    return withSubmitLock("adminDecision", async () => {
+                        try {
+                            const response = await fetchWithTimeout(SERVER_API_URL, {
+                                method: "POST",
+                                body: JSON.stringify(payload),
+                                timeout: 30000
+                            });
+
+                            if (!response || typeof response !== 'object') {
+                                showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
+                                return;
+                            }
+
+                            if (response.status === 'success') {
+                                showToast(`✅ ${response.message}`, "success");
+                                if (batchOperationType === 'leave') selectedLeaveItems.clear();
+                                if (batchOperationType === 'correction') selectedCorrectionItems.clear();
+                                if (batchOperationType === 'advance') selectedAdvanceItems.clear();
+                                updateBatchButtons();
+                                
+                                // Reset all checkboxes
+                                if (batchOperationType === 'leave') {
+                                    const selectAllLeave = document.getElementById('select-all-leave');
+                                    if (selectAllLeave) selectAllLeave.checked = false;
+                                    const leaveCheckboxes = document.querySelectorAll('.leave-checkbox');
+                                    leaveCheckboxes.forEach(cb => cb.checked = false);
+                                } else if (batchOperationType === 'correction') {
+                                    const selectAllCorrection = document.getElementById('select-all-correction');
+                                    if (selectAllCorrection) selectAllCorrection.checked = false;
+                                    const correctionCheckboxes = document.querySelectorAll('.correction-checkbox');
+                                    correctionCheckboxes.forEach(cb => cb.checked = false);
+                                } else if (batchOperationType === 'advance') {
+                                    const selectAllAdvance = document.getElementById('select-all-advance');
+                                    if (selectAllAdvance) selectAllAdvance.checked = false;
+                                    const advanceCheckboxes = document.querySelectorAll('.advance-checkbox');
+                                    advanceCheckboxes.forEach(cb => cb.checked = false);
+                                }
+
+                                await loadAdminApprovals(); // Wait for the data to refresh
+                                if (batchOperationType === 'correction') await loadAllData();
+                            } else {
+                                showToast(`❌ ${response.message || 'ไม่ทราบสาเหตุ'}`, "error");
+                            }
+                        } catch (err) {
+                            showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message || err}`, "error");
+                        }
+                    });
+                } else if (adminCurrentDecisionData) {
+                    // Handle single operation
+                    const { type, data, action } = adminCurrentDecisionData;
+                    let url = SERVER_API_URL; // Define url like original code
+                    let payload = { approvedBy, note, adminId: currentEmployeeId };
+
+                    showToast("⏳ กำลังบันทึกการตัดสินใจลงฐานข้อมูล...", "info");
+
+                    const approvedStatus = action === 'ปฏิเสธ' ? 'ไม่อนุมัติ' : action;
+
+                    if (type === 'leave') {
+                        payload.action = "approveLeave";
+                        payload.docId = data["เลขที่เอกสาร"];
+                        payload.status = approvedStatus;
+                    } else if (type === 'correction') {
+                        payload.action = "approveTimeCorrection";
+                        payload.empId = data["รหัสพนักงาน"];
+                        payload.date = data["วันที่"];
+                        payload.status = approvedStatus;
+                    } else if (type === 'advance') {
+                        payload.action = "approveAdvance";
+                        payload.empId = data["รหัสพนักงาน"];
+                        payload.date = data["วันที่เบิก"];
+                        payload.amount = data["จำนวนเงิน"];
+                        payload.status = approvedStatus;
+                    }
+
+                    return withSubmitLock("adminDecision", async () => {
+                        try {
                         console.log('[adminDecision] payload:', payload);
                         const response = await fetchWithTimeout(url, {
                             method: "POST",
