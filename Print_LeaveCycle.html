@@ -386,12 +386,15 @@
 
                         <!-- ฝั่งขวา: ชื่องานเอกสาร และแผนกเจ้าของเรื่อง -->
                         <div class="report-title-section">
-                            <h1>รายงานสรุปการลางานพนักงานตามรอบบัญชี</h1>
+                            <h1>รายงานสรุปการลางานพนักงาน</h1>
                             <div class="report-subtitle">แผนกทรัพยากรบุคคล (Human Resources Department)</div>
                         </div>
                     </div>
                     
                     <div class="meta-info">
+                        <div>
+                            ประเภทรายงาน: <strong id="reportTypeLabel" style="color: #111827;">-</strong>
+                        </div>
                         <div>
                             รอบข้อมูลบัญชี: <strong id="cycleVal" style="color: #111827;">-</strong>
                         </div>
@@ -481,6 +484,7 @@
                 apiUrl: searchParams.get('apiUrl') || '',
                 empId: searchParams.get('empId') || '*ALL*',
                 adminId: searchParams.get('adminId') || '',
+                reportType: searchParams.get('reportType') || 'cycle',
                 periodStart: searchParams.get('periodStart') || '',
                 periodEnd: searchParams.get('periodEnd') || '',
                 statusFilter: searchParams.get('status') || ''
@@ -554,6 +558,13 @@
         function getDocumentNumber() {
             const now = new Date();
             return `BTC-HR-${now.getFullYear()}/${pad(now.getMonth() + 1)}`;
+        }
+
+        function getYearRange(year) {
+            return {
+                start: `${year}-01-01`,
+                end: `${year}-12-31`
+            };
         }
 
         function normalizeString(value) {
@@ -828,9 +839,21 @@
         async function initializeReport() {
             const params = parseQueryParams();
             const cycle = getCurrentCycleRange();
-            const periodStart = params.periodStart || cycle.start;
-            const periodEnd = params.periodEnd || cycle.end;
+            const currentYear = new Date().getFullYear();
+            let periodStart = params.periodStart || cycle.start;
+            let periodEnd = params.periodEnd || cycle.end;
+            let reportTypeLabel = 'รอบบัญชี';
 
+            if (params.reportType === 'year') {
+                const yearRange = getYearRange(currentYear);
+                periodStart = yearRange.start;
+                periodEnd = yearRange.end;
+                reportTypeLabel = 'ประจำปี';
+            } else {
+                reportTypeLabel = 'รอบบัญชี';
+            }
+
+            document.getElementById('reportTypeLabel').innerText = reportTypeLabel;
             document.getElementById('cycleVal').innerText = `${formatThaiDate(periodStart)} - ${formatThaiDate(periodEnd)}`;
             document.getElementById('printDateVal').innerText = formatThaiDateTime(new Date());
             document.getElementById('documentNo').innerText = getDocumentNumber();
