@@ -219,6 +219,18 @@
             font-size: 13px;
         }
 
+        #debugPanel {
+            display: none;
+            background: #111827;
+            color: #d1fae5;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            margin-bottom: 12px;
+        }
+
         /* กล่องอธิบายรหัสบัญชีการลา */
         .legend-box {
             margin-top: 15px;
@@ -405,6 +417,8 @@
                             วันที่ออกรายงาน: <span id="printDateVal">-</span>
                         </div>
                     </div>
+                
+                <pre id="debugPanel"></pre>
                 </div>
 
                 <!-- ตารางสรุปภาพรวมสะสม -->
@@ -485,6 +499,8 @@
                 empId: searchParams.get('empId') || '*ALL*',
                 adminId: searchParams.get('adminId') || '',
                 reportType: searchParams.get('reportType') || 'cycle',
+                debug: searchParams.get('debug') || '',
+                openedFromIndex: searchParams.get('openedFromIndex') || '',
                 periodStart: searchParams.get('periodStart') || '',
                 periodEnd: searchParams.get('periodEnd') || '',
                 statusFilter: searchParams.get('status') || ''
@@ -838,6 +854,8 @@
 
         async function initializeReport() {
             const params = parseQueryParams();
+            const debugEl = document.getElementById('debugPanel');
+            const debugMode = params.debug === '1';
             const cycle = getCurrentCycleRange();
             const currentYear = new Date().getFullYear();
             let periodStart = params.periodStart || cycle.start;
@@ -858,6 +876,21 @@
             document.getElementById('printDateVal').innerText = formatThaiDateTime(new Date());
             document.getElementById('documentNo').innerText = getDocumentNumber();
 
+            if (debugMode && debugEl) {
+                debugEl.style.display = 'block';
+                debugEl.textContent = 'Parsed params:\n' + JSON.stringify({ params, periodStart, periodEnd }, null, 2);
+                console.log('Print_LeaveCycle params', { params, periodStart, periodEnd });
+            }
+
+            // Enforce opening only via index.html print button
+            if (params.openedFromIndex !== '1') {
+                renderError('กรุณาเปิดจากเมนู "พิมพ์รายงาน" ในระบบหลัก (ห้ามเปิดไฟล์โดยตรง)');
+                const btn = document.querySelector('.print-btn');
+                if (btn) btn.style.display = 'none';
+                if (debugEl) debugEl.style.display = 'none';
+                return;
+            }
+
             if (!params.apiUrl) {
                 renderError('ไม่พบ API URL สำหรับโหลดข้อมูล กรุณาเปิดหน้าจากระบบหลัก');
                 return;
@@ -865,6 +898,10 @@
 
             try {
                 const records = await fetchLeaveRecords({ ...params, periodStart, periodEnd });
+                if (debugMode && debugEl) {
+                    debugEl.textContent += '\n\nFetched records: ' + (Array.isArray(records) ? records.length : 'N/A') + '\n\nSample: ' + JSON.stringify((Array.isArray(records) ? records.slice(0,5) : records), null, 2);
+                    console.log('Fetched records', records);
+                }
                 if (!records.length) {
                     renderNoData();
                     return;
