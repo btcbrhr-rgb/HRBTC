@@ -6214,7 +6214,12 @@
                 <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาเข้าใหม่'] || '-')}</td>
                 <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาออกใหม่'] || '-')}</td>
                 <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
-                <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</td>
+                <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="truncate text-slate-600">${escapeHtml(req['เหตุผล'] || '-')}</div>
+                        ${approved ? `<button onclick='reapplyTimeCorrection(${safeJson(req)})' class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-[12px]">อัพเดทเวลาซ้ำ</button>` : ''}
+                    </div>
+                </td>
               </tr>
             `;
                         }
@@ -6310,6 +6315,50 @@
                 const noteInput = document.getElementById("admin-decision-note");
                 if (noteInput) noteInput.value = "";
                 adminCurrentDecisionData = null;
+            }
+
+            async function reapplyTimeCorrection(recordData) {
+                const empId = recordData["รหัสพนักงาน"];
+                const date = recordData["วันที่"];
+                if (!empId || !date) {
+                    showToast("❌ ข้อมูลคำขอไม่ครบถ้วน", "error");
+                    return;
+                }
+
+                const approverSelect = document.getElementById("admin-decision-approver-select");
+                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
+
+                const payload = {
+                    action: "reapplyTimeCorrection",
+                    adminId: currentEmployeeId,
+                    empId,
+                    date,
+                    approvedBy
+                };
+
+                try {
+                    showToast("⏳ กำลังอัพเดทเวลาใหม่จากคำขอที่อนุมัติแล้ว...", "info");
+                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                        method: "POST",
+                        body: JSON.stringify(payload),
+                        timeout: 30000
+                    });
+
+                    if (!response || typeof response !== 'object') {
+                        showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
+                        return;
+                    }
+
+                    if (response.status === 'success') {
+                        showToast(`✅ ${response.message}`, "success");
+                        await loadAdminApprovalResults('correction');
+                        await loadAllData();
+                    } else {
+                        showToast(`❌ ไม่สามารถอัพเดทเวลาได้: ${response.message || 'ไม่ทราบสาเหตุ'}`, "error");
+                    }
+                } catch (err) {
+                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message || err}`, "error");
+                }
             }
 
             async function confirmDecision(isApproved) {
