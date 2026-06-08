@@ -4486,7 +4486,24 @@
                     const timeOut = rec["เวลาออก"] || "--:--";
                     const late = parseInt(rec["นาทีสาย"] || 0);
                     const ot = parseFloat(rec["ชั่วโมง OT"] || 0);
-                    const status = rec["สถานะสรุป"] || "ปกติ";
+                    let status = (rec["สถานะสรุป"] || "").toString().trim() || "ปกติ";
+
+                    // ถ้า `สถานะสรุป` ยังเป็นค่า default หรือว่าง ให้ตรวจสอบครึ่งวันจากเวลาเข้า-ออก
+                    if (status === "ปกติ" && timeIn !== "--:--" && timeOut !== "--:--") {
+                        const inParts = timeIn.split(":");
+                        const outParts = timeOut.split(":");
+                        if (inParts.length >= 2 && outParts.length >= 2) {
+                            const inMin = parseInt(inParts[0], 10) * 60 + parseInt(inParts[1], 10);
+                            const outMin = parseInt(outParts[0], 10) * 60 + parseInt(outParts[1], 10);
+                            if (!isNaN(inMin) && !isNaN(outMin)) {
+                                if (outMin <= 810) {
+                                    status = 'ทำงานครึ่งวันเช้า';
+                                } else if (inMin >= 690) {
+                                    status = 'ทำงานครึ่งวันบ่าย';
+                                }
+                            }
+                        }
+                    }
 
                     // ─── การกั้นส่วนแบ่งเดือน (Month Grouping Header) ───
                     if (dateStr) {
@@ -4516,8 +4533,11 @@
 
                     let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
                     if (status === "สาย") badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
-                    else if (status.includes("ขาด")) badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
+                    else if (status.includes("ขาด") || status.includes("ลืม")) badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
+                    else if (status.includes("ทำงานครึ่งวันเช้า")) badgeColor = "bg-cyan-50 text-cyan-700 border-cyan-100";
+                    else if (status.includes("ทำงานครึ่งวันบ่าย")) badgeColor = "bg-sky-50 text-sky-700 border-sky-100";
                     else if (status.includes("ลา")) badgeColor = "bg-violet-50 text-violet-700 border-violet-100";
+                    else if (status.includes("ครึ่ง")) badgeColor = "bg-cyan-50 text-cyan-700 border-cyan-100";
 
                     const correctionRecord = timeCorrectionsList.find(c => c['วันที่'] === dateStr && c['รหัสพนักงาน']?.toString().trim() === currentEmployeeId?.toString().trim());
                     const correctionStatus = correctionRecord ? (correctionRecord['สถานะ'] || 'รออนุมัติ') : '';
@@ -4529,8 +4549,11 @@
                         : `<button onclick="openCorrectionModal('${dateStr}')" class="btn-press text-[10px] text-blue-600 font-semibold bg-blue-50/70 hover:bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-all"><i class="fa-solid fa-user-pen"></i> ขอแก้ไขเวลา</button>`;
                     let cardBorderClass = 'border border-slate-100';
                     if (status === 'สาย') cardBorderClass = 'border-2 border-amber-300';
-                    else if (status.includes('ขาด')) cardBorderClass = 'border-2 border-rose-300';
+                    else if (status.includes('ขาด') || status.includes('ลืม')) cardBorderClass = 'border-2 border-rose-300';
+                    else if (status.includes('ทำงานครึ่งวันเช้า')) cardBorderClass = 'border-2 border-cyan-300';
+                    else if (status.includes('ทำงานครึ่งวันบ่าย')) cardBorderClass = 'border-2 border-sky-300';
                     else if (status.includes('ลา')) cardBorderClass = 'border-2 border-violet-300';
+                    else if (status.includes('ครึ่ง')) cardBorderClass = 'border-2 border-cyan-300';
                     else if (status !== 'ปกติ') cardBorderClass = 'border-2 border-amber-300';
 
                     const card = document.createElement("div");
