@@ -6707,11 +6707,16 @@
                         ? "admin-decision-approve-btn"
                         : "admin-decision-reject-btn";
 
-                    // Build the list of items to process
+                    // Build the list of items to process.
+                    // We keep each item's `rowKey` so we can drop just that row
+                    // from the pending table after it is approved — no full reload.
                     let items = [];
                     let buildPayload = null; // (item) => payload-for-single-item
                     if (batchOperationType === 'leave') {
-                        items = Array.from(selectedLeaveItems).map(docId => ({ docId }));
+                        items = Array.from(selectedLeaveItems).map(docId => ({
+                            docId,
+                            rowKey: docId
+                        }));
                         buildPayload = (item) => ({
                             action: "approveLeave",
                             docId: item.docId,
@@ -6721,7 +6726,11 @@
                             adminId: currentEmployeeId
                         });
                     } else if (batchOperationType === 'correction') {
-                        items = Array.from(selectedCorrectionItems).map(it => ({ empId: it.empId, date: it.date }));
+                        items = Array.from(selectedCorrectionItems).map(it => ({
+                            empId: it.empId,
+                            date: it.date,
+                            rowKey: `${it.empId}::${it.date}`
+                        }));
                         buildPayload = (item) => ({
                             action: "approveTimeCorrection",
                             empId: item.empId,
@@ -6732,7 +6741,12 @@
                             adminId: currentEmployeeId
                         });
                     } else if (batchOperationType === 'advance') {
-                        items = Array.from(selectedAdvanceItems).map(it => ({ empId: it.empId, date: it.date, amount: it.amount }));
+                        items = Array.from(selectedAdvanceItems).map(it => ({
+                            empId: it.empId,
+                            date: it.date,
+                            amount: it.amount,
+                            rowKey: `${it.empId}::${it.date}::${it.amount}`
+                        }));
                         buildPayload = (item) => ({
                             action: "approveAdvance",
                             empId: item.empId,
@@ -6800,6 +6814,9 @@
 
                                 if (response.status === 'success' || response.status === 'partial_success') {
                                     successCount++;
+                                    // Drop just this row from the pending table —
+                                    // user sees it disappear one by one, no full reload.
+                                    removeApprovalPendingRow(batchOperationType, items[i].rowKey);
                                 } else {
                                     failedCount++;
                                     failedItems.push({ ...items[i], reason: response.message || 'ไม่ทราบสาเหตุ' });
@@ -6846,14 +6863,11 @@
                             // Now close modal (only after every item finished)
                             closeDecisionModal();
 
-                            // Refresh approvals list (this is what user wanted — see
-                            // every approved row disappear from the pending list)
-                            await loadAdminApprovals();
-                            if (batchOperationType === 'correction') {
-                                await loadAllData();
-                            } else {
-                                await loadAllData();
-                            }
+                            // No full table refresh here — we already dropped
+                            // the approved rows one by one inside the loop via
+                            // removeApprovalPendingRow(), so the pending list is
+                            // already in sync. loadAllData() would be a heavy
+                            // re-fetch of every dataset and is unnecessary.
                         } catch (err) {
                             if (noteEl) noteEl.disabled = false;
                             if (approverSel) approverSel.disabled = false;
