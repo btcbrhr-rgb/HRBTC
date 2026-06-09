@@ -6696,74 +6696,174 @@
                 const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
 
                 if (isBatchOperation && batchOperationType && batchOperationAction) {
-                    // Handle batch operation
-                    let payload = { approvedBy, note, adminId: currentEmployeeId };
-                    let status = batchOperationAction === 'approve' ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ';
+                    // Handle batch operation — loop per item so user sees real progress
+                    // (server writes to sheet row by row inside forEach; client mirrors
+                    //  that progress with an updating button label, then closes modal
+                    //  and refreshes data only after every item has been processed.)
+                    const status = batchOperationAction === 'approve' ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ';
+                    const baseVerb = batchOperationAction === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ';
+                    const loadingVerb = batchOperationAction === 'approve' ? 'กำลังอนุมัติ' : 'กำลังปฏิเสธ';
+                    const activeBtnId = batchOperationAction === 'approve'
+                        ? "admin-decision-approve-btn"
+                        : "admin-decision-reject-btn";
 
-                    showToast("⏳ กำลังบันทึกการตัดสินใจลงฐานข้อมูล...", "info");
-
+                    // Build the list of items to process
+                    let items = [];
+                    let buildPayload = null; // (item) => payload-for-single-item
                     if (batchOperationType === 'leave') {
-                        payload.action = "approveLeave";
-                        payload.docIds = Array.from(selectedLeaveItems);
-                        payload.status = status;
+                        items = Array.from(selectedLeaveItems).map(docId => ({ docId }));
+                        buildPayload = (item) => ({
+                            action: "approveLeave",
+                            docId: item.docId,
+                            status,
+                            approvedBy,
+                            note,
+                            adminId: currentEmployeeId
+                        });
                     } else if (batchOperationType === 'correction') {
-                        payload.action = "approveTimeCorrection";
-                        payload.requests = Array.from(selectedCorrectionItems).map(item => ({ empId: item.empId, date: item.date }));
-                        payload.status = status;
+                        items = Array.from(selectedCorrectionItems).map(it => ({ empId: it.empId, date: it.date }));
+                        buildPayload = (item) => ({
+                            action: "approveTimeCorrection",
+                            empId: item.empId,
+                            date: item.date,
+                            status,
+                            approvedBy,
+                            note,
+                            adminId: currentEmployeeId
+                        });
                     } else if (batchOperationType === 'advance') {
-                        payload.action = "approveAdvance";
-                        payload.requests = Array.from(selectedAdvanceItems).map(item => ({ empId: item.empId, date: item.date, amount: item.amount }));
-                        payload.status = status;
+                        items = Array.from(selectedAdvanceItems).map(it => ({ empId: it.empId, date: it.date, amount: it.amount }));
+                        buildPayload = (item) => ({
+                            action: "approveAdvance",
+                            empId: item.empId,
+                            date: item.date,
+                            amount: item.amount,
+                            status,
+                            approvedBy,
+                            note,
+                            adminId: currentEmployeeId
+                        });
                     }
 
-                    closeDecisionModal();
+                    if (items.length === 0) {
+                        showToast("⚠️ ไม่มีรายการที่เลือก", "warning");
+                        closeDecisionModal();
+                        return;
+                    }
+
+                    const total = items.length;
+                    showToast(`⏳ ${loadingVerb} ${total} รายการ...`, "info");
+
+                    // Disable other modal inputs while processing
+                    const noteEl = document.getElementById("admin-decision-note");
+                    const approverSel = document.getElementById("admin-decision-approver-select");
+                    if (noteEl) noteEl.disabled = true;
+                    if (approverSel) approverSel.disabled = true;
+                    const closeBtn = document.querySelector('#admin-decision-modal button[onclick="closeDecisionModal()"]');
+                    if (closeBtn) closeBtn.disabled = true;
 
                     return withSubmitLock("adminDecision", async () => {
+                        let successCount = 0;
+                        let failedCount = 0;
+                        const failedItems = [];
+
                         try {
-                            const response = await fetchWithTimeout(SERVER_API_URL, {
-                                method: "POST",
-                                body: JSON.stringify(payload),
-                                timeout: 30000
-                            });
-
-                            if (!response || typeof response !== 'object') {
-                                showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
-                                return;
-                            }
-
-                            if (response.status === 'success') {
-                                showToast(`✅ ${response.message}`, "success");
-                                if (batchOperationType === 'leave') selectedLeaveItems.clear();
-                                if (batchOperationType === 'correction') selectedCorrectionItems.clear();
-                                if (batchOperationType === 'advance') selectedAdvanceItems.clear();
-                                updateBatchButtons();
-                                
-                                // Reset all checkboxes
-                                if (batchOperationType === 'leave') {
-                                    const selectAllLeave = document.getElementById('select-all-leave');
-                                    if (selectAllLeave) selectAllLeave.checked = false;
-                                    const leaveCheckboxes = document.querySelectorAll('.leave-checkbox');
-                                    leaveCheckboxes.forEach(cb => cb.checked = false);
-                                } else if (batchOperationType === 'correction') {
-                                    const selectAllCorrection = document.getElementById('select-all-correction');
-                                    if (selectAllCorrection) selectAllCorrection.checked = false;
-                                    const correctionCheckboxes = document.querySelectorAll('.correction-checkbox');
-                                    correctionCheckboxes.forEach(cb => cb.checked = false);
-                                } else if (batchOperationType === 'advance') {
-                                    const selectAllAdvance = document.getElementById('select-all-advance');
-                                    if (selectAllAdvance) selectAllAdvance.checked = false;
-                                    const advanceCheckboxes = document.querySelectorAll('.advance-checkbox');
-                                    advanceCheckboxes.forEach(cb => cb.checked = false);
+                            for (let i = 0; i < items.length; i++) {
+                                const idx = i + 1;
+                                // Update button label to show progress
+                                const activeBtn = document.getElementById(activeBtnId);
+                                if (activeBtn) {
+                                    activeBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> ${loadingVerb}... (${idx}/${total})`;
                                 }
 
-                                await loadAdminApprovals(); // Wait for the data to refresh
-                                if (batchOperationType === 'correction') await loadAllData();
+                                const payload = buildPayload(items[i]);
+                                console.log(`[adminDecision batch ${idx}/${total}]`, payload);
+
+                                let response = null;
+                                try {
+                                    response = await fetchWithTimeout(SERVER_API_URL, {
+                                        method: "POST",
+                                        body: JSON.stringify(payload),
+                                        timeout: 30000
+                                    });
+                                } catch (netErr) {
+                                    failedCount++;
+                                    failedItems.push({ ...items[i], reason: netErr.message || String(netErr) });
+                                    continue;
+                                }
+
+                                if (!response || typeof response !== 'object') {
+                                    failedCount++;
+                                    failedItems.push({ ...items[i], reason: 'ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ' });
+                                    continue;
+                                }
+
+                                if (response.status === 'success' || response.status === 'partial_success') {
+                                    successCount++;
+                                } else {
+                                    failedCount++;
+                                    failedItems.push({ ...items[i], reason: response.message || 'ไม่ทราบสาเหตุ' });
+                                }
+                            }
+
+                            // Restore form / close button state
+                            if (noteEl) noteEl.disabled = false;
+                            if (approverSel) approverSel.disabled = false;
+                            if (closeBtn) closeBtn.disabled = false;
+
+                            // Summary toast
+                            if (failedCount === 0) {
+                                showToast(`✅ ${baseVerb}สำเร็จทั้งหมด ${successCount}/${total} รายการ`, "success");
+                            } else if (successCount === 0) {
+                                showToast(`❌ ${baseVerb}ล้มเหลวทั้งหมด ${failedCount} รายการ: ${failedItems[0]?.reason || ''}`, "error");
                             } else {
-                                showToast(`❌ ${response.message || 'ไม่ทราบสาเหตุ'}`, "error");
+                                showToast(`⚠️ ${baseVerb}สำเร็จ ${successCount}/${total} รายการ, ล้มเหลว ${failedCount} รายการ`, "warning");
+                            }
+
+                            // Clear selection + checkboxes
+                            if (batchOperationType === 'leave') selectedLeaveItems.clear();
+                            if (batchOperationType === 'correction') selectedCorrectionItems.clear();
+                            if (batchOperationType === 'advance') selectedAdvanceItems.clear();
+                            updateBatchButtons();
+
+                            if (batchOperationType === 'leave') {
+                                const selectAllLeave = document.getElementById('select-all-leave');
+                                if (selectAllLeave) selectAllLeave.checked = false;
+                                const leaveCheckboxes = document.querySelectorAll('.leave-checkbox');
+                                leaveCheckboxes.forEach(cb => cb.checked = false);
+                            } else if (batchOperationType === 'correction') {
+                                const selectAllCorrection = document.getElementById('select-all-correction');
+                                if (selectAllCorrection) selectAllCorrection.checked = false;
+                                const correctionCheckboxes = document.querySelectorAll('.correction-checkbox');
+                                correctionCheckboxes.forEach(cb => cb.checked = false);
+                            } else if (batchOperationType === 'advance') {
+                                const selectAllAdvance = document.getElementById('select-all-advance');
+                                if (selectAllAdvance) selectAllAdvance.checked = false;
+                                const advanceCheckboxes = document.querySelectorAll('.advance-checkbox');
+                                advanceCheckboxes.forEach(cb => cb.checked = false);
+                            }
+
+                            // Now close modal (only after every item finished)
+                            closeDecisionModal();
+
+                            // Refresh approvals list (this is what user wanted — see
+                            // every approved row disappear from the pending list)
+                            await loadAdminApprovals();
+                            if (batchOperationType === 'correction') {
+                                await loadAllData();
+                            } else {
+                                await loadAllData();
                             }
                         } catch (err) {
-                            showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message || err}`, "error");
+                            if (noteEl) noteEl.disabled = false;
+                            if (approverSel) approverSel.disabled = false;
+                            if (closeBtn) closeBtn.disabled = false;
+                            showToast(`❌ เกิดข้อผิดพลาด: ${err.message || err}`, "error");
                         }
+                    }, {
+                        buttonId: activeBtnId,
+                        activeLabel: batchOperationAction === 'approve' ? "ยืนยันอนุมัติ" : "ยืนยันการปฏิเสธ",
+                        loadingLabel: loadingVerb + "..."
                     });
                 } else if (adminCurrentDecisionData) {
                     // Handle single operation
