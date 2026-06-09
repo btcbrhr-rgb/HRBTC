@@ -7569,250 +7569,259 @@
             }
 
             // ---------- Agent file templates ----------
+            // ใช้ array .join() แทน template literal เพื่อหลีกเลี่ยงปัญหา backtick
+            // ที่อยู่ใน Python f-string ซึ่งทำให้ JS parser เข้าใจผิด
+
             function getScanAgentPyContent() {
-                // ส่งกลับเนื้อหา scan_agent.py (production version)
-                return `# HRBTC Scan Agent - ดาวน์โหลดจาก HRBTC
-# 1) แก้ค่า CONFIG ด้านล่าง
-# 2) รัน: python scan_agent.py
-
-import os, sys, time, json, platform
-import urllib.request, urllib.error
-from datetime import datetime, timezone, timedelta
-
-try:
-    from pyzk import ZK
-except ImportError:
-    print("[ERROR] ยังไม่ได้ติดตั้ง pyzk — รัน: pip install -r requirements.txt")
-    sys.exit(1)
-
-CONFIG = {
-    "DEVICE_IP": "192.168.1.230",   # ← แก้ IP เครื่องสแกน
-    "DEVICE_PORT": 4370,             # ← ต้องเป็น 4370
-    "DEVICE_MODEL": "MB40-VL",
-    "DEVICE_SERIAL": "YOUR_SERIAL", # ← แก้เป็น Serial ของเครื่อง
-    "DEVICE_BRANCH": "HQ",          # ← รหัสสาขา
-    "DEVICE_NAME": "สำนักงานใหญ่",    # ← ชื่อเครื่อง
-    "SERVER_URL": "__SERVER_API_URL__",
-    "AGENT_VERSION": "1.0.0",
-    "POLL_SECONDS": 60,
-    "HEARTBEAT_SECONDS": 60,
-    "PUSH_BATCH": 200,
-    "HTTP_TIMEOUT": 30,
-    "ZK_TIMEOUT": 10,
-}
-
-STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".scan_agent_state.json")
-
-def get_device_id():
-    raw = f"{CONFIG['DEVICE_MODEL']}-{CONFIG['DEVICE_SERIAL']}-{platform.node()}"
-    return raw
-
-def get_os_info():
-    return f"{platform.system()} {platform.release()}"
-
-def http_post(payload, timeout=None):
-    if timeout is None: timeout = CONFIG["HTTP_TIMEOUT"]
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(CONFIG["SERVER_URL"], data=data,
-        headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception as e:
-        return {"status": "error", "code": "NETWORK", "message": str(e)}
-
-def zk_get_attendance():
-    records = []
-    zk = ZK(CONFIG["DEVICE_IP"], port=CONFIG["DEVICE_PORT"], timeout=CONFIG["ZK_TIMEOUT"])
-    conn = None
-    try:
-        conn = zk.connect()
-        if not conn:
-            print(f"[ERROR] เชื่อมต่อ {CONFIG['DEVICE_IP']}:{CONFIG['DEVICE_PORT']} ไม่ได้")
-            return [], []
-        attendances = conn.get_attendance()
-        for att in attendances:
-            if not att or not att.user_id or not att.timestamp: continue
-            records.append({
-                "empId": str(att.user_id),
-                "timestamp": att.timestamp.strftime("%Y-%m-%dT%H:%M:%S"),
-                "type": int(att.status) if att.status is not None else 0,
-                "punch": int(att.punch) if att.punch is not None else 1,
-            })
-    except Exception as e:
-        print(f"[ERROR] ZK fetch failed: {e}")
-    finally:
-        if conn:
-            try: conn.disconnect()
-            except: pass
-    return records, attendances or []
-
-def load_state():
-    try:
-        if os.path.exists(STATE_FILE):
-            with open(STATE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except: pass
-    return {"lastTimestamp": None}
-
-def save_state(state):
-    try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, indent=2)
-    except: pass
-
-def filter_new(records, state):
-    if not state.get("lastTimestamp"):
-        cutoff = datetime.now() - timedelta(days=2)
-        return [r for r in records if r["timestamp"] >= cutoff.strftime("%Y-%m-%dT%H:%M:%S")]
-    return [r for r in records if r["timestamp"] > state["lastTimestamp"]]
-
-def register_device():
-    payload = {
-        "action": "agentRegister",
-        "deviceId": get_device_id(),
-        "deviceName": CONFIG["DEVICE_NAME"],
-        "branchCode": CONFIG["DEVICE_BRANCH"],
-        "model": CONFIG["DEVICE_MODEL"],
-        "serialNo": CONFIG["DEVICE_SERIAL"],
-        "ipAddress": CONFIG["DEVICE_IP"],
-        "port": CONFIG["DEVICE_PORT"],
-        "agentVersion": CONFIG["AGENT_VERSION"],
-        "osInfo": get_os_info(),
-    }
-    return http_post(payload, 15)
-
-def send_heartbeat(status="online", message="", stats=None):
-    return http_post({
-        "action": "agentHeartbeat",
-        "deviceId": get_device_id(),
-        "status": status, "message": message, "stats": stats or {}
-    }, 10)
-
-def push_records(records):
-    if not records: return {"status": "success", "data": {"inserted": 0, "skipped": 0}}
-    return http_post({
-        "action": "agentPushTimeLog",
-        "deviceId": get_device_id(),
-        "branchCode": CONFIG["DEVICE_BRANCH"],
-        "records": records
-    }, 30)
-
-def main():
-    print("=" * 60)
-    print(f"  HRBTC Scan Agent v{CONFIG['AGENT_VERSION']}")
-    print(f"  Device: {CONFIG['DEVICE_MODEL']} ({CONFIG['DEVICE_SERIAL']})")
-    print(f"  IP: {CONFIG['DEVICE_IP']}:{CONFIG['DEVICE_PORT']}")
-    print(f"  Server: {CONFIG['SERVER_URL'][:60]}...")
-    print("=" * 60)
-    if not register_device().get("status") == "success":
-        print("[FATAL] ลงทะเบียนไม่สำเร็จ — เช็ค SERVER_URL และเน็ต"); sys.exit(1)
-    print("[START] เริ่มทำงาน — กด Ctrl+C เพื่อหยุด\\n")
-    last_hb = 0; cycle = 0
-    while True:
-        try:
-            cycle += 1; now = time.time()
-            if now - last_hb >= CONFIG["HEARTBEAT_SECONDS"]:
-                send_heartbeat("online", "running", {"cycle": cycle})
-                last_hb = now
-            print(f"[CYCLE {cycle}] กำลังดึงข้อมูลจากเครื่องสแกน...")
-            try:
-                records, all_recs = zk_get_attendance()
-            except Exception as e:
-                print(f"[ERROR] {e}"); records, all_recs = [], []
-            state = load_state(); new_recs = filter_new(records, state)
-            if new_recs:
-                total = 0
-                for i in range(0, len(new_recs), CONFIG["PUSH_BATCH"]):
-                    r = push_records(new_recs[i:i+CONFIG["PUSH_BATCH"]])
-                    total += r.get("data", {}).get("inserted", 0) if r.get("status") == "success" else 0
-                state["lastTimestamp"] = max(r["timestamp"] for r in new_recs)
-                save_state(state)
-                print(f"[CYCLE {cycle}] ส่งข้อมูลเข้าระบบ {total} records")
-            else:
-                print(f"[CYCLE {cycle}] ไม่มีข้อมูลใหม่ (เครื่องมี {len(all_recs)} records)")
-            time.sleep(CONFIG["POLL_SECONDS"])
-        except KeyboardInterrupt:
-            print("\\n[STOP] bye"); break
-        except Exception as e:
-            print(f"[ERROR] {e}"); time.sleep(10)
-
-if __name__ == "__main__":
-    main()
-`;
+                return [
+                    '# HRBTC Scan Agent - ดาวน์โหลดจาก HRBTC',
+                    '# 1) แก้ค่า CONFIG ด้านล่าง',
+                    '# 2) รัน: python scan_agent.py',
+                    '',
+                    'import os, sys, time, json, platform',
+                    'import urllib.request, urllib.error',
+                    'from datetime import datetime, timezone, timedelta',
+                    '',
+                    'try:',
+                    '    from pyzk import ZK',
+                    'except ImportError:',
+                    '    print("[ERROR] ยังไม่ได้ติดตั้ง pyzk — รัน: pip install -r requirements.txt")',
+                    '    sys.exit(1)',
+                    '',
+                    'CONFIG = {',
+                    '    "DEVICE_IP": "192.168.1.230",   # ← แก้ IP เครื่องสแกน',
+                    '    "DEVICE_PORT": 4370,             # ← ต้องเป็น 4370',
+                    '    "DEVICE_MODEL": "MB40-VL",',
+                    '    "DEVICE_SERIAL": "YOUR_SERIAL", # ← แก้เป็น Serial ของเครื่อง',
+                    '    "DEVICE_BRANCH": "HQ",          # ← รหัสสาขา',
+                    '    "DEVICE_NAME": "สำนักงานใหญ่",    # ← ชื่อเครื่อง',
+                    '    "SERVER_URL": "__SERVER_API_URL__",',
+                    '    "AGENT_VERSION": "1.0.0",',
+                    '    "POLL_SECONDS": 60,',
+                    '    "HEARTBEAT_SECONDS": 60,',
+                    '    "PUSH_BATCH": 200,',
+                    '    "HTTP_TIMEOUT": 30,',
+                    '    "ZK_TIMEOUT": 10,',
+                    '}',
+                    '',
+                    'STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".scan_agent_state.json")',
+                    '',
+                    'def get_device_id():',
+                    '    return CONFIG["DEVICE_MODEL"] + "-" + CONFIG["DEVICE_SERIAL"] + "-" + platform.node()',
+                    '',
+                    'def get_os_info():',
+                    '    return platform.system() + " " + platform.release()',
+                    '',
+                    'def http_post(payload, timeout=None):',
+                    '    if timeout is None: timeout = CONFIG["HTTP_TIMEOUT"]',
+                    '    data = json.dumps(payload).encode("utf-8")',
+                    '    req = urllib.request.Request(CONFIG["SERVER_URL"], data=data,',
+                    '        headers={"Content-Type": "application/json"}, method="POST")',
+                    '    try:',
+                    '        with urllib.request.urlopen(req, timeout=timeout) as resp:',
+                    '            return json.loads(resp.read().decode("utf-8"))',
+                    '    except Exception as e:',
+                    '        return {"status": "error", "code": "NETWORK", "message": str(e)}',
+                    '',
+                    'def zk_get_attendance():',
+                    '    records = []',
+                    '    zk = ZK(CONFIG["DEVICE_IP"], port=CONFIG["DEVICE_PORT"], timeout=CONFIG["ZK_TIMEOUT"])',
+                    '    conn = None',
+                    '    try:',
+                    '        conn = zk.connect()',
+                    '        if not conn:',
+                    '            print("[ERROR] เชื่อมต่อ " + CONFIG["DEVICE_IP"] + ":" + str(CONFIG["DEVICE_PORT"]) + " ไม่ได้")',
+                    '            return [], []',
+                    '        attendances = conn.get_attendance()',
+                    '        for att in attendances:',
+                    '            if not att or not att.user_id or not att.timestamp: continue',
+                    '            records.append({',
+                    '                "empId": str(att.user_id),',
+                    '                "timestamp": att.timestamp.strftime("%Y-%m-%dT%H:%M:%S"),',
+                    '                "type": int(att.status) if att.status is not None else 0,',
+                    '                "punch": int(att.punch) if att.punch is not None else 1,',
+                    '            })',
+                    '    except Exception as e:',
+                    '        print("[ERROR] ZK fetch failed: " + str(e))',
+                    '    finally:',
+                    '        if conn:',
+                    '            try: conn.disconnect()',
+                    '            except: pass',
+                    '    return records, attendances or []',
+                    '',
+                    'def load_state():',
+                    '    try:',
+                    '        if os.path.exists(STATE_FILE):',
+                    '            with open(STATE_FILE, "r", encoding="utf-8") as f:',
+                    '                return json.load(f)',
+                    '    except: pass',
+                    '    return {"lastTimestamp": None}',
+                    '',
+                    'def save_state(state):',
+                    '    try:',
+                    '        with open(STATE_FILE, "w", encoding="utf-8") as f:',
+                    '            json.dump(state, f, ensure_ascii=False, indent=2)',
+                    '    except: pass',
+                    '',
+                    'def filter_new(records, state):',
+                    '    if not state.get("lastTimestamp"):',
+                    '        cutoff = datetime.now() - timedelta(days=2)',
+                    '        return [r for r in records if r["timestamp"] >= cutoff.strftime("%Y-%m-%dT%H:%M:%S")]',
+                    '    return [r for r in records if r["timestamp"] > state["lastTimestamp"]]',
+                    '',
+                    'def register_device():',
+                    '    payload = {',
+                    '        "action": "agentRegister",',
+                    '        "deviceId": get_device_id(),',
+                    '        "deviceName": CONFIG["DEVICE_NAME"],',
+                    '        "branchCode": CONFIG["DEVICE_BRANCH"],',
+                    '        "model": CONFIG["DEVICE_MODEL"],',
+                    '        "serialNo": CONFIG["DEVICE_SERIAL"],',
+                    '        "ipAddress": CONFIG["DEVICE_IP"],',
+                    '        "port": CONFIG["DEVICE_PORT"],',
+                    '        "agentVersion": CONFIG["AGENT_VERSION"],',
+                    '        "osInfo": get_os_info(),',
+                    '    }',
+                    '    return http_post(payload, 15)',
+                    '',
+                    'def send_heartbeat(status="online", message="", stats=None):',
+                    '    return http_post({',
+                    '        "action": "agentHeartbeat",',
+                    '        "deviceId": get_device_id(),',
+                    '        "status": status, "message": message, "stats": stats or {}',
+                    '    }, 10)',
+                    '',
+                    'def push_records(records):',
+                    '    if not records: return {"status": "success", "data": {"inserted": 0, "skipped": 0}}',
+                    '    return http_post({',
+                    '        "action": "agentPushTimeLog",',
+                    '        "deviceId": get_device_id(),',
+                    '        "branchCode": CONFIG["DEVICE_BRANCH"],',
+                    '        "records": records',
+                    '    }, 30)',
+                    '',
+                    'def main():',
+                    '    print("=" * 60)',
+                    '    print("  HRBTC Scan Agent v" + CONFIG["AGENT_VERSION"])',
+                    '    print("  Device: " + CONFIG["DEVICE_MODEL"] + " (" + CONFIG["DEVICE_SERIAL"] + ")")',
+                    '    print("  IP: " + CONFIG["DEVICE_IP"] + ":" + str(CONFIG["DEVICE_PORT"]))',
+                    '    print("  Server: " + CONFIG["SERVER_URL"][:60] + "...")',
+                    '    print("=" * 60)',
+                    '    if register_device().get("status") != "success":',
+                    '        print("[FATAL] ลงทะเบียนไม่สำเร็จ — เช็ค SERVER_URL และเน็ต"); sys.exit(1)',
+                    '    print("[START] เริ่มทำงาน — กด Ctrl+C เพื่อหยุด\\n")',
+                    '    last_hb = 0; cycle = 0',
+                    '    while True:',
+                    '        try:',
+                    '            cycle += 1; now = time.time()',
+                    '            if now - last_hb >= CONFIG["HEARTBEAT_SECONDS"]:',
+                    '                send_heartbeat("online", "running", {"cycle": cycle})',
+                    '                last_hb = now',
+                    '            print("[CYCLE " + str(cycle) + "] กำลังดึงข้อมูลจากเครื่องสแกน...")',
+                    '            try:',
+                    '                records, all_recs = zk_get_attendance()',
+                    '            except Exception as e:',
+                    '                print("[ERROR] " + str(e)); records, all_recs = [], []',
+                    '            state = load_state(); new_recs = filter_new(records, state)',
+                    '            if new_recs:',
+                    '                total = 0',
+                    '                for i in range(0, len(new_recs), CONFIG["PUSH_BATCH"]):',
+                    '                    r = push_records(new_recs[i:i+CONFIG["PUSH_BATCH"]])',
+                    '                    total += r.get("data", {}).get("inserted", 0) if r.get("status") == "success" else 0',
+                    '                state["lastTimestamp"] = max(r["timestamp"] for r in new_recs)',
+                    '                save_state(state)',
+                    '                print("[CYCLE " + str(cycle) + "] ส่งข้อมูลเข้าระบบ " + str(total) + " records")',
+                    '            else:',
+                    '                print("[CYCLE " + str(cycle) + "] ไม่มีข้อมูลใหม่ (เครื่องมี " + str(len(all_recs)) + " records)")',
+                    '            time.sleep(CONFIG["POLL_SECONDS"])',
+                    '        except KeyboardInterrupt:',
+                    '            print("\\n[STOP] bye"); break',
+                    '        except Exception as e:',
+                    '            print("[ERROR] " + str(e)); time.sleep(10)',
+                    '',
+                    'if __name__ == "__main__":',
+                    '    main()',
+                    ''
+                ].join('\n');
             }
 
             function getInstallBatContent() {
-                return `@echo off
-chcp 65001 >nul
-echo ============================================
-echo  HRBTC Scan Agent - Installer
-echo ============================================
-echo.
-
-:: ตรวจ Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] ไม่พบ Python
-    echo กรุณาดาวน์โหลดและติดตั้ง Python จาก https://www.python.org/downloads/
-    echo ^(อย่าลืมติ๊ก "Add Python to PATH"^)
-    pause
-    exit /b 1
-)
-
-echo [1/2] กำลังติดตั้งไลบรารี...
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-if errorlevel 1 (
-    echo [ERROR] ติดตั้งไลบรารีไม่สำเร็จ
-    pause
-    exit /b 1
-)
-
-echo.
-echo [2/2] ติดตั้งเสร็จ!
-echo.
-echo ===== ขั้นตอนถัดไป =====
-echo 1. แก้ค่าใน scan_agent.py:
-echo    - DEVICE_IP    = IP เครื่องสแกน
-echo    - DEVICE_SERIAL = Serial จากหน้าจอ TAS Time
-echo    - DEVICE_BRANCH = รหัสสาขา
-echo    - DEVICE_NAME  = ชื่อเครื่อง
-echo 2. ดับเบิลคลิก start.bat เพื่อเริ่มใช้งาน
-echo.
-pause
-`;
+                return [
+                    '@echo off',
+                    'chcp 65001 >nul',
+                    'echo ============================================',
+                    'echo  HRBTC Scan Agent - Installer',
+                    'echo ============================================',
+                    'echo.',
+                    '',
+                    ':: ตรวจ Python',
+                    'python --version >nul 2>&1',
+                    'if errorlevel 1 (',
+                    '    echo [ERROR] ไม่พบ Python',
+                    '    echo กรุณาดาวน์โหลดและติดตั้ง Python จาก https://www.python.org/downloads/',
+                    '    echo ^(อย่าลืมติ๊ก "Add Python to PATH"^)',
+                    '    pause',
+                    '    exit /b 1',
+                    ')',
+                    '',
+                    'echo [1/2] กำลังติดตั้งไลบรารี...',
+                    'python -m pip install --upgrade pip',
+                    'python -m pip install -r requirements.txt',
+                    'if errorlevel 1 (',
+                    '    echo [ERROR] ติดตั้งไลบรารีไม่สำเร็จ',
+                    '    pause',
+                    '    exit /b 1',
+                    ')',
+                    '',
+                    'echo.',
+                    'echo [2/2] ติดตั้งเสร็จ!',
+                    'echo.',
+                    'echo ===== ขั้นตอนถัดไป =====',
+                    'echo 1. แก้ค่าใน scan_agent.py:',
+                    'echo    - DEVICE_IP    = IP เครื่องสแกน',
+                    'echo    - DEVICE_SERIAL = Serial จากหน้าจอ TAS Time',
+                    'echo    - DEVICE_BRANCH = รหัสสาขา',
+                    'echo    - DEVICE_NAME  = ชื่อเครื่อง',
+                    'echo 2. ดับเบิลคลิก start.bat เพื่อเริ่มใช้งาน',
+                    'echo.',
+                    'pause',
+                    ''
+                ].join('\n');
             }
 
             function getStartBatContent() {
-                return `@echo off
-chcp 65001 >nul
-title HRBTC Scan Agent
-cd /d "%~dp0"
-echo Starting HRBTC Scan Agent...
-python scan_agent.py
-pause
-`;
+                return [
+                    '@echo off',
+                    'chcp 65001 >nul',
+                    'title HRBTC Scan Agent',
+                    'cd /d "%~dp0"',
+                    'echo Starting HRBTC Scan Agent...',
+                    'python scan_agent.py',
+                    'pause',
+                    ''
+                ].join('\n');
             }
 
             function getAgentReadmeContent() {
-                return `HRBTC Scan Agent
-=================
-
-1) แก้ค่าใน scan_agent.py:
-   - DEVICE_IP
-   - DEVICE_SERIAL
-   - DEVICE_BRANCH
-   - DEVICE_NAME
-
-2) ดับเบิลคลิก start.bat
-
-3) กด Ctrl+C ในหน้าต่างเพื่อหยุด
-
-ต้องการให้ agent เปิดอัตโนมัติตอน Windows boot?
-- กด Win+R พิมพ์ shell:startup
-- สร้าง shortcut ของ start.bat ไปวาง
-`;
+                return [
+                    'HRBTC Scan Agent',
+                    '=================',
+                    '',
+                    '1) แก้ค่าใน scan_agent.py:',
+                    '   - DEVICE_IP',
+                    '   - DEVICE_SERIAL',
+                    '   - DEVICE_BRANCH',
+                    '   - DEVICE_NAME',
+                    '',
+                    '2) ดับเบิลคลิก start.bat',
+                    '',
+                    '3) กด Ctrl+C ในหน้าต่างเพื่อหยุด',
+                    '',
+                    'ต้องการให้ agent เปิดอัตโนมัติตอน Windows boot?',
+                    '- กด Win+R พิมพ์ shell:startup',
+                    '- สร้าง shortcut ของ start.bat ไปวาง',
+                    ''
+                ].join('\n');
             }
 
             // ฟังก์ชันล้างสถานะและ UI ของการนำเข้าเวลางาน .txt เพื่อพร้อมเริ่มงานใหม่
