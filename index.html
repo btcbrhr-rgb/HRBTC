@@ -13,6 +13,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
+    <!-- JSZip + FileSaver for scan agent download bundle -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
     <!-- Google Fonts Prompt -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1584,6 +1588,14 @@
                                 class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
                                 <i class="fa-solid fa-file-import text-slate-400"></i> นำเข้าเวลางานใหม่ (.txt)
                             </button>
+                            <button onclick="switchAdminTab('scan-devices')" id="admin-menu-scan-devices"
+                                class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                                <div class="flex items-center gap-3">
+                                    <i class="fa-solid fa-fingerprint text-slate-400"></i> จัดการเครื่องสแกนนิ้ว
+                                </div>
+                                <span id="admin-menu-scan-devices-badge"
+                                    class="hidden bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                            </button>
                             <button onclick="switchAdminTab('import-payslip')" id="admin-menu-import-payslip"
                                 class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
                                 <i class="fa-solid fa-file-invoice text-slate-400"></i> นำเข้าสลิปเงินเดือนใหม่ (.pdf)
@@ -1812,7 +1824,104 @@
                     </div>
                 </section>
 
-                <!-- SECTION 2: นำเข้าสลิปเงินเดือน (.pdf) -->
+                <!-- SECTION 2.5: จัดการเครื่องสแกนนิ้ว -->
+                <section id="admin-sec-scan-devices" class="admin-sec hidden space-y-6">
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="fa-solid fa-fingerprint text-indigo-600"></i>
+                                    จัดการเครื่องสแกนนิ้ว/สแกนหน้า
+                                </h3>
+                                <p class="text-[11px] text-slate-500 mt-1">
+                                    ดูเครื่องสแกนที่เชื่อมต่ออยู่ + ดาวน์โหลด Agent ไปติดตั้งที่คอมหน้างาน
+                                </p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="openScanDeviceAddModal()" id="scan-device-add-btn"
+                                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-100 transition-all flex items-center gap-2">
+                                    <i class="fa-solid fa-plus"></i> เพิ่มเครื่องใหม่
+                                </button>
+                                <button onclick="loadScanDevices()" id="scan-device-refresh-btn"
+                                    class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center gap-2">
+                                    <i class="fa-solid fa-rotate"></i> รีเฟรช
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- สรุปสถานะ -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                                <p class="text-[10px] font-bold text-emerald-600 uppercase">ออนไลน์</p>
+                                <p id="scan-stat-online" class="text-2xl font-bold text-emerald-700 mt-1">0</p>
+                            </div>
+                            <div class="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                                <p class="text-[10px] font-bold text-rose-600 uppercase">ออฟไลน์</p>
+                                <p id="scan-stat-offline" class="text-2xl font-bold text-rose-700 mt-1">0</p>
+                            </div>
+                            <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                                <p class="text-[10px] font-bold text-blue-600 uppercase">ทั้งหมด</p>
+                                <p id="scan-stat-total" class="text-2xl font-bold text-blue-700 mt-1">0</p>
+                            </div>
+                            <div class="bg-violet-50 border border-violet-200 rounded-xl p-3">
+                                <p class="text-[10px] font-bold text-violet-600 uppercase">Record ที่ดึงมา</p>
+                                <p id="scan-stat-records" class="text-2xl font-bold text-violet-700 mt-1">0</p>
+                            </div>
+                        </div>
+
+                        <!-- ตารางเครื่องสแกน -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-[10px] text-slate-500 uppercase font-bold">
+                                        <th class="text-left py-2.5 px-2">สถานะ</th>
+                                        <th class="text-left py-2.5 px-2">ชื่อเครื่อง</th>
+                                        <th class="text-left py-2.5 px-2">สาขา</th>
+                                        <th class="text-left py-2.5 px-2">รุ่น / Serial</th>
+                                        <th class="text-left py-2.5 px-2">IP:Port</th>
+                                        <th class="text-left py-2.5 px-2">Agent</th>
+                                        <th class="text-left py-2.5 px-2">Last Heartbeat</th>
+                                        <th class="text-left py-2.5 px-2">Records</th>
+                                        <th class="text-left py-2.5 px-2">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scan-devices-table-body">
+                                    <tr>
+                                        <td colspan="9" class="py-6 text-center text-slate-500 italic">
+                                            กดปุ่ม "รีเฟรช" เพื่อโหลดรายการเครื่องสแกน
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- กล่องดาวน์โหลด Agent -->
+                    <div class="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-2xl p-5 space-y-3">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-download text-indigo-600"></i>
+                            ดาวน์โหลด Agent ไปติดตั้งที่คอมหน้างาน
+                        </h3>
+                        <p class="text-[11px] text-slate-600">
+                            Agent เป็นโปรแกรมเล็กๆ ที่ดึงข้อมูลจากเครื่องสแกนนิ้วแล้วส่งเข้า Google Sheets อัตโนมัติ
+                            <br>• ติดตั้งครั้งเดียว ไม่ต้องตั้งค่า — แค่ดับเบิลคลิก
+                            <br>• ใช้ได้กับ Windows 10/11
+                            <br>• เครื่องสแกนต้องตั้ง <strong>port 4370</strong> (PUSH protocol)
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="downloadScanAgent()" id="scan-agent-download-btn"
+                                class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center gap-2">
+                                <i class="fa-solid fa-file-zipper"></i> ดาวน์โหลด Agent (zip)
+                            </button>
+                            <button onclick="downloadScanGuide()" id="scan-guide-download-btn"
+                                class="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-all flex items-center gap-2">
+                                <i class="fa-solid fa-book"></i> ดาวน์โหลดคู่มือติดตั้ง (PDF)
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 3: นำเข้าสลิปเงินเดือน (.pdf) -->
                 <section id="admin-sec-import-payslip" class="admin-sec hidden space-y-6">
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <!-- Upload Card -->
@@ -5855,7 +5964,7 @@
                 adminActiveTab = tabId;
 
                 // ปิดสีปุ่มเมนูเดิมทั้งหมด
-                const menus = ['import-time', 'import-payslip', 'approve-leave', 'approve-correction', 'approve-advance', 'announcements', 'employees', 'settings'];
+                const menus = ['import-time', 'import-payslip', 'scan-devices', 'approve-leave', 'approve-correction', 'approve-advance', 'announcements', 'employees', 'settings'];
                 menus.forEach(m => {
                     const btn = document.getElementById(`admin-menu-${m}`);
                     if (btn) {
@@ -5885,6 +5994,10 @@
                 } else if (tabId === 'import-payslip') {
                     titleEl.textContent = "นำเข้าสลิปเงินเดือน (.pdf)";
                     descEl.textContent = "นำเข้าสลิปเงินเดือนพนักงานโดยอัปโหลดไฟล์ PDF รวมแถว เพื่อให้ระบบจำแนกและอัปโหลดเข้าคลังไฟล์รายบุคคล";
+                } else if (tabId === 'scan-devices') {
+                    titleEl.textContent = "จัดการเครื่องสแกนนิ้ว/สแกนหน้า";
+                    descEl.textContent = "ดูสถานะเครื่องสแกนที่เชื่อมต่ออยู่ + ดาวน์โหลด Agent ไปติดตั้งที่คอมหน้างาน";
+                    loadScanDevices();
                 } else if (tabId === 'approve-leave') {
                     titleEl.textContent = "อนุมัติใบลางาน";
                     descEl.textContent = "ตรวจสอบคำขอลาที่ยังรออนุมัติ และดูผลการอนุมัติที่ผ่านมา";
@@ -7225,6 +7338,481 @@
                     updateTxtImportButtonsState();
                 };
                 reader.readAsText(file, "tis-620");
+            }
+
+            // ================================================================
+            // 🔌 Scan Devices — เชื่อมต่อเครื่องสแกนนิ้ว/หน้า
+            // ================================================================
+
+            /**
+             * โหลดรายการเครื่องสแกนที่ลงทะเบียนไว้ + สถานะ online/offline
+             */
+            async function loadScanDevices() {
+                const tbody = document.getElementById('scan-devices-table-body');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500 italic"><i class="fa-solid fa-spinner animate-spin text-indigo-500"></i> กำลังโหลด...</td></tr>';
+                }
+
+                try {
+                    const res = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'listDevices' }),
+                        timeout: 20000
+                    });
+
+                    if (!res || res.status !== 'success') {
+                        if (tbody) {
+                            tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ โหลดไม่สำเร็จ: ${escapeHtml(res?.message || 'ไม่ทราบสาเหตุ')}</td></tr>`;
+                        }
+                        return;
+                    }
+
+                    const devices = res.data?.devices || [];
+                    renderScanDevices(devices);
+                    updateScanDeviceBadge(devices);
+
+                } catch (err) {
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ${escapeHtml(err.message || String(err))}</td></tr>`;
+                    }
+                }
+            }
+
+            function renderScanDevices(devices) {
+                const tbody = document.getElementById('scan-devices-table-body');
+                if (!tbody) return;
+
+                if (devices.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500 italic">ยังไม่มีเครื่องสแกนที่ลงทะเบียน — กด "เพิ่มเครื่องใหม่" เพื่อเริ่มใช้งาน</td></tr>`;
+                    updateScanStat(0, 0, 0, 0);
+                    return;
+                }
+
+                let onlineCount = 0, totalRecords = 0;
+                tbody.innerHTML = devices.map(d => {
+                    const isOnline = d.status === 'online';
+                    if (isOnline) onlineCount++;
+                    totalRecords += (d.totalRecordsPushed || 0);
+
+                    const lastHb = d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+                    const statusBadge = isOnline
+                        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>ออนไลน์</span>'
+                        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full"><span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>ออฟไลน์</span>';
+
+                    return `<tr class="border-b border-slate-100 hover:bg-slate-50 transition-all">
+                        <td class="py-2.5 px-2">${statusBadge}</td>
+                        <td class="py-2.5 px-2 font-semibold text-slate-800">${escapeHtml(d.deviceName || '-')}</td>
+                        <td class="py-2.5 px-2"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-mono rounded">${escapeHtml(d.branchCode || '-')}</span></td>
+                        <td class="py-2.5 px-2 text-[10px] text-slate-600">${escapeHtml(d.model || '-')}<br><span class="text-slate-400 font-mono">${escapeHtml(d.serialNo || '-')}</span></td>
+                        <td class="py-2.5 px-2 text-[10px] font-mono text-slate-600">${escapeHtml(d.ipAddress || '-')}:${d.port || '-'}</td>
+                        <td class="py-2.5 px-2 text-[10px] text-slate-500">v${escapeHtml(d.agentVersion || '-')}<br>${escapeHtml(d.osInfo || '')}</td>
+                        <td class="py-2.5 px-2 text-[10px] text-slate-500">${lastHb}</td>
+                        <td class="py-2.5 px-2 text-right font-semibold text-violet-700">${(d.totalRecordsPushed || 0).toLocaleString()}</td>
+                        <td class="py-2.5 px-2">
+                            <button onclick="deleteScanDevice('${escapeHtml(d.deviceId)}', '${escapeHtml(d.deviceName)}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-semibold" title="ลบเครื่องนี้ออกจากระบบ">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+
+                updateScanStat(onlineCount, devices.length - onlineCount, devices.length, totalRecords);
+            }
+
+            function updateScanStat(online, offline, total, records) {
+                const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                set('scan-stat-online', online);
+                set('scan-stat-offline', offline);
+                set('scan-stat-total', total);
+                set('scan-stat-records', records.toLocaleString());
+            }
+
+            function updateScanDeviceBadge(devices) {
+                const badge = document.getElementById('admin-menu-scan-devices-badge');
+                if (!badge) return;
+                const online = devices.filter(d => d.status === 'online').length;
+                const total = devices.length;
+                if (total === 0) {
+                    badge.classList.add('hidden');
+                } else {
+                    badge.classList.remove('hidden');
+                    badge.textContent = `${online}/${total}`;
+                }
+            }
+
+            /**
+             * เปิด modal เพิ่มเครื่องสแกนใหม่ — แสดงคำแนะนำ + ปุ่มดาวน์โหลด Agent
+             */
+            function openScanDeviceAddModal() {
+                const html = `
+                <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+                    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-plus-circle text-indigo-600"></i> เพิ่มเครื่องสแกนนิ้วใหม่
+                            </h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-slate-400 hover:text-slate-600">
+                                <i class="fa-solid fa-xmark text-lg"></i>
+                            </button>
+                        </div>
+
+                        <div class="space-y-3 text-xs text-slate-600">
+                            <p class="font-semibold text-slate-700">📋 ขั้นตอน:</p>
+                            <ol class="list-decimal pl-5 space-y-1.5">
+                                <li>ตั้งเครื่องสแกนนิ้วให้ใช้ <strong>port 4370</strong> (PUSH protocol)</li>
+                                <li>ดาวน์โหลด Agent (zip) ด้านล่าง</li>
+                                <li>แตก zip ที่คอมหน้างาน</li>
+                                <li>ดับเบิลคลิก <code class="bg-slate-100 px-1 py-0.5 rounded text-[10px]">install.bat</code></li>
+                                <li>แก้ค่า IP/Serial ใน <code class="bg-slate-100 px-1 py-0.5 rounded text-[10px]">scan_agent.py</code></li>
+                                <li>รัน <code class="bg-slate-100 px-1 py-0.5 rounded text-[10px]">start.bat</code></li>
+                                <li>กลับมากด "รีเฟรช" ที่หน้านี้</li>
+                            </ol>
+
+                            <div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-800">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <strong>ต้องติดตั้ง Python ก่อน</strong> — ดาวน์โหลดฟรีที่ python.org (อย่าลืมติ๊ก "Add to PATH")
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 pt-2">
+                            <button onclick="downloadScanAgent(); this.closest('.fixed').remove();" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-download"></i> ดาวน์โหลด Agent
+                            </button>
+                            <button onclick="downloadScanGuide(); this.closest('.fixed').remove();" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-book"></i> คู่มือ
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+                const div = document.createElement('div');
+                div.innerHTML = html;
+                document.body.appendChild(div.firstElementChild);
+            }
+
+            /**
+             * ลบเครื่องสแกนออกจากระบบ
+             */
+            async function deleteScanDevice(deviceId, deviceName) {
+                if (!confirm(`ต้องการลบเครื่อง "${deviceName}" ออกจากระบบ?\n(เครื่องที่ลบแล้วจะต้องลงทะเบียนใหม่)`)) return;
+
+                // ลบผ่าน adminApprove-style: เรียก listDevices ก่อน เพื่อให้ user เห็นการเปลี่ยนแปลง
+                // ใช้ adminSaveSystemSettings หรือเพิ่ม action ใหม่ — เพื่อความง่าย ใช้วิธี clear row
+                // (action removeDevice จะเพิ่มใน ScanAgent.gs ตอน deploy)
+                showToast('⏳ กำลังลบ...', 'info');
+                const res = await fetchWithTimeout(SERVER_API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'removeDevice',
+                        deviceId: deviceId,
+                        adminId: currentEmployeeId
+                    }),
+                    timeout: 15000
+                });
+
+                if (res?.status === 'success') {
+                    showToast('✅ ลบเครื่องสำเร็จ', 'success');
+                    loadScanDevices();
+                } else {
+                    showToast('❌ ลบไม่สำเร็จ: ' + (res?.message || ''), 'error');
+                }
+            }
+
+            /**
+             * ดาวน์โหลด Agent (zip) — สร้าง zip แบบ in-browser
+             */
+            async function downloadScanAgent() {
+                showToast('⏳ กำลังเตรียมไฟล์ Agent...', 'info');
+
+                // แทน placeholder ด้วย URL จริงของ Apps Script
+                const pyContent = getScanAgentPyContent().replace(
+                    /\${SERVER_API_URL_PLACEHOLDER}/g,
+                    SERVER_API_URL
+                );
+
+                const files = {
+                    'scan_agent.py': pyContent,
+                    'install.bat': getInstallBatContent(),
+                    'start.bat': getStartBatContent(),
+                    'requirements.txt': 'pyzk>=0.5\nrequests>=2.28\n',
+                    'README.txt': getAgentReadmeContent()
+                };
+
+                if (typeof JSZip !== 'undefined') {
+                    const zip = new JSZip();
+                    for (const [name, content] of Object.entries(files)) {
+                        zip.file(name, content);
+                    }
+                    const blob = await zip.generateAsync({ type: 'blob' });
+                    saveAs(blob, 'hrbtc_scan_agent.zip');
+                    showToast('✅ ดาวน์โหลด Agent สำเร็จ — แตก zip แล้วดับเบิลคลิก install.bat', 'success');
+                } else {
+                    downloadTextFile('scan_agent.py', pyContent);
+                    showToast('⚠️ ดาวน์โหลดแค่ไฟล์เดียว (ไม่มี JSZip)', 'warning');
+                }
+            }
+
+            function downloadScanGuide() {
+                // เปิดคู่มือในแท็บใหม่
+                const guideUrl = 'https://github.com/your-repo/hrbtc/blob/main/agent/INSTALL_GUIDE.md';
+                window.open(guideUrl, '_blank');
+                showToast('📖 เปิดคู่มือในแท็บใหม่', 'info');
+            }
+
+            function downloadTextFile(filename, content) {
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            // ---------- Agent file templates ----------
+            function getScanAgentPyContent() {
+                // ส่งกลับเนื้อหา scan_agent.py (production version)
+                return `# HRBTC Scan Agent - ดาวน์โหลดจาก HRBTC
+# 1) แก้ค่า CONFIG ด้านล่าง
+# 2) รัน: python scan_agent.py
+
+import os, sys, time, json, platform
+import urllib.request, urllib.error
+from datetime import datetime, timezone, timedelta
+
+try:
+    from pyzk import ZK
+except ImportError:
+    print("[ERROR] ยังไม่ได้ติดตั้ง pyzk — รัน: pip install -r requirements.txt")
+    sys.exit(1)
+
+CONFIG = {
+    "DEVICE_IP": "192.168.1.230",   # ← แก้ IP เครื่องสแกน
+    "DEVICE_PORT": 4370,             # ← ต้องเป็น 4370
+    "DEVICE_MODEL": "MB40-VL",
+    "DEVICE_SERIAL": "YOUR_SERIAL", # ← แก้เป็น Serial ของเครื่อง
+    "DEVICE_BRANCH": "HQ",          # ← รหัสสาขา
+    "DEVICE_NAME": "สำนักงานใหญ่",    # ← ชื่อเครื่อง
+    "SERVER_URL": "${SERVER_API_URL_PLACEHOLDER}",
+    "AGENT_VERSION": "1.0.0",
+    "POLL_SECONDS": 60,
+    "HEARTBEAT_SECONDS": 60,
+    "PUSH_BATCH": 200,
+    "HTTP_TIMEOUT": 30,
+    "ZK_TIMEOUT": 10,
+}
+
+STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".scan_agent_state.json")
+
+def get_device_id():
+    raw = f"{CONFIG['DEVICE_MODEL']}-{CONFIG['DEVICE_SERIAL']}-{platform.node()}"
+    return raw
+
+def get_os_info():
+    return f"{platform.system()} {platform.release()}"
+
+def http_post(payload, timeout=None):
+    if timeout is None: timeout = CONFIG["HTTP_TIMEOUT"]
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(CONFIG["SERVER_URL"], data=data,
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return {"status": "error", "code": "NETWORK", "message": str(e)}
+
+def zk_get_attendance():
+    records = []
+    zk = ZK(CONFIG["DEVICE_IP"], port=CONFIG["DEVICE_PORT"], timeout=CONFIG["ZK_TIMEOUT"])
+    conn = None
+    try:
+        conn = zk.connect()
+        if not conn:
+            print(f"[ERROR] เชื่อมต่อ {CONFIG['DEVICE_IP']}:{CONFIG['DEVICE_PORT']} ไม่ได้")
+            return [], []
+        attendances = conn.get_attendance()
+        for att in attendances:
+            if not att or not att.user_id or not att.timestamp: continue
+            records.append({
+                "empId": str(att.user_id),
+                "timestamp": att.timestamp.strftime("%Y-%m-%dT%H:%M:%S"),
+                "type": int(att.status) if att.status is not None else 0,
+                "punch": int(att.punch) if att.punch is not None else 1,
+            })
+    except Exception as e:
+        print(f"[ERROR] ZK fetch failed: {e}")
+    finally:
+        if conn:
+            try: conn.disconnect()
+            except: pass
+    return records, attendances or []
+
+def load_state():
+    try:
+        if os.path.exists(STATE_FILE):
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except: pass
+    return {"lastTimestamp": None}
+
+def save_state(state):
+    try:
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    except: pass
+
+def filter_new(records, state):
+    if not state.get("lastTimestamp"):
+        cutoff = datetime.now() - timedelta(days=2)
+        return [r for r in records if r["timestamp"] >= cutoff.strftime("%Y-%m-%dT%H:%M:%S")]
+    return [r for r in records if r["timestamp"] > state["lastTimestamp"]]
+
+def register_device():
+    payload = {
+        "action": "agentRegister",
+        "deviceId": get_device_id(),
+        "deviceName": CONFIG["DEVICE_NAME"],
+        "branchCode": CONFIG["DEVICE_BRANCH"],
+        "model": CONFIG["DEVICE_MODEL"],
+        "serialNo": CONFIG["DEVICE_SERIAL"],
+        "ipAddress": CONFIG["DEVICE_IP"],
+        "port": CONFIG["DEVICE_PORT"],
+        "agentVersion": CONFIG["AGENT_VERSION"],
+        "osInfo": get_os_info(),
+    }
+    return http_post(payload, 15)
+
+def send_heartbeat(status="online", message="", stats=None):
+    return http_post({
+        "action": "agentHeartbeat",
+        "deviceId": get_device_id(),
+        "status": status, "message": message, "stats": stats or {}
+    }, 10)
+
+def push_records(records):
+    if not records: return {"status": "success", "data": {"inserted": 0, "skipped": 0}}
+    return http_post({
+        "action": "agentPushTimeLog",
+        "deviceId": get_device_id(),
+        "branchCode": CONFIG["DEVICE_BRANCH"],
+        "records": records
+    }, 30)
+
+def main():
+    print("=" * 60)
+    print(f"  HRBTC Scan Agent v{CONFIG['AGENT_VERSION']}")
+    print(f"  Device: {CONFIG['DEVICE_MODEL']} ({CONFIG['DEVICE_SERIAL']})")
+    print(f"  IP: {CONFIG['DEVICE_IP']}:{CONFIG['DEVICE_PORT']}")
+    print(f"  Server: {CONFIG['SERVER_URL'][:60]}...")
+    print("=" * 60)
+    if not register_device().get("status") == "success":
+        print("[FATAL] ลงทะเบียนไม่สำเร็จ — เช็ค SERVER_URL และเน็ต"); sys.exit(1)
+    print("[START] เริ่มทำงาน — กด Ctrl+C เพื่อหยุด\\n")
+    last_hb = 0; cycle = 0
+    while True:
+        try:
+            cycle += 1; now = time.time()
+            if now - last_hb >= CONFIG["HEARTBEAT_SECONDS"]:
+                send_heartbeat("online", "running", {"cycle": cycle})
+                last_hb = now
+            print(f"[CYCLE {cycle}] กำลังดึงข้อมูลจากเครื่องสแกน...")
+            try:
+                records, all_recs = zk_get_attendance()
+            except Exception as e:
+                print(f"[ERROR] {e}"); records, all_recs = [], []
+            state = load_state(); new_recs = filter_new(records, state)
+            if new_recs:
+                total = 0
+                for i in range(0, len(new_recs), CONFIG["PUSH_BATCH"]):
+                    r = push_records(new_recs[i:i+CONFIG["PUSH_BATCH"]])
+                    total += r.get("data", {}).get("inserted", 0) if r.get("status") == "success" else 0
+                state["lastTimestamp"] = max(r["timestamp"] for r in new_recs)
+                save_state(state)
+                print(f"[CYCLE {cycle}] ส่งข้อมูลเข้าระบบ {total} records")
+            else:
+                print(f"[CYCLE {cycle}] ไม่มีข้อมูลใหม่ (เครื่องมี {len(all_recs)} records)")
+            time.sleep(CONFIG["POLL_SECONDS"])
+        except KeyboardInterrupt:
+            print("\\n[STOP] bye"); break
+        except Exception as e:
+            print(f"[ERROR] {e}"); time.sleep(10)
+
+if __name__ == "__main__":
+    main()
+`;
+            }
+
+            function getInstallBatContent() {
+                return `@echo off
+chcp 65001 >nul
+echo ============================================
+echo  HRBTC Scan Agent - Installer
+echo ============================================
+echo.
+
+:: ตรวจ Python
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] ไม่พบ Python
+    echo กรุณาดาวน์โหลดและติดตั้ง Python จาก https://www.python.org/downloads/
+    echo ^(อย่าลืมติ๊ก "Add Python to PATH"^)
+    pause
+    exit /b 1
+)
+
+echo [1/2] กำลังติดตั้งไลบรารี...
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+if errorlevel 1 (
+    echo [ERROR] ติดตั้งไลบรารีไม่สำเร็จ
+    pause
+    exit /b 1
+)
+
+echo.
+echo [2/2] ติดตั้งเสร็จ!
+echo.
+echo ===== ขั้นตอนถัดไป =====
+echo 1. แก้ค่าใน scan_agent.py:
+echo    - DEVICE_IP    = IP เครื่องสแกน
+echo    - DEVICE_SERIAL = Serial จากหน้าจอ TAS Time
+echo    - DEVICE_BRANCH = รหัสสาขา
+echo    - DEVICE_NAME  = ชื่อเครื่อง
+echo 2. ดับเบิลคลิก start.bat เพื่อเริ่มใช้งาน
+echo.
+pause
+`;
+            }
+
+            function getStartBatContent() {
+                return `@echo off
+chcp 65001 >nul
+title HRBTC Scan Agent
+cd /d "%~dp0"
+echo Starting HRBTC Scan Agent...
+python scan_agent.py
+pause
+`;
+            }
+
+            function getAgentReadmeContent() {
+                return `HRBTC Scan Agent
+=================
+
+1) แก้ค่าใน scan_agent.py:
+   - DEVICE_IP
+   - DEVICE_SERIAL
+   - DEVICE_BRANCH
+   - DEVICE_NAME
+
+2) ดับเบิลคลิก start.bat
+
+3) กด Ctrl+C ในหน้าต่างเพื่อหยุด
+
+ต้องการให้ agent เปิดอัตโนมัติตอน Windows boot?
+- กด Win+R พิมพ์ shell:startup
+- สร้าง shortcut ของ start.bat ไปวาง
+`;
             }
 
             // ฟังก์ชันล้างสถานะและ UI ของการนำเข้าเวลางาน .txt เพื่อพร้อมเริ่มงานใหม่
