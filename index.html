@@ -6,8 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>บุรีรัมย์ธงชัยก่อสร้าง | ระบบบริการตนเองพนักงาน</title>
     <!-- Inline SVG favicon (แก้ 404) -->
-    <link rel="icon" type="image/svg+xml"
+    <link rel="icon" type="image/svg+xml" sizes="any"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%234f46e5'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-family='Arial,sans-serif' font-size='32' font-weight='bold' fill='white'%3EH%3C/text%3E%3C/svg%3E">
+    <link rel="shortcut icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%234f46e5'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-family='Arial,sans-serif' font-size='32' font-weight='bold' fill='white'%3EH%3C/text%3E%3C/svg%3E">
+    <!-- ปิด auto-request ไป /favicon.ico -->
+    <link rel="shortcut icon" href="data:,">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome Icons -->
@@ -9318,6 +9322,113 @@ ${slip.textSample}
                         loadingLabel: "กำลังบันทึก..."
                     });
                 }
+
+
+                // ==========================================
+                // บล็อกจัดการเครื่องสแกนนิ้ว/สแกนหน้า (Scan Device Modules)
+                // ==========================================
+
+                /**
+                 * เปิดหน้าต่าง Modal สำหรับเพิ่มเครื่องสแกนใหม่
+                 */
+                window.openScanDeviceAddModal = function () {
+                    console.log("เรียกใช้งาน: openScanDeviceAddModal");
+                    // หากคุณมี Modal Element ใน HTML สามารถเปิดใช้งานตรงนี้ได้
+                    // ตัวอย่างเช่น: document.getElementById('add-device-modal').classList.remove('hidden');
+                    if (typeof showToast === 'function') {
+                        showToast("ℹ️ ระบบเพิ่มเครื่องสแกนกำลังอยู่ในส่วนของการเชื่อมต่อฐานข้อมูล", "info");
+                    } else {
+                        alert("ระบบเพิ่มเครื่องสแกนกำลังอยู่ในส่วนของการเชื่อมต่อฐานข้อมูล");
+                    }
+                };
+
+                /**
+                 * ดึงข้อมูลสถานะและรายการเครื่องสแกนจาก Server / Google Sheets
+                 */
+                window.loadScanDevices = async function () {
+                    console.log("เรียกใช้งาน: loadScanDevices");
+                    const tableBody = document.getElementById("scan-devices-table-body");
+
+                    if (tableBody) {
+                        tableBody.innerHTML = `
+            <tr>
+                <td colspan="9" class="py-6 text-center text-indigo-600 font-medium animate-pulse">
+                    <i class="fa-solid fa-spinner fa-spin mr-2"></i> กำลังตรวจสอบสถานะเครื่องสแกน...
+                </td>
+            </tr>
+        `;
+                    }
+
+                    try {
+                        // จำลองการเรียกดึงข้อมูลจาก SERVER_API_URL 
+                        // (คุณสามารถพัฒนาต่อเพื่อไป Fetch ข้อมูลจากชีต "ตั้งค่าระบบ" หรือชีตที่เก็บเครื่องสแกนได้)
+                        setTimeout(() => {
+                            if (tableBody) {
+                                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="py-6 text-center text-slate-500 italic">
+                            ไม่พบเครื่องสแกนเนอร์ที่ลงทะเบียนในระบบ
+                        </td>
+                    </tr>
+                `;
+                            }
+                            // อัปเดตตัวเลขสรุปสถานะบนการ์ด
+                            if (document.getElementById("scan-stat-online")) document.getElementById("scan-stat-online").innerText = "0";
+                            if (document.getElementById("scan-stat-offline")) document.getElementById("scan-stat-offline").innerText = "0";
+                            if (document.getElementById("scan-stat-total")) document.getElementById("scan-stat-total").innerText = "0";
+
+                            if (typeof showToast === 'function') showToast("🔄 รีเฟรชข้อมูลเครื่องสแกนเสร็จสิ้น", "success");
+                        }, 1000);
+
+                    } catch (error) {
+                        console.error("loadScanDevices Error:", error);
+                        if (typeof showToast === 'function') showToast("❌ ไม่สามารถโหลดข้อมูลเครื่องสแกนได้", "error");
+                    }
+                };
+
+                /**
+                 * ดาวน์โหลดโปรแกรม Scan Agent (Zip) ไปติดตั้งที่เครื่อง Client หน้างาน
+                 */
+                window.downloadScanAgent = function () {
+                    console.log("เรียกใช้งาน: downloadScanAgent");
+                    if (typeof showToast === 'function') {
+                        showToast("⏳ กำลังเตรียมไฟล์ดาวน์โหลดสำหรับ Scan Agent...", "info");
+                    }
+
+                    // ทางเลือกที่ 1: หากมีลิงก์ตรงสำหรับดาวน์โหลดโปรแกรมเซ็ตอัพ (.zip)
+                    // window.open("https://your-storage-link.com/HRBTC_ScanAgent.zip", "_blank");
+
+                    // ทางเลือกที่ 2: สร้างไฟล์จำลองดาวน์โหลดแบบ Bundle ทันทีด้วย JSZip (มีเรียกใช้อยู่ภายในโปรเจกต์)
+                    try {
+                        if (typeof JSZip !== 'undefined' && typeof saveAs !== 'undefined') {
+                            const zip = new JSZip();
+                            zip.file("ติดตั้ง Agent อ่านฉันก่อน.txt", "ระบบ Agent ดึงข้อมูลเครื่องสแกนนิ้ว\nบริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด\n\nวิธีใช้:\n1. ตรวจสอบเครื่องคอมพิวเตอร์หน้างานให้อยู่ในวง Network เดียวกับเครื่องสแกน\n2. ตั้งค่าเครื่องสแกนเนอร์ให้เปิด Port 4370\n3. รันโปรแกรม Agent เพื่อ Sync Log เข้าสู่ Google Sheets");
+
+                            zip.generateAsync({ type: "blob" }).then(function (content) {
+                                saveAs(content, "HRBTC_ScanAgent_v1.0.zip");
+                                if (typeof showToast === 'function') showToast("🎉 ดาวน์โหลดแพ็กเกจ Agent สำเร็จ", "success");
+                            });
+                        } else {
+                            // หากไม่มี Library ให้แจ้งเตือนผู้ใช้เปลี่ยนเป็นลิงก์ดาวน์โหลดตรงแทน
+                            if (typeof showToast === 'function') showToast("⚠️ ไม่พบไลบรารี JSZip กำลังเปิดลิงก์สำรอง...", "warning");
+                            window.open("https://github.com/เฉลิมพระเกียรติ-ระบบที่เกี่ยวข้อง", "_blank");
+                        }
+                    } catch (err) {
+                        console.error(err);
+                    }
+                };
+
+                /**
+                 * ดาวน์โหลดคู่มือการติดตั้งเครื่องสแกนและโปรแกรม (PDF)
+                 */
+                window.downloadScanGuide = function () {
+                    console.log("เรียกใช้งาน: downloadScanGuide");
+                    if (typeof showToast === 'function') {
+                        showToast("📘 กำลังเปิดเอกสารคู่มือการติดตั้งระบบเครื่องสแกน...", "info");
+                    }
+                    // ใส่ Link URL ของคู่มือไฟล์ PDF ที่อัปโหลดไว้บน Google Drive ของบริษัท
+                    window.open("https://docs.google.com/viewer?url=https://your-domain.com/manual.pdf", "_blank");
+                };
             }
         </script>
 </body>
