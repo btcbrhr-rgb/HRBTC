@@ -7514,17 +7514,20 @@
                 }
 
                 /**
- * เปิด modal เพิ่มเครื่องสแกนใหม่ — แสดงคำแนะนำ + ปุ่มดาวน์โหลด Agent
- */
+                 * เปิด modal เพิ่มเครื่องสแกนใหม่ — แสดงคำแนะนำ + ปุ่มดาวน์โหลด Agent
+                 */
                 window.openScanDeviceAddModal = function () {
+                    // ป้องกันการเปิดซ้อนกัน (ถ้ามี modal เปิดอยู่แล้วไม่ต้องทำอะไร)
+                    if (document.getElementById('scan-device-modal-container')) return;
+
                     const html = `
-    <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+    <div id="scan-device-modal-container" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
                     <i class="fa-solid fa-plus-circle text-indigo-600"></i> เพิ่มเครื่องสแกนนิ้วใหม่
                 </h3>
-                <button onclick="this.closest('.fixed').remove()" class="text-slate-400 hover:text-slate-600">
+                <button onclick="document.getElementById('scan-device-modal-container').remove()" class="text-slate-400 hover:text-slate-600">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
@@ -7548,34 +7551,40 @@
             </div>
 
             <div class="flex gap-2 pt-2">
-                <button onclick="if(window.downloadScanAgent){ window.downloadScanAgent(); } this.closest('.fixed').remove();" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                <button onclick="if(window.downloadScanAgent){ window.downloadScanAgent(); } document.getElementById('scan-device-modal-container').remove();" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
                     <i class="fa-solid fa-download"></i> ดาวน์โหลด Agent
                 </button>
-                <button onclick="if(window.downloadScanGuide){ window.downloadScanGuide(); } this.closest('.fixed').remove();" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                <button onclick="if(window.downloadScanGuide){ window.downloadScanGuide(); } document.getElementById('scan-device-modal-container').remove();" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
                     <i class="fa-solid fa-book"></i> คู่มือ
                 </button>
             </div>
         </div>
     </div>`;
 
-                    const div = document.createElement('div');
-                    div.innerHTML = html;
-                    document.body.appendChild(div.firstElementChild);
+                    // ใช้insertAdjacentHTML เพื่อดัน Element เข้า Body โดยตรง ไม่ต้องสร้าง div เปล่าครอบ
+                    document.body.insertAdjacentHTML('beforeend', html);
                 };
 
-                // ดักจับ Event ป้องกันกรณีที่ปุ่ม HTML ถูกโหลดขึ้นมาก่อนที่ Script ตัวนี้จะทำงานเสร็จ
-                document.addEventListener("DOMContentLoaded", function () {
-                    const addBtn = document.getElementById("scan-device-add-btn");
-                    if (addBtn) {
-                        addBtn.addEventListener("click", function (e) {
-                            // ป้องกันไม่ให้เกิดการเรียกซ้ำซ้อนถ้า onclick ใน HTML ทำงานไปแล้ว
-                            if (typeof window.openScanDeviceAddModal === "function") {
+                // เผื่อไว้กรณีปุ่ม HTML เรียกหาฟังก์ชันไม่เจอ ให้ดักจับจาก ID ปุ่มโดยตรง
+                (function () {
+                    const attachEvent = () => {
+                        const addBtn = document.getElementById("scan-device-add-btn");
+                        if (addBtn) {
+                            // ล้าง onclick เดิมจาก HTML ออกเพื่อไม่ให้ตีกัน
+                            addBtn.removeAttribute('onclick');
+                            addBtn.addEventListener("click", function (e) {
                                 e.preventDefault();
                                 window.openScanDeviceAddModal();
-                            }
-                        });
+                            });
+                        }
+                    };
+
+                    if (document.readyState === "loading") {
+                        document.addEventListener("DOMContentLoaded", attachEvent);
+                    } else {
+                        attachEvent();
                     }
-                });
+                })();
 
                 /**
                  * ลบเครื่องสแกนออกจากระบบ
