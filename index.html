@@ -81,6 +81,72 @@
         #bottom-nav {
             padding-bottom: calc(0.625rem + env(safe-area-inset-bottom, 0));
         }
+
+        /* === Login Loading Overlay === */
+        #login-loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.35s ease;
+        }
+        #login-loading-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+        /* Spinning ring */
+        .login-spinner {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: 3px solid rgba(99,102,241,0.25);
+            border-top-color: #6366f1;
+            animation: loginSpin 0.9s linear infinite;
+        }
+        @keyframes loginSpin {
+            to { transform: rotate(360deg); }
+        }
+        /* Shimmer bar */
+        .login-shimmer-bar {
+            border-radius: 8px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.05) 75%);
+            background-size: 200% 100%;
+            animation: loginShimmer 1.5s ease-in-out infinite;
+        }
+        @keyframes loginShimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        /* Fade in up for welcome text */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .login-fade-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+        /* Dots progress */
+        .login-dots span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #6366f1;
+            animation: loginDot 1.2s ease-in-out infinite;
+        }
+        .login-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .login-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes loginDot {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40%            { opacity: 1;   transform: scale(1.2); }
+        }
     </style>
     <script>
         const COMPANY_INFO = {
@@ -536,6 +602,49 @@
             <div class="text-center space-y-4">
                 <p id="company-copyright" class="text-[10px] text-slate-600">© 2026 บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด.
                     All Rights Reserved.</p>
+            </div>
+
+            <!-- === Login Loading Overlay (แสดงระหว่างดึงข้อมูลพนักงาน) === -->
+            <div id="login-loading-overlay">
+                <!-- พื้นหลัง blobs -->
+                <div style="position:absolute;top:-60px;left:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(99,102,241,0.18) 0%,transparent 70%);border-radius:50%;"></div>
+                <div style="position:absolute;bottom:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(139,92,246,0.15) 0%,transparent 70%);border-radius:50%;"></div>
+
+                <!-- เนื้อหาตรงกลาง -->
+                <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:28px;padding:0 32px;width:100%;">
+
+                    <!-- โลโก้ + spinner รอบ -->
+                    <div style="position:relative;width:88px;height:88px;display:flex;align-items:center;justify-content:center;">
+                        <div class="login-spinner" style="position:absolute;inset:0;"></div>
+                        <div style="width:68px;height:68px;border-radius:18px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px;">
+                            <img id="company-logo-loading" src="https://img2.pic.in.th/pic/Screenshot-2025-03-03-132721e6cc77cbcea28f01.png" alt="logo" style="width:100%;height:100%;object-fit:contain;">
+                        </div>
+                    </div>
+
+                    <!-- ข้อความต้อนรับ -->
+                    <div class="login-fade-in" style="text-align:center;">
+                        <p style="font-size:11px;letter-spacing:0.15em;color:rgba(165,180,252,0.8);text-transform:uppercase;font-weight:600;margin-bottom:6px;">กำลังโหลดข้อมูล</p>
+                        <p id="login-loading-name" style="font-size:18px;font-weight:700;color:#ffffff;margin-bottom:4px;"></p>
+                        <p id="login-loading-sub" style="font-size:12px;color:rgba(199,210,254,0.65);">กำลังดึงข้อมูลพนักงาน กรุณารอสักครู่...</p>
+                    </div>
+
+                    <!-- Skeleton Cards -->
+                    <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
+                        <div class="login-shimmer-bar" style="height:38px;width:100%;"></div>
+                        <div style="display:flex;gap:10px;">
+                            <div class="login-shimmer-bar" style="height:60px;flex:1;"></div>
+                            <div class="login-shimmer-bar" style="height:60px;flex:1;"></div>
+                        </div>
+                        <div class="login-shimmer-bar" style="height:38px;width:75%;"></div>
+                    </div>
+
+                    <!-- Dots loader -->
+                    <div class="login-dots" style="display:flex;gap:8px;align-items:center;">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -3718,7 +3827,7 @@
             }
 
 
-            function autoLoginAndNavigate(empData, navigateToPage = null) {
+            async function autoLoginAndNavigate(empData, navigateToPage = null) {
                 isLoggedIn = true;
                 employeeData = empData || {};
                 if (employeeData && employeeData["รหัสพนักงาน"]) {
@@ -3727,15 +3836,15 @@
                 localStorage.setItem("hr_emp_id", currentEmployeeId);
                 // ใช้ sessionStorage สำหรับ login status - ล้างเมื่อปิดเบราว์เซอร์
                 sessionStorage.setItem("is_logged_in", "true");
-                hideLoginContainer();
+                // แสดง loading overlay บนหน้า login รอโหลดข้อมูลก่อน
+                showLoginLoading(employeeData["ชื่อ-นามสกุล"] || "");
                 generateCycleOptions();
                 const currentCycle = getCurrentCycleRange();
                 document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                loadAllData();
-                if (navigateToPage || targetPage) {
-                    navigateTo(navigateToPage || targetPage);
-                }
+                await loadAllData();
+                hideLoginContainer();
+                navigateTo(navigateToPage || targetPage || "home");
             }
 
 
@@ -3762,13 +3871,15 @@
                         return;
                     }
 
-                    // No PIN needed, login directly
-                    hideLoginContainer();
+                    // No PIN needed, login directly — แสดง loading overlay บนหน้า login รอข้อมูลก่อน
+                    showLoginContainer();
+                    showLoginLoading(savedEmpId);
                     generateCycleOptions();
                     const currentCycle = getCurrentCycleRange();
                     document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                     document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                    loadAllData();
+                    await loadAllData();
+                    hideLoginContainer();
                     navigateTo("home");
                     return;
                 }
@@ -3797,11 +3908,36 @@
             function hideLoginContainer() {
                 const loginCont = document.getElementById("login-container");
                 const bottomNav = document.getElementById("bottom-nav");
+                // ซ่อน loading overlay ก่อน (ถ้ากำลังแสดงอยู่)
+                const overlay = document.getElementById("login-loading-overlay");
+                if (overlay) overlay.classList.remove("visible");
                 loginCont.classList.add("opacity-0");
                 setTimeout(() => {
                     loginCont.classList.add("hidden");
                     if (bottomNav) bottomNav.classList.remove("hidden");
-                }, 300);
+                }, 350);
+            }
+
+            /**
+             * แสดง loading overlay บนหน้า login ขณะกำลังดึงข้อมูลพนักงาน
+             * @param {string} [name] - ชื่อพนักงานที่จะแสดง (ถ้ามี)
+             */
+            function showLoginLoading(name) {
+                const overlay = document.getElementById("login-loading-overlay");
+                if (!overlay) return;
+                const nameEl = document.getElementById("login-loading-name");
+                const subEl  = document.getElementById("login-loading-sub");
+                if (nameEl) nameEl.textContent = name ? `คุณ ${name}` : "";
+                if (subEl)  subEl.textContent  = name
+                    ? "กำลังโหลดข้อมูลของคุณ กรุณารอสักครู่..."
+                    : "กำลังดึงข้อมูลพนักงาน กรุณารอสักครู่...";
+                // Sync logo กับ company logo ที่โหลดแล้ว
+                const mainLogo    = document.getElementById("company-logo");
+                const loadingLogo = document.getElementById("company-logo-loading");
+                if (mainLogo && loadingLogo && mainLogo.src) {
+                    loadingLogo.src = mainLogo.src;
+                }
+                overlay.classList.add("visible");
             }
 
             function setLoginQuick(empId) {
@@ -3845,14 +3981,16 @@
                             return;
                         }
 
-                        showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
-                        hideLoginContainer();
+                        // แสดง loading overlay บนหน้า login แล้วรอโหลดข้อมูลก่อน
+                        showLoginLoading(employeeData["ชื่อ-นามสกุล"] || empIdInput);
                         generateCycleOptions();
                         const currentCycle = getCurrentCycleRange();
                         document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                         document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                        loadAllData();
+                        await loadAllData();
+                        hideLoginContainer();
                         navigateTo("home");
+                        showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
                     } else {
                         showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
                     }
@@ -3984,13 +4122,16 @@
                 });
             }
 
-            function proceedToMainApp() {
-                hideLoginContainer();
+            async function proceedToMainApp() {
+                // แสดง loading overlay บนหน้า login ขณะดึงข้อมูล
+                showLoginContainer();
+                showLoginLoading(currentEmployeeId);
                 updateCalendarCycleUI();
                 const currentCycle = getCurrentCycleRange();
                 document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                loadAllData();
+                await loadAllData();
+                hideLoginContainer();
                 navigateTo("home");
             }
 
