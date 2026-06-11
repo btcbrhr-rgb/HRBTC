@@ -644,6 +644,11 @@
                         <span></span>
                         <span></span>
                     </div>
+
+                    <!-- Retry Button on failure -->
+                    <button id="login-loading-retry-btn" onclick="retryLoginLoad()" class="hidden btn-press px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold text-xs shadow-md transition-all mt-2 z-20">
+                        <i class="fa-solid fa-rotate-right mr-1.5 animate-spin-once"></i> ดึงข้อมูลไม่สำเร็จ กดลองใหม่
+                    </button>
                 </div>
             </div>
 
@@ -3842,9 +3847,16 @@
                 const currentCycle = getCurrentCycleRange();
                 document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                await loadAllData();
-                hideLoginContainer();
-                navigateTo(navigateToPage || targetPage || "home");
+                const success = await loadAllData();
+                if (success) {
+                    hideLoginContainer();
+                    navigateTo(navigateToPage || targetPage || "home");
+                } else {
+                    const retryBtn = document.getElementById("login-loading-retry-btn");
+                    if (retryBtn) retryBtn.classList.remove("hidden");
+                    const subEl = document.getElementById("login-loading-sub");
+                    if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+                }
             }
 
 
@@ -3878,9 +3890,16 @@
                     const currentCycle = getCurrentCycleRange();
                     document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                     document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                    await loadAllData();
-                    hideLoginContainer();
-                    navigateTo("home");
+                    const success = await loadAllData();
+                    if (success) {
+                        hideLoginContainer();
+                        navigateTo("home");
+                    } else {
+                        const retryBtn = document.getElementById("login-loading-retry-btn");
+                        if (retryBtn) retryBtn.classList.remove("hidden");
+                        const subEl = document.getElementById("login-loading-sub");
+                        if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+                    }
                     return;
                 }
 
@@ -3931,6 +3950,9 @@
                 if (subEl)  subEl.textContent  = name
                     ? "กำลังโหลดข้อมูลของคุณ กรุณารอสักครู่..."
                     : "กำลังดึงข้อมูลพนักงาน กรุณารอสักครู่...";
+                // ซ่อนปุ่มลองใหม่ทุกครั้งที่แสดง loading
+                const retryBtn = document.getElementById("login-loading-retry-btn");
+                if (retryBtn) retryBtn.classList.add("hidden");
                 // Sync logo กับ company logo ที่โหลดแล้ว
                 const mainLogo    = document.getElementById("company-logo");
                 const loadingLogo = document.getElementById("company-logo-loading");
@@ -3938,6 +3960,25 @@
                     loadingLogo.src = mainLogo.src;
                 }
                 overlay.classList.add("visible");
+            }
+
+            /**
+             * ฟังก์ชันลองใหม่เมื่อโหลดข้อมูลล้มเหลว
+             */
+            async function retryLoginLoad() {
+                const retryBtn = document.getElementById("login-loading-retry-btn");
+                if (retryBtn) retryBtn.classList.add("hidden");
+                const subEl = document.getElementById("login-loading-sub");
+                if (subEl) subEl.textContent = "กำลังดึงข้อมูลพนักงาน กรุณารอสักครู่...";
+                
+                const success = await loadAllData();
+                if (success) {
+                    hideLoginContainer();
+                    navigateTo("home");
+                } else {
+                    if (retryBtn) retryBtn.classList.remove("hidden");
+                    if (subEl) subEl.textContent = "ดึงข้อมูลจากชีตล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+                }
             }
 
             function setLoginQuick(empId) {
@@ -3987,10 +4028,17 @@
                         const currentCycle = getCurrentCycleRange();
                         document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                         document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                        await loadAllData();
-                        hideLoginContainer();
-                        navigateTo("home");
-                        showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
+                        const success = await loadAllData();
+                        if (success) {
+                            hideLoginContainer();
+                            navigateTo("home");
+                            showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
+                        } else {
+                            const retryBtn = document.getElementById("login-loading-retry-btn");
+                            if (retryBtn) retryBtn.classList.remove("hidden");
+                            const subEl = document.getElementById("login-loading-sub");
+                            if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+                        }
                     } else {
                         showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
                     }
@@ -4101,6 +4149,10 @@
                         closeModal("pin-login-modal");
                         document.getElementById("pin-login-input").value = "";
                         showToast("🔓 ยินดีต้อนรับกลับมา!", "success");
+                        // บันทึกสถานะการล็อกอินลงในตัวแปรและ session
+                        isLoggedIn = true;
+                        currentEmployeeId = empId;
+                        sessionStorage.setItem("is_logged_in", "true");
                         proceedToMainApp();
                     } else {
                         const count = (lockData?.count || 0) + 1;
@@ -4130,9 +4182,16 @@
                 const currentCycle = getCurrentCycleRange();
                 document.getElementById("home-cycle-range").textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                await loadAllData();
-                hideLoginContainer();
-                navigateTo("home");
+                const success = await loadAllData();
+                if (success) {
+                    hideLoginContainer();
+                    navigateTo("home");
+                } else {
+                    const retryBtn = document.getElementById("login-loading-retry-btn");
+                    if (retryBtn) retryBtn.classList.remove("hidden");
+                    const subEl = document.getElementById("login-loading-sub");
+                    if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+                }
             }
 
             function startLockoutCountdown() {
@@ -4157,7 +4216,7 @@
 
             // --- ส่วนบริการดึงข้อมูลและ API (API Services) ---
             async function loadAllData() {
-                if (!isLoggedIn) return;
+                if (!isLoggedIn) return false;
 
                 showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
                 document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
@@ -4206,6 +4265,7 @@
                         showToast("✅ อัปเดตข้อมูลสำเร็จ", "success");
                         displayMonthlyReminders();
                         displayAnnouncements();
+                        return true;
                     } else {
                         throw new Error(response ? response.message : "โครงสร้างข้อมูลตอบกลับไม่ถูกต้อง");
                     }
@@ -4217,6 +4277,7 @@
                     } else {
                         showToast("❌ ดึงข้อมูลขัดข้อง กรุณาตรวจสอบการเชื่อมต่อ", "error");
                     }
+                    return false;
                 }
             }
 
