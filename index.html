@@ -3724,11 +3724,20 @@
                 return `${safeId}<div class="text-[11px] text-slate-400">${escapeHtml(name)}</div>`;
             }
 
+            function getApprovalDocIdValue(req) {
+                const raw = (req['เลขที่เอกสาร'] || req['เลขที่'] || '').toString().trim();
+                if (!raw) return 0;
+                const digits = raw.match(/\d+/g);
+                if (digits && digits.length) {
+                    return Number(digits.join('')) || 0;
+                }
+                return raw.toUpperCase();
+            }
+
             function getApprovalDateValue(type, req) {
                 const fieldOrder = {
-                    leave: ['วันที่ส่ง', 'วันที่เริ่ม', 'วันที่'],
-                    correction: ['วันที่ส่ง', 'วันที่'],
-                    advance: ['วันที่เบิก', 'วันที่']
+                    correction: ['วันที่'],
+                    advance: ['วันที่ส่ง', 'วันที่เบิก']
                 };
                 const fields = fieldOrder[type] || ['วันที่'];
                 for (const field of fields) {
@@ -3738,6 +3747,13 @@
                     if (!Number.isNaN(parsed)) return parsed;
                 }
                 return 0;
+            }
+
+            function getApprovalSortValue(type, req) {
+                if (type === 'leave') {
+                    return getApprovalDocIdValue(req);
+                }
+                return getApprovalDateValue(type, req);
             }
 
             function getApprovalRowKey(type, recordData) {
@@ -6685,7 +6701,14 @@
 
                     if (leaveRes.status === 'success') {
                         const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ')
-                            .sort((a, b) => getApprovalDateValue('leave', b) - getApprovalDateValue('leave', a));
+                            .sort((a, b) => {
+                                const aVal = getApprovalDocIdValue(a);
+                                const bVal = getApprovalDocIdValue(b);
+                                if (typeof aVal === 'number' && typeof bVal === 'number') return bVal - aVal;
+                                if (typeof aVal === 'number') return -1;
+                                if (typeof bVal === 'number') return 1;
+                                return bVal.toString().localeCompare(aVal.toString(), undefined, { numeric: true, sensitivity: 'base' });
+                            });
                         leavePendingCount = pending.length;
                         const rows = pending.map(req => {
                             const docId = req["เลขที่เอกสาร"] || "N/A";
@@ -6752,7 +6775,7 @@
 
                     if (corrRes.status === 'success') {
                         const pending = corrRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ')
-                            .sort((a, b) => getApprovalDateValue('correction', b) - getApprovalDateValue('correction', a));
+                            .sort((a, b) => getApprovalSortValue('correction', b) - getApprovalSortValue('correction', a));
                         corrPendingCount = pending.length;
                         const rows = pending.map(req => {
                             const empId = req["รหัสพนักงาน"] || "N/A";
@@ -6812,7 +6835,7 @@
 
                     if (advRes.status === 'success') {
                         const pending = advRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ' || r["สถานะ"] === 'รอตรวจสอบ')
-                            .sort((a, b) => getApprovalDateValue('advance', b) - getApprovalDateValue('advance', a));
+                            .sort((a, b) => getApprovalSortValue('advance', b) - getApprovalSortValue('advance', a));
                         advPendingCount = pending.length;
                         const rows = pending.map(req => {
                             const empId = req["รหัสพนักงาน"] || "N/A";
@@ -6959,7 +6982,17 @@
                     const res = await fetchWithTimeout(config[type].url);
                     if (res.status === 'success') {
                         const items = res.data.filter(r => r['สถานะ'] && r['สถานะ'] !== 'รออนุมัติ')
-                            .sort((a, b) => getApprovalDateValue(type, b) - getApprovalDateValue(type, a));
+                            .sort((a, b) => {
+                                if (type === 'leave') {
+                                    const aVal = getApprovalDocIdValue(a);
+                                    const bVal = getApprovalDocIdValue(b);
+                                    if (typeof aVal === 'number' && typeof bVal === 'number') return bVal - aVal;
+                                    if (typeof aVal === 'number') return -1;
+                                    if (typeof bVal === 'number') return 1;
+                                    return bVal.toString().localeCompare(aVal.toString(), undefined, { numeric: true, sensitivity: 'base' });
+                                }
+                                return getApprovalDateValue(type, b) - getApprovalDateValue(type, a);
+                            });
                         if (items.length === 0) {
                             bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
                             return;
