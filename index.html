@@ -3724,6 +3724,22 @@
                 return `${safeId}<div class="text-[11px] text-slate-400">${escapeHtml(name)}</div>`;
             }
 
+            function getApprovalDateValue(type, req) {
+                const fieldOrder = {
+                    leave: ['วันที่ส่ง', 'วันที่เริ่ม', 'วันที่'],
+                    correction: ['วันที่ส่ง', 'วันที่'],
+                    advance: ['วันที่เบิก', 'วันที่']
+                };
+                const fields = fieldOrder[type] || ['วันที่'];
+                for (const field of fields) {
+                    const rawValue = (req[field] || '').toString().trim();
+                    if (!rawValue) continue;
+                    const parsed = Date.parse(rawValue);
+                    if (!Number.isNaN(parsed)) return parsed;
+                }
+                return 0;
+            }
+
             function getApprovalRowKey(type, recordData) {
                 if (type === "leave") {
                     return recordData["เลขที่เอกสาร"] || "";
@@ -6668,7 +6684,8 @@
                     let leaveDueIn5 = 0;
 
                     if (leaveRes.status === 'success') {
-                        const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
+                        const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ')
+                            .sort((a, b) => getApprovalDateValue('leave', b) - getApprovalDateValue('leave', a));
                         leavePendingCount = pending.length;
                         const rows = pending.map(req => {
                             const docId = req["เลขที่เอกสาร"] || "N/A";
@@ -6734,7 +6751,8 @@
                     let corrDueIn5 = 0;
 
                     if (corrRes.status === 'success') {
-                        const pending = corrRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ');
+                        const pending = corrRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ')
+                            .sort((a, b) => getApprovalDateValue('correction', b) - getApprovalDateValue('correction', a));
                         corrPendingCount = pending.length;
                         const rows = pending.map(req => {
                             const empId = req["รหัสพนักงาน"] || "N/A";
@@ -6793,7 +6811,8 @@
                     let advDueIn5 = 0;
 
                     if (advRes.status === 'success') {
-                        const pending = advRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ' || r["สถานะ"] === 'รอตรวจสอบ');
+                        const pending = advRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ' || r["สถานะ"] === 'รอตรวจสอบ')
+                            .sort((a, b) => getApprovalDateValue('advance', b) - getApprovalDateValue('advance', a));
                         advPendingCount = pending.length;
                         const rows = pending.map(req => {
                             const empId = req["รหัสพนักงาน"] || "N/A";
@@ -6939,7 +6958,8 @@
                 try {
                     const res = await fetchWithTimeout(config[type].url);
                     if (res.status === 'success') {
-                        const items = res.data.filter(r => r['สถานะ'] && r['สถานะ'] !== 'รออนุมัติ');
+                        const items = res.data.filter(r => r['สถานะ'] && r['สถานะ'] !== 'รออนุมัติ')
+                            .sort((a, b) => getApprovalDateValue(type, b) - getApprovalDateValue(type, a));
                         if (items.length === 0) {
                             bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
                             return;
