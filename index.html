@@ -3736,8 +3736,8 @@
 
             function getApprovalDateValue(type, req) {
                 const fieldOrder = {
-                    correction: ['วันที่'],
-                    advance: ['วันที่ส่ง', 'วันที่เบิก']
+                    correction: ['วันที่ส่ง', 'วันที่'],
+                    advance: ['วันที่ส่ง', 'วันที่ส่งคำขอ', 'วันที่เบิก']
                 };
                 const fields = fieldOrder[type] || ['วันที่'];
                 for (const field of fields) {
@@ -3767,6 +3767,31 @@
                     return `${recordData["รหัสพนักงาน"] || ""}::${recordData["วันที่เบิก"] || ""}::${recordData["จำนวนเงิน"] || ""}`;
                 }
                 return "";
+            }
+
+            function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize = 40) {
+                bodyEl.innerHTML = '';
+                if (!Array.isArray(rowsHtml) || rowsHtml.length === 0) {
+                    bodyEl.innerHTML = `<tr><td colspan="${colspan}" class="py-6 text-center text-slate-500">${escapeHtml(emptyMessage)}</td></tr>`;
+                    return;
+                }
+
+                let index = 0;
+                const total = rowsHtml.length;
+                const range = document.createRange();
+
+                const appendChunk = () => {
+                    const fragment = document.createDocumentFragment();
+                    const end = Math.min(index + chunkSize, total);
+                    for (; index < end; index++) {
+                        const rowFragment = range.createContextualFragment(rowsHtml[index]);
+                        fragment.appendChild(rowFragment);
+                    }
+                    bodyEl.appendChild(fragment);
+                    if (index < total) requestAnimationFrame(appendChunk);
+                };
+
+                appendChunk();
             }
 
             function decreaseApprovalBadgeCount(type) {
@@ -6753,7 +6778,7 @@
                                     </td>
                 </tr>`;
                         });
-                        leaveContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="10" class="py-6 text-center text-slate-500">ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้</td></tr>`;
+                        renderRowsInChunks(leaveContainer, rows, 'ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้', 10);
                     } else {
                         leaveContainer.innerHTML = `<tr><td colspan="10" class="py-6 text-center text-rose-600">❌ ${escapeHtml(leaveRes.message || 'โหลดข้อมูลใบลาล้มเหลว')}</td></tr>`;
                     }
@@ -6813,7 +6838,7 @@
                   </td>
                 </tr>`;
                         });
-                        correctionContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ</td></tr>`;
+                        renderRowsInChunks(correctionContainer, rows, 'ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ', 9);
                     } else {
                         correctionContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
                     }
@@ -6873,7 +6898,7 @@
                   </td>
                 </tr>`;
                         });
-                        advanceContainer.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="8" class="py-6 text-center text-slate-500">ไม่มีคำขอเบิกเงินที่รอการอนุมัติ</td></tr>`;
+                        renderRowsInChunks(advanceContainer, rows, 'ไม่มีคำขอเบิกเงินที่รอการอนุมัติ', 8);
                     } else {
                         advanceContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(advRes.message || 'โหลดข้อมูลคำขอเบิกเงินไม่สำเร็จ')}</td></tr>`;
                     }
@@ -6997,7 +7022,7 @@
                             bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
                             return;
                         }
-                        bodyEl.innerHTML = items.map(req => config[type].buildRow(req)).join('');
+                        renderRowsInChunks(bodyEl, items.map(req => config[type].buildRow(req)), 'ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้', 6);
                     } else {
                         bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ ${escapeHtml(res.message)}</td></tr>`;
                     }
