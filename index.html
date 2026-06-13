@@ -3726,12 +3726,16 @@
 
             function getApprovalDocIdValue(req) {
                 const raw = (req['เลขที่เอกสาร'] || req['เลขที่'] || '').toString().trim();
-                if (!raw) return 0;
-                const digits = raw.match(/\d+/g);
-                if (digits && digits.length) {
-                    return Number(digits.join('')) || 0;
-                }
-                return raw.toUpperCase();
+                return raw;
+            }
+
+            function compareApprovalDocIdsDescending(a, b) {
+                const aId = getApprovalDocIdValue(a);
+                const bId = getApprovalDocIdValue(b);
+                if (!aId && !bId) return 0;
+                if (!aId) return 1;
+                if (!bId) return -1;
+                return bId.localeCompare(aId, undefined, { numeric: true, sensitivity: 'base' });
             }
 
             function getApprovalDateValue(type, req) {
@@ -6726,14 +6730,7 @@
 
                     if (leaveRes.status === 'success') {
                         const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ')
-                            .sort((a, b) => {
-                                const aVal = getApprovalDocIdValue(a);
-                                const bVal = getApprovalDocIdValue(b);
-                                if (typeof aVal === 'number' && typeof bVal === 'number') return bVal - aVal;
-                                if (typeof aVal === 'number') return -1;
-                                if (typeof bVal === 'number') return 1;
-                                return bVal.toString().localeCompare(aVal.toString(), undefined, { numeric: true, sensitivity: 'base' });
-                            });
+                            .sort(compareApprovalDocIdsDescending);
                         leavePendingCount = pending.length;
                         const rows = pending.map(req => {
                             const docId = req["เลขที่เอกสาร"] || "N/A";
@@ -7009,12 +7006,7 @@
                         const items = res.data.filter(r => r['สถานะ'] && r['สถานะ'] !== 'รออนุมัติ')
                             .sort((a, b) => {
                                 if (type === 'leave') {
-                                    const aVal = getApprovalDocIdValue(a);
-                                    const bVal = getApprovalDocIdValue(b);
-                                    if (typeof aVal === 'number' && typeof bVal === 'number') return bVal - aVal;
-                                    if (typeof aVal === 'number') return -1;
-                                    if (typeof bVal === 'number') return 1;
-                                    return bVal.toString().localeCompare(aVal.toString(), undefined, { numeric: true, sensitivity: 'base' });
+                                    return compareApprovalDocIdsDescending(a, b);
                                 }
                                 return getApprovalDateValue(type, b) - getApprovalDateValue(type, a);
                             });
