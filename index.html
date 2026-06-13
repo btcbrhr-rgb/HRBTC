@@ -3875,6 +3875,74 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                 appendChunk();
             }
 
+            // โหลดข้อมูลตาราง Project Cost และเรนเดอร์ลงใน #project-cost-table-body
+            async function loadProjectCostSection() {
+                const tbody = document.getElementById('project-cost-table-body');
+                const selectedProjectEl = document.getElementById('project-cost-selected-project');
+                const totalHoursEl = document.getElementById('project-cost-total-hours');
+                const totalCostEl = document.getElementById('project-cost-total-cost');
+
+                if (!tbody) return;
+                tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic"><i class="fa-solid fa-spinner animate-spin text-indigo-500"></i> ⏳ กำลังโหลดข้อมูลเวลางานตามโครงการ...</td></tr>`;
+                if (selectedProjectEl) selectedProjectEl.textContent = 'กำลังโหลด...';
+                if (totalHoursEl) totalHoursEl.textContent = '0 ชม.';
+                if (totalCostEl) totalCostEl.textContent = '฿0';
+
+                try {
+                    // เรียก API ฝั่งเซิร์ฟเวอร์ (ปรับ action ตาม API จริงหากจำเป็น)
+                    const url = `${SERVER_API_URL}?action=getProjectCost&empId=${currentEmployeeId}`;
+                    const res = await fetchWithTimeout(url);
+
+                    if (!res || res.status !== 'success' || !Array.isArray(res.data)) {
+                        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(res?.message || 'ไม่พบข้อมูล')}</td></tr>`;
+                        if (selectedProjectEl) selectedProjectEl.textContent = 'ยังไม่เลือก';
+                        return;
+                    }
+
+                    const items = res.data;
+                    if (items.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ยังไม่มีข้อมูลเวลางานตามโครงการ</td></tr>`;
+                        if (selectedProjectEl) selectedProjectEl.textContent = 'ยังไม่เลือก';
+                        return;
+                    }
+
+                    // สร้างแถวและสรุปยอด
+                    tbody.innerHTML = '';
+                    let sumHours = 0;
+                    let sumCost = 0;
+                    items.forEach(rec => {
+                        const empId = escapeHtml(rec['รหัสพนักงาน'] || rec.empId || '-');
+                        const name = escapeHtml(rec['ชื่อ-นามสกุล'] || rec.name || '-');
+                        const project = escapeHtml(rec['โครงการ'] || rec.project || '-');
+                        const date = escapeHtml(formatThaiDate(rec['วันที่'] || rec.date) || '-');
+                        const hours = Number(rec['ชั่วโมง'] || rec.hours || 0) || 0;
+                        const cost = Number(rec['ต้นทุน'] || rec.cost || rec.totalCost || 0) || 0;
+
+                        sumHours += hours;
+                        sumCost += cost;
+
+                        const rowHtml = `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
+                  <td class="py-3 font-semibold text-slate-700">${empId}</td>
+                  <td class="py-3 text-slate-600">${name}</td>
+                  <td class="py-3 text-slate-600">${project}</td>
+                  <td class="py-3 text-slate-500">${date}</td>
+                  <td class="py-3 text-center text-slate-700">${hours.toFixed(2)}</td>
+                  <td class="py-3 text-slate-700 text-right">฿${cost.toLocaleString()}</td>
+                </tr>`;
+                        tbody.insertAdjacentHTML('beforeend', rowHtml);
+                    });
+
+                    if (selectedProjectEl) selectedProjectEl.textContent = items[0]['โครงการ'] || items[0].project || 'รวมทั้งหมด';
+                    if (totalHoursEl) totalHoursEl.textContent = `${(Math.round(sumHours*100)/100).toLocaleString()} ชม.`;
+                    if (totalCostEl) totalCostEl.textContent = `฿${Math.round(sumCost).toLocaleString()}`;
+
+                } catch (err) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ${escapeHtml(err.message || String(err))}</td></tr>`;
+                    if (selectedProjectEl) selectedProjectEl.textContent = 'ยังไม่เลือก';
+                }
+            }
+
             function decreaseApprovalBadgeCount(type) {
                 const badge = document.getElementById(`admin-menu-approve-${type}-badge`);
                 if (!badge) return;
