@@ -2479,7 +2479,7 @@
                                                     onchange="toggleSelectAllCorrection(this)"
                                                     aria-label="เลือกคำขอแก้ไขเวลาทั้งหมด">
                                             </th>
-                                            <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                                            <th class="py-2.5 font-semibold">พนักงาน</th>
                                             <th class="py-2.5 font-semibold">วันที่บันทึก</th>
                                             <th class="py-2.5 font-semibold">วันที่ขอแก้ไข</th>
                                             <th class="py-2.5 font-semibold">เวลาเข้าใหม่</th>
@@ -2514,7 +2514,7 @@
                                 <table class="w-full text-left text-xs border-collapse">
                                     <thead>
                                         <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                                            <th class="py-2.5 font-semibold">พนักงาน</th>
                                             <th class="py-2.5 font-semibold">วันที่</th>
                                             <th class="py-2.5 font-semibold">เวลาเข้าใหม่</th>
                                             <th class="py-2.5 font-semibold">เวลาออกใหม่</th>
@@ -2584,7 +2584,7 @@
                                                     onchange="toggleSelectAllAdvance(this)"
                                                     aria-label="เลือกคำขอเบิกเงินทั้งหมด">
                                             </th>
-                                            <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                                            <th class="py-2.5 font-semibold">พนักงาน</th>
                                             <th class="py-2.5 font-semibold">จำนวนเงินที่เบิก</th>
                                             <th class="py-2.5 font-semibold">วันที่ส่งคำขอ</th>
                                             <th class="py-2.5 font-semibold">รอบบัญชีเรียกชำระ</th>
@@ -2618,7 +2618,7 @@
                                 <table class="w-full text-left text-xs border-collapse">
                                     <thead>
                                         <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
+                                            <th class="py-2.5 font-semibold">พนักงาน</th>
                                             <th class="py-2.5 font-semibold">จำนวนเงิน</th>
                                             <th class="py-2.5 font-semibold">วันที่ส่ง</th>
                                             <th class="py-2.5 font-semibold">รอบจ่าย</th>
@@ -3692,6 +3692,37 @@
             let selectedLeaveItems = new Set(); // For batch leave approval
             let selectedCorrectionItems = new Set(); // For batch time correction approval
             let selectedAdvanceItems = new Set(); // For batch advance approval
+
+            async function fetchAdminEmployeeList() {
+                if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) return;
+                if (!currentEmployeeId) return;
+                try {
+                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`);
+                    if (res.status === 'success' && Array.isArray(res.data)) {
+                        adminEmployeesList = res.data;
+                    }
+                } catch (err) {
+                    console.warn('fetchAdminEmployeeList failed', err);
+                }
+            }
+
+            function getAdminEmployeeName(empId) {
+                if (!empId) return '';
+                const normalizedId = empId.toString().trim();
+                if (!normalizedId) return '';
+                const emp = adminEmployeesList.find(item => (item["รหัสพนักงาน"] || '').toString().trim() === normalizedId);
+                if (emp) {
+                    return emp["ชื่อ-นามสกุล"] || emp["ชื่อ"] || emp["name"] || '';
+                }
+                return '';
+            }
+
+            function getAdminEmployeeDisplay(empId, recordName) {
+                const name = (recordName || '').toString().trim() || getAdminEmployeeName(empId);
+                const safeId = escapeHtml(empId || 'N/A');
+                if (!name) return safeId;
+                return `${safeId}<div class="text-[11px] text-slate-400">${escapeHtml(name)}</div>`;
+            }
 
             function getApprovalRowKey(type, recordData) {
                 if (type === "leave") {
@@ -6582,6 +6613,8 @@
 
                 const safeJson = obj => JSON.stringify(obj).replace(/'/g, "\\'");
 
+                await fetchAdminEmployeeList();
+
                 const updateApprovalMenu = (menuId, badgeId, counts) => {
                     const menuBtn = document.getElementById(menuId);
                     const badge = document.getElementById(badgeId);
@@ -6656,13 +6689,15 @@
                                 else if (daysUntil === 3) leaveDueIn3++;
                                 else if (daysUntil === 5) leaveDueIn5++;
                             }
+                            const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
+                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
                             return `
                 <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
                   <td class="py-3">
                     <input type="checkbox" class="leave-checkbox" data-doc-id="${escapeHtml(docId)}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleLeaveItem(this)">
                   </td>
                   <td class="py-3 font-semibold text-slate-700">${docId}</td>
-                  <td class="py-3 text-slate-600">${empId}</td>
+                  <td class="py-3 text-slate-600">${empDisplay}</td>
                   <td class="py-3 text-slate-600 font-semibold">${type}</td>
                   <td class="py-3 text-slate-500">${range}</td>
                   <td class="py-3 text-center text-slate-700 font-bold">${days} วัน</td>
@@ -6715,12 +6750,14 @@
                                 else if (daysUntil === 5) corrDueIn5++;
                             }
                             const rowKey = `${empId}::${req["วันที่"]}`;
+                            const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
+                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
                             return `
                 <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(rowKey)}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
                   <td class="py-3">
                     <input type="checkbox" class="correction-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleCorrectionItem(this)">
                   </td>
-                  <td class="py-3 font-semibold text-slate-700">${empId}</td>
+                  <td class="py-3 font-semibold text-slate-700">${empDisplay}</td>
                   <td class="py-3 text-slate-600">${formatThaiDate(req["วันที่ส่ง"]) || "-"}</td>
                   <td class="py-3 text-slate-600">${date}</td>
                   <td class="py-3 text-emerald-600 font-semibold">${newIn}</td>
@@ -6773,12 +6810,14 @@
                                 else if (daysUntil === 5) advDueIn5++;
                             }
                             const rowKey = `${empId}::${req["วันที่เบิก"]}::${req["จำนวนเงิน"]}`;
+                            const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
+                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
                             return `
                 <tr data-approval-row-type="advance" data-approval-row-key="${escapeHtml(rowKey)}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
                   <td class="py-3">
                     <input type="checkbox" class="advance-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)">
                   </td>
-                  <td class="py-3 font-semibold text-slate-700">${empId}</td>
+                  <td class="py-3 font-semibold text-slate-700">${empDisplay}</td>
                   <td class="py-3 text-emerald-600 font-bold">฿${amount}</td>
                   <td class="py-3 text-slate-600">${date}</td>
                   <td class="py-3 text-slate-500">${cycle}</td>
@@ -6821,6 +6860,7 @@
             }
 
             async function loadAdminApprovalResults(type) {
+                await fetchAdminEmployeeList();
                 const config = {
                     leave: {
                         url: `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`,
@@ -6832,7 +6872,7 @@
                             return `
               <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
                 <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['เลขที่เอกสาร'] || 'N/A')}</td>
-                <td class="py-3 text-slate-600">${escapeHtml(req['รหัสพนักงาน'] || 'N/A')}</td>
+                <td class="py-3 text-slate-600">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
                 <td class="py-3 text-slate-700">${escapeHtml(req['ประเภทการลา'] || 'N/A')}</td>
                 <td class="py-3 text-slate-500">${escapeHtml(formatThaiDateShort(req['วันที่เริ่ม']) + ' - ' + formatThaiDateShort(req['วันที่สิ้นสุด']))}</td>
                 <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
@@ -6857,7 +6897,7 @@
                             const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
                             return `
               <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
-                <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['รหัสพนักงาน'] || 'N/A')}</td>
+                <td class="py-3 font-semibold text-slate-700">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
                 <td class="py-3 text-slate-600">${escapeHtml(formatThaiDate(req['วันที่']))}</td>
                 <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาเข้าใหม่'] || '-')}</td>
                 <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาออกใหม่'] || '-')}</td>
@@ -6881,7 +6921,7 @@
                             const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
                             return `
               <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
-                <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['รหัสพนักงาน'] || 'N/A')}</td>
+                <td class="py-3 font-semibold text-slate-700">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
                 <td class="py-3 text-emerald-600 font-bold">฿${Number(req['จำนวนเงิน'] || 0).toLocaleString()}</td>
                 <td class="py-3 text-slate-600">${escapeHtml(formatThaiDate(req['วันที่เบิก']))}</td>
                 <td class="py-3 text-slate-500">${escapeHtml(req['รอบจ่าย'] || '-')}</td>
