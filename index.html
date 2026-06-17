@@ -5851,10 +5851,17 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                     if (status === "รออนุมัติ" || status === "ฝ่ายบุคคลตรวจสอบ") pendingLeaveCount++;
                 });
 
-                // คำนวณวันลาคงเหลือ (จาก settings)
-                const settings = (typeof getSystemSettings === 'function') ? safeGetSettings() : DEFAULT_SYSTEM_SETTINGS || {};
-                const annualQuota = settings.annualLeaveDays || 10;
-                const sickQuota = settings.sickLeaveDays || 30;
+                // คำนวณวันลาคงเหลือ (จาก settings — มี fallback เป็นค่า default ฝั่ง client)
+                let settings = {};
+                try {
+                    if (typeof systemSettings !== 'undefined' && systemSettings) {
+                        settings = systemSettings;
+                    } else if (window.__systemSettings) {
+                        settings = window.__systemSettings;
+                    }
+                } catch (e) { /* ignore */ }
+                const annualQuota   = settings.annualLeaveDays   || 10;
+                const sickQuota     = settings.sickLeaveDays     || 30;
                 const personalQuota = settings.personalLeaveDays || 3;
                 const sickLeft = Math.max(0, sickQuota - sickUsed);
                 const personalLeft = Math.max(0, personalQuota - personalUsed);
