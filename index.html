@@ -4862,41 +4862,191 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                 const announcementPageContainer = document.getElementById('page-announcements-reminders');
                 const currentCycle = getCurrentCycleRange();
                 const daysLeft = getDaysUntil(currentCycle.end);
-                const reminders = [
-                    {
-                        title: 'สิ้นสุดรอบบัญชี',
-                        description: `รอบบัญชีปัจจุบันสิ้นสุดวันที่ ${formatThaiDate(currentCycle.end)} (${daysLeft} วันเหลือ)`,
-                        icon: 'fa-calendar-days',
-                        color: 'bg-blue-50 text-blue-700'
-                    },
-                    {
-                        title: 'การยื่นคำขอแก้ไขเวลา',
-                        description: 'หากต้องการแก้ไขเวลางาน โปรดยื่นคำขอภายในรอบบัญชีนี้ก่อนวันสิ้นสุดรอบ',
+
+                // === 🟢 PHASE D-2: คำนวณจากข้อมูลจริงทั้งหมด ===
+
+                // 1. คำขอแก้ไขเวลาที่รออนุมัติ (ในรอบบัญชีนี้)
+                const pendingCorrections = (typeof timeCorrectionsList !== 'undefined' ? timeCorrectionsList : []).filter(c => {
+                    const st = (c["สถานะ"] || "").toString().trim();
+                    if (st !== "รออนุมัติ") return false;
+                    const d = (c["วันที่"] || "").toString().trim();
+                    return d && d >= currentCycle.start && d <= currentCycle.end;
+                });
+
+                // 2. คำขอลาที่รออนุมัติ (ในรอบบัญชีนี้)
+                const pendingLeaves = (typeof leaveRequestsList !== 'undefined' ? leaveRequestsList : []).filter(l => {
+                    const st = (l["สถานะ"] || "").toString().trim();
+                    if (st !== "รออนุมัติ" && st !== "ฝ่ายบุคคลตรวจสอบ") return false;
+                    const start = (l["วันที่เริ่ม"] || "").toString().trim();
+                    const end = (l["วันที่สิ้นสุด"] || start).toString().trim();
+                    return start && !(start > currentCycle.end || end < currentCycle.start);
+                });
+
+                // 3. คำขอเบิกเงินที่รออนุมัติ
+                const pendingAdvance = (typeof advanceRequestsList !== 'undefined' ? advanceRequestsList : []).filter(a => {
+                    const st = (a["สถานะ"] || "").toString().trim();
+                    if (st !== "รอตรวจสอบ" && st !== "รออนุมัติ") return false;
+                    const d = (a["วันที่เบิก"] || "").toString().trim();
+                    return d && d >= currentCycle.start && d <= currentCycle.end;
+                });
+
+                // 4. สลิปเงินเดือนใหม่ในรอบนี้ (ภายใน 7 วันล่าสุด)
+                const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10);
+                const newPayslips = (typeof payslipsList !== 'undefined' ? payslipsList : []).filter(p => {
+                    const d = (p["วันที่บันทึก"] || p["บันทึกเมื่อ"] || "").toString().trim();
+                    return d && d >= sevenDaysAgoStr;
+                });
+
+                // 5. สถิติจาก calculateAndDisplayStats (ถ้ามี)
+                const cycleStats = window.__currentCycleStats || {};
+
+                // 6. ประกาศใหม่ (จาก localStorage)
+                let newAnnouncementsCount = 0;
+                try {
+                    const ann = JSON.parse(localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY) || '[]');
+                    newAnnouncementsCount = ann.filter(a => {
+                        const d = (a["วันที่โพสต์"] || a["postDate"] || "").toString().trim();
+                        return d && d >= sevenDaysAgoStr;
+                    }).length;
+                } catch(e) { /* ignore */ }
+
+                // === Build reminder list ตามลำดับความสำคัญ ===
+                const reminders = [];
+
+                // Priority 1: สิ่งที่ต้องดำเนินการ (action required)
+                if (pendingCorrections.length > 0) {
+                    reminders.push({
+                        title: 'คำขอแก้ไขเวลารออนุมัติ',
+                        description: `คุณมีคำขอแก้ไขเวลา ${pendingCorrections.length} รายการที่รอผู้บริหารอนุมัติในรอบบัญชีนี้`,
                         icon: 'fa-clock-rotate-left',
-                        color: 'bg-amber-50 text-amber-700'
-                    },
-                    {
-                        title: 'การขออนุมัติใบลา',
-                        description: 'ตรวจสอบวันลาคงเหลือและยื่นใบลาล่วงหน้าในกรณีที่ต้องการ',
+                        color: 'bg-amber-50 text-amber-700',
+                        badge: pendingCorrections.length
+                    });
+                }
+
+                if (pendingLeaves.length > 0) {
+                    const totalDays = pendingLeaves.reduce((sum, l) => sum + parseFloat(l["จำนวนวัน"] || 1), 0);
+                    reminders.push({
+                        title: 'คำขอลาที่รออนุมัติ',
+                        description: `มีใบลา ${pendingLeaves.length} รายการ (รวม ${totalDays} วัน) กำลังรออนุมัติ — สถานะ: ${pendingLeaves[0]["สถานะ"]}`,
                         icon: 'fa-plane-departure',
-                        color: 'bg-violet-50 text-violet-700'
-                    },
-                    {
-                        title: 'ตรวจสอบประกาศใหม่',
-                        description: 'เปิดศูนย์ข่าวสารเพื่อดูประกาศล่าสุดและแจ้งเตือนภายในองค์กร',
-                        icon: 'fa-bell',
-                        color: 'bg-emerald-50 text-emerald-700'
+                        color: 'bg-violet-50 text-violet-700',
+                        badge: pendingLeaves.length
+                    });
+                }
+
+                if (pendingAdvance.length > 0) {
+                    const totalAmt = pendingAdvance.reduce((sum, a) => sum + parseFloat(a["จำนวนเงิน"] || 0), 0);
+                    reminders.push({
+                        title: 'คำขอเบิกเงินรออนุมัติ',
+                        description: `${pendingAdvance.length} รายการ เป็นเงิน ${totalAmt.toLocaleString('th-TH')} บาท กำลังรอตรวจสอบ`,
+                        icon: 'fa-hand-holding-dollar',
+                        color: 'bg-orange-50 text-orange-700',
+                        badge: pendingAdvance.length
+                    });
+                }
+
+                // Priority 2: สถิติจริงในรอบบัญชี
+                if (cycleStats.absentDaysCount > 0) {
+                    reminders.push({
+                        title: 'ขาดงานในรอบบัญชีนี้',
+                        description: `คุณขาดงาน ${cycleStats.absentDaysCount} วัน ในรอบบัญชีปัจจุบัน — กรุณาตรวจสอบและยื่นคำขอแก้ไขเวลาหากมีหลักฐาน`,
+                        icon: 'fa-user-xmark',
+                        color: 'bg-rose-50 text-rose-700',
+                        badge: cycleStats.absentDaysCount
+                    });
+                }
+
+                if (cycleStats.totalLateMin > 0) {
+                    const lateHrs = Math.floor(cycleStats.totalLateMin / 60);
+                    const lateMinOnly = cycleStats.totalLateMin % 60;
+                    const lateText = lateHrs > 0 ? `${lateHrs} ชม. ${lateMinOnly} นาที` : `${cycleStats.totalLateMin} นาที`;
+                    reminders.push({
+                        title: 'สะสมการมาสาย',
+                        description: `มาสายสะสม ${lateText} ในรอบบัญชีนี้ (${cycleStats.workDaysCount - cycleStats.workOnTimeCount} วันจาก ${cycleStats.workDaysCount} วันทำงาน)`,
+                        icon: 'fa-stopwatch',
+                        color: 'bg-amber-50 text-amber-700',
+                        badge: cycleStats.totalLateMin
+                    });
+                }
+
+                if (cycleStats.totalOtHours > 0) {
+                    reminders.push({
+                        title: 'ชั่วโมง OT ที่ทำได้',
+                        description: `ทำ OT สะสม ${cycleStats.totalOtHours.toFixed(1)} ชั่วโมง ในรอบบัญชีนี้`,
+                        icon: 'fa-business-time',
+                        color: 'bg-emerald-50 text-emerald-700',
+                        badge: cycleStats.totalOtHours.toFixed(1)
+                    });
+                }
+
+                // Priority 3: วันลาคงเหลือ
+                if (cycleStats.sickLeft !== undefined && cycleStats.vacationLeft !== undefined) {
+                    const leaveSummary = [];
+                    if (cycleStats.vacationLeft >= 0) leaveSummary.push(`พักร้อน ${cycleStats.vacationLeft}/${cycleStats.vacationLeft + cycleStats.vacationUsed} วัน`);
+                    if (cycleStats.personalLeft >= 0) leaveSummary.push(`ลากิจ ${cycleStats.personalLeft} วัน`);
+                    if (cycleStats.sickLeft >= 0) leaveSummary.push(`ลาป่วย ${cycleStats.sickLeft} วัน`);
+                    if (leaveSummary.length > 0) {
+                        reminders.push({
+                            title: 'วันลาคงเหลือ',
+                            description: `คงเหลือ: ${leaveSummary.join(' • ')}`,
+                            icon: 'fa-calendar-check',
+                            color: 'bg-indigo-50 text-indigo-700'
+                        });
                     }
-                ];
+                }
+
+                // Priority 4: ข้อมูลใหม่
+                if (newPayslips.length > 0) {
+                    reminders.push({
+                        title: 'สลิปเงินเดือนใหม่',
+                        description: `มีสลิปเงินเดือน ${newPayslips.length} ฉบับเข้าใหม่ใน 7 วันที่ผ่านมา`,
+                        icon: 'fa-file-invoice-dollar',
+                        color: 'bg-emerald-50 text-emerald-700',
+                        badge: newPayslips.length
+                    });
+                }
+
+                if (newAnnouncementsCount > 0) {
+                    reminders.push({
+                        title: 'ประกาศใหม่',
+                        description: `มีประกาศใหม่ ${newAnnouncementsCount} ฉบับใน 7 วันที่ผ่านมา — เปิดศูนย์ข่าวสารเพื่ออ่าน`,
+                        icon: 'fa-bullhorn',
+                        color: 'bg-blue-50 text-blue-700',
+                        badge: newAnnouncementsCount
+                    });
+                }
+
+                // Priority 5: ข้อมูลทั่วไป (ถ้าไม่มีอะไรเลย)
+                if (reminders.length === 0) {
+                    reminders.push({
+                        title: 'ไม่มีแจ้งเตือน',
+                        description: `รอบบัญชีปัจจุบัน (${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}) ยังไม่มีกิจกรรมที่ต้องดำเนินการ`,
+                        icon: 'fa-circle-check',
+                        color: 'bg-slate-50 text-slate-700'
+                    });
+                }
+
+                // เพิ่ม reminder สิ้นสุดรอบบัญชี (แสดงเสมอ เป็นข้อมูลอ้างอิง)
+                reminders.push({
+                    title: 'สิ้นสุดรอบบัญชี',
+                    description: `รอบบัญชีปัจจุบันสิ้นสุดวันที่ ${formatThaiDate(currentCycle.end)} (${daysLeft} วันเหลือ)`,
+                    icon: 'fa-calendar-days',
+                    color: 'bg-blue-50 text-blue-700'
+                });
+
+                // === Render ===
                 const html = reminders.map(r => `
           <div class="rounded-2xl border border-slate-200 p-4 bg-white shadow-sm">
             <div class="flex items-start gap-3">
-              <div class="w-10 h-10 rounded-2xl ${r.color} flex items-center justify-center text-lg">
+              <div class="w-10 h-10 rounded-2xl ${r.color} flex items-center justify-center text-lg relative">
                 <i class="fa-solid ${r.icon}"></i>
+                ${r.badge ? `<span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">${r.badge}</span>` : ''}
               </div>
-              <div>
+              <div class="flex-1">
                 <p class="text-[11px] text-slate-500 uppercase tracking-[0.18em] font-semibold">${r.title}</p>
-                <p class="text-sm font-semibold text-slate-800 mt-1">${r.description}</p>
+                <p class="text-sm font-semibold text-slate-800 mt-1 leading-snug">${r.description}</p>
               </div>
             </div>
           </div>
@@ -4909,6 +5059,7 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
           <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
             <div class="flex items-center gap-2 text-slate-700 font-semibold text-xs mb-2">
               <i class="fa-solid ${r.icon}"></i> ${r.title}
+              ${r.badge ? `<span class="ml-auto bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">${r.badge}</span>` : ''}
             </div>
             <p class="text-[12px] text-slate-600">${r.description}</p>
           </div>
@@ -5588,93 +5739,311 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                 }
             }
 
-            // --- คำนวณวิเคราะห์สถิติตามรอบบัญชี ---
+            // --- คำนวณวิเคราะห์สถิติตามรอบบัญชี (Phase D-1: คำนวณจากข้อมูลจริง) ---
             function calculateAndDisplayStats() {
-                let workDaysCount = 0;
-                let totalLateMin = 0;
-                let totalOtHours = 0;
-                let absentDaysCount = 0;
-                let leaveDaysCount = 0;
+                // === 🟢 PHASE D-1: ใช้ Status Map ครอบคลุมทุกค่าที่ปรากฏในชีตจริง ===
+                // map จาก "สถานะสรุป" → หมวดหมู่ เพื่อนับสถิติได้แม่นยำ
+                const STATUS_CATEGORY = {
+                    // ทำงานปกติ
+                    'ปกติ':           'work',
+                    'ปกติ (เข้าสาย)':  'work',
+                    'สาย':             'work',
+                    'มาสาย':           'work',
+                    'OT':               'work',
+                    // ลา
+                    'ลาป่วย':           'leave',
+                    'ลากิจ':            'leave',
+                    'ลาพักร้อน':        'leave',
+                    'ลาคลอด':           'leave',
+                    'ลาทหาร':           'leave',
+                    'ลาอุปสมบท':        'leave',
+                    'ลาวันหยุด':        'leave',
+                    'ลาบวช':            'leave',
+                    'ลา':               'leave',
+                    'พักร้อน':          'leave',
+                    'ลาครึ่งวันเช้า':   'leave_half',
+                    'ลาครึ่งวันบ่าย':   'leave_half',
+                    // ขาด/ลืม
+                    'ขาดงาน':           'absent',
+                    'A':                'absent',
+                    'ขาด':              'absent',
+                    'ลืมลงชื่อออก':     'absent',
+                    'ลืมลงชื่อเข้า':    'absent',
+                    'ลืม':              'absent',
+                    // วันหยุด
+                    'วันหยุด':          'holiday',
+                    'หยุด':             'holiday',
+                    'H':                'holiday',
+                    'พร':               'holiday',
+                    'วันหยุดนักขัตฤกษ์': 'holiday',
+                    'คส':               'holiday'
+                };
 
+                // ค่าเริ่มต้น (zero state) — ทุก field
+                const stats = {
+                    workDaysCount: 0,         // วันที่มาทำงาน (รวมสาย)
+                    workOnTimeCount: 0,       // วันที่มาตรงเวลา
+                    totalLateMin: 0,          // รวมนาทีสาย
+                    totalOtHours: 0,          // รวมชั่วโมง OT
+                    absentDaysCount: 0,       // ขาดงาน
+                    leaveDaysCount: 0,        // ลาเต็มวัน
+                    leaveHalfDaysCount: 0,    // ลาครึ่งวัน
+                    holidayDaysCount: 0,      // วันหยุด
+                    recordsTotal: 0           // จำนวน record ทั้งหมดในรอบ
+                };
+
+                // นับจาก timeRecordsList (เฉพาะรอบบัญชีปัจจุบัน)
                 timeRecordsList.forEach(rec => {
-                    const stat = rec["สถานะสรุป"] || "ปกติ";
+                    stats.recordsTotal++;
+                    const stat = (rec["สถานะสรุป"] || "ปกติ").toString().trim();
+                    const category = STATUS_CATEGORY[stat] || 'work';  // ถ้าไม่รู้จัก → นับเป็น work
 
-                    if (stat === "ปกติ" || stat === "สาย") {
-                        workDaysCount++;
-                    }
-                    if (stat === "สาย") {
-                        totalLateMin += parseInt(rec["นาทีสาย"] || 0);
-                    }
-                    if (stat === "ขาดงาน" || stat === "A") {
-                        absentDaysCount++;
-                    }
-                    if (stat.includes("ลา") || stat === "B+" || stat === "S+" || stat === "H+") {
-                        leaveDaysCount++;
+                    // สะสมตามหมวด
+                    if (category === 'work') {
+                        stats.workDaysCount++;
+                        if (stat === 'ปกติ') stats.workOnTimeCount++;
+                    } else if (category === 'absent') {
+                        stats.absentDaysCount++;
+                    } else if (category === 'leave') {
+                        stats.leaveDaysCount++;
+                    } else if (category === 'leave_half') {
+                        stats.leaveHalfDaysCount += 0.5;  // ครึ่งวัน = 0.5
+                    } else if (category === 'holiday') {
+                        stats.holidayDaysCount++;
                     }
 
-                    totalOtHours += parseFloat(rec["ชั่วโมง OT"] || 0);
+                    // รวมนาทีสาย (เฉพาะที่มาสายจริงๆ)
+                    const lateMin = parseInt(rec["นาทีสาย"] || 0);
+                    if (lateMin > 0) stats.totalLateMin += lateMin;
+
+                    // รวม OT
+                    const otHrs = parseFloat(rec["ชั่วโมง OT"] || 0);
+                    if (otHrs > 0) stats.totalOtHours += otHrs;
                 });
 
-                let sickUsed = 0;
-                let personalUsed = 0;
-                let vacationUsed = 0;
+                // นับวันลาจาก leaveRequestsList (เฉพาะที่อนุมัติแล้ว + รออนุมัติ)
+                // เพราะ "ลาในรอบบัญชี" ควรรวมทั้งที่กำลังรอ + อนุมัติแล้ว
+                const currentCycle = getCurrentCycleRange();
+                let sickUsed = 0, personalUsed = 0, vacationUsed = 0, otherLeave = 0;
+                let pendingLeaveCount = 0;
 
                 leaveRequestsList.forEach(l => {
-                    if (l["สถานะ"] === "อนุมัติแล้ว") {
-                        const days = parseFloat(l["จำนวนวัน"] || 1);
-                        const type = l["ประเภทการลา"];
-                        if (type === "ลาป่วย") sickUsed += days;
-                        else if (type === "ลากิจ") personalUsed += days;
-                        else if (type === "ลาพักร้อน") vacationUsed += days;
-                    }
+                    const status = (l["สถานะ"] || "").toString().trim();
+                    // นับเฉพาะที่ยังไม่ถูกปฏิเสธ
+                    if (status === "ไม่อนุมัติ" || status === "ปฏิเสธ") return;
+
+                    // ตรวจสอบว่าอยู่ในรอบบัญชีปัจจุบันหรือไม่
+                    const leaveStart = (l["วันที่เริ่ม"] || "").toString().trim();
+                    const leaveEnd = (l["วันที่สิ้นสุด"] || leaveStart).toString().trim();
+                    if (!leaveStart) return;
+
+                    // filter ตามรอบบัญชี (overlap check)
+                    if (leaveStart > currentCycle.end || leaveEnd < currentCycle.start) return;
+
+                    const days = parseFloat(l["จำนวนวัน"] || 1);
+                    const type = (l["ประเภทการลา"] || "").toString().trim();
+
+                    if (type === "ลาป่วย") sickUsed += days;
+                    else if (type === "ลากิจ") personalUsed += days;
+                    else if (type === "ลาพักร้อน" || type === "พักร้อน") vacationUsed += days;
+                    else otherLeave += days;
+
+                    if (status === "รออนุมัติ" || status === "ฝ่ายบุคคลตรวจสอบ") pendingLeaveCount++;
                 });
 
-                document.getElementById("leave-personal-used").textContent = personalUsed;
-                document.getElementById("leave-sick-used").textContent = sickUsed;
-                document.getElementById("leave-vacation-used").textContent = vacationUsed;
+                // คำนวณวันลาคงเหลือ (จาก settings)
+                const settings = (typeof getSystemSettings === 'function') ? safeGetSettings() : DEFAULT_SYSTEM_SETTINGS || {};
+                const annualQuota = settings.annualLeaveDays || 10;
+                const sickQuota = settings.sickLeaveDays || 30;
+                const personalQuota = settings.personalLeaveDays || 3;
+                const sickLeft = Math.max(0, sickQuota - sickUsed);
+                const personalLeft = Math.max(0, personalQuota - personalUsed);
+                const vacationLeft = Math.max(0, annualQuota - vacationUsed);
 
-                document.getElementById("stat-work-days").innerHTML = `${workDaysCount} <span class="text-xs font-normal text-slate-500">วัน</span>`;
-                document.getElementById("stat-late-minutes").innerHTML = `${totalLateMin} <span class="text-xs font-normal text-slate-500">นาที</span>`;
-                document.getElementById("stat-ot-hours").innerHTML = `${totalOtHours.toFixed(1)} <span class="text-xs font-normal text-slate-500">ช.ม.</span>`;
-                document.getElementById("stat-absent-days").innerHTML = `${absentDaysCount} <span class="text-xs font-normal text-slate-500">วัน</span>`;
-                document.getElementById("stat-leave-days").textContent = sickUsed + personalUsed + vacationUsed;
+                // === 🟢 Render ลง UI ===
+                const $ = (id) => document.getElementById(id);
+                if ($("leave-personal-used")) $("leave-personal-used").textContent = personalUsed;
+                if ($("leave-sick-used"))    $("leave-sick-used").textContent    = sickUsed;
+                if ($("leave-vacation-used"))$("leave-vacation-used").textContent= vacationUsed;
+
+                if ($("stat-work-days"))     $("stat-work-days").innerHTML     = `${stats.workDaysCount} <span class="text-xs font-normal text-slate-500">วัน</span>`;
+                if ($("stat-late-minutes"))  $("stat-late-minutes").innerHTML  = `${stats.totalLateMin} <span class="text-xs font-normal text-slate-500">นาที</span>`;
+                if ($("stat-ot-hours"))      $("stat-ot-hours").innerHTML      = `${stats.totalOtHours.toFixed(1)} <span class="text-xs font-normal text-slate-500">ช.ม.</span>`;
+                if ($("stat-absent-days"))   $("stat-absent-days").innerHTML   = `${stats.absentDaysCount} <span class="text-xs font-normal text-slate-500">วัน</span>`;
+                if ($("stat-leave-days"))    $("stat-leave-days").textContent  = stats.leaveDaysCount + stats.leaveHalfDaysCount;
+
+                // เก็บ stats ไว้ใน window เพื่อให้ displayMonthlyReminders ใช้
+                window.__currentCycleStats = {
+                    ...stats,
+                    sickUsed, personalUsed, vacationUsed, otherLeave,
+                    sickLeft, personalLeft, vacationLeft,
+                    pendingLeaveCount,
+                    cycleStart: currentCycle.start,
+                    cycleEnd: currentCycle.end
+                };
+
+                console.log('[STATS]', window.__currentCycleStats);
             }
 
-            // --- ส่วนแสดงประวัติกิจกรรมล่าสุดในหน้าแรก ---
+            // helper: ดึง settings อย่างปลอดภัย (fallback ถ้ายังโหลดไม่เสร็จ)
+            function safeGetSettings() {
+                if (typeof systemSettings !== 'undefined' && systemSettings) return systemSettings;
+                // fallback: อ่านจาก window
+                if (window.__systemSettings) return window.__systemSettings;
+                return {};
+            }
+
+            // --- ส่วนแสดงประวัติกิจกรรมล่าสุดในหน้าแรก (Phase D-3: merge 3 ประเภท) ---
             function displayActivitiesList() {
                 const listContainer = document.getElementById("home-activities-list");
+                if (!listContainer) return;
                 listContainer.innerHTML = "";
 
-                if (timeRecordsList.length === 0) {
-                    listContainer.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีประวัติการบันทึกเวลางานในรอบบัญชีนี้</div>`;
+                const currentCycle = getCurrentCycleRange();
+
+                // === 🟢 PHASE D-3: รวม 3 ประเภทกิจกรรมเข้าด้วยกัน ===
+                const allActivities = [];
+
+                // 1. เวลางาน (timeRecords) — เฉพาะรอบบัญชีปัจจุบัน
+                (timeRecordsList || []).forEach(rec => {
+                    const date = (rec["วันที่"] || "").toString().trim();
+                    if (!date || date < currentCycle.start || date > currentCycle.end) return;
+                    allActivities.push({
+                        type: 'time',
+                        date: date,
+                        ts: new Date(date).getTime() || 0,
+                        data: rec
+                    });
+                });
+
+                // 2. คำขอลา (leaveRequests) — เฉพาะในรอบบัญชี
+                (leaveRequestsList || []).forEach(l => {
+                    const start = (l["วันที่เริ่ม"] || "").toString().trim();
+                    const end = (l["วันที่สิ้นสุด"] || start).toString().trim();
+                    if (!start) return;
+                    // overlap check
+                    if (start > currentCycle.end || end < currentCycle.start) return;
+                    // ใช้วันที่ "วันที่ส่ง" เป็น sort key (ถ้ามี) ไม่งั้นใช้วันที่เริ่ม
+                    const sortDate = (l["วันที่ส่ง"] || start).toString().trim();
+                    allActivities.push({
+                        type: 'leave',
+                        date: sortDate,
+                        ts: new Date(sortDate).getTime() || 0,
+                        data: l
+                    });
+                });
+
+                // 3. คำขอเบิกเงิน (advanceRequests) — เฉพาะในรอบบัญชี
+                (advanceRequestsList || []).forEach(a => {
+                    const d = (a["วันที่เบิก"] || "").toString().trim();
+                    if (!d || d < currentCycle.start || d > currentCycle.end) return;
+                    allActivities.push({
+                        type: 'advance',
+                        date: d,
+                        ts: new Date(d).getTime() || 0,
+                        data: a
+                    });
+                });
+
+                // เรียงจากใหม่ → เก่า
+                allActivities.sort((a, b) => b.ts - a.ts);
+
+                if (allActivities.length === 0) {
+                    listContainer.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีกิจกรรมในรอบบัญชีนี้ (${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)})</div>`;
                     return;
                 }
 
-                const displayList = timeRecordsList.slice(0, 3);
-                displayList.forEach(rec => {
-                    const dateStr = rec["วันที่"];
-                    const timeIn = rec["เวลาเข้า"] || "--:--";
-                    const timeOut = rec["เวลาออก"] || "--:--";
-                    const status = rec["สถานะสรุป"] || "ปกติ";
-                    const projectIn = rec["โครงการ (เข้า)"] || "ไม่ได้ระบุ";
+                // แสดง 5 รายการล่าสุด
+                const displayList = allActivities.slice(0, 5);
+                displayList.forEach(act => {
+                    let icon, iconBg, title, subtitle, badgeClass, badgeText;
 
-                    let badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
-                    if (status === "สาย") badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
-                    else if (status.includes("ขาด") || status.includes("ลืม")) badgeClass = "bg-rose-50 text-rose-700 border-rose-100";
-                    else if (status.includes("ลา")) badgeClass = "bg-violet-50 text-violet-700 border-violet-100";
+                    if (act.type === 'time') {
+                        const rec = act.data;
+                        const timeIn = rec["เวลาเข้า"] || "--:--";
+                        const timeOut = rec["เวลาออก"] || "--:--";
+                        const status = rec["สถานะสรุป"] || "ปกติ";
+                        const projectIn = rec["โครงการ (เข้า)"] || "ไม่ได้ระบุ";
+                        const otHrs = parseFloat(rec["ชั่วโมง OT"] || 0);
+                        const lateMin = parseInt(rec["นาทีสาย"] || 0);
+
+                        icon = 'fa-business-time';
+                        iconBg = 'bg-blue-50 text-blue-600';
+                        title = `${formatThaiDate(act.date)} • ${timeIn}-${timeOut}`;
+                        subtitle = `${projectIn}${otHrs > 0 ? ` • OT ${otHrs.toFixed(1)} ชม.` : ''}${lateMin > 0 ? ` • สาย ${lateMin} นาที` : ''}`;
+
+                        if (status === "สาย" || status === "มาสาย") {
+                            badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+                            badgeText = "สาย";
+                        } else if (status.includes("ขาด") || status === "A") {
+                            badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+                            badgeText = "ขาดงาน";
+                        } else if (status.includes("ลา")) {
+                            badgeClass = "bg-violet-50 text-violet-700 border-violet-200";
+                            badgeText = status;
+                        } else if (status.includes("หยุด") || status === "พร" || status === "H") {
+                            badgeClass = "bg-slate-50 text-slate-600 border-slate-200";
+                            badgeText = "วันหยุด";
+                        } else {
+                            badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                            badgeText = "ปกติ";
+                        }
+                    } else if (act.type === 'leave') {
+                        const l = act.data;
+                        const type = l["ประเภทการลา"] || "ลา";
+                        const days = l["จำนวนวัน"] || 1;
+                        const start = l["วันที่เริ่ม"] || "";
+                        const end = l["วันที่สิ้นสุด"] || start;
+                        const status = l["สถานะ"] || "";
+
+                        icon = 'fa-plane-departure';
+                        iconBg = 'bg-violet-50 text-violet-600';
+                        title = `ลา${type.replace('ลา', '')} ${days} วัน`;
+                        subtitle = `${formatThaiDate(start)}${start !== end ? ' - ' + formatThaiDate(end) : ''} • ${status}`;
+
+                        if (status === "อนุมัติแล้ว") {
+                            badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                            badgeText = "อนุมัติ";
+                        } else if (status === "ไม่อนุมัติ" || status === "ปฏิเสธ") {
+                            badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+                            badgeText = "ไม่อนุมัติ";
+                        } else {
+                            badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+                            badgeText = "รออนุมัติ";
+                        }
+                    } else if (act.type === 'advance') {
+                        const a = act.data;
+                        const amt = parseFloat(a["จำนวนเงิน"] || 0);
+                        const status = a["สถานะ"] || "";
+                        const date = a["วันที่เบิก"] || act.date;
+
+                        icon = 'fa-hand-holding-dollar';
+                        iconBg = 'bg-orange-50 text-orange-600';
+                        title = `เบิกเงิน ${amt.toLocaleString('th-TH')} บาท`;
+                        subtitle = `${formatThaiDate(date)} • ${status}`;
+
+                        if (status === "อนุมัติแล้ว") {
+                            badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                            badgeText = "อนุมัติ";
+                        } else if (status === "ปฏิเสธ") {
+                            badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+                            badgeText = "ปฏิเสธ";
+                        } else {
+                            badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+                            badgeText = "รอตรวจสอบ";
+                        }
+                    }
 
                     const card = document.createElement("div");
-                    card.className = "bg-white p-3 rounded-xl border border-slate-100 shadow-xs flex items-center justify-between";
+                    card.className = "bg-white p-3 rounded-xl border border-slate-100 shadow-xs flex items-center justify-between gap-2";
                     card.innerHTML = `
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
-              <i class="fa-solid fa-business-time"></i>
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <div class="w-9 h-9 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0">
+              <i class="fa-solid ${icon}"></i>
             </div>
-            <div>
-              <p class="text-xs font-semibold text-slate-700">${formatThaiDate(dateStr)}</p>
-              <p class="text-[10px] text-slate-400 flex items-center gap-1">
-                <i class="fa-solid fa-circle-check text-emerald-500"></i> ${projectIn}
-              </p>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-semibold text-slate-700 truncate">${escapeHtml(title)}</p>
+              <p class="text-[10px] text-slate-400 truncate">${escapeHtml(subtitle)}</p>
             </div>
           </div>
           
