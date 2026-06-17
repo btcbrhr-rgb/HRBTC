@@ -5854,9 +5854,7 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                 // คำนวณวันลาคงเหลือ (จาก settings — มี fallback เป็นค่า default ฝั่ง client)
                 let settings = {};
                 try {
-                    if (typeof systemSettings !== 'undefined' && systemSettings) {
-                        settings = systemSettings;
-                    } else if (window.__systemSettings) {
+                    if (window.__systemSettings && typeof window.__systemSettings === 'object') {
                         settings = window.__systemSettings;
                     }
                 } catch (e) { /* ignore */ }
@@ -5894,9 +5892,12 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
 
             // helper: ดึง settings อย่างปลอดภัย (fallback ถ้ายังโหลดไม่เสร็จ)
             function safeGetSettings() {
-                if (typeof systemSettings !== 'undefined' && systemSettings) return systemSettings;
-                // fallback: อ่านจาก window
-                if (window.__systemSettings) return window.__systemSettings;
+                // อ่านจาก window เท่านั้น — ไม่แตะ global var ที่อาจไม่มี
+                try {
+                    if (window.__systemSettings && typeof window.__systemSettings === 'object') {
+                        return window.__systemSettings;
+                    }
+                } catch (e) { /* ignore */ }
                 return {};
             }
 
