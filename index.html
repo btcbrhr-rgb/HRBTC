@@ -72,6 +72,75 @@
             }
         }
 
+        /* === 🟢 SKELETON SHIMMER (Phase B-2) === */
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg,
+                #f1f5f9 0%, #e2e8f0 20%, #f1f5f9 40%, #f1f5f9 100%);
+            background-size: 1000px 100%;
+            animation: shimmer 1.6s infinite linear;
+            border-radius: 6px;
+        }
+
+        .skeleton-line { height: 12px; margin: 8px 0; }
+        .skeleton-line-lg { height: 18px; margin: 10px 0; }
+        .skeleton-block { height: 80px; margin: 10px 0; }
+        .skeleton-circle { border-radius: 50%; width: 40px; height: 40px; }
+
+        /* === 🟢 LOADING SPINNER (Phase B-2) === */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(2px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: inherit;
+        }
+
+        /* ปุ่มระหว่างกำลังโหลด */
+        .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+        }
+        .btn-loading::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            margin: -8px 0 0 -8px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
         #inapp-overlay {
             background: rgba(15, 23, 42, 0.96);
             -webkit-backdrop-filter: blur(12px);
@@ -4602,8 +4671,18 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
 
                 const currentCycle = getCurrentCycleRange();
 
+                // === 🟢 PHASE B-3: แสดง skeleton ทันทีขณะรอข้อมูล (instant feedback) ===
+                showSkeleton('calendar-days-list', 'table', 4);
+                showSkeleton('leave-history-list', 'table', 3);
+                showSkeleton('advance-history-list', 'table', 3);
+
+                // === 🟢 PHASE B-1: ใช้ cachedFetch → cache 30s สำหรับ dashboard ===
+                const t0 = performance.now();
                 try {
-                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=getDashboardData&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`, { timeout: 30000 });
+                    const response = await cachedFetch(
+                        `${SERVER_API_URL}?action=getDashboardData&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`,
+                        { timeout: 30000 }
+                    );
 
                     if (response && response.status === "success" && response.data) {
                         const d = response.data;
@@ -4641,7 +4720,11 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                         displayPayslipList();
 
                         document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
-                        showToast("✅ อัปเดตข้อมูลสำเร็จ", "success");
+
+                        const elapsed = Math.round(performance.now() - t0);
+                        const hitInfo = response._cacheHit ? " (cached)" : "";
+                        console.log(`[loadAllData] ✓ ${elapsed}ms${hitInfo}`);
+                        showToast(`✅ อัปเดตข้อมูลสำเร็จ (${elapsed}ms)`, "success");
                         displayMonthlyReminders();
                         displayAnnouncements();
                         return true;
@@ -4847,10 +4930,93 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                 return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
 
+            // === 🟢 PERFORMANCE INSTRUMENTATION (Phase C) ===
+            // บันทึก latency ของทุก API call เพื่อวิเคราะห์จุดที่ช้า
+            const PerfStats = {
+                samples: [],          // [{action, ms, status, ts, cacheHit}]
+                enabled: true,
+                maxSamples: 200,
+
+                record(action, ms, status, extra = {}) {
+                    if (!this.enabled) return;
+                    this.samples.push({
+                        action,
+                        ms: Math.round(ms),
+                        status,
+                        ts: Date.now(),
+                        ...extra
+                    });
+                    if (this.samples.length > this.maxSamples) {
+                        this.samples.splice(0, this.samples.length - this.maxSamples);
+                    }
+                    // log เฉพาะ call ที่ช้ากว่า 1s หรือ error เพื่อไม่ spam console
+                    if (ms > 1000 || status === 'error') {
+                        console.warn(`[PERF] ${action} took ${Math.round(ms)}ms [${status}]`, extra);
+                    }
+                },
+
+                summary() {
+                    const byAction = {};
+                    this.samples.forEach(s => {
+                        if (!byAction[s.action]) {
+                            byAction[s.action] = { count: 0, totalMs: 0, maxMs: 0, errors: 0, cacheHits: 0 };
+                        }
+                        const a = byAction[s.action];
+                        a.count++;
+                        a.totalMs += s.ms;
+                        if (s.ms > a.maxMs) a.maxMs = s.ms;
+                        if (s.status === 'error') a.errors++;
+                        if (s.cacheHit) a.cacheHits++;
+                    });
+                    return Object.entries(byAction)
+                        .map(([action, stats]) => ({
+                            action,
+                            count: stats.count,
+                            avgMs: Math.round(stats.totalMs / stats.count),
+                            maxMs: stats.maxMs,
+                            errors: stats.errors,
+                            cacheHits: stats.cacheHits,
+                            hitRate: stats.count ? Math.round((stats.cacheHits / stats.count) * 100) : 0
+                        }))
+                        .sort((a, b) => b.avgMs - a.avgMs);
+                },
+
+                report() {
+                    const summary = this.summary();
+                    console.group('📊 [PERF REPORT] API Latency');
+                    console.table(summary);
+                    console.log('Total samples:', this.samples.length);
+                    console.log('Use window.__perfReport() to call again. Use window.__perfClear() to reset.');
+                    console.groupEnd();
+                    return summary;
+                },
+
+                clear() {
+                    this.samples = [];
+                    console.log('[PERF] Cleared all samples');
+                }
+            };
+
+            // expose ให้เรียกจาก console ได้
+            window.__perfReport = () => PerfStats.report();
+            window.__perfClear = () => PerfStats.clear();
+
+            // helper แกะ action ออกจาก URL
+            function _extractAction(url) {
+                try {
+                    const u = typeof url === 'string' ? new URL(url, location.href) : null;
+                    if (!u) return 'unknown';
+                    const a = u.searchParams.get('action');
+                    return a || (url.includes('method:') ? 'POST' : 'unknown');
+                } catch { return 'unknown'; }
+            }
+
             async function fetchWithTimeout(resource, options = {}) {
-                const { timeout = 20000 } = options;
+                const { timeout = 20000, skipPerf = false } = options;
                 const controller = new AbortController();
                 let id = null;
+                const action = _extractAction(resource);
+                const t0 = performance.now();
 
                 // ถ้า timeout = 0 หรือ null → ไม่มี timeout
                 if (timeout > 0) {
@@ -4860,19 +5026,285 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                 try {
                     const response = await fetch(resource, { ...options, signal: controller.signal });
                     if (id !== null) clearTimeout(id);
+                    const ms = performance.now() - t0;
                     if (!response.ok) {
+                        if (!skipPerf) PerfStats.record(action, ms, 'error', { httpStatus: response.status });
                         return { status: 'error', message: 'Network response was not ok', code: response.status };
                     }
                     try {
-                        return await response.json();
+                        const data = await response.json();
+                        if (!skipPerf) PerfStats.record(action, ms, 'success', { bytes: JSON.stringify(data).length });
+                        return data;
                     } catch (parseErr) {
+                        if (!skipPerf) PerfStats.record(action, ms, 'error', { parseError: parseErr.message });
                         return { status: 'error', message: 'Invalid JSON response: ' + parseErr.message };
                     }
                 } catch (err) {
                     if (id !== null) clearTimeout(id);
+                    const ms = performance.now() - t0;
+                    if (!skipPerf) PerfStats.record(action, ms, 'error', { errName: err.name });
                     // คืนค่าเป็น object แทนการ throw เพื่อลด Uncaught (in promise) AbortError
                     return { status: 'error', message: err.message, name: err.name || 'Error' };
                 }
+            }
+
+            // === 🟢 CLIENT CACHE LAYER (Phase B-1) ===
+            // Cache TTL แยกตามชนิดข้อมูล — ข้อมูลที่เปลี่ยนช้า cache นาน, ข้อมูล realtime cache สั้น
+            const CACHE_TTL = {
+                // ข้อมูลที่เปลี่ยนช้ามาก → cache นาน
+                getEmployee:           10 * 60_000,  // 10 นาที — ข้อมูลส่วนตัวเปลี่ยนช้า
+                getEmployeeData:       10 * 60_000,  // alias
+                getSystemSettings:     15 * 60_000,  // 15 นาที — ตั้งค่าระบบเปลี่ยนนานมาก
+                getAnnouncements:      5 * 60_000,   // 5 นาที
+                getHolidays:           60 * 60_000,  // 1 ชั่วโมง — วันหยุดเปลี่ยนปีละครั้ง
+                getProjects:           15 * 60_000,  // 15 นาที
+                getAllEmployees:       5 * 60_000,   // 5 นาที — รายชื่อพนักงานเปลี่ยนไม่บ่อย
+
+                // ข้อมูล transaction ที่อาจเปลี่ยน → cache สั้น
+                getTimeRecords:        60_000,       // 1 นาที — เวลางานอาจเพิ่งบันทึก
+                getLeaveRequests:      60_000,       // 1 นาที
+                getAdvanceRequests:    60_000,       // 1 นาที
+                getTimeCorrections:    60_000,       // 1 นาที
+                getPayslips:           5 * 60_000,   // 5 นาที — สลิปอัปโหลดทีละงวด
+
+                // ข้อมูล dashboard รวม → cache สั้น เพราะอาจมี transaction ใหม่
+                getDashboardData:      30_000,       // 30 วินาที
+
+                default:               30_000        // fallback 30s
+            };
+
+            const ClientCache = {
+                _store: new Map(),      // key → { data, ts, ttl, promise }
+                _stats: { hits: 0, misses: 0, errors: 0 },
+                enabled: true,
+
+                _key(url, body) {
+                    // key = action + query + body hash
+                    const action = _extractAction(url) || 'POST';
+                    const bodyStr = body ? JSON.stringify(body) : '';
+                    return `${action}::${url}::${bodyStr}`;
+                },
+
+                _ttlFor(action) {
+                    return CACHE_TTL[action] ?? CACHE_TTL.default;
+                },
+
+                async get(url, options = {}) {
+                    if (!this.enabled) {
+                        return fetchWithTimeout(url, options);
+                    }
+                    const action = _extractAction(url);
+                    const ttl = this._ttlFor(action);
+
+                    // POST/PUT → ไม่ cache (เป็น mutation)
+                    const isMutation = (options.method || 'GET').toUpperCase() !== 'GET';
+                    if (isMutation) {
+                        // แต่ invalidate related cache keys
+                        this._invalidateOnMutation(action);
+                        return fetchWithTimeout(url, options);
+                    }
+
+                    const key = this._key(url);
+                    const now = Date.now();
+                    const entry = this._store.get(key);
+
+                    // ✅ Cache HIT — ยังไม่หมดอายุ
+                    if (entry && (now - entry.ts) < entry.ttl && entry.data) {
+                        this._stats.hits++;
+                        PerfStats.record(action, 0, 'success', { cacheHit: true });
+                        console.log(`[Cache HIT] ${action} (age ${Math.round((now - entry.ts)/1000)}s/${Math.round(entry.ttl/1000)}s)`);
+                        // คืน deep clone เพื่อไม่ให้ caller mutate cache
+                        return JSON.parse(JSON.stringify(entry.data));
+                    }
+
+                    // 🔄 In-flight dedup — ถ้ามี request กำลังยิงอยู่ ใช้ promise เดียวกัน
+                    if (entry && entry.promise) {
+                        console.log(`[Cache DEDUP] ${action} — waiting for in-flight request`);
+                        return entry.promise;
+                    }
+
+                    // ❌ Cache MISS → ยิง API แล้วเก็บ
+                    this._stats.misses++;
+                    const promise = fetchWithTimeout(url, options)
+                        .then(data => {
+                            // เก็บ cache เฉพาะ response ที่ success
+                            if (data && data.status !== 'error') {
+                                this._store.set(key, { data, ts: Date.now(), ttl, promise: null });
+                            } else {
+                                this._store.delete(key);
+                                this._stats.errors++;
+                            }
+                            return data;
+                        })
+                        .catch(err => {
+                            this._store.delete(key);
+                            this._stats.errors++;
+                            throw err;
+                        })
+                        .finally(() => {
+                            const e = this._store.get(key);
+                            if (e) e.promise = null;
+                        });
+
+                    this._store.set(key, { data: null, ts: 0, ttl, promise });
+                    return promise;
+                },
+
+                invalidate(predicate) {
+                    let removed = 0;
+                    for (const [key, entry] of this._store.entries()) {
+                        if (!predicate || predicate(key, entry)) {
+                            this._store.delete(key);
+                            removed++;
+                        }
+                    }
+                    console.log(`[Cache] Invalidated ${removed} entries`);
+                    return removed;
+                },
+
+                _invalidateOnMutation(action) {
+                    // map: POST action → keys to invalidate
+                    const invalidateMap = {
+                        'submitLeave':           ['getLeaveRequests', 'getDashboardData'],
+                        'approveLeave':          ['getLeaveRequests', 'getDashboardData'],
+                        'submitAdvance':         ['getAdvanceRequests', 'getDashboardData'],
+                        'approveAdvance':        ['getAdvanceRequests', 'getDashboardData'],
+                        'submitTimeCorrection':  ['getTimeCorrections', 'getDashboardData'],
+                        'approveTimeCorrection': ['getTimeCorrections', 'getDashboardData'],
+                        'registerAttendance':    ['getTimeRecords', 'getDashboardData'],
+                        'saveEmployee':          ['getEmployee', 'getEmployeeData', 'getAllEmployees', 'getDashboardData'],
+                        'saveSystemSettings':    ['getSystemSettings', 'getDashboardData'],
+                        'postAnnouncement':      ['getAnnouncements', 'getDashboardData'],
+                        'addHoliday':            ['getHolidays', 'getDashboardData'],
+                        'uploadPayslipFile':     ['getPayslips', 'getDashboardData'],
+                        'updateEmployeeProfile': ['getEmployee', 'getEmployeeData', 'getDashboardData'],
+                        'importTimeRecords':     ['getTimeRecords', 'getDashboardData']
+                    };
+                    const keysToInvalidate = invalidateMap[action] || ['getDashboardData'];
+                    keysToInvalidate.forEach(act => {
+                        this.invalidate(k => k.startsWith(act + '::'));
+                    });
+                },
+
+                stats() {
+                    const total = this._stats.hits + this._stats.misses;
+                    const hitRate = total ? Math.round((this._stats.hits / total) * 100) : 0;
+                    return {
+                        ...this._stats,
+                        hitRate: hitRate + '%',
+                        entries: this._store.size,
+                        total
+                    };
+                },
+
+                clear() {
+                    this._store.clear();
+                    this._stats = { hits: 0, misses: 0, errors: 0 };
+                    console.log('[Cache] Cleared all entries');
+                }
+            };
+
+            // === 🟢 CACHED FETCH WRAPPER (Phase B-1) ===
+            // ใช้แทน fetchWithTimeout เมื่อต้องการ cache (ส่วนใหญ่ของ GET requests)
+            async function cachedFetch(url, options = {}) {
+                return ClientCache.get(url, options);
+            }
+
+            window.__cacheStats = () => ClientCache.stats();
+            window.__cacheClear = () => ClientCache.clear();
+
+            // === 🟢 LOADING STATE HELPERS (Phase B-2) ===
+            // helper สร้าง skeleton HTML
+            function skeletonHTML(type = 'table', rows = 5) {
+                if (type === 'table') {
+                    let html = '<div class="space-y-2 p-2">';
+                    for (let i = 0; i < rows; i++) {
+                        const widths = ['w-3/4', 'w-1/2', 'w-2/3', 'w-5/6', 'w-2/4'];
+                        html += `<div class="skeleton skeleton-line ${widths[i % widths.length]}"></div>`;
+                    }
+                    html += '</div>';
+                    return html;
+                }
+                if (type === 'card') {
+                    return `
+                        <div class="p-4 border rounded-lg">
+                            <div class="skeleton skeleton-block w-full"></div>
+                            <div class="skeleton skeleton-line w-3/4 mt-2"></div>
+                            <div class="skeleton skeleton-line w-1/2 mt-1"></div>
+                        </div>
+                    `;
+                }
+                if (type === 'profile') {
+                    return `
+                        <div class="flex items-center gap-3 p-4">
+                            <div class="skeleton skeleton-circle"></div>
+                            <div class="flex-1 space-y-2">
+                                <div class="skeleton skeleton-line-lg w-1/2"></div>
+                                <div class="skeleton skeleton-line w-1/3"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+                // default — minimal
+                return `<div class="skeleton skeleton-block w-full"></div>`;
+            }
+
+            // helper แสดง spinner แบบ inline
+            function spinnerHTML(label = 'กำลังโหลด...') {
+                return `
+                    <div class="flex items-center gap-2 text-slate-600 py-4 px-3">
+                        <span class="loading-spinner"></span>
+                        <span class="text-sm">${label}</span>
+                    </div>
+                `;
+            }
+
+            // helper แสดง loading ใน container (auto-cleanup)
+            function showSkeleton(containerId, type = 'table', rows = 5) {
+                const el = document.getElementById(containerId);
+                if (el) el.innerHTML = skeletonHTML(type, rows);
+                return el;
+            }
+
+            function showSpinner(containerId, label = 'กำลังโหลด...') {
+                const el = document.getElementById(containerId);
+                if (el) el.innerHTML = spinnerHTML(label);
+                return el;
+            }
+
+            // helper: จัดการ loading state ของปุ่ม (UX-friendly)
+            function withButtonLoading(button, originalHTML, asyncFn) {
+                if (!button) return asyncFn();
+                const original = originalHTML || button.innerHTML;
+                button.classList.add('btn-loading');
+                button.setAttribute('aria-busy', 'true');
+                button.disabled = true;
+
+                const restore = () => {
+                    button.classList.remove('btn-loading');
+                    button.removeAttribute('aria-busy');
+                    button.disabled = false;
+                    button.innerHTML = original;
+                };
+
+                return Promise.resolve(asyncFn())
+                    .then(result => { restore(); return result; })
+                    .catch(err => { restore(); throw err; });
+            }
+
+            // helper: จัดการ loading state แบบ overlay
+            function withLoadingOverlay(container, asyncFn) {
+                const el = typeof container === 'string' ? document.getElementById(container) : container;
+                if (!el) return asyncFn();
+                if (getComputedStyle(el).position === 'static') {
+                    el.style.position = 'relative';
+                }
+                const overlay = document.createElement('div');
+                overlay.className = 'loading-overlay';
+                overlay.innerHTML = '<span class="loading-spinner" style="width:32px;height:32px;border-width:3px;"></span>';
+                el.appendChild(overlay);
+                return Promise.resolve(asyncFn())
+                    .finally(() => overlay.remove());
             }
 
             // --- ส่วนแสดงผลโปรไฟล์พนักงาน ---
