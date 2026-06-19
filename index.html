@@ -4192,11 +4192,18 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
 
             // --- การคิดรอบบัญชี (Accounting Cycle Helper) ---
             function getCycleDateRange(year, month) {
-                const prevMonth = month === 0 ? 11 : month - 1;
-                const prevYear = month === 0 ? year - 1 : year;
-
-                const startDate = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-26`;
-                const endDate = `${year}-${String(month + 1).padStart(2, '0')}-25`;
+                // month = เดือนเริ่มต้นรอบบัญชี (0-indexed: 0=ม.ค., 11=ธ.ค.)
+                // รอบบัญชี: วันที่ 26 ของเดือนเริ่มต้น → วันที่ 25 ของเดือนถัดไป
+                const startYear = year;
+                const startMonth = month;
+                let endYear = year;
+                let endMonth = month + 1;
+                if (endMonth > 11) {
+                    endMonth = 0;
+                    endYear = year + 1;
+                }
+                const startDate = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-26`;
+                const endDate = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-25`;
                 return { start: startDate, end: endDate };
             }
 
@@ -4251,6 +4258,9 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                 const now = new Date();
                 let month = now.getMonth();
                 let year = now.getFullYear();
+                // ถ้าวันที่ปัจจุบัน < 26 → รอบบัญชีเริ่มต้นที่ "เดือนก่อนหน้า วันที่ 26"
+                // และสิ้นสุดที่ "เดือนปัจจุบัน วันที่ 25"
+                // ดังนั้น month ที่ส่งให้ getCycleDateRange คือ "เดือนเริ่มต้น" (= month-1)
                 if (now.getDate() < 26) {
                     month -= 1;
                     if (month < 0) {
