@@ -6030,6 +6030,7 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
 
                 // แสดง 5 รายการล่าสุด
                 const displayList = allActivities.slice(0, 5);
+                const exceededLeaves = getExceededLeavesSet();
                 displayList.forEach(act => {
                     let icon, iconBg, title, subtitle, badgeClass, badgeText, rightLabel;
 
@@ -6074,7 +6075,10 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
 
                         icon = 'fa-plane-departure';
                         iconBg = 'bg-violet-50 text-violet-600';
-                        title = `ลา${type.replace('ลา', '')} ${days} วัน`;
+                        const docId = l["เลขที่เอกสาร"] || l["วันที่เริ่ม"] || "N/A";
+                        const isExceeded = exceededLeaves.has(docId);
+                        const exceededSuffix = isExceeded ? " (ลาไม่รับค่าจ้าง)" : "";
+                        title = `ลา${type.replace('ลา', '')} ${days} วัน${exceededSuffix}`;
                         subtitle = `${formatThaiDate(start)}${start !== end ? ' - ' + formatThaiDate(end) : ''} • ${status}`;
                         rightLabel = `${days} วัน`;
 
@@ -6306,6 +6310,57 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
             }
 
             // --- ส่วนงานเขียนคำขอลาและประวัติ ---
+            function getExceededLeavesSet() {
+                const exceededLeaves = new Set();
+                if (!leaveRequestsList || leaveRequestsList.length === 0) return exceededLeaves;
+
+                // คัดลอกและเรียงตามวันที่เริ่มลาจากเก่าไปใหม่ เพื่อคำนวณการใช้สิทธิ์ตามลำดับเวลา
+                const chronologicalLeaves = [...leaveRequestsList]
+                    .filter(l => l["วันที่เริ่ม"])
+                    .sort((a, b) => (a["วันที่เริ่ม"] || "").localeCompare(b["วันที่เริ่ม"] || ""));
+
+                const runningSums = {};
+                const settings = safeGetSettings();
+                const quotas = {
+                    "ลากิจ": settings.personalLeaveDays || 3,
+                    "ลาป่วย": settings.sickLeaveDays || 30,
+                    "ลาพักร้อน": settings.annualLeaveDays || 10,
+                    "พักร้อน": settings.annualLeaveDays || 10
+                };
+
+                chronologicalLeaves.forEach(l => {
+                    const status = (l["สถานะ"] || "").toString().trim();
+                    if (status === "ไม่อนุมัติ" || status === "ปฏิเสธ") return;
+
+                    const start = (l["วันที่เริ่ม"] || "").toString().trim();
+                    if (!start) return;
+                    const year = start.substring(0, 4);
+                    const type = (l["ประเภทการลา"] || "").toString().trim();
+                    const days = parseFloat(l["จำนวนวัน"] || 1);
+
+                    if (!runningSums[year]) {
+                        runningSums[year] = { "ลากิจ": 0, "ลาป่วย": 0, "ลาพักร้อน": 0, "พักร้อน": 0 };
+                    }
+
+                    let normalizedType = type;
+                    if (type === "พักร้อน") normalizedType = "ลาพักร้อน";
+
+                    if (runningSums[year][normalizedType] !== undefined) {
+                        const previousSum = runningSums[year][normalizedType];
+                        runningSums[year][normalizedType] += days;
+                        
+                        const quota = quotas[normalizedType];
+                        // เกินโควตาประจำปี
+                        if (previousSum >= quota || runningSums[year][normalizedType] > quota) {
+                            const docId = l["เลขที่เอกสาร"] || l["วันที่เริ่ม"];
+                            exceededLeaves.add(docId);
+                        }
+                    }
+                });
+
+                return exceededLeaves;
+            }
+
             function displayLeaveHistory() {
                 const container = document.getElementById("leave-history-list");
                 container.innerHTML = "";
@@ -6314,6 +6369,8 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                     container.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่พบบันทึกการขอลาของคุณ</div>`;
                     return;
                 }
+
+                const exceededLeaves = getExceededLeavesSet();
 
                 leaveRequestsList.forEach(l => {
                     const docId = l["เลขที่เอกสาร"] || "N/A";
@@ -6330,13 +6387,16 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                     if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
                     else if (status.includes("ปฏิเสธ") || status.includes("ไม่อนุมัติ")) badgeClass = "bg-rose-50 text-rose-700 border-rose-100";
 
+                    const isExceeded = exceededLeaves.has(docId);
+                    const exceededLabel = isExceeded ? ' <span class="text-rose-600 font-bold text-[10px] bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100/80 ml-1">(ลาไม่รับค่าจ้าง)</span>' : '';
+
                     const card = document.createElement("div");
                     card.className = "bg-white rounded-xl border border-slate-100 p-3.5 shadow-xs space-y-1.5";
                     card.innerHTML = `
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
               <span class="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center text-[10px]"><i class="fa-solid fa-plane-departure"></i></span>
-              <p class="text-xs font-bold text-slate-700">${type} (${period})</p>
+              <p class="text-xs font-bold text-slate-700">${type} (${period})${exceededLabel}</p>
             </div>
             <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeClass}">${status}</span>
           </div>
