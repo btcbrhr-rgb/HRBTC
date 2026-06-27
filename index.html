@@ -4580,8 +4580,28 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                         const success = await loadAllData();
                         if (success) {
                             hideLoginContainer();
-                            navigateTo("home");
-                            showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
+                            
+                            // ตรวจสอบสิทธิ์การใช้งาน
+                            const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim().toLowerCase();
+                            const isAdmin = (role === 'administrator' || role === 'admin' || role.startsWith('admin:'));
+
+                            if (isAdmin) {
+                                // เปิดโหมด Admin ทันทีโดยตั้งค่าตัวแปรและเรียกแสดงผล
+                                isAdminMode = true;
+                                document.getElementById("app").classList.add("hidden");
+                                document.getElementById("admin-app").classList.remove("hidden");
+
+                                // อัปเดตข้อมูลโปรไฟล์ผู้ใช้ใน Sidebar ของ Admin
+                                document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
+                                document.getElementById("admin-profile-role").textContent = employeeData["สิทธิ์การใช้งาน"] || "Administrator";
+
+                                showToast(`🛠️ เข้าสู่ระบบในฐานะผู้ดูแลระบบ`, "success");
+                                switchAdminTab(adminActiveTab);
+                                loadAdminApprovals();
+                            } else {
+                                navigateTo("home");
+                                showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
+                            }
                         } else {
                             const retryBtn = document.getElementById("login-loading-retry-btn");
                             if (retryBtn) retryBtn.classList.remove("hidden");
