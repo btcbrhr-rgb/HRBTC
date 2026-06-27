@@ -339,26 +339,49 @@
     </style>
 
     <style>
-        /* Emergency override: prevent characters stacking vertically */
-        #app, #app * {
-            white-space: normal !important;
-            word-break: normal !important;
-            overflow-wrap: anywhere !important;
-            writing-mode: horizontal-tb !important;
+        /* ══ GLOBAL TABLE STRUCTURE PROTECTION ══════════════════════════════════
+           ป้องกัน Tailwind CDN reset display ของ table elements ทุกตัวในระบบ
+           ครอบคลุมทั้ง .hr-table, admin tables, และ static tables ทุกที่
+           ═══════════════════════════════════════════════════════════════════ */
+        #admin-app table,
+        #app table {
+            display: table !important;
+            border-collapse: collapse !important;
+            table-layout: auto !important;
         }
-        /* Restore correct whitespace for table elements */
+        #admin-app thead,
+        #app thead {
+            display: table-header-group !important;
+        }
+        #admin-app tbody,
+        #app tbody {
+            display: table-row-group !important;
+        }
+        #admin-app tr,
+        #app tr {
+            display: table-row !important;
+        }
         #admin-app th,
         #admin-app td,
-        .hr-table th,
-        .hr-table td {
+        #app th,
+        #app td {
+            display: table-cell !important;
             white-space: nowrap !important;
         }
+        /* Restore wrapping สำหรับ cell ที่ต้องการ wrap */
+        #admin-app td .wrap-cell,
+        #app td .wrap-cell {
+            white-space: normal !important;
+        }
+        /* truncate helper สำหรับ cell ที่ truncate ข้อความ */
         #admin-app td .truncate,
+        #app td .truncate,
         .hr-table td .truncate {
             white-space: nowrap !important;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
             max-width: 200px;
+            display: inline-block !important;
         }
     </style>
     <script>
@@ -2174,23 +2197,22 @@
                     <!-- Preview Table -->
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                         <h3 class="text-sm font-bold text-slate-800">รายละเอียดตารางเวลาที่เตรียมบันทึก</h3>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs border-collapse">
+                        <div class="hr-table-wrap overflow-x-auto">
+                            <table class="hr-table" style="min-width:700px">
                                 <thead>
-                                    <tr class="border-b border-slate-200 text-slate-500">
-                                        <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
-                                        <th class="py-2.5 font-semibold">วันที่</th>
-                                        <th class="py-2.5 font-semibold">เวลาเข้า</th>
-                                        <th class="py-2.5 font-semibold">เวลาออก</th>
-                                        <th class="py-2.5 font-semibold">สถานะสรุป</th>
-                                        <th class="py-2.5 font-semibold">โครงการ</th>
-                                        <th class="py-2.5 font-semibold">ข้อมูลแสกนนิ้วซ้ำ</th>
+                                    <tr>
+                                        <th>รหัสพนักงาน</th>
+                                        <th>วันที่</th>
+                                        <th>เวลาเข้า</th>
+                                        <th>เวลาออก</th>
+                                        <th>สถานะสรุป</th>
+                                        <th>โครงการ</th>
+                                        <th>ข้อมูลแสกนนิ้วซ้ำ</th>
                                     </tr>
                                 </thead>
-                                <tbody id="txt-preview-table-body" class="divide-y divide-slate-200 text-slate-600">
-                                    <tr>
-                                        <td colspan="7" class="py-6 text-center text-slate-500 italic">
-                                            โปรดอัปโหลดไฟล์เวลางานและกดพรีวิวเพื่อแสดงข้อมูลที่นี่</td>
+                                <tbody id="txt-preview-table-body">
+                                    <tr class="tbl-empty-row">
+                                        <td colspan="7">โปรดอัปโหลดไฟล์เวลางานและกดพรีวิวเพื่อแสดงข้อมูลที่นี่</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2236,21 +2258,21 @@
 
                         <div class="bg-white border border-slate-200 rounded-2xl p-5">
                             <h4 class="text-sm font-semibold text-slate-700 mb-3">รายการเวลางานตามโครงการ</h4>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs border-collapse">
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table" style="min-width:600px">
                                     <thead>
-                                        <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold">รหัสพนักงาน</th>
-                                            <th class="py-2.5 font-semibold">ชื่อพนักงาน</th>
-                                            <th class="py-2.5 font-semibold">โครงการ</th>
-                                            <th class="py-2.5 font-semibold">วันที่</th>
-                                            <th class="py-2.5 font-semibold">ชั่วโมง</th>
-                                            <th class="py-2.5 font-semibold">ต้นทุน</th>
+                                        <tr>
+                                            <th>รหัสพนักงาน</th>
+                                            <th>ชื่อพนักงาน</th>
+                                            <th>โครงการ</th>
+                                            <th>วันที่</th>
+                                            <th>ชั่วโมง</th>
+                                            <th>ต้นทุน</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="project-cost-table-body" class="divide-y divide-slate-200 text-slate-600">
-                                        <tr>
-                                            <td colspan="6" class="py-6 text-center text-slate-500 italic">โปรดกดรีเฟรชเพื่อโหลดข้อมูลเวลางานตามโครงการ</td>
+                                    <tbody id="project-cost-table-body">
+                                        <tr class="tbl-empty-row">
+                                            <td colspan="6">โปรดกดรีเฟรชเพื่อโหลดข้อมูลเวลางานตามโครงการ</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -2578,24 +2600,23 @@
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                         <h3 class="text-sm font-bold text-slate-800">ตารางข้อมูลสลิปรายบุคคลที่สกัดออก
                             (กรุณาแก้ไขข้อผิดพลาดก่อนบันทึก)</h3>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs border-collapse">
+                        <div class="hr-table-wrap overflow-x-auto">
+                            <table class="hr-table" style="min-width:900px">
                                 <thead>
-                                    <tr class="border-b border-slate-200 text-slate-500">
-                                        <th class="py-2.5 font-semibold w-12">หน้า</th>
-                                        <th class="py-2.5 font-semibold w-36">รหัสพนักงาน</th>
-                                        <th class="py-2.5 font-semibold w-40">ชื่อ-นามสกุล</th>
-                                        <th class="py-2.5 font-semibold w-24">รอบเงินเดือน</th>
-                                        <th class="py-2.5 font-semibold w-28">ยอดโอนสุทธิ</th>
-                                        <th class="py-2.5 font-semibold w-80">ข้อมูลที่สกัดออก</th>
-                                        <th class="py-2.5 font-semibold w-20 text-center">ดู PDF</th>
-                                        <th class="py-2.5 font-semibold">สถานะ</th>
+                                    <tr>
+                                        <th style="width:48px">หน้า</th>
+                                        <th style="width:130px">รหัสพนักงาน</th>
+                                        <th style="width:150px">ชื่อ-นามสกุล</th>
+                                        <th style="width:100px">รอบเงินเดือน</th>
+                                        <th style="width:110px">ยอดโอนสุทธิ</th>
+                                        <th>ข้อมูลที่สกัดออก</th>
+                                        <th style="width:80px;text-align:center">ดู PDF</th>
+                                        <th>สถานะ</th>
                                     </tr>
                                 </thead>
-                                <tbody id="pdf-preview-table-body" class="divide-y divide-slate-200 text-slate-600">
-                                    <tr>
-                                        <td colspan="8" class="py-6 text-center text-slate-500 italic">
-                                            โปรดอัปโหลดไฟล์สลิปรวม PDF และทำการวิเคราะห์ก่อนส่งบันทึก</td>
+                                <tbody id="pdf-preview-table-body">
+                                    <tr class="tbl-empty-row">
+                                        <td colspan="8">โปรดอัปโหลดไฟล์สลิปรวม PDF และทำการวิเคราะห์ก่อนส่งบันทึก</td>
                                     </tr>
                                 </tbody>
                             </table>
