@@ -217,19 +217,117 @@
             40%            { opacity: 1;   transform: scale(1.2); }
         }
         /* Fix: ensure admin table cells don't stack vertically */
-        #admin-app table,
-        #admin-app thead,
-        #admin-app tbody,
-        #admin-app tr,
+        #admin-app table  { display: table !important; }
+        #admin-app thead  { display: table-header-group !important; }
+        #admin-app tbody  { display: table-row-group !important; }
+        #admin-app tr     { display: table-row !important; }
         #admin-app th,
-        #admin-app td {
-            display: table !important;
+        #admin-app td     { display: table-cell !important; vertical-align: middle; }
+
+        /* ===== 🎨 PREMIUM TABLE STYLES ===== */
+        .hr-table-wrap {
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
         }
-        #admin-app tr    { display: table-row !important; }
-        #admin-app thead { display: table-header-group !important; }
-        #admin-app tbody { display: table-row-group !important; }
-        #admin-app th,
-        #admin-app td    { display: table-cell !important; vertical-align: middle; }
+        .hr-table-wrap .overflow-x-auto {
+            border-radius: 14px;
+        }
+        .hr-table {
+            width: 100%;
+            text-align: left;
+            font-size: 12px;
+            border-collapse: collapse;
+            background: #fff;
+        }
+        .hr-table thead tr {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .hr-table thead th {
+            padding: 11px 14px;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            white-space: nowrap;
+        }
+        .hr-table tbody tr {
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.15s, box-shadow 0.15s;
+        }
+        .hr-table tbody tr:last-child { border-bottom: none; }
+        .hr-table tbody tr:hover {
+            background: #f8fafc;
+            box-shadow: inset 3px 0 0 #6366f1;
+        }
+        .hr-table tbody td {
+            padding: 10px 14px;
+            color: #475569;
+            vertical-align: middle;
+        }
+        /* Action buttons inside table */
+        .tbl-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.15s;
+            border: none;
+            cursor: pointer;
+        }
+        .tbl-btn-approve { background:#dcfce7; color:#15803d; }
+        .tbl-btn-approve:hover { background:#16a34a; color:#fff; }
+        .tbl-btn-reject  { background:#fee2e2; color:#b91c1c; }
+        .tbl-btn-reject:hover  { background:#dc2626; color:#fff; }
+        .tbl-btn-print   { background:#f1f5f9; color:#475569; }
+        .tbl-btn-print:hover   { background:#64748b; color:#fff; }
+        .tbl-btn-edit    { background:#eff6ff; color:#2563eb; }
+        .tbl-btn-edit:hover    { background:#2563eb; color:#fff; }
+        .tbl-btn-danger  { background:#fee2e2; color:#b91c1c; }
+        .tbl-btn-danger:hover  { background:#dc2626; color:#fff; }
+        /* Status badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+            letter-spacing: 0.03em;
+        }
+        .badge-pending  { background:#fef9c3; color:#854d0e; border: 1px solid #fde047; }
+        .badge-approved { background:#dcfce7; color:#166534; border: 1px solid #86efac; }
+        .badge-rejected { background:#fee2e2; color:#991b1b; border: 1px solid #fca5a5; }
+        .badge-info     { background:#e0f2fe; color:#075985; border: 1px solid #7dd3fc; }
+        .badge-neutral  { background:#f1f5f9; color:#475569; border: 1px solid #cbd5e1; }
+        /* Empty state row */
+        .tbl-empty-row td {
+            padding: 32px 16px;
+            text-align: center;
+            color: #94a3b8;
+            font-style: italic;
+            font-size: 12px;
+        }
+        /* Employee avatar cell */
+        .emp-cell { display: flex; align-items: center; gap: 8px; }
+        .emp-avatar {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1.5px solid #e2e8f0;
+            flex-shrink: 0;
+            background: #f1f5f9;
+        }
+        .emp-name  { font-weight: 700; color: #1e293b; font-size: 12px; }
+        .emp-id    { font-size: 10px; color: #94a3b8; }
     </style>
 
     <style>
@@ -239,6 +337,20 @@
             word-break: normal !important;
             overflow-wrap: anywhere !important;
             writing-mode: horizontal-tb !important;
+        }
+        /* Restore correct whitespace for table elements */
+        #admin-app th,
+        #admin-app td,
+        .hr-table th,
+        .hr-table td {
+            white-space: nowrap !important;
+        }
+        #admin-app td .truncate,
+        .hr-table td .truncate {
+            white-space: nowrap !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
         }
     </style>
     <script>
@@ -2539,43 +2651,28 @@
                                     </button>
                                 </div>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full min-w-[1200px] table-fixed text-left text-xs border-collapse">
-                                    <colgroup>
-                                        <col class="w-[40px]">
-                                        <col class="w-[12%]">
-                                        <col class="w-[18%]">
-                                        <col class="w-[14%]">
-                                        <col class="w-[18%]">
-                                        <col class="w-[8%]">
-                                        <col class="w-[16%]">
-                                        <col class="w-[8%]">
-                                        <col class="w-[8%]">
-                                        <col class="w-[12%]">
-                                    </colgroup>
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table" style="min-width:1100px">
                                     <thead>
-                                        <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">
+                                        <tr>
+                                            <th style="width:36px">
                                                 <input type="checkbox" id="select-all-leave"
                                                     onchange="toggleSelectAllLeave(this)"
                                                     aria-label="เลือกคำขอลาทั้งหมด">
                                             </th>
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">เลขที่เอกสาร</th>
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">พนักงาน</th>
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">ประเภทการลา</th>
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">ช่วงวันที่</th>
-                                            <th class="py-2.5 font-semibold text-center whitespace-nowrap">จำนวนวัน</th>
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">เหตุผล</th>
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">หลักฐาน</th>
-                                            <th class="py-2.5 font-semibold whitespace-nowrap">สถานะ</th>
-                                            <th class="py-2.5 font-semibold text-right whitespace-nowrap">การจัดการ</th>
+                                            <th>เลขที่เอกสาร</th>
+                                            <th>พนักงาน</th>
+                                            <th>ประเภทการลา</th>
+                                            <th>ช่วงวันที่</th>
+                                            <th style="text-align:center">จำนวนวัน</th>
+                                            <th>เหตุผล</th>
+                                            <th>หลักฐาน</th>
+                                            <th>สถานะ</th>
+                                            <th style="text-align:right">การจัดการ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-leave-table-body" class="divide-y divide-slate-200 text-slate-600">
-                                        <tr>
-                                            <td colspan="10" class="py-6 text-center text-slate-500 italic">
-                                                อยู่ระหว่างการโหลดคำขอลาจากฐานข้อมูล...</td>
-                                        </tr>
+                                    <tbody id="admin-leave-table-body">
+                                        <tr class="tbl-empty-row"><td colspan="10">⏳ อยู่ระหว่างการโหลดคำขอลาจากฐานข้อมูล...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2591,25 +2688,21 @@
                                     class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
                                     <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full min-w-[900px] table-fixed text-left text-xs border-collapse">
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table" style="min-width:800px">
                                     <thead>
-                                        <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold w-[15%] whitespace-nowrap">เลขที่เอกสาร</th>
-                                            <th class="py-2.5 font-semibold w-[20%] whitespace-nowrap">พนักงาน</th>
-                                            <th class="py-2.5 font-semibold w-[18%] whitespace-nowrap">ประเภทการลา</th>
-                                            <th class="py-2.5 font-semibold w-[20%] whitespace-nowrap">ช่วงวันที่</th>
-                                            <th class="py-2.5 font-semibold w-[10%] text-center whitespace-nowrap">จำนวนวัน</th>
-                                            <th class="py-2.5 font-semibold w-[10%] whitespace-nowrap">สถานะ</th>
-                                            <th class="py-2.5 font-semibold w-[15%] whitespace-nowrap">หมายเหตุ</th>
+                                        <tr>
+                                            <th>เลขที่เอกสาร</th>
+                                            <th>พนักงาน</th>
+                                            <th>ประเภทการลา</th>
+                                            <th>ช่วงวันที่</th>
+                                            <th style="text-align:center">จำนวนวัน</th>
+                                            <th>สถานะ</th>
+                                            <th>หมายเหตุ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-approval-results-leave-body"
-                                        class="divide-y divide-slate-200 text-slate-600">
-                                        <tr>
-                                            <td colspan="7" class="py-6 text-center text-slate-500 italic">
-                                                กำลังดึงข้อมูลผลการอนุมัติใบลา...</td>
-                                        </tr>
+                                    <tbody id="admin-approval-results-leave-body">
+                                        <tr class="tbl-empty-row"><td colspan="7">⏳ กำลังดึงข้อมูลผลการอนุมัติใบลา...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2656,31 +2749,27 @@
                                     </button>
                                 </div>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs border-collapse">
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table" style="min-width:900px">
                                     <thead>
-                                        <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold">
+                                        <tr>
+                                            <th style="width:36px">
                                                 <input type="checkbox" id="select-all-correction"
                                                     onchange="toggleSelectAllCorrection(this)"
                                                     aria-label="เลือกคำขอแก้ไขเวลาทั้งหมด">
                                             </th>
-                                            <th class="py-2.5 font-semibold">พนักงาน</th>
-                                            <th class="py-2.5 font-semibold">วันที่บันทึก</th>
-                                            <th class="py-2.5 font-semibold">วันที่ขอแก้ไข</th>
-                                            <th class="py-2.5 font-semibold">เวลาเข้าใหม่</th>
-                                            <th class="py-2.5 font-semibold">เวลาออกใหม่</th>
-                                            <th class="py-2.5 font-semibold">เหตุผลชี้แจง</th>
-                                            <th class="py-2.5 font-semibold">สถานะ</th>
-                                            <th class="py-2.5 font-semibold text-right">การจัดการ</th>
+                                            <th>พนักงาน</th>
+                                            <th>วันที่บันทึก</th>
+                                            <th>วันที่ขอแก้ไข</th>
+                                            <th>เวลาเข้าใหม่</th>
+                                            <th>เวลาออกใหม่</th>
+                                            <th>เหตุผลชี้แจง</th>
+                                            <th>สถานะ</th>
+                                            <th style="text-align:right">การจัดการ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-correction-table-body"
-                                        class="divide-y divide-slate-200 text-slate-600">
-                                        <tr>
-                                            <td colspan="9" class="py-6 text-center text-slate-500 italic">
-                                                อยู่ระหว่างการโหลดข้อมูลเวลางานจากระบบ...</td>
-                                        </tr>
+                                    <tbody id="admin-correction-table-body">
+                                        <tr class="tbl-empty-row"><td colspan="9">⏳ อยู่ระหว่างการโหลดข้อมูลเวลางานจากระบบ...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2696,24 +2785,20 @@
                                     class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
                                     <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs border-collapse">
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table" style="min-width:750px">
                                     <thead>
-                                        <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold">พนักงาน</th>
-                                            <th class="py-2.5 font-semibold">วันที่</th>
-                                            <th class="py-2.5 font-semibold">เวลาเข้าใหม่</th>
-                                            <th class="py-2.5 font-semibold">เวลาออกใหม่</th>
-                                            <th class="py-2.5 font-semibold">สถานะ</th>
-                                            <th class="py-2.5 font-semibold">หมายเหตุ</th>
+                                        <tr>
+                                            <th>พนักงาน</th>
+                                            <th>วันที่ขอแก้ไข</th>
+                                            <th>เวลาเข้าใหม่</th>
+                                            <th>เวลาออกใหม่</th>
+                                            <th>สถานะ</th>
+                                            <th>หมายเหตุ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-approval-results-correction-body"
-                                        class="divide-y divide-slate-200 text-slate-600">
-                                        <tr>
-                                            <td colspan="6" class="py-6 text-center text-slate-500 italic">
-                                                กำลังดึงข้อมูลผลการอนุมัติแก้ไขเวลา...</td>
-                                        </tr>
+                                    <tbody id="admin-approval-results-correction-body">
+                                        <tr class="tbl-empty-row"><td colspan="6">⏳ กำลังดึงข้อมูลผลการอนุมัติแก้ไขเวลา...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2761,30 +2846,26 @@
                                     </button>
                                 </div>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs border-collapse">
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table" style="min-width:900px">
                                     <thead>
-                                        <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold">
+                                        <tr>
+                                            <th style="width:36px">
                                                 <input type="checkbox" id="select-all-advance"
                                                     onchange="toggleSelectAllAdvance(this)"
                                                     aria-label="เลือกคำขอเบิกเงินทั้งหมด">
                                             </th>
-                                            <th class="py-2.5 font-semibold">พนักงาน</th>
-                                            <th class="py-2.5 font-semibold">จำนวนเงินที่เบิก</th>
-                                            <th class="py-2.5 font-semibold">วันที่ส่งคำขอ</th>
-                                            <th class="py-2.5 font-semibold">รอบบัญชีเรียกชำระ</th>
-                                            <th class="py-2.5 font-semibold">บัญชีผู้รับเงิน</th>
-                                            <th class="py-2.5 font-semibold">สถานะ</th>
-                                            <th class="py-2.5 font-semibold text-right">การจัดการ</th>
+                                            <th>พนักงาน</th>
+                                            <th>จำนวนเงินที่เบิก</th>
+                                            <th>วันที่ส่งคำขอ</th>
+                                            <th>รอบบัญชีเรียกชำระ</th>
+                                            <th>บัญชีผู้รับเงิน</th>
+                                            <th>สถานะ</th>
+                                            <th style="text-align:right">การจัดการ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-advance-table-body"
-                                        class="divide-y divide-slate-200 text-slate-600">
-                                        <tr>
-                                            <td colspan="8" class="py-6 text-center text-slate-500 italic">
-                                                กำลังดึงข้อมูลเบิกเงินสำรองพนักงาน...</td>
-                                        </tr>
+                                    <tbody id="admin-advance-table-body">
+                                        <tr class="tbl-empty-row"><td colspan="8">⏳ กำลังดึงข้อมูลเบิกเงินสำรองพนักงาน...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2800,24 +2881,20 @@
                                     class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
                                     <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left text-xs border-collapse">
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table" style="min-width:700px">
                                     <thead>
-                                        <tr class="border-b border-slate-200 text-slate-500">
-                                            <th class="py-2.5 font-semibold">พนักงาน</th>
-                                            <th class="py-2.5 font-semibold">จำนวนเงิน</th>
-                                            <th class="py-2.5 font-semibold">วันที่ส่ง</th>
-                                            <th class="py-2.5 font-semibold">รอบจ่าย</th>
-                                            <th class="py-2.5 font-semibold">สถานะ</th>
-                                            <th class="py-2.5 font-semibold">หมายเหตุ</th>
+                                        <tr>
+                                            <th>พนักงาน</th>
+                                            <th>จำนวนเงิน</th>
+                                            <th>วันที่ส่ง</th>
+                                            <th>รอบจ่าย</th>
+                                            <th>สถานะ</th>
+                                            <th>หมายเหตุ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-approval-results-advance-body"
-                                        class="divide-y divide-slate-200 text-slate-600">
-                                        <tr>
-                                            <td colspan="6" class="py-6 text-center text-slate-500 italic">
-                                                กำลังดึงข้อมูลผลการอนุมัติเบิกเงิน...</td>
-                                        </tr>
+                                    <tbody id="admin-approval-results-advance-body">
+                                        <tr class="tbl-empty-row"><td colspan="6">⏳ กำลังดึงข้อมูลผลการอนุมัติเบิกเงิน...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2901,25 +2978,22 @@
                             </div>
                         </div>
 
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs border-collapse">
+                        <div class="hr-table-wrap overflow-x-auto">
+                            <table class="hr-table" style="min-width:900px">
                                 <thead>
-                                    <tr class="border-b border-slate-200 text-slate-500">
-                                        <th class="py-2.5 font-semibold">พนักงาน</th>
-                                        <th class="py-2.5 font-semibold">ตำแหน่ง</th>
-                                        <th class="py-2.5 font-semibold">สถานะ</th>
-                                        <th class="py-2.5 font-semibold">บริษัทสังกัด</th>
-                                        <th class="py-2.5 font-semibold text-center">ชั่วโมงทำงาน/วัน</th>
-                                        <th class="py-2.5 font-semibold">เบอร์โทรศัพท์</th>
-                                        <th class="py-2.5 font-semibold">สิทธิ์การใช้งาน</th>
-                                        <th class="py-2.5 font-semibold text-right">เครื่องมือ</th>
+                                    <tr>
+                                        <th>พนักงาน</th>
+                                        <th>ตำแหน่ง</th>
+                                        <th>สถานะ</th>
+                                        <th>บริษัทสังกัด</th>
+                                        <th style="text-align:center">ชม./วัน</th>
+                                        <th>เบอร์โทร</th>
+                                        <th>สิทธิ์การใช้งาน</th>
+                                        <th style="text-align:right">เครื่องมือ</th>
                                     </tr>
                                 </thead>
-                                <tbody id="admin-employees-table-body" class="divide-y divide-slate-200 text-slate-600">
-                                    <tr>
-                                        <td colspan="8" class="py-6 text-center text-slate-500 italic">
-                                            กำลังเชื่อมโยงรายชื่อพนักงาน...</td>
-                                    </tr>
+                                <tbody id="admin-employees-table-body">
+                                    <tr class="tbl-empty-row"><td colspan="8">⏳ กำลังเชื่อมโยงรายชื่อพนักงาน...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -7689,7 +7763,7 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                         container.innerHTML = "";
                         adminEmployeesList.forEach(emp => {
                             const tr = document.createElement("tr");
-                            tr.className = "border-b border-slate-100 hover:bg-slate-50 transition-all text-xs";
+                            tr.className = "hr-table-row";
 
                             const empId = emp["รหัสพนักงาน"] || "N/A";
                             const name = emp["ชื่อ-นามสกุล"] || "N/A";
@@ -7700,41 +7774,39 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                             const phone = emp["เบอร์โทรศัพท์"] || "-";
                             const role = emp["สิทธิ์การใช้งาน"] || "Employee";
 
-                            let statusBadge = `<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 text-[10px]">ทำงานปกติ</span>`;
-                            if (status === 'ลาออก') statusBadge = `<span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200 text-[10px]">ลาออก</span>`;
-                            else if (status === 'พักงาน') statusBadge = `<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 text-[10px]">พักงาน</span>`;
+                            let statusBadge = `<span class="badge badge-approved"><i class="fa-solid fa-circle-check"></i> ทำงานปกติ</span>`;
+                            if (status === 'ลาออก') statusBadge = `<span class="badge badge-rejected"><i class="fa-solid fa-circle-xmark"></i> ลาออก</span>`;
+                            else if (status === 'พักงาน') statusBadge = `<span class="badge badge-pending"><i class="fa-solid fa-circle-minus"></i> พักงาน</span>`;
 
-                            let roleBadge = `<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">${role}</span>`;
+                            let roleBadge = `<span class="badge badge-neutral">${role}</span>`;
                             if (role.toLowerCase() === 'administrator') {
-                                roleBadge = `<span class="bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full text-[10px] font-bold">Admin สูงสุด</span>`;
+                                roleBadge = `<span class="badge badge-approved" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe">👑 Admin สูงสุด</span>`;
                             } else if (role.startsWith('admin')) {
-                                roleBadge = `<span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px] font-semibold">Admin จำกัดสิทธิ์</span>`;
+                                roleBadge = `<span class="badge badge-info" style="background:#fff7ed; color:#c2410c; border:1px solid #ffedd5">🛡️ Admin จำกัดสิทธิ์</span>`;
                             }
 
                             tr.innerHTML = `
-              <td class="py-3 font-semibold text-slate-700">
-                <div class="flex items-center gap-2">
-                  <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-indigo-600 overflow-hidden border border-slate-200">
-                    <img src="${convertDriveUrl(emp["ลิ้งภาพโปรไฟล์"]) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}" class="w-full h-full object-cover">
-                  </div>
+              <td>
+                <div class="emp-cell">
+                  <img src="${convertDriveUrl(emp["ลิ้งภาพโปรไฟล์"]) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}" class="emp-avatar">
                   <div>
-                    <p class="font-bold text-slate-800">${name}</p>
-                    <p class="text-[10px] text-slate-400">ID: ${empId}</p>
+                    <p class="emp-name">${name}</p>
+                    <p class="emp-id">ID: ${empId}</p>
                   </div>
                 </div>
               </td>
-              <td class="py-3 text-slate-600">${pos}</td>
-              <td class="py-3">${statusBadge}</td>
-              <td class="py-3 text-slate-500">${company}</td>
-              <td class="py-3 text-center text-slate-600">${hours} ชม.</td>
-              <td class="py-3 text-slate-500">${phone}</td>
-              <td class="py-3">${roleBadge}</td>
-              <td class="py-3 text-right">
-                <div class="flex items-center justify-end gap-1">
-                  <button onclick='clearEmployeePin("${empId}", "${name}")' title="ล้าง PIN" class="bg-rose-50 hover:bg-rose-100 text-rose-500 font-semibold px-2 py-1 rounded-lg transition-all border border-rose-200">
-                    <i class="fa-solid fa-key"></i>
+              <td style="font-weight: 500;">${pos}</td>
+              <td>${statusBadge}</td>
+              <td style="color: #64748b;">${company}</td>
+              <td style="text-align: center; font-weight: 600;">${hours} ชม.</td>
+              <td style="color: #64748b;">${phone}</td>
+              <td>${roleBadge}</td>
+              <td style="text-align: right;">
+                <div style="display: flex; gap: 4px; justify-content: flex-end;">
+                  <button onclick='clearEmployeePin("${empId}", "${name}")' title="ล้าง PIN" class="tbl-btn tbl-btn-danger">
+                    <i class="fa-solid fa-key"></i> ล้าง PIN
                   </button>
-                  <button onclick="editEmployeeRow('${empId}')" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-2.5 py-1 rounded-lg transition-all border border-slate-200">
+                  <button onclick="editEmployeeRow('${empId}')" class="tbl-btn tbl-btn-edit">
                     <i class="fa-solid fa-pencil"></i> แก้ไข
                   </button>
                 </div>
@@ -7874,25 +7946,23 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                             const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
                             const empDisplay = getAdminEmployeeDisplay(empId, empName);
                             return `
-                <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs align-top">
-                  <td class="py-3 align-top">
-                    <input type="checkbox" class="leave-checkbox" data-doc-id="${escapeHtml(docId)}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleLeaveItem(this)">
+                <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" class="hr-table-row">
+                  <td><input type="checkbox" class="leave-checkbox" data-doc-id="${escapeHtml(docId)}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleLeaveItem(this)"></td>
+                  <td><span class="font-bold text-indigo-700">${docId}</span></td>
+                  <td>${empDisplay}</td>
+                  <td><span class="badge badge-info">${type}</span></td>
+                  <td style="color:#64748b">${range}</td>
+                  <td style="text-align:center"><span class="font-bold text-slate-800">${days}</span> <span style="color:#94a3b8;font-size:10px">วัน</span></td>
+                  <td><span class="truncate" style="max-width:160px;display:inline-block;color:#94a3b8" title="${escapeHtml(reason)}">${escapeHtml(reason)}</span></td>
+                  <td>${attachHtml}</td>
+                  <td><span class="badge badge-pending">⏳ รออนุมัติ</span></td>
+                  <td style="text-align:right">
+                    <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
+                      <button onclick='printLeaveRecord(${safeJson(req["เลขที่เอกสาร"] || req["เลขที่"] || req.docId || req.documentId || req.doc_no || req.document_no || "")})' class="tbl-btn tbl-btn-print"><i class="fa-solid fa-print"></i> พิมพ์</button>
+                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="tbl-btn tbl-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="tbl-btn tbl-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                    </div>
                   </td>
-                  <td class="py-3 font-semibold text-slate-700 truncate" title="${docId}">${docId}</td>
-                  <td class="py-3 text-slate-600 truncate overflow-hidden" title="${escapeHtml(empName)}">${empDisplay}</td>
-                  <td class="py-3 text-slate-600 font-semibold whitespace-nowrap">${type}</td>
-                  <td class="py-3 text-slate-500 truncate whitespace-nowrap" title="${range}">${range}</td>
-                  <td class="py-3 text-center text-slate-700 font-bold whitespace-nowrap">${days} วัน</td>
-                  <td class="py-3 text-slate-400 truncate" title="${reason}">${reason}</td>
-                  <td class="py-3 text-slate-600 truncate" title="${attachment}">${attachHtml}</td>
-                  <td class="py-3 whitespace-nowrap"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
-                                    <td class="py-3 text-right align-top">
-                                        <div class="flex flex-wrap justify-end gap-1.5">
-                                            <button onclick='printLeaveRecord(${safeJson(req["เลขที่เอกสาร"] || req["เลขที่"] || req.docId || req.documentId || req.doc_no || req.document_no || "")})' class="bg-slate-500 hover:bg-slate-600 text-white font-semibold text-[11px] px-2 py-1 rounded-lg transition-all">พิมพ์</button>
-                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-[11px] px-2 py-1 rounded-lg transition-all">อนุมัติ</button>
-                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold text-[11px] px-2 py-1 rounded-lg transition-all">ปฏิเสธ</button>
-                                        </div>
-                                    </td>
                 </tr>`;
                         });
                         renderRowsInChunks(leaveContainer, rows, 'ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้', 10);
@@ -7936,21 +8006,19 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                             const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
                             const empDisplay = getAdminEmployeeDisplay(empId, empName);
                             return `
-                <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(rowKey)}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
-                  <td class="py-3">
-                    <input type="checkbox" class="correction-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleCorrectionItem(this)">
-                  </td>
-                  <td class="py-3 font-semibold text-slate-700">${empDisplay}</td>
-                  <td class="py-3 text-slate-600">${formatThaiDate(req["วันที่ส่ง"]) || "-"}</td>
-                  <td class="py-3 text-slate-600">${date}</td>
-                  <td class="py-3 text-emerald-600 font-semibold">${newIn}</td>
-                  <td class="py-3 text-emerald-600 font-semibold">${newOut}</td>
-                  <td class="py-3 text-slate-400 max-w-[200px] truncate" title="${reason}">${reason}</td>
-                  <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">รออนุมัติ</span></td>
-                  <td class="py-3 text-right">
-                    <div class="flex justify-end gap-1.5">
-                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(rowKey)}" class="hr-table-row">
+                  <td><input type="checkbox" class="correction-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleCorrectionItem(this)"></td>
+                  <td>${empDisplay}</td>
+                  <td style="color:#64748b">${formatThaiDate(req["วันที่ส่ง"]) || "-"}</td>
+                  <td style="color:#475569;font-weight:600">${date}</td>
+                  <td><span class="font-bold" style="color:#059669">${newIn}</span></td>
+                  <td><span class="font-bold" style="color:#059669">${newOut}</span></td>
+                  <td><span class="truncate" style="max-width:180px;display:inline-block;color:#94a3b8" title="${escapeHtml(reason)}">${escapeHtml(reason)}</span></td>
+                  <td><span class="badge badge-pending">⏳ รออนุมัติ</span></td>
+                  <td style="text-align:right">
+                    <div style="display:flex;gap:4px;justify-content:flex-end">
+                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="tbl-btn tbl-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="tbl-btn tbl-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                     </div>
                   </td>
                 </tr>`;
@@ -7997,20 +8065,18 @@ return `${safeId}<span class="block text-[11px] text-slate-400 truncate">${escap
                             const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
                             const empDisplay = getAdminEmployeeDisplay(empId, empName);
                             return `
-                <tr data-approval-row-type="advance" data-approval-row-key="${escapeHtml(rowKey)}" class="border-b border-slate-100 hover:bg-slate-50 transition-all text-xs">
-                  <td class="py-3">
-                    <input type="checkbox" class="advance-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)">
-                  </td>
-                  <td class="py-3 font-semibold text-slate-700">${empDisplay}</td>
-                  <td class="py-3 text-emerald-600 font-bold">฿${amount}</td>
-                  <td class="py-3 text-slate-600">${date}</td>
-                  <td class="py-3 text-slate-500">${cycle}</td>
-                  <td class="py-3 text-slate-600 font-medium">${channel}</td>
-                  <td class="py-3"><span class="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px]">${status}</span></td>
-                  <td class="py-3 text-right">
-                    <div class="flex justify-end gap-1.5">
-                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-all">อนุมัติ</button>
-                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="bg-rose-500 hover:bg-rose-600 text-white font-semibold transition-all">ปฏิเสธ</button>
+                <tr data-approval-row-type="advance" data-approval-row-key="${escapeHtml(rowKey)}" class="hr-table-row">
+                  <td><input type="checkbox" class="advance-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)"></td>
+                  <td>${empDisplay}</td>
+                  <td><span class="font-bold" style="color:#059669;font-size:13px">฿${amount}</span></td>
+                  <td style="color:#64748b">${date}</td>
+                  <td style="color:#475569">${cycle}</td>
+                  <td style="color:#475569;font-weight:500">${channel}</td>
+                  <td><span class="badge badge-pending">⏳ ${status}</span></td>
+                  <td style="text-align:right">
+                    <div style="display:flex;gap:4px;justify-content:flex-end">
+                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="tbl-btn tbl-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="tbl-btn tbl-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                     </div>
                   </td>
                 </tr>`;
