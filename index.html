@@ -4183,8 +4183,6 @@
             let signatureCanvas = null;
             let signatureCtx = null;
 
-
-
             // Initialize leave period radio buttons styling
             function initLeavePeriodStyling() {
                 const radioButtons = document.querySelectorAll('input[name="leave-period"]');
@@ -5508,6 +5506,85 @@
 
             window.__cacheStats = () => ClientCache.stats();
             window.__cacheClear = () => ClientCache.clear();
+
+            // ===== 🚀 ADMIN BACKGROUND PREFETCH CACHE =====
+            const AdminDataCache = {
+                _store: {},
+                TTL: 5 * 60_000, // แคชข้อมูลแอดมินไว้ 5 นาที
+                set(key, data) {
+                    this._store[key] = { data: data, ts: Date.now() };
+                },
+                get(key) {
+                    const entry = this._store[key];
+                    if (!entry) return null;
+                    if (Date.now() - entry.ts > this.TTL) {
+                        delete this._store[key];
+                        return null;
+                    }
+                    return entry.data;
+                },
+                invalidate(key) {
+                    delete this._store[key];
+                },
+                invalidateAll() {
+                    this._store = {};
+                }
+            };
+
+            // โหลดข้อมูลสำหรับเมนูแอดมินรอไว้ใน Background (Prefetch)
+            function prefetchAdminData() {
+                if (!currentEmployeeId) return;
+                const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim().toLowerCase();
+                const isAdmin = (role === 'administrator' || role === 'admin' || role.startsWith('admin:'));
+                if (!isAdmin) return;
+
+                console.log("[Prefetch] Running background load for Admin Portal...");
+
+                // 1. โหลดข้อมูลพนักงานทั้งหมด
+                fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`)
+                    .then(res => {
+                        if (res && res.status === 'success') {
+                            AdminDataCache.set('employees', res.data);
+                            console.log("[Prefetch] Employees list successfully cached.");
+                        }
+                    }).catch(e => console.error("Prefetch Employees Error:", e));
+
+                // 2. โหลดรายการขออนุมัติของใบลา
+                fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`)
+                    .then(res => {
+                        if (res && res.status === 'success') {
+                            AdminDataCache.set('approvals-leave', res.data);
+                            console.log("[Prefetch] Leave requests successfully cached.");
+                        }
+                    }).catch(e => console.error("Prefetch Leave Error:", e));
+
+                // 3. โหลดรายการขออนุมัติแก้ไขเวลา
+                fetchWithTimeout(`${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`)
+                    .then(res => {
+                        if (res && res.status === 'success') {
+                            AdminDataCache.set('approvals-correction', res.data);
+                            console.log("[Prefetch] Corrections list successfully cached.");
+                        }
+                    }).catch(e => console.error("Prefetch Corrections Error:", e));
+
+                // 4. โหลดรายการเบิกเงินล่วงหน้า
+                fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`)
+                    .then(res => {
+                        if (res && res.status === 'success') {
+                            AdminDataCache.set('approvals-advance', res.data);
+                            console.log("[Prefetch] Advance requests successfully cached.");
+                        }
+                    }).catch(e => console.error("Prefetch Advance Error:", e));
+
+                // 5. โหลดตั้งค่าระบบ
+                fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`)
+                    .then(res => {
+                        if (res && res.status === 'success') {
+                            AdminDataCache.set('settings', res.data);
+                            console.log("[Prefetch] System settings successfully cached.");
+                        }
+                    }).catch(e => console.error("Prefetch Settings Error:", e));
+            }
 
             // === 🟢 LOADING STATE HELPERS (Phase B-2) ===
             // helper สร้าง skeleton HTML
