@@ -3,92 +3,1985 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>บันทึกเวลางานและวิเคราะห์ต้นทุนโครงการ</title>
-    <link rel="shortcut icon" href="data:,">
+    <title>HRBTC Daily Work Log, Summary & Costing - ระบบบันทึกเวลางานและต้นทุนโครงการ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Sarabun & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Sarabun', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        blue: {
+                            950: '#1e1b4b',
+                            955: '#111827'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        body {
-            margin: 0;
-            font-family: 'Prompt', sans-serif;
-            background: #f8fafc;
-            color: #0f172a;
+        /* Custom Scrollbar for matrix table */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 10px;
+            width: 10px;
         }
-        .page-shell {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 24px;
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 6px;
         }
-        .card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 24px;
-            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
-            padding: 28px;
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 6px;
+            border: 2px solid #f1f5f9;
         }
-        .button {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.9rem 1.2rem;
-            border-radius: 9999px;
-            border: 1px solid transparent;
-            background: #4338ca;
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
-        .button:hover {
-            background: #3730a3;
-        }
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.5rem 0.75rem;
-            border-radius: 9999px;
-            background: #e0e7ff;
-            color: #3730a3;
-            font-size: 0.8rem;
-            font-weight: 700;
+
+        /* Print Media Setup */
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            #invoicePrintArea {
+                display: block !important;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white !important;
+                padding: 0px !important;
+                margin: 0px !important;
+            }
+            .print-break-avoid {
+                page-break-inside: avoid;
+            }
         }
     </style>
 </head>
-<body>
-    <main class="page-shell">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 24px;">
-            <div>
-                <p class="badge">Project Cost</p>
-                <h1 style="font-size: 2rem; margin: 0.5rem 0 0;">บันทึกเวลางานและวิเคราะห์ต้นทุนโครงการ</h1>
-                <p style="margin: 0.75rem 0 0; color: #475569; max-width: 760px; line-height: 1.7;">หน้าจอนี้เก็บแยกไว้เป็นไฟล์ HTML แยกต่างหาก สามารถเปิดได้จากเมนูในระบบหลัก เพื่อวางโครงสร้างสรุปบันทึกเวลาและต้นทุนโครงการในอนาคต</p>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white shadow-lg sticky top-0 z-40 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3.5">
+                    <div class="bg-amber-500 text-blue-950 p-2.5 rounded-xl font-extrabold text-xl tracking-wider shadow-md shadow-amber-500/20 transform hover:scale-105 transition-all">
+                        HRBTC
+                    </div>
+                    <div>
+                        <h1 class="text-base sm:text-lg font-bold leading-tight tracking-wide">ระบบบันทึกเวลางานและวิเคราะห์ต้นทุนโครงการ</h1>
+                        <p class="text-[10px] sm:text-xs text-blue-200 font-medium">สำหรับโฟร์แมนและผู้ควบคุมงาน (เวอร์ชันบริหารและกลยุทธ์บุคคล)</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="hidden md:inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                        <span class="w-2.5 h-2.5 mr-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Local & Cloud Synced
+                    </span>
+                    <div class="text-right border-l border-blue-800/60 pl-4">
+                        <p class="text-[10px] text-slate-300">เข้าใช้ระบบในฐานะ</p>
+                        <p class="text-xs sm:text-sm font-semibold text-amber-400">โฟร์แมนควบคุมไซด์งาน</p>
+                    </div>
+                </div>
             </div>
-            <div>
-                <a href="index.html" class="button"><i class="fa-solid fa-arrow-left"></i> กลับหน้าหลัก</a>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        <!-- Tab Navigation & Config Header -->
+        <div class="bg-white rounded-2xl shadow-sm p-5 mb-6 border border-slate-100 no-print space-y-4">
+            
+            <!-- Row 1: Select Project & Cycle Info -->
+            <div class="flex flex-col md:flex-row md:items-center gap-4">
+                
+                <!-- Select Project -->
+                <div class="flex-grow">
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">ตัวกรองโครงการหน้างาน</label>
+                    <div class="relative">
+                        <select id="projectFilter" onchange="handleProjectChange()" class="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-slate-700 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10 text-sm font-semibold appearance-none transition-all">
+                            <option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>
+                            <option value="(01)โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง">(01) โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง</option>
+                            <option value="(02)งานปรับปรุงถนนรอบเมืองบุรีรัมย์">(02) งานปรับปรุงถนนรอบเมืองบุรีรัมย์</option>
+                            <option value="(03)งานเทคอนกรีตสะพานห้วยจรเข้มาก">(03) งานเทคอนกรีตสะพานห้วยจรเข้มาก</option>
+                            <option value="(04)งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง">(04) งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Select Cycle -->
+                <div class="w-full md:w-auto md:min-w-[320px]">
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">รอบบัญชีและงวดการจ่ายค่าแรง</label>
+                    <div class="relative">
+                        <select id="billingMonth" onchange="generateCalendarAndMockData()" class="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 appearance-none transition-all">
+                            <option value="2026-06">รอบบัญชี มิ.ย. 2569 (26 พ.ค. - 25 มิ.ย.)</option>
+                            <option value="2026-05">รอบบัญชี พ.ค. 2569 (26 เม.ย. - 25 พ.ค.)</option>
+                            <option value="2026-04">รอบบัญชี เม.ย. 2569 (26 มี.ค. - 25 เม.ย.)</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                            <i class="fa-solid fa-calendar-days text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <hr class="border-slate-100" />
+
+            <!-- Row 2: Action Tabs -->
+            <div class="flex flex-wrap gap-1 bg-slate-100 p-1.5 rounded-xl w-full sm:w-max">
+                <button onclick="switchTab('daily')" id="tabBtn-daily" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 bg-white text-blue-955 shadow-sm border border-slate-100">
+                    <i class="fa-solid fa-calendar-day mr-2 text-blue-600"></i> บันทึกเวลางานรายวัน
+                </button>
+                <button onclick="switchTab('summary')" id="tabBtn-summary" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-600 hover:text-slate-950">
+                    <i class="fa-solid fa-table-cells mr-2 text-slate-500"></i> ตารางรวมรอบเดือน (Matrix)
+                </button>
+                <button onclick="switchTab('costing')" id="tabBtn-costing" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-600 hover:text-slate-950">
+                    <i class="fa-solid fa-chart-pie mr-2 text-emerald-600"></i> สรุปต้นทุนค่าโครงการ (Costing)
+                </button>
+                <button onclick="switchTab('insights')" id="tabBtn-insights" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-600 hover:text-slate-950">
+                    <i class="fa-solid fa-chart-line mr-2 text-violet-600"></i> วิเคราะห์ระดับบริหาร (HR Insights)
+                </button>
+            </div>
+
+        </div>
+
+        <!-- TAB 1: บันทึกรายวัน (Daily Log View) -->
+        <div id="tab-daily" class="space-y-6 no-print">
+            <!-- Day Selector & Stats Card Row -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                    
+                    <!-- ส่วนเลือกวัน (ด้านซ้าย) -->
+                    <div class="flex items-center space-x-3 shrink-0 justify-between sm:justify-start">
+                        <button onclick="navigateDay(-1)" class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition shadow-sm">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <div class="text-center sm:text-left min-w-[180px]">
+                            <input type="date" id="currentSelectedDate" onchange="handleDateSelectChange()" class="text-lg font-bold text-slate-800 border border-slate-200 bg-slate-50 p-1.5 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/25">
+                            <p class="text-xs text-slate-500 font-semibold mt-1" id="currentDayOfWeekLabel">วันศุกร์ (รอบบัญชีเงินเดือนปัจจุบัน)</p>
+                        </div>
+                        <button onclick="navigateDay(1)" class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition shadow-sm">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- ส่วนแสดงตัวเลขสรุปสถิติ & ปุ่มบันทึก -->
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3.5 w-full lg:w-auto lg:justify-end">
+                        <!-- รายการสถิติ -->
+                        <div class="flex flex-wrap items-center gap-2.5">
+                            <div class="px-3.5 py-2 bg-emerald-50 rounded-xl text-xs font-bold text-emerald-700 border border-emerald-100 flex items-center shadow-sm">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2 animate-pulse"></span> มาทำงาน: <span id="stat-normal-count" class="ml-1 text-sm font-extrabold">0</span> คน
+                            </div>
+                            <div class="px-3.5 py-2 bg-amber-50 rounded-xl text-xs font-bold text-amber-700 border border-amber-100 flex items-center shadow-sm">
+                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 mr-2"></span> มาสาย: <span id="stat-late-count" class="ml-1 text-sm font-extrabold">0</span> คน
+                            </div>
+                            <div class="px-3.5 py-2 bg-rose-50 rounded-xl text-xs font-bold text-rose-700 border border-rose-100 flex items-center shadow-sm">
+                                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 mr-2"></span> ขาด/ไม่ระบุ: <span id="stat-absent-count" class="ml-1 text-sm font-extrabold">0</span> คน
+                            </div>
+                        </div>
+                        
+                        <!-- ปุ่มบันทึก -->
+                        <button onclick="autoSaveAllToGoogleSheets()" class="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-emerald-600/10 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-cloud-arrow-up mr-2"></i> บันทึกขึ้น Google Sheet
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Main Work Log Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center flex-wrap gap-3 bg-slate-50/50">
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-800">รายชื่อผู้ปฏิบัติงาน ณ ไซด์งาน</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">กดที่รหัสสถานะหรือช่องสี่เหลี่ยมเพื่อเปลี่ยนเวลางาน, ปรับแก้เบี้ยเลี้ยงอื่นๆ ได้รวดเร็ว</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="batchSetStatus('W')" class="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-xl transition">
+                            <i class="fa-solid fa-check mr-1.5"></i> บันทึกทำงานทั้งหมด (W)
+                        </button>
+                        <button onclick="batchSetStatus('A')" class="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold rounded-xl transition">
+                            <i class="fa-solid fa-xmark mr-1.5"></i> บันทึกขาดงานทั้งหมด (A)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">บุคลากร / โครงการ</th>
+                                <th scope="col" class="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">สถานะลงเวลา</th>
+                                <th scope="col" class="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">เวลา ปฏิบัติงาน</th>
+                                <th scope="col" class="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">คำนวณสาย / โอที</th>
+                                <th scope="col" class="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">ค่าข้าว (บาท)</th>
+                                <th scope="col" class="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">ค่าเที่ยว (บาท)</th>
+                                <th scope="col" class="px-4 py-3.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">ค่าเบี้ยเลี้ยงอื่นๆ</th>
+                                <th scope="col" class="px-6 py-3.5 text-right text-xs font-bold text-slate-500 uppercase tracking-wider pr-6">รวมเบี้ยเลี้ยง</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dailyLogTableBody" class="bg-white divide-y divide-slate-100">
+                            <!-- Dynamic Content loaded here -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <section class="card">
-            <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">สถานะปัจจุบัน</h2>
-            <p style="color: #475569; margin-bottom: 1rem;">ขณะนี้หน้าจอสำหรับบันทึกเวลางานและวิเคราะห์ต้นทุนโครงการถูกสร้างเป็นหน้าแยก คุณสามารถต่อยอดระบบได้โดยเพิ่มตารางบันทึกเวลา รายงานต้นทุนโครงการ และกราฟวิเคราะห์ที่นี่</p>
-            <div style="display: grid; gap: 1rem;">
-                <div style="padding: 1.25rem; background: #f8fafc; border-radius: 18px; border: 1px solid #e2e8f0;">
-                    <p style="margin: 0 0 0.5rem; font-weight: 700;">ฟีเจอร์ที่เตรียมไว้</p>
-                    <ul style="margin: 0; padding-left: 1.2rem; color: #475569; line-height: 1.8;">
-                        <li>บันทึกเวลางานแยกตามโครงการ</li>
-                        <li>สรุปรายวัน / สรุปโครงการ</li>
-                        <li>วิเคราะห์ต้นทุนแรงงานของแต่ละโครงการ</li>
-                        <li>เชื่อมต่อกับหน้าจอหลักผ่านเมนู</li>
-                    </ul>
+        <!-- TAB 2: ตารางรวมทั้งเดือน (Summary Matrix View) -->
+        <div id="tab-summary" class="hidden space-y-6 no-print">
+            <!-- Summary Info Bar -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="p-3.5 rounded-xl bg-blue-50 text-blue-600"><i class="fa-solid fa-users text-2xl"></i></div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold tracking-wide uppercase">กำลังพลในโครงการ</p>
+                        <p id="sum-total-employees" class="text-xl font-extrabold text-slate-800 mt-0.5">0 คน</p>
+                    </div>
                 </div>
-                <div style="padding: 1.25rem; background: #eef2ff; border-radius: 18px; border: 1px solid #c7d2fe;">
-                    <p style="margin: 0 0 0.5rem; font-weight: 700;">ข้อมูลเพิ่มเติม</p>
-                    <p style="margin: 0; color: #475569; line-height: 1.7;">หากต้องการเพิ่มข้อมูลจริง ให้เชื่อมต่อกับ API หรือฐานข้อมูล ที่ใช้เก็บเวลา/โครงการ และปรับหน้า UI ให้แสดงตารางหรือกราฟตามโครงสร้างข้อมูลของคุณ</p>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="p-3.5 rounded-xl bg-emerald-50 text-emerald-600"><i class="fa-solid fa-calendar-check text-2xl"></i></div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold tracking-wide uppercase">รวมวันสะสม (วัน-คน)</p>
+                        <p id="sum-total-workdays" class="text-xl font-extrabold text-slate-800 mt-0.5">0 วัน</p>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="p-3.5 rounded-xl bg-purple-50 text-purple-600"><i class="fa-solid fa-hand-holding-dollar text-2xl"></i></div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold tracking-wide uppercase">ประมาณค่าสวัสดิการรวม</p>
+                        <p id="sum-total-allowances" class="text-xl font-extrabold text-slate-800 mt-0.5">0.00 ฿</p>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="p-3.5 rounded-xl bg-amber-50 text-amber-600"><i class="fa-solid fa-clock-rotate-left text-2xl"></i></div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold tracking-wide uppercase">ยอดชั่วโมงทำงานพิเศษ (OT)</p>
+                        <p id="sum-total-ot-hours" class="text-xl font-extrabold text-slate-800 mt-0.5">0 ชม.</p>
+                    </div>
                 </div>
             </div>
-        </section>
+
+            <!-- Matrix Calendar -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center flex-wrap gap-4 bg-slate-50/50">
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-800">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet)</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">แสดงข้อมูลรายวันตลอดรอบเงินเดือน สามารถคลิกไอคอนสถานะของพนักงานเพื่อแก้ไขข้อมูลเวลางานและสถานะได้ทันที</p>
+                    </div>
+                </div>
+
+                <!-- Matrix Table Wrap -->
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="min-w-full divide-y divide-slate-200 text-xs border-collapse">
+                        <thead class="bg-slate-100 sticky top-0 z-20">
+                            <tr id="matrixHeaderRow">
+                                <!-- Dynamic Header -->
+                            </tr>
+                        </thead>
+                        <tbody id="matrixTableBody" class="bg-white divide-y divide-slate-200 font-medium">
+                            <!-- Dynamic Content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: วิเคราะห์ต้นทุนค่าโครงการ (Project Costing & Billing Tab) -->
+        <div id="tab-costing" class="hidden space-y-6 no-print">
+            <!-- Widgets for Project Cost Overview -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div class="bg-gradient-to-br from-blue-950 to-indigo-900 text-white p-6 rounded-2xl shadow-md flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-blue-200 uppercase font-extrabold tracking-wider">ต้นทุนโครงการสุทธิสะสม</p>
+                        <p id="costing-total-cost" class="text-2xl sm:text-3xl font-extrabold mt-1.5">0.00 ฿</p>
+                    </div>
+                    <div class="text-amber-400 text-4xl opacity-90"><i class="fa-solid fa-wallet"></i></div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">ค่าจ้างสะสม & ค่าโอที</p>
+                        <p id="costing-wages-cost" class="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1.5">0.00 ฿</p>
+                    </div>
+                    <div class="text-blue-600 text-3xl bg-blue-50 p-3 rounded-xl"><i class="fa-solid fa-user-tie"></i></div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">เบี้ยเลี้ยงสะสม & สวัสดิการอื่น</p>
+                        <p id="costing-allowances-cost" class="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1.5">0.00 ฿</p>
+                    </div>
+                    <div class="text-emerald-600 text-3xl bg-emerald-50 p-3 rounded-xl"><i class="fa-solid fa-truck-pickup"></i></div>
+                </div>
+            </div>
+
+            <!-- Detailed Cost breakdown per Project Section -->
+            <div id="projectCostSection" class="space-y-6">
+                <!-- Content populated dynamically via JS -->
+            </div>
+        </div>
+
+        <!-- TAB 4: วิเคราะห์ระดับบริหารเชิงกลยุทธ์ (HR & Executive Insights Tab) -->
+        <div id="tab-insights" class="hidden space-y-6 no-print">
+            <!-- KPI Summary Bar สำหรับระดับบริหาร -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="p-3 bg-rose-50 text-rose-600 rounded-xl"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">ความเสี่ยงทุจริต/สวัสดิการรั่วไหล</p>
+                        <p id="insight-welfare-leak-count" class="text-lg font-black text-rose-600 mt-0.5">0 เคส</p>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="p-3 bg-amber-50 text-amber-600 rounded-xl"><i class="fa-solid fa-heart-pulse text-xl"></i></div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">พนักงานเสี่ยงเหนื่อยล้า (OT สูง)</p>
+                        <p id="insight-ot-exhaustion-count" class="text-lg font-black text-amber-600 mt-0.5">0 คน</p>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><i class="fa-solid fa-percent text-xl"></i></div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">อัตราเข้างานเฉลี่ยบริษัท</p>
+                        <p id="insight-avg-attendance-rate" class="text-lg font-black text-indigo-950 mt-0.5">0.00%</p>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><i class="fa-solid fa-chart-line text-xl"></i></div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">ค่าเฉลี่ยต้นทุน Man-Day</p>
+                        <p id="insight-avg-manday-cost" class="text-lg font-black text-emerald-700 mt-0.5">0.00 ฿</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- กราฟแบบ Native CSS & SVG วิเคราะห์งบประมาณและสัดส่วนต้นทุน -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- กราฟงบประมาณแยกตามโครงการ -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-800">เปรียบเทียบ งบประมาณค่าแรงจัดตั้ง vs ยอดจ่ายแรงงานจริง</h3>
+                            <p class="text-[10px] text-slate-400 font-medium">เตือนสีแดงเมื่อยอดใช้สะสมในรอบบัญชีเกิน 90% ของเป้าหมาย</p>
+                        </div>
+                    </div>
+                    
+                    <!-- ส่วนแสดงแท่งกราฟจำลองด้วย HTML/Tailwind -->
+                    <div id="insightsBudgetChartContainer" class="space-y-4 pt-2">
+                        <!-- Generates Dynamically -->
+                    </div>
+                </div>
+
+                <!-- กราฟวงกลม/ส่วนสัดส่วนสวัสดิการ -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h3 class="text-sm font-extrabold text-slate-800">สัดส่วนโครงสร้างค่าใช้จ่ายแรงงานรวม</h3>
+                        <p class="text-[10px] text-slate-400 font-medium">สัดส่วนค่าจ้างหลักเทียบกับโอทีและสวัสดิการสอยย่อย</p>
+                    </div>
+                    
+                    <div class="flex flex-col items-center justify-center space-y-5 py-4">
+                        <!-- Progress Donut Simulation -->
+                        <div class="relative w-36 h-36 flex items-center justify-center rounded-full bg-slate-100 border border-slate-200">
+                            <!-- Inner circle mask -->
+                            <div class="absolute w-28 h-28 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase">ค่าใช้จ่ายสุทธิ</span>
+                                <span id="insight-donut-grand-total" class="text-sm font-black text-slate-800">฿0.00</span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bars & Legend -->
+                        <div class="w-full space-y-3 text-xs">
+                            <div>
+                                <div class="flex justify-between font-bold text-slate-600 mb-1">
+                                    <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-blue-900 mr-2"></span>ค่าจ้างปกติ (Base Salaries)</span>
+                                    <span id="insight-legend-base-salary-percent">0%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div id="insight-bar-base-salary" class="bg-blue-900 h-full rounded-full transition-all" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between font-bold text-slate-600 mb-1">
+                                    <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500 mr-2"></span>ค่าล่วงเวลาพิเศษ (OT)</span>
+                                    <span id="insight-legend-ot-percent">0%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div id="insight-bar-ot" class="bg-indigo-500 h-full rounded-full transition-all" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between font-bold text-slate-600 mb-1">
+                                    <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2"></span>ค่าข้าว & เบี้ยเลี้ยง (Welfare)</span>
+                                    <span id="insight-legend-welfare-percent">0%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div id="insight-bar-welfare" class="bg-emerald-500 h-full rounded-full transition-all" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- รายงานตรวจสอบและจัดการความเสี่ยงบุคคล (HR Audit Panels) -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 1. บล็อกระบบควบคุมการทุจริต/รั่วไหลของสวัสดิการ -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                    <div class="px-5 py-4 border-b border-slate-100 bg-rose-50/50 flex justify-between items-center">
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
+                                <i class="fa-solid fa-shield-halved text-rose-600 mr-2"></i>
+                                รายงานตรวจสอบจุดเสี่ยงสวัสดิการซ้ำซ้อน (Welfare Leakage Audit)
+                            </h3>
+                            <p class="text-[10px] text-slate-500 mt-0.5">พบพฤติกรรมบันทึกเบี้ยเลี้ยงขัดแย้ง เช่น ลงสถานะ ขาดงาน (A) หรือ วันหยุด (ย) แต่มีการคีย์เบิกจ่ายเงิน</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto flex-grow max-h-[300px] custom-scrollbar">
+                        <table class="min-w-full divide-y divide-slate-200 text-xs">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left font-bold text-slate-500">วัน/เดือน</th>
+                                    <th class="px-4 py-2 text-left font-bold text-slate-500">พนักงาน</th>
+                                    <th class="px-3 py-2 text-center font-bold text-slate-500">สถานะที่ลง</th>
+                                    <th class="px-3 py-2 text-right font-bold text-slate-500 text-rose-700">ยอดที่เบิกผิดปกติ</th>
+                                    <th class="px-4 py-2 text-left font-bold text-slate-500">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="insightsWelfareLeakTableBody" class="divide-y divide-slate-100 bg-white">
+                                <!-- Loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2. ตารางรายชื่อเสี่ยงชั่วโมงโอทีเกินและเหนื่อยล้าสะสม -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                    <div class="px-5 py-4 border-b border-slate-100 bg-amber-50/50 flex justify-between items-center">
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
+                                <i class="fa-solid fa-user-injured text-amber-600 mr-2"></i>
+                                รายชื่อพนักงานชั่วโมง OT สูงสุด / เสี่ยงเหนื่อยล้าสะสม (Exhaustion Warning)
+                            </h3>
+                            <p class="text-[10px] text-slate-500 mt-0.5">พนักงานสะสม OT เกิน 25 ชม. ในงวดบัญชี ควรได้รับแผนสลับหรือสับเปลี่ยนกำลังคนหน้างาน</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto flex-grow max-h-[300px] custom-scrollbar">
+                        <table class="min-w-full divide-y divide-slate-200 text-xs">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left font-bold text-slate-500">พนักงาน</th>
+                                    <th class="px-4 py-2 text-left font-bold text-slate-500">บทบาท</th>
+                                    <th class="px-3 py-2 text-center font-bold text-slate-500">โอทีสะสม (ชม.)</th>
+                                    <th class="px-3 py-2 text-right font-bold text-slate-500">ค่าล่วงเวลาสะสม</th>
+                                    <th class="px-4 py-2 text-center font-bold text-slate-500">ระดับความเสี่ยง</th>
+                                </tr>
+                            </thead>
+                            <tbody id="insightsOtExhaustionTableBody" class="divide-y divide-slate-100 bg-white">
+                                <!-- Loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- รายงานพฤติกรรมการมาสายสะสมรายบุคคล -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="px-5 py-4.5 border-b border-slate-100 bg-slate-50/50">
+                    <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
+                        <i class="fa-solid fa-user-clock text-indigo-700 mr-2"></i>
+                        อันดับพฤติกรรมการมาสายสะสมพนักงานรายบุคคล (HR Behavioral Review)
+                    </h3>
+                    <p class="text-[10px] text-slate-500 mt-0.5">ใช้เพื่อพิจารณาการประเมินผลงาน ปรับอัตราเงินเดือนประจำปี หรือการตักเตือนพฤติกรรมการมาทำงานสาย</p>
+                </div>
+                <div class="overflow-x-auto max-h-[320px] custom-scrollbar">
+                    <table class="min-w-full divide-y divide-slate-200 text-xs text-left">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-5 py-3 font-bold text-slate-500 text-center" style="width: 70px;">อันดับ</th>
+                                <th class="px-4 py-3 font-bold text-slate-500">รหัส</th>
+                                <th class="px-4 py-3 font-bold text-slate-500">พนักงาน</th>
+                                <th class="px-4 py-3 font-bold text-slate-500">บทบาทหน้างาน</th>
+                                <th class="px-4 py-3 font-bold text-slate-500 text-center">มาสายสะสม (วัน)</th>
+                                <th class="px-4 py-3 font-bold text-slate-500 text-center">นาทีสายสะสม (นาที)</th>
+                                <th class="px-5 py-3 font-bold text-slate-500 text-right">ประเมินตัดเบี้ยขยันเบื้องต้น</th>
+                            </tr>
+                        </thead>
+                        <tbody id="insightsBehavioralTableBody" class="divide-y divide-slate-100 bg-white">
+                            <!-- Loaded dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
     </main>
+
+    <!-- INVOICE/REPORT VIEW FOR PRINT -->
+    <div id="invoicePrintArea" class="hidden bg-white text-slate-900 p-8">
+        <!-- Document Header -->
+        <div class="flex justify-between items-start border-b-2 border-slate-800 pb-5">
+            <div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-wider">บริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด</h1>
+                <p class="text-xs text-slate-600 mt-1.5">สำนักงานใหญ่: 124 ถนนรอบเมืองบุรีรัมย์ ต.ในเมือง อ.เมืองบุรีรัมย์ จ.บุรีรัมย์ 31000</p>
+                <p class="text-xs text-slate-600">โทร: 044-XXXXXX | อีเมล: account@hrbtc.co.th</p>
+            </div>
+            <div class="text-right">
+                <h2 class="text-lg font-extrabold text-slate-800 uppercase tracking-wide">ใบสรุปค่าแรงและต้นทุนโครงการ</h2>
+                <p class="text-[10px] font-bold text-slate-500 mt-0.5">PROJECT LABOR COST SUMMARY REPORT</p>
+                <p class="text-sm font-mono font-bold text-blue-900 mt-3 bg-blue-50 px-2 py-1 rounded inline-block" id="printInvoiceNo">HRBTC-XXXX</p>
+            </div>
+        </div>
+
+        <!-- Document Metadata -->
+        <div class="grid grid-cols-2 gap-4 my-6 text-xs">
+            <div class="space-y-1.5">
+                <p><span class="font-bold text-slate-700">ชื่อโครงการ:</span> <span id="printProjectName" class="font-semibold text-slate-900 text-sm">โครงการ...</span></p>
+                <p><span class="font-bold text-slate-700">ขอบเขตรอบบัญชีงวดการจ่าย:</span> <span id="printBillingCycle" class="font-semibold text-slate-800">26 พ.ค. 2569 - 25 มิ.ย. 2569</span></p>
+            </div>
+            <div class="text-right space-y-1.5">
+                <p><span class="font-bold text-slate-700">วันที่ประมวลผลข้อมูล:</span> <span id="printDate" class="font-semibold">06 มิถุนายน 2569</span></p>
+                <p><span class="font-bold text-slate-700">เจ้าหน้าที่ผู้จัดเตรียมรายงาน:</span> <span class="font-semibold">โฟร์แมนควบคุมไซด์งาน (ฝ่ายบุคลากร HRBTC)</span></p>
+            </div>
+        </div>
+
+        <!-- Detailed Invoice Table -->
+        <table class="min-w-full divide-y divide-slate-400 text-xs border border-slate-300">
+            <thead class="bg-slate-50 text-[11px]">
+                <tr>
+                    <th scope="col" class="px-2.5 py-3 text-center font-bold border-r border-b border-slate-300">ลำดับ</th>
+                    <th scope="col" class="px-2.5 py-3 text-left font-bold border-r border-b border-slate-300">รหัสพนักงาน</th>
+                    <th scope="col" class="px-2.5 py-3 text-left font-bold border-r border-b border-slate-300">ชื่อ-นามสกุล</th>
+                    <th scope="col" class="px-2.5 py-3 text-left font-bold border-r border-b border-slate-300">ตำแหน่งหน้าที่</th>
+                    <th scope="col" class="px-2 py-3 text-center font-bold border-r border-b border-slate-300">เข้างาน (วัน)</th>
+                    <th scope="col" class="px-2.5 py-3 text-right font-bold border-r border-b border-slate-300">สะสมค่าแรง (+OT)</th>
+                    <th scope="col" class="px-2.5 py-3 text-right font-bold border-r border-b border-slate-300">ค่าข้าวสะสม</th>
+                    <th scope="col" class="px-2.5 py-3 text-right font-bold border-r border-b border-slate-300">ค่าเที่ยวเดินทาง</th>
+                    <th scope="col" class="px-2.5 py-3 text-right font-bold border-r border-b border-slate-300">เบี้ยเลี้ยงสวัสดิการ</th>
+                    <th scope="col" class="px-3 py-3 text-right font-bold border-b border-slate-300 bg-slate-100">รวมค่าบริการ (บาท)</th>
+                </tr>
+            </thead>
+            <tbody id="printInvoiceTableBody" class="divide-y divide-slate-300 font-medium text-slate-800">
+                <!-- Content filled via javascript -->
+            </tbody>
+            <tfoot>
+                <tr class="bg-slate-100 font-extrabold border-t-2 border-slate-400 text-[11px]">
+                    <td colspan="4" class="px-2.5 py-3 text-right font-black uppercase">ยอดสรุปสุทธิ (Project Grand Total)</td>
+                    <td id="printTotalDays" class="px-2 py-3 text-center border-l border-slate-300 font-black">0 วัน</td>
+                    <td id="printTotalWages" class="px-2.5 py-3 text-right border-l border-slate-300 font-black">0.00</td>
+                    <td id="printTotalFood" class="px-2.5 py-3 text-right border-l border-slate-300 font-black">0.00</td>
+                    <td id="printTotalTrip" class="px-2.5 py-3 text-right border-l border-slate-300 font-black">0.00</td>
+                    <td id="printTotalOther" class="px-2.5 py-3 text-right border-l border-slate-300 font-black">0.00</td>
+                    <td id="printGrandTotal" class="px-3 py-3 text-right text-sm text-blue-900 font-black border-l border-slate-300">0.00 ฿</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <!-- Signature Area -->
+        <div class="grid grid-cols-3 gap-8 mt-16 text-center text-[11px] print-break-avoid">
+            <div class="space-y-6">
+                <p class="font-bold text-slate-800">ผู้รายงานยอด / โฟร์แมนหน้างาน</p>
+                <div class="border-b border-slate-400 w-48 mx-auto h-10"></div>
+                <p class="text-slate-600">(......................................................)</p>
+                <p class="text-slate-500 font-mono">วันที่: ..... / ..... / .....</p>
+            </div>
+            <div class="space-y-6">
+                <p class="font-bold text-slate-800">วิศวกรผู้ควบคุมโครงการ</p>
+                <div class="border-b border-slate-400 w-48 mx-auto h-10"></div>
+                <p class="text-slate-600">(......................................................)</p>
+                <p class="text-slate-500 font-mono">วันที่: ..... / ..... / .....</p>
+            </div>
+            <div class="space-y-6">
+                <p class="font-bold text-slate-800">ฝ่ายบัญชีและอนุมัติการจ่ายเงิน</p>
+                <div class="border-b border-slate-400 w-48 mx-auto h-10"></div>
+                <p class="text-slate-600">(......................................................)</p>
+                <p class="text-slate-500 font-mono">วันที่: ..... / ..... / .....</p>
+            </div>
+        </div>
+
+        <div class="mt-14 text-center text-[9px] text-slate-400 border-t border-slate-200 pt-4">
+            * เอกสารนี้ผ่านการรับรองระบบฐานข้อมูลอิเล็กทรอนิกส์ของทางบริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด โดยอ้างอิงรอบบันทึกเวลาปฏิบัติงานจริง
+        </div>
+    </div>
+
+    <!-- MODAL: ปรับสถานะการทำงานเดี่ยว และแก้ไขเวลาเข้าออก -->
+    <div id="statusModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden transform transition-all duration-200">
+            <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white px-6 py-4.5 flex justify-between items-center">
+                <h3 class="text-base font-extrabold flex items-center">
+                    <i class="fa-solid fa-clock mr-2 text-amber-400"></i> ปรับปรุงเวลางานและลงชื่อหน้างาน
+                </h3>
+                <button onclick="closeStatusModal()" class="text-white/80 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div class="flex items-center space-x-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                    <div id="modalEmpAvatar" class="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center text-blue-900 font-extrabold text-sm border border-blue-200">
+                        H
+                    </div>
+                    <div>
+                        <p id="modalEmpName" class="font-extrabold text-slate-900 text-sm">ชื่อพนักงาน</p>
+                        <p id="modalEmpCode" class="text-xs text-slate-500 font-medium">รหัสพนักงาน: </p>
+                    </div>
+                </div>
+
+                <!-- Daily Project Assignment Dropdown -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">โครงการผู้รับภาระต้นทุนในวันนี้</label>
+                    <div class="relative">
+                        <select id="modalWorkingProject" class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 bg-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none">
+                            <option value="(01)โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง">(01) โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง</option>
+                            <option value="(02)งานปรับปรุงถนนรอบเมืองบุรีรัมย์">(02) งานปรับปรุงถนนรอบเมืองบุรีรัมย์</option>
+                            <option value="(03)งานเทคอนกรีตสะพานห้วยจรเข้มาก">(03) งานเทคอนกรีตสะพานห้วยจรเข้มาก</option>
+                            <option value="(04)งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง">(04) งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                            <i class="fa-solid fa-location-dot text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">เลือกสถานะการลงเวลา</label>
+                    <div class="grid grid-cols-4 gap-2" id="modalStatusButtons">
+                        <!-- Generates via JS -->
+                    </div>
+                </div>
+
+                <!-- Input group for late simulation -->
+                <div id="modalLateInputGroup" class="hidden bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-bold text-amber-900">จำนวนนาทีที่พนักงานมาสาย</label>
+                        <span class="text-[10px] text-amber-600 font-semibold">(ใช้หักพิจารณาเวลาเข้างาน)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="number" id="modalLateMinutes" oninput="updateTimeBasedOnLate()" class="w-24 px-3 py-2 border border-amber-300 rounded-lg text-slate-800 text-sm font-bold focus:outline-none" min="1" value="15">
+                        <span class="text-sm font-extrabold text-slate-600">นาที</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3.5 pt-1">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">เวลาตอกบัตรเข้า</label>
+                        <input type="time" id="modalTimeIn" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-slate-800 text-sm font-bold focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">เวลาตอกบัตรออก</label>
+                        <input type="time" id="modalTimeOut" onchange="updateOtBasedOnTimeOut()" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-slate-800 text-sm font-bold focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                    <div class="flex justify-between items-center mb-2.5">
+                        <label class="block text-xs font-bold text-blue-900 uppercase">ชั่วโมงล่วงเวลาพิเศษ (OT)</label>
+                        <span class="text-[10px] text-blue-700 font-bold">ระบุหรือกดปุ่มลัดด้านล่าง</span>
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <input type="number" id="modalOtHours" oninput="updateTimeBasedOnOt()" class="w-full px-3.5 py-2 border border-blue-300 rounded-xl text-slate-800 text-sm font-bold bg-white focus:outline-none" min="0" max="12" step="0.5" placeholder="เช่น 1.5, 2.0">
+                            <span class="text-xs font-extrabold text-blue-950">ชั่วโมง</span>
+                        </div>
+                        <div class="flex gap-1.5">
+                            <button type="button" onclick="adjustOtInput(1)" class="flex-1 py-2 bg-white hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-bold transition shadow-sm">+1.0</button>
+                            <button type="button" onclick="adjustOtInput(1.5)" class="flex-1 py-2 bg-white hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-bold transition shadow-sm">+1.5</button>
+                            <button type="button" onclick="adjustOtInput(2)" class="flex-1 py-2 bg-white hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-bold transition shadow-sm">+2.0</button>
+                            <button type="button" onclick="adjustOtInput(3)" class="flex-1 py-2 bg-white hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-bold transition shadow-sm">+3.0</button>
+                            <button type="button" onclick="adjustOtInput(0)" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition">ล้าง</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-6 py-4.5 flex justify-end space-x-2.5 border-t border-slate-100">
+                <button onclick="closeStatusModal()" class="px-4.5 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-bold transition">ยกเลิก</button>
+                <button onclick="saveStatusModal()" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-850 text-white rounded-xl text-sm font-bold transition shadow-md">บันทึกเวลางาน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: บันทึกข้อมูลเบี้ยเลี้ยง/ค่าเดินทาง รายบุคคล -->
+    <div id="allowanceModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden transform transition-all duration-200">
+            <div class="bg-gradient-to-r from-emerald-800 to-teal-950 text-white px-6 py-4.5 flex justify-between items-center">
+                <h3 class="text-base font-extrabold flex items-center">
+                    <i class="fa-solid fa-sack-dollar mr-2 text-amber-400"></i> สิทธิเบี้ยเลี้ยงและค่าเดินทางส่วนบุคคล
+                </h3>
+                <button onclick="closeAllowanceModal()" class="text-white/80 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div class="flex items-center space-x-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                    <div id="modalAllAvatar" class="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-900 font-extrabold text-sm border border-emerald-200">
+                        S
+                    </div>
+                    <div>
+                        <p id="modalAllEmpName" class="font-extrabold text-slate-855 text-sm">ชื่อพนักงาน</p>
+                        <p id="modalAllEmpCode" class="text-xs text-slate-500 font-semibold">รหัสพนักงาน: </p>
+                    </div>
+                </div>
+
+                <div class="space-y-4.5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5 uppercase">ค่าข้าว / ค่าสนับสนุนอาหารกลางวัน (บาท)</label>
+                        <input type="number" id="modalFood" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-slate-800 text-sm font-bold focus:border-emerald-500 focus:outline-none" placeholder="0">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5 uppercase">ค่าพาหนะเดินทาง / ค่าค่าน้ำมันรถ (บาท)</label>
+                        <input type="number" id="modalTrip" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-slate-800 text-sm font-bold focus:border-emerald-500 focus:outline-none" placeholder="0">
+                    </div>
+                    <div class="border-t border-slate-150 pt-4">
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5 uppercase">เงินเบี้ยขยัน / สวัสดิการอื่นๆ (บาท)</label>
+                        <input type="number" id="modalOther" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-slate-800 text-sm font-bold focus:border-emerald-500 focus:outline-none mb-3" placeholder="0">
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">หมายเหตุประกอบการเบิกค่าเบี้ยเลี้ยง</label>
+                        <input type="text" id="modalOtherMemo" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-slate-800 text-xs focus:border-emerald-500 focus:outline-none" placeholder="เช่น ค่าทำงานล่วงเวลาพิเศษ, ทำงานกลางฝน">
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-6 py-4.5 flex justify-end space-x-2.5 border-t border-slate-100">
+                <button onclick="closeAllowanceModal()" class="px-4.5 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-bold transition">ยกเลิก</button>
+                <button onclick="saveAllowanceModal()" class="px-5 py-2.5 bg-emerald-750 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition shadow-md bg-emerald-800">บันทึกเบี้ยเลี้ยง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal-based Alert Box for Saving Confirmation -->
+    <div id="saveAlert" class="hidden fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center space-x-3.5 z-50 border border-slate-800 animate-bounce no-print">
+        <div class="bg-emerald-500 text-slate-900 p-2 rounded-full flex items-center justify-center animate-pulse">
+            <i class="fa-solid fa-check text-base"></i>
+        </div>
+        <div>
+            <p class="text-sm font-extrabold">ปรับข้อมูลสถิติขึ้นระบบสำเร็จ</p>
+            <p class="text-xs text-slate-400 font-semibold">อัปเดตข้อมูลและลิงก์ฐานข้อมูลออนไลน์เรียบร้อย</p>
+        </div>
+    </div>
+
+    <script>
+        // ─── [SYSTEM CONFIGURATION - ATTACHED DATABASE] ───────────────────────────
+        const GLOBAL_STATUS = {
+            'W':  { label: 'ทำงานปกติ', icon: '💼', bgColor: 'bg-green-100', textColor: 'text-green-850', border: 'border-green-300' },
+            'L':  { label: 'มาสาย',     icon: '⏱️', bgColor: 'bg-amber-100', textColor: 'text-amber-850', border: 'border-amber-300' },
+            'A':  { label: 'ขาดงาน',     icon: '❌', bgColor: 'bg-rose-100', textColor: 'text-rose-850', border: 'border-rose-300' },
+            'B+': { label: 'ลากิจ (+)',   icon: '📋', bgColor: 'bg-purple-100', textColor: 'text-purple-850', border: 'border-purple-300' },
+            'H+': { label: 'ลาพักร้อน (+)',icon: '🏖️', bgColor: 'bg-sky-100', textColor: 'text-sky-850', border: 'border-sky-300' },
+            'S+': { label: 'ลาป่วย (+)',   icon: '🏥', bgColor: 'bg-violet-100', textColor: 'text-violet-850', border: 'border-violet-300' },
+            'ย':  { label: 'วันหยุดประจำสัปดาห์', icon: '⛱️', bgColor: 'bg-slate-100', textColor: 'text-slate-650', border: 'border-slate-300' },
+            'นข': { label: 'วันหยุดนักขัตฤกษ์', icon: '🗓️', bgColor: 'bg-yellow-100', textColor: 'text-yellow-855', border: 'border-yellow-300' }
+        };
+
+        // Mock Projects Labor Budgets
+        const PROJECT_BUDGETS = {
+            "(01)โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง": 38000,
+            "(02)งานปรับปรุงถนนรอบเมืองบุรีรัมย์": 35000,
+            "(03)งานเทคอนกรีตสะพานห้วยจรเข้มาก": 25000,
+            "(04)งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง": 20000
+        };
+
+        // Mock Employees with Base Salary and Divisor
+        const employees = [
+            { id: "EMP-001", name: "นายสมชาย แข็งแกร่ง", role: "พนักงานขุดตัก", project: "(01)โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100", baseSalary: 15000, divisor: 30 },
+            { id: "EMP-002", name: "นายมานะ ขยันเพียร", role: "พนักงานขับรถบดถนน", project: "(01)โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง", avatar: "https://images.unsplash.com/photo-1628157582853-a796fa650a6a?auto=format&fit=crop&q=80&w=100", baseSalary: 13500, divisor: 30 },
+            { id: "EMP-003", name: "นายประวิทย์ รวดเร็ว", role: "คนขับรถสิบล้อ", project: "(02)งานปรับปรุงถนนรอบเมืองบุรีรัมย์", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100", baseSalary: 18000, divisor: 30 },
+            { id: "EMP-004", name: "นายสุรพล มีฝีมือ", role: "โฟร์แมนควบคุมวิศวกร", project: "(02)งานปรับปรุงถนนรอบเมืองบุรีรัมย์", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100", baseSalary: 30000, divisor: 30 },
+            { id: "EMP-005", name: "นายวิชัย สุขใจ", role: "ช่างเชื่อมเหล็ก", project: "(03)งานเทคอนกรีตสะพานห้วยจรเข้มาก", avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=100", baseSalary: 15000, divisor: 30 },
+            { id: "EMP-006", name: "นายอดิศักดิ์ รักดี", role: "ช่างคอนกรีต", project: "(03)งานเทคอนกรีตสะพานห้วยจรเข้มาก", avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=100", baseSalary: 13500, divisor: 30 },
+            { id: "EMP-007", name: "นางสาวสมหญิง ยิ้มสวย", role: "พนักงานฝ่ายเอกสาร", project: "(04)งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100", baseSalary: 16500, divisor: 30 }
+        ];
+
+        // Core Global State
+        let activeTab = 'daily';
+        let selectedDateStr = "2026-06-12"; // Default simulation date
+        let attendanceData = {}; // Format: { "YYYY-MM-DD": { "EMP_ID": { status, timeIn, timeOut, ot, food, trip, other, otherMemo, penalty, project } } }
+        let selectedEmpId = null; // Used for modal reference
+        let activeProject = "all";
+
+        // Helper to format Date into local "YYYY-MM-DD" string correctly without UTC shifts
+        function getLocalDateString(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // Helper to refresh the active tab layout instantly on update
+        function refreshActiveTab() {
+            if (activeTab === 'daily') {
+                renderDailyTable();
+            } else if (activeTab === 'summary') {
+                renderSummaryMatrix();
+            } else if (activeTab === 'costing') {
+                renderProjectCosting();
+            } else if (activeTab === 'insights') {
+                renderInsightsDashboard();
+            }
+        }
+
+        // Initialization
+        window.onload = function() {
+            document.getElementById('currentSelectedDate').value = selectedDateStr;
+            updateDayLabel();
+            generateCalendarAndMockData();
+            switchTab('daily');
+        };
+
+        // Switch Action Tabs
+        function switchTab(tabName) {
+            activeTab = tabName;
+            document.getElementById('tab-daily').classList.add('hidden');
+            document.getElementById('tab-summary').classList.add('hidden');
+            document.getElementById('tab-costing').classList.add('hidden');
+            document.getElementById('tab-insights').classList.add('hidden');
+            const buttons = ['daily', 'summary', 'costing', 'insights'];
+            buttons.forEach(b => {
+                const btn = document.getElementById(`tabBtn-${b}`);
+                if (b === tabName) {
+                    btn.className = "px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 bg-white text-blue-955 shadow-sm border border-slate-100";
+                } else {
+                    btn.className = "px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-600 hover:text-slate-950";
+                }
+            });
+
+            if (tabName === 'daily') {
+                document.getElementById('tab-daily').classList.remove('hidden');
+                renderDailyTable();
+            } else if (tabName === 'summary') {
+                document.getElementById('tab-summary').classList.remove('hidden');
+                renderSummaryMatrix();
+            } else if (tabName === 'costing') {
+                document.getElementById('tab-costing').classList.remove('hidden');
+                renderProjectCosting();
+            } else if (tabName === 'insights') {
+                document.getElementById('tab-insights').classList.remove('hidden');
+                renderInsightsDashboard();
+            }
+        }
+
+        // Generate Cycle Dates (26th of prev month to 25th of current)
+        function getBillingCycleDates(yearMonthStr) {
+            const parts = yearMonthStr.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1;
+            const prevMonthDate = new Date(year, month - 1, 26, 12, 0, 0);
+            const currentMonthDate = new Date(year, month, 25, 12, 0, 0);
+            const dates = [];
+            let current = new Date(prevMonthDate);
+            while (current <= currentMonthDate) {
+                dates.push(getLocalDateString(current));
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        }
+
+        function isEmpWorkedInProject(empId, projName, dates) {
+            if (projName === 'all') return true;
+            for (let i = 0; i < dates.length; i++) {
+                const date = dates[i];
+                const log = attendanceData[date]?.[empId];
+                if (log && log.project === projName) {
+                    return true;
+                }
+            }
+            const emp = employees.find(e => e.id === empId);
+            return emp && emp.project === projName;
+        }
+
+        function getLatestProjectForEmp(empId, dates) {
+            for (let i = dates.length - 1; i >= 0; i--) {
+                const date = dates[i];
+                const log = attendanceData[date]?.[empId];
+                if (log && log.project && log.status !== 'ย' && log.status !== 'A') {
+                    return log.project;
+                }
+            }
+            const emp = employees.find(e => e.id === empId);
+            return emp ? emp.project : "ไม่ระบุโครงการ";
+        }
+
+        function generateCalendarAndMockData() {
+            const currentCycleMonth = document.getElementById('billingMonth').value;
+            const dates = getBillingCycleDates(currentCycleMonth);
+            dates.forEach(date => {
+                if (!attendanceData[date]) {
+                    attendanceData[date] = {};
+                }
+                employees.forEach(emp => {
+                    if (!attendanceData[date][emp.id]) {
+                        const dayOfWeek = new Date(date).getDay();
+                        let defaultStatus = 'W';
+                        let timeIn = '08:00';
+                        let timeOut = '17:00';
+                        let ot = 0;
+                        let food = 60;
+                        let trip = 0;
+                        let other = 0;
+                        let otherMemo = "";
+                        let logProject = emp.project;
+                        if (dayOfWeek === 0) {
+                            defaultStatus = 'ย';
+                            timeIn = '';
+                            timeOut = '';
+                            food = 0;
+                        } else if (Math.random() < 0.05) {
+                            const r = Math.random();
+                            if (r < 0.4) {
+                                defaultStatus = 'L';
+                                timeIn = '08:15';
+                                timeOut = '17:00';
+                            } else if (r < 0.7) {
+                                defaultStatus = 'A';
+                                timeIn = '';
+                                timeOut = '';
+                                food = 0;
+                            } else {
+                                defaultStatus = 'S+';
+                                timeIn = '';
+                                timeOut = '';
+                                food = 0;
+                            }
+                        } else if (Math.random() > 0.8) {
+                            ot = 2.0;
+                            timeOut = '19:00';
+                        }
+                        if (dayOfWeek !== 0 && Math.random() < 0.1) {
+                            const projects = [
+                                "(01)โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง",
+                                "(02)งานปรับปรุงถนนรอบเมืองบุรีรัมย์",
+                                "(03)งานเทคอนกรีตสะพานห้วยจรเข้มาก",
+                                "(04)งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง"
+                            ];
+                            logProject = projects[Math.floor(Math.random() * projects.length)];
+                        }
+                        trip = logProject.includes('01') ? 80 : 50;
+                        if (defaultStatus === 'A' && Math.random() < 0.15) {
+                            food = 60;
+                            other = 150;
+                            otherMemo = "เบิกค่าเดินทางพิเศษกรณีฉุกเฉิน (ตรวจพบขัดแย้ง: ขาดงาน)";
+                        }
+                        attendanceData[date][emp.id] = {
+                            status: defaultStatus,
+                            timeIn: timeIn,
+                            timeOut: timeOut,
+                            ot: ot,
+                            food: food,
+                            trip: trip,
+                            other: other,
+                            otherMemo: otherMemo,
+                            penalty: defaultStatus === 'L' ? 15 : 0,
+                            project: logProject
+                        };
+                    }
+                });
+            });
+            renderDailyTable();
+            if (activeTab === 'summary') {
+                renderSummaryMatrix();
+            } else if (activeTab === 'costing') {
+                renderProjectCosting();
+            } else if (activeTab === 'insights') {
+                renderInsightsDashboard();
+            }
+        }
+
+        function handleProjectChange() {
+            activeProject = document.getElementById('projectFilter').value;
+            refreshActiveTab();
+        }
+
+        function handleDateSelectChange() {
+            selectedDateStr = document.getElementById('currentSelectedDate').value;
+            updateDayLabel();
+            renderDailyTable();
+        }
+
+        function navigateDay(offset) {
+            const parts = selectedDateStr.split('-');
+            const current = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+            current.setDate(current.getDate() + offset);
+            selectedDateStr = getLocalDateString(current);
+            document.getElementById('currentSelectedDate').value = selectedDateStr;
+            updateDayLabel();
+            renderDailyTable();
+        }
+
+        function updateDayLabel() {
+            const parts = selectedDateStr.split('-');
+            const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+            const daysTh = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+            document.getElementById('currentDayOfWeekLabel').innerText = `${daysTh[date.getDay()]} (รอบบัญชีปัจจุบัน)`;
+        }
+
+        function openMatrixStatusModal(empId, date) {
+            selectedDateStr = date;
+            document.getElementById('currentSelectedDate').value = date;
+            updateDayLabel();
+            openStatusModal(empId);
+        }
+
+        function renderDailyTable() {
+            const tableBody = document.getElementById('dailyLogTableBody');
+            tableBody.innerHTML = '';
+            const dayData = attendanceData[selectedDateStr] || {};
+            let normalCount = 0;
+            let lateCount = 0;
+            let absentCount = 0;
+            const filteredEmps = employees.filter(emp => {
+                if (activeProject === 'all') return true;
+                const log = dayData[emp.id];
+                const workingProj = log ? log.project : emp.project;
+                return workingProj === activeProject;
+            });
+            if (filteredEmps.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="px-6 py-12 text-center text-slate-400">
+                            <i class="fa-solid fa-people-carry-box text-4xl mb-3 text-slate-300"></i>
+                            <p class="font-bold">ไม่พบกำลังพลทำงานในโครงการนี้ ณ วันที่ดังกล่าว</p>
+                            <p class="text-xs text-slate-400 mt-1">ท่านสามารถสลับตัวกรอง หรือเพิ่มรายชื่อพนักงานจากโครงการอื่นผ่านระบบจัดการเวลางาน</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            filteredEmps.forEach(emp => {
+                let log = dayData[emp.id] || {
+                    status: 'ย', timeIn: '', timeOut: '', ot: 0, food: 0, trip: 0, other: 0, otherMemo: '', penalty: 0, project: emp.project
+                };
+                if (log.status === 'W') normalCount++;
+                else if (log.status === 'L') lateCount++;
+                else if (log.status === 'A') absentCount++;
+                const statusObj = GLOBAL_STATUS[log.status] || { label: 'ไม่มีสถานะ', icon: '❓', bgColor: 'bg-slate-100', textColor: 'text-slate-800' };
+                const totalAllowance = parseFloat(log.food || 0) + parseFloat(log.trip || 0) + parseFloat(log.other || 0);
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/70 transition duration-150 border-b border-slate-100";
+                tr.innerHTML = `
+                    <td class="px-6 py-4.5 whitespace-nowrap">
+                        <div class="flex items-center space-x-3.5">
+                            <img src="${emp.avatar}" alt="" class="w-10 h-10 rounded-full border border-slate-200 object-cover shadow-sm">
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <p class="font-extrabold text-slate-800 text-sm">${emp.name}</p>
+                                    <span class="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-blue-50 text-blue-850 border border-blue-100" title="โครงการ ณ วันที่ปฏิบัติงาน">${log.project.substring(0, 4)}</span>
+                                </div>
+                                <p class="text-xs text-slate-500 font-semibold">${emp.id} · <span class="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-bold">${emp.role}</span></p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-center">
+                        <button onclick="openStatusModal('${emp.id}')" class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold border ${statusObj.bgColor} ${statusObj.textColor || 'text-slate-800'} ${statusObj.border || 'border-slate-300'} shadow-sm hover:scale-105 transition-all">
+                            <span class="mr-1.5">${statusObj.icon}</span> ${log.status} : ${statusObj.label}
+                        </button>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-center">
+                        ${log.timeIn ? `
+                            <span class="font-mono text-xs font-bold px-3 py-1.5 bg-slate-100 rounded-xl text-slate-800 border border-slate-200/50">
+                                <i class="fa-regular fa-clock text-slate-400 mr-1.5"></i>${log.timeIn} - ${log.timeOut}
+                            </span>
+                        ` : `
+                            <span class="text-xs text-slate-400 font-bold italic">ไม่ได้บันทึกเวลา</span>
+                        `}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-center text-xs">
+                        <div class="flex flex-col items-center space-y-1">
+                            ${log.ot > 0 ? `<span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-bold border border-blue-150"><i class="fa-solid fa-circle-plus mr-1"></i> OT: ${log.ot} ชม.</span>` : ''}
+                            ${log.status === 'L' && log.penalty > 0 ? `<span class="bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg font-bold border border-amber-150"><i class="fa-solid fa-hourglass-half mr-1"></i> สาย: ${log.penalty} น.</span>` : ''}
+                            ${log.ot == 0 && (log.status !== 'L' || log.penalty == 0) ? `<span class="text-slate-300 font-semibold">-</span>` : ''}
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-center">
+                        <input type="number" onchange="quickUpdateAllowance('${emp.id}', 'food', this.value)" value="${log.food}" class="w-20 px-2.5 py-1.5 text-center border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-center">
+                        <input type="number" onchange="quickUpdateAllowance('${emp.id}', 'trip', this.value)" value="${log.trip}" class="w-20 px-2.5 py-1.5 text-center border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-center">
+                        <button onclick="openAllowanceModal('${emp.id}')" class="inline-flex items-center space-x-1 px-3 py-1.5 text-xs border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-700 transition font-bold bg-slate-50">
+                            <i class="fa-solid fa-pen text-[9px] text-slate-400"></i>
+                            <span>${log.other > 0 ? `฿${log.other}` : 'เพิ่มเบี้ยเลี้ยง'}</span>
+                        </button>
+                        ${log.otherMemo ? `<p class="text-[9px] text-slate-400 max-w-[120px] truncate mx-auto mt-1" title="${log.otherMemo}">${log.otherMemo}</p>` : ''}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right pr-6">
+                        <span class="font-extrabold text-slate-800 text-sm">฿${totalAllowance.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+            document.getElementById('stat-normal-count').innerText = normalCount;
+            document.getElementById('stat-late-count').innerText = lateCount;
+            document.getElementById('stat-absent-count').innerText = absentCount;
+        }
+
+        function quickUpdateAllowance(empId, field, val) {
+            const cleanVal = parseFloat(val) || 0;
+            if (attendanceData[selectedDateStr] && attendanceData[selectedDateStr][empId]) {
+                attendanceData[selectedDateStr][empId][field] = cleanVal;
+            }
+            refreshActiveTab();
+        }
+
+        function openStatusModal(empId) {
+            selectedEmpId = empId;
+            const emp = employees.find(e => e.id === empId);
+            const log = attendanceData[selectedDateStr][empId];
+            if (!emp || !log) return;
+            document.getElementById('modalEmpName').innerText = emp.name;
+            const parts = selectedDateStr.split('-');
+            const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+            const formattedDateTh = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('modalEmpCode').innerText = `รหัส: ${emp.id} | วันที่แก้ไข: ${formattedDateTh}`;
+            document.getElementById('modalEmpAvatar').innerText = emp.name.charAt(4);
+            document.getElementById('modalWorkingProject').value = log.project;
+            const statusBox = document.getElementById('modalStatusButtons');
+            statusBox.innerHTML = '';
+            Object.keys(GLOBAL_STATUS).forEach(key => {
+                const s = GLOBAL_STATUS[key];
+                const isActive = log.status === key;
+                const activeClasses = isActive ? 'ring-2 ring-blue-600 bg-blue-50 border-blue-400 font-bold' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100';
+                statusBox.innerHTML += `
+                    <button type="button" onclick="changeModalSelectedStatus('${key}')" class="px-2 py-2 border rounded-xl text-xs flex flex-col items-center justify-center space-y-1 transition ${activeClasses}">
+                        <span class="text-base">${s.icon}</span>
+                        <span class="text-[10px] font-bold">${key}</span>
+                    </button>
+                `;
+            });
+            document.getElementById('modalTimeIn').value = log.timeIn;
+            document.getElementById('modalTimeOut').value = log.timeOut;
+            document.getElementById('modalOtHours').value = log.ot;
+            document.getElementById('modalLateMinutes').value = log.penalty || 15;
+            const latePanel = document.getElementById('modalLateInputGroup');
+            if (log.status === 'L') {
+                latePanel.classList.remove('hidden');
+            } else {
+                latePanel.classList.add('hidden');
+            }
+            document.getElementById('statusModal').classList.remove('hidden');
+        }
+
+        function changeModalSelectedStatus(status) {
+            const timeInInput = document.getElementById('modalTimeIn');
+            const timeOutInput = document.getElementById('modalTimeOut');
+            const latePanel = document.getElementById('modalLateInputGroup');
+            if (status === 'L') {
+                latePanel.classList.remove('hidden');
+                timeInInput.value = '08:00';
+                timeOutInput.value = '17:00';
+                updateTimeBasedOnLate();
+            } else {
+                latePanel.classList.add('hidden');
+                if (['W', 'B+', 'H+', 'S+', 'นข'].includes(status)) {
+                    timeInInput.value = '08:00';
+                    timeOutInput.value = '17:00';
+                } else {
+                    timeInInput.value = '';
+                    timeOutInput.value = '';
+                }
+            }
+            const buttons = document.querySelectorAll('#modalStatusButtons button');
+            const statusKeys = Object.keys(GLOBAL_STATUS);
+            buttons.forEach((btn, index) => {
+                const key = statusKeys[index];
+                if (key === status) {
+                    btn.className = "px-2 py-2 border rounded-xl text-xs flex flex-col items-center justify-center space-y-1 transition ring-2 ring-blue-600 bg-blue-50 border-blue-400 font-bold";
+                } else {
+                    btn.className = "px-2 py-2 border rounded-xl text-xs flex flex-col items-center justify-center space-y-1 transition bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100";
+                }
+            });
+        }
+
+        function updateTimeBasedOnLate() {
+            const minutesLate = parseInt(document.getElementById('modalLateMinutes').value) || 0;
+            const timeInInput = document.getElementById('modalTimeIn');
+            if (minutesLate > 0) {
+                const baseHour = 8;
+                const totalMinutes = minutesLate;
+                const addedHours = Math.floor(totalMinutes / 60);
+                const remainingMins = totalMinutes % 60;
+                const finalHoursStr = String(baseHour + addedHours).padStart(2, '0');
+                const finalMinsStr = String(remainingMins).padStart(2, '0');
+                timeInInput.value = `${finalHoursStr}:${finalMinsStr}`;
+            }
+        }
+
+        function updateTimeBasedOnOt() {
+            const otHours = parseFloat(document.getElementById('modalOtHours').value) || 0;
+            const timeOutInput = document.getElementById('modalTimeOut');
+            if (otHours >= 0) {
+                const baseHour = 17;
+                const otMinutes = otHours * 60;
+                const endMinutes = (baseHour * 60) + otMinutes;
+                const finalHours = Math.floor(endMinutes / 60);
+                const finalMins = endMinutes % 60;
+                timeOutInput.value = `${String(finalHours).padStart(2, '0')}:${String(finalMins).padStart(2, '0')}`;
+            }
+        }
+
+        function adjustOtInput(value) {
+            const otInput = document.getElementById('modalOtHours');
+            if (value === 0) {
+                otInput.value = '';
+            } else {
+                otInput.value = value;
+            }
+            updateTimeBasedOnOt();
+        }
+
+        function updateOtBasedOnTimeOut() {
+            const timeOutVal = document.getElementById('modalTimeOut').value;
+            const otHoursInput = document.getElementById('modalOtHours');
+            if (!timeOutVal) {
+                otHoursInput.value = '';
+                return;
+            }
+            const parts = timeOutVal.split(':');
+            const hours = parseInt(parts[0]);
+            const minutes = parseInt(parts[1]);
+            const totalMinutes = (hours * 60) + minutes;
+            const baseMinutes = 17 * 60;
+            if (totalMinutes > baseMinutes) {
+                const diffMinutes = totalMinutes - baseMinutes;
+                const calculatedOt = Math.round((diffMinutes / 60) * 10) / 10;
+                otHoursInput.value = calculatedOt;
+            } else {
+                otHoursInput.value = 0;
+            }
+        }
+
+        function closeStatusModal() {
+            document.getElementById('statusModal').classList.add('hidden');
+        }
+
+        function saveStatusModal() {
+            if (!selectedEmpId) return;
+            const selectedButton = document.querySelector('#modalStatusButtons button.ring-2');
+            if (!selectedButton) return;
+            const statusKey = selectedButton.querySelector('span:last-child').innerText;
+            const timeIn = document.getElementById('modalTimeIn').value;
+            const timeOut = document.getElementById('modalTimeOut').value;
+            const ot = parseFloat(document.getElementById('modalOtHours').value) || 0;
+            const penalty = statusKey === 'L' ? (parseInt(document.getElementById('modalLateMinutes').value) || 15) : 0;
+            const selectedWorkingProject = document.getElementById('modalWorkingProject').value;
+            attendanceData[selectedDateStr][selectedEmpId].status = statusKey;
+            attendanceData[selectedDateStr][selectedEmpId].timeIn = timeIn;
+            attendanceData[selectedDateStr][selectedEmpId].timeOut = timeOut;
+            attendanceData[selectedDateStr][selectedEmpId].ot = ot;
+            attendanceData[selectedDateStr][selectedEmpId].penalty = penalty;
+            attendanceData[selectedDateStr][selectedEmpId].project = selectedWorkingProject;
+            attendanceData[selectedDateStr][selectedEmpId].trip = selectedWorkingProject.includes('01') ? 80 : 50;
+            refreshActiveTab();
+            closeStatusModal();
+        }
+
+        function openAllowanceModal(empId) {
+            selectedEmpId = empId;
+            const emp = employees.find(e => e.id === empId);
+            const log = attendanceData[selectedDateStr][empId];
+            if (!emp || !log) return;
+            document.getElementById('modalAllEmpName').innerText = emp.name;
+            document.getElementById('modalAllEmpCode').innerText = `รหัสพนักงาน: ${emp.id}`;
+            document.getElementById('modalAllAvatar').innerText = emp.name.charAt(4);
+            document.getElementById('modalFood').value = log.food || 0;
+            document.getElementById('modalTrip').value = log.trip || 0;
+            document.getElementById('modalOther').value = log.other || 0;
+            document.getElementById('modalOtherMemo').value = log.otherMemo || '';
+            document.getElementById('allowanceModal').classList.remove('hidden');
+        }
+
+        function closeAllowanceModal() {
+            document.getElementById('allowanceModal').classList.add('hidden');
+        }
+
+        function saveAllowanceModal() {
+            if (!selectedEmpId) return;
+            const food = parseFloat(document.getElementById('modalFood').value) || 0;
+            const trip = parseFloat(document.getElementById('modalTrip').value) || 0;
+            const other = parseFloat(document.getElementById('modalOther').value) || 0;
+            const otherMemo = document.getElementById('modalOtherMemo').value;
+            attendanceData[selectedDateStr][selectedEmpId].food = food;
+            attendanceData[selectedDateStr][selectedEmpId].trip = trip;
+            attendanceData[selectedDateStr][selectedEmpId].other = other;
+            attendanceData[selectedDateStr][selectedEmpId].otherMemo = otherMemo;
+            refreshActiveTab();
+            closeAllowanceModal();
+        }
+
+        function batchSetStatus(status) {
+            const dayData = attendanceData[selectedDateStr];
+            if (!dayData) return;
+            const filteredEmps = employees.filter(emp => {
+                if (activeProject === 'all') return true;
+                const log = dayData[emp.id];
+                const workingProj = log ? log.project : emp.project;
+                return workingProj === activeProject;
+            });
+            filteredEmps.forEach(emp => {
+                if (dayData[emp.id]) {
+                    dayData[emp.id].status = status;
+                    if (status === 'W') {
+                        dayData[emp.id].timeIn = '08:00';
+                        dayData[emp.id].timeOut = '17:00';
+                    } else if (status === 'A') {
+                        dayData[emp.id].timeIn = '';
+                        dayData[emp.id].timeOut = '';
+                        dayData[emp.id].food = 0;
+                    }
+                }
+            });
+            refreshActiveTab();
+        }
+
+        function autoSaveAllToGoogleSheets() {
+            const alertBox = document.getElementById('saveAlert');
+            alertBox.classList.remove('hidden');
+            setTimeout(() => {
+                alertBox.classList.add('hidden');
+            }, 4000);
+        }
+
+        function renderSummaryMatrix() {
+            const currentCycleMonth = document.getElementById('billingMonth').value;
+            const dates = getBillingCycleDates(currentCycleMonth);
+            const headerRow = document.getElementById('matrixHeaderRow');
+            const tableBody = document.getElementById('matrixTableBody');
+            headerRow.innerHTML = '';
+            tableBody.innerHTML = '';
+            headerRow.innerHTML += `
+                <th class="px-4 py-3.5 text-left font-extrabold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-100 z-30 border border-slate-200 shadow-sm" style="min-width: 190px;">พนักงาน</th>
+                <th class="px-2 py-3.5 text-center font-extrabold text-slate-500 uppercase tracking-wider border border-slate-200">เข้างาน</th>
+                <th class="px-2 py-3.5 text-center font-extrabold text-slate-500 uppercase tracking-wider border border-slate-200">สาย (วัน)</th>
+                <th class="px-2 py-3.5 text-center font-extrabold text-slate-500 uppercase tracking-wider border border-slate-200">สาย (นาที)</th>
+                <th class="px-2 py-3.5 text-center font-extrabold text-slate-500 uppercase tracking-wider border border-slate-200">ขาด (วัน)</th>
+                <th class="px-2 py-3.5 text-center font-extrabold text-slate-500 uppercase tracking-wider border border-slate-200 text-blue-750">ล่วงเวลา (OT)</th>
+                <th class="px-2 py-3.5 text-right font-extrabold text-emerald-850 uppercase tracking-wider border border-slate-200" style="min-width: 85px;">รวมค่าข้าว</th>
+                <th class="px-2 py-3.5 text-right font-extrabold text-emerald-850 uppercase tracking-wider border border-slate-200" style="min-width: 85px;">รวมค่าเที่ยว</th>
+                <th class="px-2 py-3.5 text-right font-extrabold text-emerald-850 uppercase tracking-wider border border-slate-200" style="min-width: 85px;">เบี้ยอื่นๆ</th>
+                <th class="px-3 py-3.5 text-right font-extrabold text-slate-800 uppercase tracking-wider border border-slate-200 bg-emerald-50" style="min-width: 105px;">รวมเบี้ยเลี้ยง</th>
+                <th class="px-3 py-3.5 text-left font-extrabold text-slate-500 uppercase tracking-wider border border-slate-200" style="min-width: 150px;">โครงการล่าสุด</th>
+            `;
+            dates.forEach((date, idx) => {
+                const parts = date.split('-');
+                const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+                const dayNum = d.getDate();
+                const dayName = d.toLocaleDateString('th-TH', { weekday: 'narrow' });
+                const isSunday = d.getDay() === 0;
+                const monthShort = d.toLocaleDateString('th-TH', { month: 'short' });
+                const monthNum = d.getMonth() + 1;
+                let borderRightClass = "border-slate-200";
+                if (idx < dates.length - 1) {
+                    const curMonth = parts[1];
+                    const nextMonth = dates[idx + 1].split('-')[1];
+                    if (curMonth !== nextMonth) {
+                        borderRightClass = "border-r-4 border-r-blue-800/40";
+                    }
+                }
+                const badgeColor = monthNum % 2 === 0 ? 'bg-indigo-50 text-indigo-700 border-indigo-150 font-bold' : 'bg-amber-50 text-amber-700 border-amber-150 font-bold';
+                headerRow.innerHTML += `
+                    <th class="px-1.5 py-2 text-center border-t border-b border-l ${borderRightClass} hover:bg-blue-50 transition" style="min-width: 44px;">
+                        <span class="inline-block text-[8px] font-black px-1.5 py-0.5 rounded border ${badgeColor} mb-1 scale-90">${monthShort}</span>
+                        <span class="block text-[10px] ${isSunday ? 'text-red-500 font-bold' : 'text-slate-400 font-bold'}">${dayName}</span>
+                        <span class="block text-xs font-bold ${isSunday ? 'text-red-600 font-extrabold' : 'text-slate-800'}">${dayNum}</span>
+                    </th>
+                `;
+            });
+            const filteredEmps = employees.filter(emp => activeProject === 'all' || isEmpWorkedInProject(emp.id, activeProject, dates));
+            let totalAllWorkingDays = 0;
+            let sumGrandAllowance = 0;
+            let sumGrandOtHours = 0;
+            if (filteredEmps.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="${dates.length + 11}" class="px-6 py-12 text-center text-slate-400 font-bold">
+                            ไม่มีข้อมูลพนักงานที่สลับมาปฏิบัติงานในโครงการนี้ในรอบบัญชีปัจจุบัน
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            filteredEmps.forEach(emp => {
+                let workedDaysCount = 0;
+                let lateDaysCount = 0;
+                let lateMinutesSum = 0;
+                let absentDaysCount = 0;
+                let totalOtHours = 0;
+                let totalFoodSum = 0;
+                let totalTripSum = 0;
+                let totalOtherSum = 0;
+                dates.forEach(date => {
+                    const log = attendanceData[date]?.[emp.id];
+                    if (log) {
+                        const matchesFilter = (activeProject === 'all' || log.project === activeProject);
+                        if (matchesFilter) {
+                            if (log.status === 'W') workedDaysCount++;
+                            else if (log.status === 'L') { 
+                                workedDaysCount++; 
+                                lateDaysCount++; 
+                                lateMinutesSum += parseFloat(log.penalty || 0);
+                            }
+                            else if (log.status === 'A') absentDaysCount++;
+                            totalOtHours += parseFloat(log.ot || 0);
+                            totalFoodSum += parseFloat(log.food || 0);
+                            totalTripSum += parseFloat(log.trip || 0);
+                            totalOtherSum += parseFloat(log.other || 0);
+                        }
+                    }
+                });
+                const totalAllowancesSum = totalFoodSum + totalTripSum + totalOtherSum;
+                totalAllWorkingDays += workedDaysCount;
+                sumGrandAllowance += totalAllowancesSum;
+                sumGrandOtHours += totalOtHours;
+                const latestProject = getLatestProjectForEmp(emp.id, dates);
+                let rowHtml = `
+                    <td class="px-4 py-3.5 whitespace-nowrap sticky left-0 bg-white z-10 border border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.03)]">
+                        <div class="flex items-center space-x-2.5">
+                            <img src="${emp.avatar}" alt="" class="w-8 h-8 rounded-full object-cover border border-slate-100">
+                            <div class="leading-tight">
+                                <p class="font-extrabold text-slate-800 text-xs">${emp.name}</p>
+                                <p class="text-[9px] text-slate-400 font-semibold">${emp.id}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-1 py-3.5 text-center border border-slate-200 font-extrabold text-green-700 bg-green-50/10">${workedDaysCount} วัน</td>
+                    <td class="px-1 py-3.5 text-center border border-slate-200 font-extrabold text-amber-600 bg-amber-50/10">${lateDaysCount} วัน</td>
+                    <td class="px-1 py-3.5 text-center border border-slate-200 font-extrabold text-amber-700 bg-amber-100/10">${lateMinutesSum} น.</td>
+                    <td class="px-1 py-3.5 text-center border border-slate-200 font-extrabold text-rose-600 bg-rose-50/10">${absentDaysCount} วัน</td>
+                    <td class="px-1 py-3.5 text-center border border-slate-200 font-extrabold text-blue-700 bg-blue-50/10">${totalOtHours} ชม.</td>
+                    <td class="px-2 py-3.5 text-right border border-slate-200 text-slate-600 font-bold bg-slate-50/30">฿${totalFoodSum.toLocaleString('th-TH')}</td>
+                    <td class="px-2 py-3.5 text-right border border-slate-200 text-slate-600 font-bold bg-slate-50/30">฿${totalTripSum.toLocaleString('th-TH')}</td>
+                    <td class="px-2 py-3.5 text-right border border-slate-200 text-slate-600 font-bold bg-slate-50/30">฿${totalOtherSum.toLocaleString('th-TH')}</td>
+                    <td class="px-3 py-3.5 text-right border border-slate-200 font-black text-slate-800 bg-emerald-50/20">฿${totalAllowancesSum.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-3 py-3.5 whitespace-nowrap border border-slate-200">
+                        <span class="inline-block px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 font-bold text-[10px] max-w-[150px] truncate" title="${latestProject}">
+                            ${latestProject}
+                        </span>
+                    </td>
+                `;
+                dates.forEach((date, idx) => {
+                    const log = attendanceData[date]?.[emp.id] || { status: 'ย', project: emp.project };
+                    let statusClass = "bg-slate-50 text-slate-400";
+                    let statusSymbol = log.status;
+                    const isSpecificProjActive = (activeProject !== 'all');
+                    const isWorkedOnOtherProj = isSpecificProjActive && (log.project !== activeProject);
+                    if (isWorkedOnOtherProj && log.status !== 'ย') {
+                        const otherProjCode = log.project.match(/\((\d+)\)/)?.[1] || "??";
+                        statusClass = "bg-slate-100 text-slate-400 border-slate-200 font-semibold";
+                        statusSymbol = `↳(${otherProjCode})`;
+                    } else {
+                        if (log.status === 'W') statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
+                        else if (log.status === 'L') statusClass = "bg-amber-100 text-amber-800 border-amber-200 font-extrabold shadow-sm";
+                        else if (log.status === 'A') statusClass = "bg-rose-100 text-rose-700 border-rose-200 font-extrabold shadow-sm";
+                        else if (log.status === 'ย') statusClass = "bg-rose-50/30 text-rose-500 border-rose-100/30";
+                        else if (log.status.includes('S')) statusClass = "bg-violet-100 text-violet-800 border-violet-200 font-bold";
+                        else if (log.status.includes('H')) statusClass = "bg-sky-100 text-sky-800 border-sky-200 font-bold";
+                        else if (log.status.includes('B')) statusClass = "bg-purple-100 text-purple-800 border-purple-200 font-bold";
+                    }
+                    let borderRightClass = "border-slate-100";
+                    if (idx < dates.length - 1) {
+                        const curMonth = date.split('-')[1];
+                        const nextMonth = dates[idx + 1].split('-')[1];
+                        if (curMonth !== nextMonth) {
+                            borderRightClass = "border-r-4 border-r-blue-800/40";
+                        }
+                    }
+                    rowHtml += `
+                        <td class="p-1 border-t border-b border-l ${borderRightClass} text-center">
+                            <span class="inline-block w-7 h-7 leading-7 text-[10px] rounded-lg ${statusClass} cursor-pointer transition transform hover:scale-110" onclick="openMatrixStatusModal('${emp.id}', '${date}')" title="${date} - [${log.project}] - คลิกเพื่อปรับแก้เวลาทำงานของวันนี้ทันที">
+                                ${statusSymbol}
+                            </span>
+                        </td>
+                    `;
+                });
+                const tr = document.createElement('tr');
+                tr.innerHTML = rowHtml;
+                tableBody.appendChild(tr);
+            });
+            document.getElementById('sum-total-employees').innerText = `${filteredEmps.length} คน`;
+            document.getElementById('sum-total-workdays').innerText = `${totalAllWorkingDays} วัน-คน`;
+            document.getElementById('sum-total-allowances').innerText = `฿${sumGrandAllowance.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            document.getElementById('sum-total-ot-hours').innerText = `${sumGrandOtHours} ชม.`;
+        }
+
+        function renderProjectCosting() {
+            const currentCycleMonth = document.getElementById('billingMonth').value;
+            const dates = getBillingCycleDates(currentCycleMonth);
+            const container = document.getElementById('projectCostSection');
+            container.innerHTML = '';
+            const costingDatabase = {};
+            dates.forEach(date => {
+                const dayData = attendanceData[date];
+                if (!dayData) return;
+                Object.keys(dayData).forEach(empId => {
+                    const log = dayData[empId];
+                    if (!log || !log.project) return;
+                    const projName = log.project;
+                    if (activeProject !== 'all' && projName !== activeProject) return;
+                    const isWorking = ['W', 'L', 'พร', 'คส', 'S+', 'H+', 'B+', 'นข'].includes(log.status);
+                    if (!isWorking) return;
+                    const emp = employees.find(e => e.id === empId);
+                    if (!emp) return;
+                    const baseDailyWage = emp.baseSalary / emp.divisor;
+                    const baseHourlyWage = baseDailyWage / 8;
+                    const logOtHours = parseFloat(log.ot || 0);
+                    const logWages = baseDailyWage + (logOtHours * baseHourlyWage * 1.5);
+                    if (!costingDatabase[projName]) {
+                        costingDatabase[projName] = {};
+                    }
+                    if (!costingDatabase[projName][empId]) {
+                        costingDatabase[projName][empId] = {
+                            empName: emp.name,
+                            empId: emp.id,
+                            role: emp.role,
+                            days: 0,
+                            otHours: 0,
+                            wages: 0,
+                            food: 0,
+                            trip: 0,
+                            other: 0
+                        };
+                    }
+                    const record = costingDatabase[projName][empId];
+                    record.days += 1;
+                    record.otHours += logOtHours;
+                    record.wages += logWages;
+                    record.food += parseFloat(log.food || 0);
+                    record.trip += parseFloat(log.trip || 0);
+                    record.other += parseFloat(log.other || 0);
+                });
+            });
+            let grandCost = 0;
+            let wagesCost = 0;
+            let allowancesCost = 0;
+            const projectNames = Object.keys(costingDatabase);
+            if (projectNames.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-500">
+                        <i class="fa-solid fa-calculator text-5xl mb-3 text-slate-300"></i>
+                        <p class="font-extrabold text-base">ไม่พบข้อมูลสถิติการมาทำงานเพื่อคำนวณและประมวลผลต้นทุนโครงการ</p>
+                        <p class="text-xs text-slate-400 mt-1.5">กรุณาลงเวลาทำงานสถานะปกติต่างๆ (เช่น W หรือ L) ในแต่ละวัน เพื่อป้อนข้อมูลให้ฝ่ายวิเคราะห์</p>
+                    </div>
+                `;
+                document.getElementById('costing-total-cost').innerText = '0.00 ฿';
+                document.getElementById('costing-wages-cost').innerText = '0.00 ฿';
+                document.getElementById('costing-allowances-cost').innerText = '0.00 ฿';
+                return;
+            }
+            projectNames.forEach(projName => {
+                const empRecords = costingDatabase[projName];
+                const empIds = Object.keys(empRecords);
+                let projectTotalDays = 0;
+                let projectTotalWages = 0;
+                let projectTotalFood = 0;
+                let projectTotalTrip = 0;
+                let projectTotalOther = 0;
+                empIds.forEach(id => {
+                    const rec = empRecords[id];
+                    projectTotalDays += rec.days;
+                    projectTotalWages += rec.wages;
+                    projectTotalFood += rec.food;
+                    projectTotalTrip += rec.trip;
+                    projectTotalOther += rec.other;
+                });
+                const projectGrandTotal = projectTotalWages + projectTotalFood + projectTotalTrip + projectTotalOther;
+                grandCost += projectGrandTotal;
+                wagesCost += projectTotalWages;
+                allowancesCost += (projectTotalFood + projectTotalTrip + projectTotalOther);
+                const cardDiv = document.createElement('div');
+                cardDiv.className = "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200";
+                let employeeRowsHtml = '';
+                empIds.forEach((id, idx) => {
+                    const rec = empRecords[id];
+                    const recTotal = rec.wages + rec.food + rec.trip + rec.other;
+                    employeeRowsHtml += `
+                        <tr class="hover:bg-slate-50/50">
+                            <td class="px-6 py-4 text-center text-slate-500 font-semibold">${idx + 1}</td>
+                            <td class="px-4 py-4 font-extrabold text-slate-800 text-xs">${rec.empName} <p class="text-[10px] text-slate-400 font-bold mt-0.5">${rec.empId} · ${rec.role}</p></td>
+                            <td class="px-4 py-4 text-center font-bold text-slate-700">${rec.days} วัน</td>
+                            <td class="px-4 py-4 text-right font-extrabold text-slate-800">฿${rec.wages.toLocaleString('th-TH', { minimumFractionDigits: 2 })} <p class="text-[9px] text-blue-600 font-extrabold mt-0.5">${rec.otHours} ชม. OT</p></td>
+                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">฿${rec.food.toLocaleString('th-TH')}</td>
+                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">฿${rec.trip.toLocaleString('th-TH')}</td>
+                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">฿${rec.other.toLocaleString('th-TH')}</td>
+                            <td class="px-6 py-4 text-right font-extrabold text-slate-800 bg-slate-50/50">฿${recTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    `;
+                });
+                cardDiv.innerHTML = `
+                    <div class="p-6 border-b border-slate-150 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-slate-50/40">
+                        <div>
+                            <span class="px-2.5 py-1 text-[9px] font-extrabold bg-slate-800 text-white rounded-lg mr-2 uppercase tracking-wide">ต้นทุนหน้างาน</span>
+                            <h4 class="text-base font-extrabold text-slate-800 inline-block mt-2 lg:mt-0">${projName}</h4>
+                            <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-calculator text-slate-400 mr-1.5"></i>ยอดสรุปวิเคราะห์แยกตามจริงเพื่อการออกรายงาน บันทึก และเบิกจ่ายค่าแรงโครงการ</p>
+                        </div>
+                        <div class="flex flex-wrap gap-4 items-center">
+                            <div class="text-left lg:text-right">
+                                <p class="text-[9px] text-slate-400 font-black uppercase tracking-wider">ต้นทุนโครงการสะสม</p>
+                                <p class="text-xl font-black text-slate-900">฿${projectGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                            <button onclick="generateProjectInvoice('${encodeURIComponent(projName)}')" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-850 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center">
+                                <i class="fa-solid fa-file-invoice-dollar mr-2 text-amber-400"></i> ออกรายงาน / เรียกเก็บเงิน
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200 text-xs">
+                            <thead class="bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-center font-extrabold text-slate-500">ลำดับ</th>
+                                    <th scope="col" class="px-4 py-3 text-left font-extrabold text-slate-500">ชื่อพนักงาน / บทบาทงาน</th>
+                                    <th scope="col" class="px-4 py-3 text-center font-extrabold text-slate-500">ลงชื่อทำงานสะสม</th>
+                                    <th scope="col" class="px-4 py-3 text-right font-extrabold text-slate-500">ค่าจ้างสะสม (+OT)</th>
+                                    <th scope="col" class="px-4 py-3 text-right font-extrabold text-slate-500 text-emerald-800">ค่าอาหารสะสม</th>
+                                    <th scope="col" class="px-4 py-3 text-right font-extrabold text-slate-500 text-emerald-800">ค่าเที่ยวสะสม</th>
+                                    <th scope="col" class="px-4 py-3 text-right font-extrabold text-slate-500 text-emerald-800">ค่าเบี้ยเลี้ยงสะสม</th>
+                                    <th scope="col" class="px-6 py-3 text-right font-extrabold text-slate-800 bg-slate-100/50">ยอดรวมสุทธิ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                ${employeeRowsHtml}
+                                <tr class="bg-blue-50/20 font-extrabold border-t-2 border-slate-200 text-slate-900">
+                                    <td colspan="2" class="px-6 py-4.5 text-right font-black">ยอดสะสมรวมของโครงการนี้</td>
+                                    <td class="px-4 py-4.5 text-center font-black text-slate-800">${projectTotalDays} วัน-คน</td>
+                                    <td class="px-4 py-4.5 text-right font-black text-slate-800">฿${projectTotalWages.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                                    <td class="px-4 py-4.5 text-right text-slate-600">฿${projectTotalFood.toLocaleString('th-TH')}</td>
+                                    <td class="px-4 py-4.5 text-right text-slate-600">฿${projectTotalTrip.toLocaleString('th-TH')}</td>
+                                    <td class="px-4 py-4.5 text-right text-slate-600">฿${projectTotalOther.toLocaleString('th-TH')}</td>
+                                    <td class="px-6 py-4.5 text-right text-blue-900 bg-blue-50/30 text-sm font-black">฿${projectGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                container.appendChild(cardDiv);
+            });
+            document.getElementById('costing-total-cost').innerText = `฿${grandCost.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            document.getElementById('costing-wages-cost').innerText = `฿${wagesCost.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            document.getElementById('costing-allowances-cost').innerText = `฿${allowancesCost.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+        }
+
+        function renderInsightsDashboard() {
+            const currentCycleMonth = document.getElementById('billingMonth').value;
+            const dates = getBillingCycleDates(currentCycleMonth);
+            let totalExpectedManDays = employees.length * dates.length;
+            let actualWorkedManDays = 0;
+            let otExhaustedCount = 0;
+            let welfareLeakCount = 0;
+            let totalBaseSalaryPay = 0;
+            let totalOtPay = 0;
+            let totalWelfarePay = 0;
+            const empSummaryDB = {};
+            const projectActualDB = {
+                "(01)โครงการก่อสร้างทางหลวงบุรีรัมย์-นางรอง": 0,
+                "(02)งานปรับปรุงถนนรอบเมืองบุรีรัมย์": 0,
+                "(03)งานเทคอนกรีตสะพานห้วยจรเข้มาก": 0,
+                "(04)งานก่อสร้างท่อระบายน้ำสี่แยกกระสัง": 0
+            };
+            const welfareLeakList = [];
+            const otExhaustionList = [];
+            dates.forEach(date => {
+                const dayData = attendanceData[date];
+                if (!dayData) return;
+                Object.keys(dayData).forEach(empId => {
+                    const log = dayData[empId];
+                    const emp = employees.find(e => e.id === empId);
+                    if (!emp || !log) return;
+                    const baseDailyWage = emp.baseSalary / emp.divisor;
+                    const baseHourlyWage = baseDailyWage / 8;
+                    const logOtHours = parseFloat(log.ot || 0);
+                    const foodVal = parseFloat(log.food || 0);
+                    const tripVal = parseFloat(log.trip || 0);
+                    const otherVal = parseFloat(log.other || 0);
+                    const dailyWelfareSum = foodVal + tripVal + otherVal;
+                    const matchesProjFilter = (activeProject === 'all' || log.project === activeProject);
+                    if (matchesProjFilter) {
+                        if (!empSummaryDB[empId]) {
+                            empSummaryDB[empId] = {
+                                empName: emp.name,
+                                empId: emp.id,
+                                role: emp.role,
+                                workedDays: 0,
+                                lateDays: 0,
+                                lateMins: 0,
+                                otHours: 0,
+                                wagesPaid: 0,
+                                otPaid: 0,
+                                welfarePaid: 0
+                            };
+                        }
+                        const stat = empSummaryDB[empId];
+                        if (['W', 'L', 'พร', 'คส', 'S+', 'H+', 'B+', 'นข'].includes(log.status)) {
+                            actualWorkedManDays++;
+                            stat.workedDays++;
+                            stat.wagesPaid += baseDailyWage;
+                            totalBaseSalaryPay += baseDailyWage;
+                            if (log.status === 'L') {
+                                stat.lateDays++;
+                                stat.lateMins += parseFloat(log.penalty || 0);
+                            }
+                        }
+                        if (logOtHours > 0) {
+                            const otCost = logOtHours * baseHourlyWage * 1.5;
+                            stat.otHours += logOtHours;
+                            stat.otPaid += otCost;
+                            totalOtPay += otCost;
+                        }
+                        stat.welfarePaid += dailyWelfareSum;
+                        totalWelfarePay += dailyWelfareSum;
+                        if (['A', 'ย'].includes(log.status) && dailyWelfareSum > 0) {
+                            welfareLeakCount++;
+                            welfareLeakList.push({
+                                date: date,
+                                empName: emp.name,
+                                empId: emp.id,
+                                status: log.status,
+                                amount: dailyWelfareSum,
+                                memo: log.otherMemo || (log.status === 'A' ? "ขาดงานแต่ยังบันทึกเบิกค่าข้าว" : "วันหยุดประจำสัปดาห์แต่บันทึกสวัสดิการ")
+                            });
+                        }
+                        if (projectActualDB[log.project] !== undefined) {
+                            projectActualDB[log.project] += (baseDailyWage + (logOtHours * baseHourlyWage * 1.5) + dailyWelfareSum);
+                        }
+                    }
+                });
+            });
+            Object.keys(empSummaryDB).forEach(empId => {
+                const stat = empSummaryDB[empId];
+                if (stat.otHours >= 25) {
+                    otExhaustedCount++;
+                    otExhaustionList.push(stat);
+                }
+            });
+            document.getElementById('insight-welfare-leak-count').innerText = `${welfareLeakCount} เคส`;
+            document.getElementById('insight-ot-exhaustion-count').innerText = `${otExhaustedCount} คน`;
+            const attendancePercent = totalExpectedManDays > 0 ? ((actualWorkedManDays / totalExpectedManDays) * 100) : 0;
+            document.getElementById('insight-avg-attendance-rate').innerText = `${attendancePercent.toFixed(2)}%`;
+            const grandLabourCost = totalBaseSalaryPay + totalOtPay + totalWelfarePay;
+            const avgMandayCost = actualWorkedManDays > 0 ? (grandLabourCost / actualWorkedManDays) : 0;
+            document.getElementById('insight-avg-manday-cost').innerText = `฿${avgMandayCost.toLocaleString('th-TH', { maximumFractionDigits: 0 })}/วัน`;
+            document.getElementById('insight-donut-grand-total').innerText = `฿${grandLabourCost.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`;
+            const baseSalaryPercent = grandLabourCost > 0 ? Math.round((totalBaseSalaryPay / grandLabourCost) * 100) : 0;
+            const otPercent = grandLabourCost > 0 ? Math.round((totalOtPay / grandLabourCost) * 100) : 0;
+            const welfarePercent = grandLabourCost > 0 ? Math.round((totalWelfarePay / grandLabourCost) * 100) : 0;
+            document.getElementById('insight-legend-base-salary-percent').innerText = `${baseSalaryPercent}%`;
+            document.getElementById('insight-legend-ot-percent').innerText = `${otPercent}%`;
+            document.getElementById('insight-legend-welfare-percent').innerText = `${welfarePercent}%`;
+            document.getElementById('insight-bar-base-salary').style.width = `${baseSalaryPercent}%`;
+            document.getElementById('insight-bar-ot').style.width = `${otPercent}%`;
+            document.getElementById('insight-bar-welfare').style.width = `${welfarePercent}%`;
+            const budgetChartContainer = document.getElementById('insightsBudgetChartContainer');
+            budgetChartContainer.innerHTML = '';
+            Object.keys(PROJECT_BUDGETS).forEach(projName => {
+                const limitBudget = PROJECT_BUDGETS[projName];
+                const actualCost = projectActualDB[projName] || 0;
+                const spendPercent = limitBudget > 0 ? ((actualCost / limitBudget) * 100) : 0;
+                const isOverBudgetLimit = spendPercent >= 90;
+                const barColorClass = isOverBudgetLimit ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600';
+                const textColorClass = isOverBudgetLimit ? 'text-rose-700 font-extrabold animate-pulse' : 'text-slate-700 font-bold';
+                budgetChartContainer.innerHTML += `
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="font-extrabold text-slate-800 text-[11px] truncate max-w-[280px]" title="${projName}">${projName}</span>
+                            <span class="${textColorClass} text-[11px]">฿${actualCost.toLocaleString('th-TH', { maximumFractionDigits: 0 })} / ฿${limitBudget.toLocaleString('th-TH')} (${spendPercent.toFixed(0)}%)</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden border border-slate-200/50">
+                            <div class="${barColorClass} h-full rounded-full transition-all duration-500" style="width: ${Math.min(spendPercent, 100)}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            const welfareLeakTable = document.getElementById('insightsWelfareLeakTableBody');
+            welfareLeakTable.innerHTML = '';
+            if (welfareLeakList.length === 0) {
+                welfareLeakTable.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-4 py-8 text-center text-slate-400 font-semibold">
+                            <i class="fa-solid fa-circle-check text-emerald-500 text-lg mr-1.5"></i>ไม่พบบัญชีเบิกจ่ายผลประโยชน์ทับซ้อนหรือผิดปกติในรอบงวดนี้
+                        </td>
+                    </tr>
+                `;
+            } else {
+                welfareLeakList.forEach(leak => {
+                    welfareLeakTable.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-2.5 font-mono text-[10px] text-slate-500 font-bold">${leak.date.substring(5)}</td>
+                            <td class="px-4 py-2.5 font-extrabold text-slate-800">${leak.empName}</td>
+                            <td class="px-3 py-2.5 text-center">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-150">${leak.status}</span>
+                            </td>
+                            <td class="px-3 py-2.5 text-right font-black text-rose-600">฿${leak.amount.toLocaleString()}</td>
+                            <td class="px-4 py-2.5 text-slate-500 font-semibold truncate max-w-[150px]" title="${leak.memo}">${leak.memo}</td>
+                        </tr>
+                    `;
+                });
+            }
+            const otExhaustionTable = document.getElementById('insightsOtExhaustionTableBody');
+            otExhaustionTable.innerHTML = '';
+            if (otExhaustionList.length === 0) {
+                otExhaustionTable.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-4 py-8 text-center text-slate-400 font-semibold">
+                            <i class="fa-solid fa-shield-heart text-sky-500 text-lg mr-1.5"></i>ชั่วโมงการทำงานล่วงเวลาของพนักงานทุกคนอยู่ในเกณฑ์ปลอดภัย
+                        </td>
+                    </tr>
+                `;
+            } else {
+                otExhaustionList.sort((a, b) => b.otHours - a.otHours).forEach(item => {
+                    const isDangerous = item.otHours >= 36;
+                    const riskBadge = isDangerous ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+                    const riskLabel = isDangerous ? '❌ ละเมิดกฎระเบียบ' : '⚠️ เฝ้าระวังสูงสุด';
+                    otExhaustionTable.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-2.5 font-extrabold text-slate-800">${item.empName}</td>
+                            <td class="px-4 py-2.5 text-slate-400 font-bold">${item.role}</td>
+                            <td class="px-3 py-2.5 text-center font-black text-blue-900">${item.otHours.toFixed(1)} ชม.</td>
+                            <td class="px-3 py-2.5 text-right font-bold text-slate-700">฿${item.otPaid.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
+                            <td class="px-4 py-2.5 text-center">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-black border ${riskBadge}">${riskLabel}</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            const behaviorTable = document.getElementById('insightsBehavioralTableBody');
+            behaviorTable.innerHTML = '';
+            const sortedByLateness = Object.keys(empSummaryDB)
+                .map(id => empSummaryDB[id])
+                .filter(stat => stat.lateDays > 0)
+                .sort((a, b) => b.lateMins - a.lateMins);
+            if (sortedByLateness.length === 0) {
+                behaviorTable.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-5 py-8 text-center text-slate-400 font-semibold">
+                            <i class="fa-solid fa-star text-amber-500 text-lg mr-1.5"></i>ไม่พบการตอกบัตรมาสายของพนักงานทุกคนในงวดบัญชีปัจจุบัน
+                        </td>
+                    </tr>
+                `;
+            } else {
+                sortedByLateness.forEach((item, index) => {
+                    const penaltyCost = item.lateMins * 2;
+                    let rankBadge = `${index + 1}`;
+                    if (index === 0) rankBadge = '🥇';
+                    else if (index === 1) rankBadge = '🥈';
+                    else if (index === 2) rankBadge = '🥉';
+                    behaviorTable.innerHTML += `
+                        <tr class="hover:bg-slate-50/50 transition">
+                            <td class="px-5 py-3 text-center text-xs font-black text-slate-700">${rankBadge}</td>
+                            <td class="px-4 py-3 font-mono font-bold text-[10px] text-slate-400">${item.empId}</td>
+                            <td class="px-4 py-3 font-extrabold text-slate-800">${item.empName}</td>
+                            <td class="px-4 py-3 text-slate-500 font-semibold">${item.role}</td>
+                            <td class="px-4 py-3 text-center font-bold text-slate-700">${item.lateDays} วัน</td>
+                            <td class="px-4 py-3 text-center font-black text-amber-700 bg-amber-50/40">${item.lateMins} นาที</td>
+                            <td class="px-5 py-3 text-right font-black text-rose-600">หักสะสม ฿${penaltyCost.toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        function generateProjectInvoice(encodedProjName) {
+            const projName = decodeURIComponent(encodedProjName);
+            const currentCycleMonth = document.getElementById('billingMonth').value;
+            const dates = getBillingCycleDates(currentCycleMonth);
+            const invoiceDetails = [];
+            let printTotalDaysCount = 0;
+            let printTotalWagesCount = 0;
+            let printTotalFoodCount = 0;
+            let printTotalTripCount = 0;
+            let printTotalOtherCount = 0;
+            dates.forEach(date => {
+                const dayData = attendanceData[date];
+                if (!dayData) return;
+                Object.keys(dayData).forEach(empId => {
+                    const log = dayData[empId];
+                    if (!log || log.project !== projName) return;
+                    const isWorking = ['W', 'L', 'พร', 'คส', 'S+', 'H+', 'B+', 'นข'].includes(log.status);
+                    if (!isWorking) return;
+                    const emp = employees.find(e => e.id === empId);
+                    if (!emp) return;
+                    const dailyWage = emp.baseSalary / emp.divisor;
+                    const hourlyWage = dailyWage / 8;
+                    const otHours = parseFloat(log.ot || 0);
+                    const logWages = dailyWage + (otHours * hourlyWage * 1.5);
+                    let record = invoiceDetails.find(r => r.empId === empId);
+                    if (!record) {
+                        record = {
+                            empId: emp.id,
+                            empName: emp.name,
+                            role: emp.role,
+                            days: 0,
+                            wages: 0,
+                            food: 0,
+                            trip: 0,
+                            other: 0
+                        };
+                        invoiceDetails.push(record);
+                    }
+                    record.days += 1;
+                    record.wages += logWages;
+                    record.food += parseFloat(log.food || 0);
+                    record.trip += parseFloat(log.trip || 0);
+                    record.other += parseFloat(log.other || 0);
+                });
+            });
+            const invoiceTableBody = document.getElementById('printInvoiceTableBody');
+            invoiceTableBody.innerHTML = '';
+            invoiceDetails.forEach((rec, idx) => {
+                const recTotal = rec.wages + rec.food + rec.trip + rec.other;
+                printTotalDaysCount += rec.days;
+                printTotalWagesCount += rec.wages;
+                printTotalFoodCount += rec.food;
+                printTotalTripCount += rec.trip;
+                printTotalOtherCount += rec.other;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-2.5 py-2.5 text-center border-r border-slate-300 font-bold">${idx + 1}</td>
+                    <td class="px-2.5 py-2.5 border-r border-slate-300 font-mono text-[10px] font-bold">${rec.empId}</td>
+                    <td class="px-2.5 py-2.5 border-r border-slate-300 font-extrabold text-slate-800">${rec.empName}</td>
+                    <td class="px-2.5 py-2.5 border-r border-slate-300 text-slate-600 font-semibold">${rec.role}</td>
+                    <td class="px-2 py-2.5 text-center border-r border-slate-300 font-extrabold">${rec.days} วัน</td>
+                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.wages.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.food.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.trip.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.other.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-3 py-2.5 text-right font-extrabold text-blue-900 bg-slate-100/50">${recTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                `;
+                invoiceTableBody.appendChild(tr);
+            });
+            const grandTotalSum = printTotalWagesCount + printTotalFoodCount + printTotalTripCount + printTotalOtherCount;
+            document.getElementById('printProjectName').innerText = projName;
+            const monthText = currentCycleMonth === '2026-06' ? "26 พ.ค. 2569 - 25 มิ.ย. 2569" : (currentCycleMonth === '2026-05' ? "26 เม.ย. 2569 - 25 พ.ค. 2569" : "26 มี.ค. 2569 - 25 เม.ย. 2569");
+            document.getElementById('printBillingCycle').innerText = monthText;
+            const projId = projName.match(/\((\d+)\)/)?.[1] || "01";
+            document.getElementById('printInvoiceNo').innerText = `HRBTC-${currentCycleMonth.replace('-','')}-${projId}`;
+            const today = new Date();
+            const formatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('printDate').innerText = today.toLocaleDateString('th-TH', formatOptions);
+            document.getElementById('printTotalDays').innerText = `${printTotalDaysCount} วัน`;
+            document.getElementById('printTotalWages').innerText = printTotalWagesCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+            document.getElementById('printTotalFood').innerText = printTotalFoodCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+            document.getElementById('printTotalTrip').innerText = printTotalTripCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+            document.getElementById('printTotalOther').innerText = printTotalOtherCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+            document.getElementById('printGrandTotal').innerText = `${grandTotalSum.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿`;
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        }
+    </script>
 </body>
 </html>
