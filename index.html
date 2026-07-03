@@ -4417,7 +4417,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const success = await loadAllData();
                     if (success) {
                         hideLoginContainer();
-                        navigateTo("home");
+                        if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
+                            enterAdminMode();
+                        } else {
+                            navigateTo("home");
+                        }
                     } else {
                         const retryBtn = document.getElementById("login-loading-retry-btn");
                         if (retryBtn) retryBtn.classList.remove("hidden");
@@ -4555,24 +4559,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const success = await loadAllData();
                         if (success) {
                             hideLoginContainer();
-                            
-                            // ตรวจสอบสิทธิ์การใช้งาน
-                            const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim().toLowerCase();
-                            const isAdmin = (role === 'administrator' || role === 'admin' || role.startsWith('admin:'));
-
-                            if (isAdmin) {
-                                // เปิดโหมด Admin ทันทีโดยตั้งค่าตัวแปรและเรียกแสดงผล
-                                isAdminMode = true;
-                                document.getElementById("app").classList.add("hidden");
-                                document.getElementById("admin-app").classList.remove("hidden");
-
-                                // อัปเดตข้อมูลโปรไฟล์ผู้ใช้ใน Sidebar ของ Admin
-                                document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
-                                document.getElementById("admin-profile-role").textContent = employeeData["สิทธิ์การใช้งาน"] || "Administrator";
-
-                                showToast(`🛠️ เข้าสู่ระบบในฐานะผู้ดูแลระบบ`, "success");
-                                switchAdminTab(adminActiveTab);
-                                loadAdminApprovals();
+                            if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
+                                enterAdminMode();
                             } else {
                                 navigateTo("home");
                                 showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
@@ -4729,7 +4717,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const success = await loadAllData();
                 if (success) {
                     hideLoginContainer();
-                    navigateTo("home");
+                    if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
+                        enterAdminMode();
+                    } else {
+                        navigateTo("home");
+                    }
                 } else {
                     const retryBtn = document.getElementById("login-loading-retry-btn");
                     if (retryBtn) retryBtn.classList.remove("hidden");
@@ -7671,9 +7663,42 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             // สลับโหมดการแสดงผล (แอปพนักงาน ↔ แดชบอร์ดแอดมิน)
+            function isAdminRole(role) {
+                const normalizedRole = (role || "").toString().trim().toLowerCase();
+                return normalizedRole === 'administrator' || normalizedRole === 'admin' || normalizedRole.startsWith('admin:');
+            }
+
+            function isAdminLoginAccount(empId) {
+                return (empId || "").toString().trim().toLowerCase() === 'admin';
+            }
+
+            function enterAdminMode() {
+                const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+                const hasAdminPermission = isAdminRole(role) || isAdminLoginAccount(currentEmployeeId);
+                if (!hasAdminPermission) {
+                    showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
+                    return;
+                }
+
+                isAdminMode = true;
+                const appContainer = document.getElementById("app");
+                const adminContainer = document.getElementById("admin-app");
+
+                appContainer.classList.add("hidden");
+                adminContainer.classList.remove("hidden");
+
+                // อัปเดตข้อมูลผู้ใช้ในแถบเมนูแอดมิน
+                document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
+                document.getElementById("admin-profile-role").textContent = employeeData["สิทธิ์การใช้งาน"] || "Administrator";
+
+                showToast("🛠️ เข้าสู่ระบบในฐานะผู้ดูแลระบบ", "success");
+                switchAdminTab(adminActiveTab);
+                loadAdminApprovals();
+            }
+
             function toggleAdminMode() {
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
-                const isAdminOrSuper = (role.toLowerCase() === 'administrator' || role.toLowerCase() === 'admin' || role.startsWith('admin:'));
+                const isAdminOrSuper = isAdminRole(role);
 
                 if (!isAdminOrSuper) {
                     showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
