@@ -1114,28 +1114,35 @@
         // Set employee.project according to the latest attendance record (most recent date).
         // If a record has differing projectIn/projectOut, mapAttendanceRow already prefers the newer (projectOut).
         function updateEmployeeProjectsFromAttendance() {
-            // Collect and sort dates descending
+            // Collect dates descending (most recent first)
             const dates = Object.keys(attendanceData || {}).filter(d => d).sort((a, b) => new Date(b) - new Date(a));
             if (dates.length === 0) return;
 
             const empMap = {};
             employees.forEach(emp => { empMap[emp.id] = emp; });
 
-            dates.forEach(date => {
+            const assigned = new Set();
+            // Iterate from most recent date to oldest; first record assigned wins
+            for (const date of dates) {
                 const dayRecords = attendanceData[date] || {};
-                Object.keys(dayRecords).forEach(empId => {
-                    if (!empMap[empId]) return;
+                for (const empId of Object.keys(dayRecords)) {
+                    if (assigned.has(empId)) continue;
                     const rec = dayRecords[empId];
-                    if (!rec) return;
-                    // Only set if not already set by a more recent date
-                    if (!empMap[empId].project || empMap[empId].project === '') {
-                        empMap[empId].project = rec.project || empMap[empId].project || '';
-                    }
-                });
-            });
+                    if (!rec) continue;
+                    if (!empMap[empId]) continue;
+                    // Assign the employee's project to the most recent attendance project's value
+                    empMap[empId].project = rec.project || '';
+                    assigned.add(empId);
+                }
+            }
 
-            // For employees that still have empty project, leave existing sheet value
-            // No changes to global `projects` array: projects list remains sourced from Google Sheets only
+            // Debug: log mapping summary for inspection
+            try {
+                const summary = employees.map(e => ({ id: e.id, name: e.name, project: e.project || '' }));
+                console.info('updateEmployeeProjectsFromAttendance - mapping sample:', summary.slice(0, 20));
+            } catch (err) {
+                console.debug('updateEmployeeProjectsFromAttendance - logging failed', err);
+            }
         }
 
         // Helper to refresh the active tab layout instantly on update
