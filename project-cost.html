@@ -1125,6 +1125,10 @@
 
         // Initialization
         
+        // Thai month names
+        const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 
+                             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        
         // Thai date formatting helper (with fallback if host function unavailable)
         function formatThaiDateLocal(dateStr) {
             if (typeof formatThaiDate === 'function') {
@@ -1220,17 +1224,23 @@
                     year += 1;
                 }
 
-                const monthStr = String(month + 1).padStart(2, '0');
-                const valueStr = `${year}-${monthStr}`;
+                const monthNum = month + 1;
+                const monthNameTh = THAI_MONTHS[month];
+                const yearTh = year + 543; // Convert to Buddhist Era
+                const valueStr = `${year}-${String(monthNum).padStart(2, '0')}`;
                 
                 // Get date range for display
                 const dates = getBillingCycleDates(valueStr);
-                const startDateTh = formatThaiDateLocal(dates[0]);
-                const endDateTh = formatThaiDateLocal(dates[dates.length - 1]);
+                const startDay = dates[0].split('-')[2];
+                const endDay = dates[dates.length - 1].split('-')[2];
+                const endMonthNum = parseInt(dates[dates.length - 1].split('-')[1]);
+                const endMonthNameTh = THAI_MONTHS[endMonthNum - 1];
+                const endYear = parseInt(dates[dates.length - 1].split('-')[0]) + 543;
 
                 const option = document.createElement('option');
                 option.value = valueStr;
-                option.textContent = `รอบบัญชี ${monthStr}/${year} (${startDateTh} - ${endDateTh})`;
+                // Format: "เดือนชื่อ 2569 (26 มีนาคม - 25 เมษายน)"
+                option.textContent = `${monthNameTh} ${yearTh} (${startDay} ${monthNameTh} - ${endDay} ${endMonthNameTh})`;
                 select.appendChild(option);
             }
         }
@@ -1239,9 +1249,17 @@
         function updateBillingCycleDateRange(yearMonthStr) {
             const dates = getBillingCycleDates(yearMonthStr);
             if (dates.length > 0) {
-                const startDateTh = formatThaiDateLocal(dates[0]);
-                const endDateTh = formatThaiDateLocal(dates[dates.length - 1]);
-                document.getElementById('billingCycleDateRange').innerText = `${startDateTh} - ${endDateTh}`;
+                const startParts = dates[0].split('-');
+                const endParts = dates[dates.length - 1].split('-');
+                const startDay = startParts[2];
+                const startMonth = THAI_MONTHS[parseInt(startParts[1]) - 1];
+                const startYear = parseInt(startParts[0]) + 543;
+                const endDay = endParts[2];
+                const endMonth = THAI_MONTHS[parseInt(endParts[1]) - 1];
+                const endYear = parseInt(endParts[0]) + 543;
+                
+                document.getElementById('billingCycleDateRange').innerText = 
+                    `${startDay} ${startMonth} ${startYear} - ${endDay} ${endMonth} ${endYear}`;
             }
         }
 
