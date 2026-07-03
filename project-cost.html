@@ -933,7 +933,7 @@
         function loadEmployeesFromSheet() {
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`)
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`, { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
                                 employees = res.data.map(mapEmployeeRow).filter(emp => emp.id);
@@ -981,7 +981,7 @@
         function loadProjectsFromSheet() {
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getProjectsList`)
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getProjectsList`, { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
                                 projects = res.data.filter(proj => typeof proj === 'string' && proj.trim()).map(proj => proj.toString().trim());
@@ -1036,7 +1036,7 @@
         function loadAttendanceRecordsForCycle(start, end) {
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=*ALL*&adminId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`)
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=*ALL*&adminId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`, { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
                                 resolve(res.data);
@@ -1274,8 +1274,8 @@
 
                 const option = document.createElement('option');
                 option.value = valueStr;
-                // Format: "เดือนชื่อ 2569 (26 มีนาคม - 25 เมษายน)"
-                option.textContent = `${monthNameTh} ${yearTh} (${startDay} ${monthNameTh} - ${endDay} ${endMonthNameTh})`;
+                // Show only "เดือน ปี" in the selector; detailed range is shown below
+                option.textContent = `${monthNameTh} ${yearTh}`;
                 select.appendChild(option);
             }
         }
