@@ -931,8 +931,28 @@
 
         function loadEmployeesFromSheet() {
             return new Promise(resolve => {
+                if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`)
+                        .then(res => {
+                            if (res && res.status === 'success' && Array.isArray(res.data)) {
+                                employees = res.data.map(mapEmployeeRow).filter(emp => emp.id);
+                            } else {
+                                employees = [];
+                                console.warn('getAllEmployees returned invalid data', res);
+                            }
+                        })
+                        .catch(err => {
+                            console.error('getAllEmployees failed', err);
+                            showLoadError('เกิดข้อผิดพลาดในการดึงข้อมูลพนักงานจากระบบ');
+                            employees = [];
+                        })
+                        .finally(() => resolve());
+                    return;
+                }
+
                 if (!isGoogleScriptEnvironment) {
                     showLoadError('ไม่พบ Google Apps Script environment เพื่อดึงข้อมูลพนักงาน');
+                    employees = [];
                     resolve();
                     return;
                 }
@@ -959,7 +979,32 @@
 
         function loadProjectsFromSheet() {
             return new Promise(resolve => {
+                if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getProjectsList`)
+                        .then(res => {
+                            if (res && res.status === 'success' && Array.isArray(res.data)) {
+                                projects = res.data.filter(proj => typeof proj === 'string' && proj.trim()).map(proj => proj.toString().trim());
+                            } else {
+                                console.warn('getProjectsList returned invalid data', res);
+                                projects = [];
+                            }
+                        })
+                        .catch(err => {
+                            console.error('getProjectsList failed', err);
+                            projects = [];
+                        })
+                        .finally(() => {
+                            updateProjectFilterOptions();
+                            updateModalProjectOptions();
+                            resolve();
+                        });
+                    return;
+                }
+
                 if (!isGoogleScriptEnvironment) {
+                    projects = [];
+                    updateProjectFilterOptions();
+                    updateModalProjectOptions();
                     resolve();
                     return;
                 }
@@ -973,12 +1018,16 @@
                         } else {
                             console.warn('getProjectsList returned invalid data', res);
                             projects = [];
+                            updateProjectFilterOptions();
+                            updateModalProjectOptions();
                         }
                         resolve();
                     })
                     .withFailureHandler(function(err) {
                         console.error('getProjectsList failed', err);
                         projects = [];
+                        updateProjectFilterOptions();
+                        updateModalProjectOptions();
                         resolve();
                     })
                     .getProjectsList();
@@ -987,6 +1036,24 @@
 
         function loadAttendanceRecordsForCycle(start, end) {
             return new Promise(resolve => {
+                if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=*ALL*&adminId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`)
+                        .then(res => {
+                            if (res && res.status === 'success' && Array.isArray(res.data)) {
+                                resolve(res.data);
+                            } else {
+                                console.warn('getTimeRecords returned invalid data', res);
+                                resolve([]);
+                            }
+                        })
+                        .catch(err => {
+                            console.error('getTimeRecords failed', err);
+                            showLoadError('เกิดข้อผิดพลาดในการดึงข้อมูลเวลางานจากระบบ');
+                            resolve([]);
+                        });
+                    return;
+                }
+
                 if (!isGoogleScriptEnvironment) {
                     showLoadError('ไม่พบ Google Apps Script environment เพื่อดึงข้อมูลเวลางาน');
                     resolve([]);
@@ -1056,12 +1123,40 @@
         }
 
         // Initialization
-        window.onload = async function() {
+        function getCurrentBillingMonthValue() {
+            const now = new Date();
+            const currentDay = now.getDate();
+            let month = now.getMonth();
+            let year = now.getFullYear();
+            if (currentDay > 25) {
+                month += 1;
+                if (month > 11) {
+                    month = 0;
+                    year += 1;
+                }
+            }
+            return `${year}-${String(month + 1).padStart(2, '0')}`;
+        }
+
+        async function initializeProjectCostPage() {
+            const billingSelect = document.getElementById('billingMonth');
+            const currentBillingMonth = getCurrentBillingMonthValue();
+            if (billingSelect) {
+                const optionExists = Array.from(billingSelect.options).some(opt => opt.value === currentBillingMonth);
+                if (!optionExists) {
+                    const option = document.createElement('option');
+                    option.value = currentBillingMonth;
+                    option.textContent = `รอบบัญชี ${currentBillingMonth.slice(5)} ${parseInt(currentBillingMonth.slice(0,4)) + 543} (${formatThaiDate(getBillingCycleDates(currentBillingMonth)[0])} - ${formatThaiDate(getBillingCycleDates(currentBillingMonth).slice(-1)[0])})`;
+                    billingSelect.insertBefore(option, billingSelect.firstChild);
+                }
+                billingSelect.value = currentBillingMonth;
+            }
+
             document.getElementById('currentSelectedDate').value = selectedDateStr;
             updateDayLabel();
             await loadSheetData();
             switchTab('daily');
-        };
+        }
 
         // Switch Action Tabs
         function switchTab(tabName) {
