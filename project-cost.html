@@ -869,6 +869,34 @@
             };
         }
 
+        function ensureAttendanceDateEntry(dateStr) {
+            if (!attendanceData[dateStr]) {
+                attendanceData[dateStr] = {};
+            }
+            return attendanceData[dateStr];
+        }
+
+        function getOrCreateAttendanceLog(empId) {
+            const emp = employees.find(e => e.id === empId);
+            if (!emp) return null;
+            const dayData = ensureAttendanceDateEntry(selectedDateStr);
+            if (!dayData[empId]) {
+                dayData[empId] = {
+                    status: 'ย',
+                    timeIn: '',
+                    timeOut: '',
+                    ot: 0,
+                    food: 0,
+                    trip: 0,
+                    other: 0,
+                    otherMemo: '',
+                    penalty: 0,
+                    project: emp.project
+                };
+            }
+            return dayData[empId];
+        }
+
         function showLoadError(message) {
             if (typeof showToast === 'function') {
                 showToast(message, 'error');
@@ -1639,19 +1667,33 @@
                 `;
             });
 
-            document.getElementById('modalTimeIn').value = log.timeIn;
-            document.getElementById('modalTimeOut').value = log.timeOut;
-            document.getElementById('modalOtHours').value = log.ot;
-            document.getElementById('modalLateMinutes').value = log.penalty || 15;
+            const modalTimeInEl = document.getElementById('modalTimeIn');
+            const modalTimeOutEl = document.getElementById('modalTimeOut');
+            const modalOtHoursEl = document.getElementById('modalOtHours');
+            const modalLateMinutesEl = document.getElementById('modalLateMinutes');
+
+            if (modalTimeInEl) modalTimeInEl.value = log.timeIn; else console.warn('modalTimeIn element not found');
+            if (modalTimeOutEl) modalTimeOutEl.value = log.timeOut; else console.warn('modalTimeOut element not found');
+            if (modalOtHoursEl) modalOtHoursEl.value = log.ot; else console.warn('modalOtHours element not found');
+            if (modalLateMinutesEl) modalLateMinutesEl.value = log.penalty || 15; else console.warn('modalLateMinutes element not found');
 
             const latePanel = document.getElementById('modalLateInputGroup');
-            if (log.status === 'L') {
-                latePanel.classList.remove('hidden');
+            if (latePanel) {
+                if (log.status === 'L') {
+                    latePanel.classList.remove('hidden');
+                } else {
+                    latePanel.classList.add('hidden');
+                }
             } else {
-                latePanel.classList.add('hidden');
+                console.warn('modalLateInputGroup element not found');
             }
 
-            document.getElementById('statusModal').classList.remove('hidden');
+            const statusModalEl = document.getElementById('statusModal');
+            if (statusModalEl) {
+                statusModalEl.classList.remove('hidden');
+            } else {
+                console.warn('statusModal element not found');
+            }
         }
 
         // Handle Change Status in Modal
@@ -1782,7 +1824,12 @@
         }
 
         function closeStatusModal() {
-            document.getElementById('statusModal').classList.add('hidden');
+            const statusModalEl = document.getElementById('statusModal');
+            if (statusModalEl) {
+                statusModalEl.classList.add('hidden');
+            } else {
+                console.warn('statusModal element not found');
+            }
         }
 
         // Save Status and auto fill times
@@ -1825,7 +1872,7 @@
         function openAllowanceModal(empId) {
             selectedEmpId = empId;
             const emp = employees.find(e => e.id === empId);
-            const log = attendanceData[selectedDateStr][empId];
+            const log = getOrCreateAttendanceLog(empId);
 
             if (!emp || !log) return;
 
@@ -1863,10 +1910,13 @@
             const other = modalOtherEl ? (parseFloat(modalOtherEl.value) || 0) : 0;
             const otherMemo = modalOtherMemoEl ? modalOtherMemoEl.value : '';
 
-            attendanceData[selectedDateStr][selectedEmpId].food = food;
-            attendanceData[selectedDateStr][selectedEmpId].trip = trip;
-            attendanceData[selectedDateStr][selectedEmpId].other = other;
-            attendanceData[selectedDateStr][selectedEmpId].otherMemo = otherMemo;
+            const log = getOrCreateAttendanceLog(selectedEmpId);
+            if (!log) return;
+
+            log.food = food;
+            log.trip = trip;
+            log.other = other;
+            log.otherMemo = otherMemo;
 
             refreshActiveTab();
             closeAllowanceModal();
