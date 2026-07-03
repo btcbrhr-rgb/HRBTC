@@ -1661,18 +1661,18 @@
             const latePanel = document.getElementById('modalLateInputGroup');
 
             if (status === 'L') {
-                latePanel.classList.remove('hidden');
-                timeInInput.value = '08:00';
-                timeOutInput.value = '17:00';
-                updateTimeBasedOnLate();
+                if (latePanel) latePanel.classList.remove('hidden'); else console.warn('modalLateInputGroup element not found');
+                if (timeInInput) timeInInput.value = '08:00'; else console.warn('modalTimeIn element not found');
+                if (timeOutInput) timeOutInput.value = '17:00'; else console.warn('modalTimeOut element not found');
+                try { updateTimeBasedOnLate(); } catch (e) { console.warn('updateTimeBasedOnLate failed', e); }
             } else {
-                latePanel.classList.add('hidden');
+                if (latePanel) latePanel.classList.add('hidden');
                 if (['W', 'B+', 'H+', 'S+', 'นข'].includes(status)) {
-                    timeInInput.value = '08:00';
-                    timeOutInput.value = '17:00';
+                    if (timeInInput) timeInInput.value = '08:00';
+                    if (timeOutInput) timeOutInput.value = '17:00';
                 } else {
-                    timeInInput.value = '';
-                    timeOutInput.value = '';
+                    if (timeInInput) timeInInput.value = '';
+                    if (timeOutInput) timeOutInput.value = '';
                 }
             }
 
@@ -1690,8 +1690,14 @@
 
         // Calculate Time In based on late minutes
         function updateTimeBasedOnLate() {
-            const minutesLate = parseInt(document.getElementById('modalLateMinutes').value) || 0;
+            const lateEl = document.getElementById('modalLateMinutes');
             const timeInInput = document.getElementById('modalTimeIn');
+            if (!lateEl || !timeInInput) {
+                if (!lateEl) console.warn('modalLateMinutes element not found');
+                if (!timeInInput) console.warn('modalTimeIn element not found');
+                return;
+            }
+            const minutesLate = parseInt(lateEl.value) || 0;
 
             if (minutesLate > 0) {
                 const baseHour = 8;
@@ -1708,8 +1714,14 @@
 
         // Calculate Time Out based on OT hours
         function updateTimeBasedOnOt() {
-            const otHours = parseFloat(document.getElementById('modalOtHours').value) || 0;
+            const otEl = document.getElementById('modalOtHours');
             const timeOutInput = document.getElementById('modalTimeOut');
+            if (!otEl || !timeOutInput) {
+                if (!otEl) console.warn('modalOtHours element not found');
+                if (!timeOutInput) console.warn('modalTimeOut element not found');
+                return;
+            }
+            const otHours = parseFloat(otEl.value) || 0;
 
             if (otHours >= 0) {
                 const baseHour = 17; 
@@ -1726,19 +1738,28 @@
         // Quick adjust helper for OT
         function adjustOtInput(value) {
             const otInput = document.getElementById('modalOtHours');
+            if (!otInput) {
+                console.warn('modalOtHours element not found');
+                return;
+            }
             if (value === 0) {
                 otInput.value = '';
             } else {
                 otInput.value = value;
             }
-            updateTimeBasedOnOt();
+            try { updateTimeBasedOnOt(); } catch (e) { console.warn('updateTimeBasedOnOt failed', e); }
         }
 
         // Reverse Calculation from timeout
         function updateOtBasedOnTimeOut() {
-            const timeOutVal = document.getElementById('modalTimeOut').value;
+            const timeOutEl = document.getElementById('modalTimeOut');
             const otHoursInput = document.getElementById('modalOtHours');
-            
+            if (!timeOutEl || !otHoursInput) {
+                if (!timeOutEl) console.warn('modalTimeOut element not found');
+                if (!otHoursInput) console.warn('modalOtHours element not found');
+                return;
+            }
+            const timeOutVal = timeOutEl.value;
             if (!timeOutVal) {
                 otHoursInput.value = '';
                 return;
@@ -1771,13 +1792,20 @@
             const selectedButton = document.querySelector('#modalStatusButtons button.ring-2');
             if (!selectedButton) return;
             
-            const statusKey = selectedButton.querySelector('span:last-child').innerText;
+            const statusSpan = selectedButton.querySelector('span:last-child');
+            const statusKey = statusSpan ? statusSpan.innerText : '';
 
-            const timeIn = document.getElementById('modalTimeIn').value;
-            const timeOut = document.getElementById('modalTimeOut').value;
-            const ot = parseFloat(document.getElementById('modalOtHours').value) || 0;
-            const penalty = statusKey === 'L' ? (parseInt(document.getElementById('modalLateMinutes').value) || 15) : 0;
-            const selectedWorkingProject = document.getElementById('modalWorkingProject').value;
+            const timeInEl = document.getElementById('modalTimeIn');
+            const timeOutEl = document.getElementById('modalTimeOut');
+            const otEl = document.getElementById('modalOtHours');
+            const lateEl = document.getElementById('modalLateMinutes');
+            const workingProjEl = document.getElementById('modalWorkingProject');
+
+            const timeIn = timeInEl ? timeInEl.value : '';
+            const timeOut = timeOutEl ? timeOutEl.value : '';
+            const ot = otEl ? (parseFloat(otEl.value) || 0) : 0;
+            const penalty = (statusKey === 'L' && lateEl) ? (parseInt(lateEl.value) || 15) : 0;
+            const selectedWorkingProject = workingProjEl ? workingProjEl.value : '';
 
             attendanceData[selectedDateStr][selectedEmpId].status = statusKey;
             attendanceData[selectedDateStr][selectedEmpId].timeIn = timeIn;
@@ -1818,16 +1846,22 @@
         }
 
         function closeAllowanceModal() {
-            document.getElementById('allowanceModal').classList.add('hidden');
+            const allowanceModalEl = document.getElementById('allowanceModal');
+            if (allowanceModalEl) allowanceModalEl.classList.add('hidden'); else console.warn('allowanceModal element not found');
         }
 
         function saveAllowanceModal() {
             if (!selectedEmpId) return;
 
-            const food = parseFloat(document.getElementById('modalFood').value) || 0;
-            const trip = parseFloat(document.getElementById('modalTrip').value) || 0;
-            const other = parseFloat(document.getElementById('modalOther').value) || 0;
-            const otherMemo = document.getElementById('modalOtherMemo').value;
+            const modalFoodEl = document.getElementById('modalFood');
+            const modalTripEl = document.getElementById('modalTrip');
+            const modalOtherEl = document.getElementById('modalOther');
+            const modalOtherMemoEl = document.getElementById('modalOtherMemo');
+
+            const food = modalFoodEl ? (parseFloat(modalFoodEl.value) || 0) : 0;
+            const trip = modalTripEl ? (parseFloat(modalTripEl.value) || 0) : 0;
+            const other = modalOtherEl ? (parseFloat(modalOtherEl.value) || 0) : 0;
+            const otherMemo = modalOtherMemoEl ? modalOtherMemoEl.value : '';
 
             attendanceData[selectedDateStr][selectedEmpId].food = food;
             attendanceData[selectedDateStr][selectedEmpId].trip = trip;
