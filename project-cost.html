@@ -1124,6 +1124,20 @@
 
         // Initialization
         function getCurrentBillingMonthValue() {
+            // Prefer host's current cycle if available
+            if (typeof getCurrentCycleRange === 'function') {
+                try {
+                    const range = getCurrentCycleRange();
+                    if (range && range.end) {
+                        const y = range.end.substring(0,4);
+                        const m = range.end.substring(5,7);
+                        return `${y}-${m}`;
+                    }
+                } catch (e) {
+                    console.warn('getCurrentBillingMonthValue: host helper failed, falling back', e);
+                }
+            }
+
             const now = new Date();
             const currentDay = now.getDate();
             let month = now.getMonth();
@@ -1192,19 +1206,39 @@
             }
         }
 
-        // Generate Cycle Dates (26th of prev month to 25th of current)
-        // FIXED TIMEZONE BUG: Set hours to noon and formatted based on local time fields
+        // Generate Cycle Dates (delegate to host if available, else fallback 26th->25th)
         function getBillingCycleDates(yearMonthStr) {
+            // If host page provides a cycle helper, use it to stay consistent
+            if (typeof getCycleDateRange === 'function') {
+                try {
+                    const parts = yearMonthStr.split('-');
+                    const year = parseInt(parts[0]);
+                    const month = parseInt(parts[1]) - 1; // 0-indexed
+                    const range = getCycleDateRange(year, month); // { start, end }
+                    if (range && range.start && range.end) {
+                        const dates = [];
+                        let cur = new Date(range.start + 'T12:00:00');
+                        const end = new Date(range.end + 'T12:00:00');
+                        while (cur <= end) {
+                            dates.push(getLocalDateString(cur));
+                            cur.setDate(cur.getDate() + 1);
+                        }
+                        return dates;
+                    }
+                } catch (e) {
+                    console.warn('getBillingCycleDates: host helper failed, falling back', e);
+                }
+            }
+
+            // Fallback: 26th of prev month → 25th of current month
             const parts = yearMonthStr.split('-');
             const year = parseInt(parts[0]);
             const month = parseInt(parts[1]) - 1; // 0-indexed
 
             const prevMonthDate = new Date(year, month - 1, 26, 12, 0, 0);
             const currentMonthDate = new Date(year, month, 25, 12, 0, 0);
-            
             const dates = [];
             let current = new Date(prevMonthDate);
-
             while (current <= currentMonthDate) {
                 dates.push(getLocalDateString(current));
                 current.setDate(current.getDate() + 1);
