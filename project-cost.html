@@ -125,18 +125,22 @@
                 </div>
 
                 <!-- Select Cycle -->
-                <div class="w-full md:w-auto md:min-w-[320px]">
+                <div class="w-full md:w-auto md:min-w-[360px]">
                     <label class="block text-xs font-bold text-slate-500 mb-0.5 uppercase tracking-wider">รอบบัญชีและงวดการจ่ายค่าแรง</label>
-                    <div class="relative">
-                        <select id="billingMonth" onchange="generateBillingCycleData()" class="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 appearance-none transition-all">
-                            <option value="2026-06">รอบบัญชี มิ.ย. 2569 (26 พ.ค. - 25 มิ.ย.)</option>
-                            <option value="2026-05">รอบบัญชี พ.ค. 2569 (26 เม.ย. - 25 พ.ค.)</option>
-                            <option value="2026-04">รอบบัญชี เม.ย. 2569 (26 มี.ค. - 25 เม.ย.)</option>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
-                            <i class="fa-solid fa-calendar-days text-sm"></i>
+                    <div class="flex gap-2 items-stretch">
+                        <div class="relative flex-grow">
+                            <select id="billingMonth" onchange="generateBillingCycleData()" class="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 appearance-none transition-all">
+                                <!-- Dynamically generated -->
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                <i class="fa-solid fa-calendar-days text-sm"></i>
+                            </div>
                         </div>
+                        <button type="button" onclick="goTodayBillingCycle()" class="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold rounded-xl transition" title="ไปยังรอบบัญชีปัจจุบัน">
+                            <i class="fa-solid fa-circle-dot"></i>
+                        </button>
                     </div>
+                    <p id="billingCycleDateRange" class="text-xs text-slate-400 font-semibold mt-1">26 - 25</p>
                 </div>
 
             </div>
@@ -1120,6 +1124,21 @@
         }
 
         // Initialization
+        
+        // Thai date formatting helper (with fallback if host function unavailable)
+        function formatThaiDateLocal(dateStr) {
+            if (typeof formatThaiDate === 'function') {
+                try {
+                    return formatThaiDate(dateStr);
+                } catch (e) {
+                    console.warn('formatThaiDate from host failed, using fallback', e);
+                }
+            }
+            const parts = dateStr.split('-');
+            const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+            return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+        }
+
         function getCurrentBillingMonthValue() {
             // Prefer host's current cycle if available
             if (typeof getCurrentCycleRange === 'function') {
@@ -1150,23 +1169,91 @@
         }
 
         async function initializeProjectCostPage() {
+            // Initialize billing month selector with dynamic options
+            initializeBillingMonthSelector();
+            
             const billingSelect = document.getElementById('billingMonth');
             const currentBillingMonth = getCurrentBillingMonthValue();
             if (billingSelect) {
-                const optionExists = Array.from(billingSelect.options).some(opt => opt.value === currentBillingMonth);
-                if (!optionExists) {
-                    const option = document.createElement('option');
-                    option.value = currentBillingMonth;
-                    option.textContent = `รอบบัญชี ${currentBillingMonth.slice(5)} ${parseInt(currentBillingMonth.slice(0,4)) + 543} (${formatThaiDate(getBillingCycleDates(currentBillingMonth)[0])} - ${formatThaiDate(getBillingCycleDates(currentBillingMonth).slice(-1)[0])})`;
-                    billingSelect.insertBefore(option, billingSelect.firstChild);
-                }
                 billingSelect.value = currentBillingMonth;
+                updateBillingCycleDateRange(currentBillingMonth);
             }
 
             document.getElementById('currentSelectedDate').value = selectedDateStr;
             updateDayLabel();
             await loadSheetData();
             switchTab('daily');
+        }
+
+        // Initialize billing month dropdown with options from 12 months back to 6 months forward
+        function initializeBillingMonthSelector() {
+            const select = document.getElementById('billingMonth');
+            if (!select) return;
+
+            select.innerHTML = '';
+
+            const now = new Date();
+            const currentDay = now.getDate();
+            let currentMonth = now.getMonth();
+            let currentYear = now.getFullYear();
+
+            // If after 25th, next month is billing period
+            if (currentDay > 25) {
+                currentMonth += 1;
+                if (currentMonth > 11) {
+                    currentMonth = 0;
+                    currentYear += 1;
+                }
+            }
+
+            // Generate 12 months back + 6 months forward
+            for (let i = -12; i <= 6; i++) {
+                let month = currentMonth + i;
+                let year = currentYear;
+
+                while (month < 0) {
+                    month += 12;
+                    year -= 1;
+                }
+                while (month > 11) {
+                    month -= 12;
+                    year += 1;
+                }
+
+                const monthStr = String(month + 1).padStart(2, '0');
+                const valueStr = `${year}-${monthStr}`;
+                
+                // Get date range for display
+                const dates = getBillingCycleDates(valueStr);
+                const startDateTh = formatThaiDateLocal(dates[0]);
+                const endDateTh = formatThaiDateLocal(dates[dates.length - 1]);
+
+                const option = document.createElement('option');
+                option.value = valueStr;
+                option.textContent = `รอบบัญชี ${monthStr}/${year} (${startDateTh} - ${endDateTh})`;
+                select.appendChild(option);
+            }
+        }
+
+        // Update displayed date range when billing month changes
+        function updateBillingCycleDateRange(yearMonthStr) {
+            const dates = getBillingCycleDates(yearMonthStr);
+            if (dates.length > 0) {
+                const startDateTh = formatThaiDateLocal(dates[0]);
+                const endDateTh = formatThaiDateLocal(dates[dates.length - 1]);
+                document.getElementById('billingCycleDateRange').innerText = `${startDateTh} - ${endDateTh}`;
+            }
+        }
+
+        // Go to today's billing cycle
+        function goTodayBillingCycle() {
+            const currentBillingMonth = getCurrentBillingMonthValue();
+            const select = document.getElementById('billingMonth');
+            if (select) {
+                select.value = currentBillingMonth;
+                generateBillingCycleData();
+                updateBillingCycleDateRange(currentBillingMonth);
+            }
         }
 
         // Switch Action Tabs
@@ -1278,6 +1365,8 @@
         }
 
         async function generateBillingCycleData() {
+            const selectedMonth = document.getElementById('billingMonth').value;
+            updateBillingCycleDateRange(selectedMonth);
             await loadAttendanceForCycle();
         }
 
