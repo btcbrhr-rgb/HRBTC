@@ -985,6 +985,7 @@
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
                                 projects = res.data.filter(proj => typeof proj === 'string' && proj.trim()).map(proj => proj.toString().trim());
+                                console.info('loadProjectsFromSheet (REST) - projects:', projects);
                             } else {
                                 projects = [];
                             }
@@ -1013,6 +1014,7 @@
                     .withSuccessHandler(function(res) {
                         if (res && res.status === 'success' && Array.isArray(res.data)) {
                             projects = res.data.filter(proj => typeof proj === 'string' && proj.trim()).map(proj => proj.toString().trim());
+                            console.info('loadProjectsFromSheet (GAS) - projects:', projects);
                         } else {
                             projects = [];
                         }
@@ -1103,7 +1105,37 @@
                 attendanceData[record.date][record.empId] = record;
             });
 
+            // Update each employee's current project based on the most recent attendance record
+            updateEmployeeProjectsFromAttendance();
+
             refreshActiveTab();
+        }
+
+        // Set employee.project according to the latest attendance record (most recent date).
+        // If a record has differing projectIn/projectOut, mapAttendanceRow already prefers the newer (projectOut).
+        function updateEmployeeProjectsFromAttendance() {
+            // Collect and sort dates descending
+            const dates = Object.keys(attendanceData || {}).filter(d => d).sort((a, b) => new Date(b) - new Date(a));
+            if (dates.length === 0) return;
+
+            const empMap = {};
+            employees.forEach(emp => { empMap[emp.id] = emp; });
+
+            dates.forEach(date => {
+                const dayRecords = attendanceData[date] || {};
+                Object.keys(dayRecords).forEach(empId => {
+                    if (!empMap[empId]) return;
+                    const rec = dayRecords[empId];
+                    if (!rec) return;
+                    // Only set if not already set by a more recent date
+                    if (!empMap[empId].project || empMap[empId].project === '') {
+                        empMap[empId].project = rec.project || empMap[empId].project || '';
+                    }
+                });
+            });
+
+            // For employees that still have empty project, leave existing sheet value
+            // No changes to global `projects` array: projects list remains sourced from Google Sheets only
         }
 
         // Helper to refresh the active tab layout instantly on update
@@ -2621,6 +2653,14 @@
             setTimeout(() => {
                 window.print();
             }, 300);
+        }
+
+        // ─── Auto-initialize page when DOM loads ───
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeProjectCostPage);
+        } else {
+            // DOM already loaded (if script added later)
+            initializeProjectCostPage();
         }
     </script>
 </body>
