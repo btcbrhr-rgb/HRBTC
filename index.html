@@ -2187,65 +2187,7 @@
                     </div>
                 </section>
 
-                <!-- SECTION 2.4: บันทึกเวลางานและวิเคราะห์ต้นทุนโครงการ -->
-                <section id="admin-sec-project-cost" class="admin-sec hidden space-y-6">
-                    <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                    <i class="fa-solid fa-chart-line text-indigo-600"></i>
-                                    บันทึกเวลางานและวิเคราะห์ต้นทุนโครงการ
-                                </h3>
-                                <p class="text-[11px] text-slate-500 mt-1">
-                                    ดูข้อมูลเวลางานและสรุปต้นทุนแรงงานจากหน้าจอ `project-cost.html`
-                                </p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="loadProjectCostSection()" id="project-cost-refresh-btn"
-                                    class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center gap-2">
-                                    <i class="fa-solid fa-rotate"></i> รีเฟรช
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                <p class="text-[10px] font-bold text-slate-500 uppercase">โครงการที่เลือก</p>
-                                <p id="project-cost-selected-project" class="text-sm font-semibold text-slate-800 mt-2">ยังไม่เลือก</p>
-                            </div>
-                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                <p class="text-[10px] font-bold text-slate-500 uppercase">จำนวนชั่วโมงรวม</p>
-                                <p id="project-cost-total-hours" class="text-sm font-semibold text-slate-800 mt-2">0 ชม.</p>
-                            </div>
-                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                <p class="text-[10px] font-bold text-slate-500 uppercase">ต้นทุนแรงงานรวม</p>
-                                <p id="project-cost-total-cost" class="text-sm font-semibold text-slate-800 mt-2">฿0</p>
-                            </div>
-                        </div>
-
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5">
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-slate-700">หน้าจอวิเคราะห์ต้นทุนโครงการ</h4>
-                                    <p class="text-[11px] text-slate-500 mt-1">ฝังเนื้อหาจาก <code class="bg-slate-100 px-1.5 py-0.5 rounded">project-cost.html</code> เข้ากับหน้า (ไม่มีการใช้ iframe)</p>
-                                </div>
-                                <div class="flex gap-2">
-                                    <button onclick="loadProjectCostSection()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center gap-2">
-                                        <i class="fa-solid fa-rotate"></i> รีเฟรช
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="mt-6 text-sm text-slate-500">
-                                กดรีเฟรชเพื่อโหลดเนื้อหาจากไฟล์ `project-cost.html` แล้วดูงานวิเคราะห์ต้นทุนในกรอบนี้
-                            </div>
-
-                            <div id="project-cost-container" class="mt-4 rounded-2xl overflow-hidden border border-slate-200" style="min-height:560px;">
-                                <div id="project-cost-loading" class="p-6 text-center text-slate-500">กำลังโหลดส่วนแสดงผล...</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                <!-- SECTION 2.4: (Removed - project cost embedded panel) -->
 
                 <!-- SECTION 2.5: จัดการเครื่องสแกนนิ้ว -->
                 <section id="admin-sec-scan-devices" class="admin-sec hidden space-y-6">
@@ -4079,7 +4021,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // --- Project Cost: inline load and inject project-cost.html into the page (no iframe) ---
             async function loadProjectCostSection() {
-                const container = document.getElementById('project-cost-container') || document.getElementById('project-cost-iframe-wrapper');
+                const container = document.getElementById('project-cost-container') || document.getElementById('project-cost-iframe-wrapper') || document.getElementById('projectCostSection');
                 const selectedProjectEl = document.getElementById('project-cost-selected-project');
                 const totalHoursEl = document.getElementById('project-cost-total-hours');
                 const totalCostEl = document.getElementById('project-cost-total-cost');
@@ -4115,25 +4057,25 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const contentEl = doc.querySelector('main') || doc.body;
                     container.insertAdjacentHTML('beforeend', contentEl.innerHTML);
 
-                    // Execute any scripts inside injected content (in order)
-                    const scripts = Array.from(container.querySelectorAll('script'));
-                    for (const s of scripts) {
+                    // Execute any scripts present in the fetched document (not only inside <main>).
+                    // This ensures functions like `switchTab` are defined globally.
+                    const docScripts = Array.from(doc.querySelectorAll('script'));
+                    for (const s of docScripts) {
                         const src = s.getAttribute('src');
-                        // Skip tailwind/font links already present
-                        if (src && (src.includes('tailwindcss.com') || src.includes('fonts.googleapis.com') || src.includes('fontawesome') || src.includes('cdnjs.cloudflare.com/ajax/libs/font-awesome'))) {
-                            s.remove();
-                            continue;
-                        }
-                        const newS = document.createElement('script');
                         if (src) {
+                            // Skip loading large external libs that the host already provides
+                            if (src.includes('tailwindcss.com') || src.includes('fonts.googleapis.com') || src.includes('fontawesome') || src.includes('cdnjs.cloudflare.com/ajax/libs/font-awesome')) {
+                                continue;
+                            }
+                            const newS = document.createElement('script');
                             newS.src = src;
                             newS.async = false;
                             document.body.appendChild(newS);
-                        } else {
-                            newS.textContent = s.textContent;
-                            document.body.appendChild(newS);
+                        } else if (s.textContent && s.textContent.trim().length > 0) {
+                            const inline = document.createElement('script');
+                            inline.textContent = s.textContent;
+                            document.body.appendChild(inline);
                         }
-                        s.remove();
                     }
 
                     if (selectedProjectEl) selectedProjectEl.textContent = 'พร้อมใช้งาน';
