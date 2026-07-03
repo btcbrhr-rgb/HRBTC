@@ -1939,6 +1939,10 @@
                         <span
                             class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2.5">งานประจำวันและการอนุมัติ</span>
                         <div class="space-y-1">
+                            <button onclick="switchAdminTab('project-cost')" id="admin-menu-project-cost"
+                                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
+                                <i class="fa-solid fa-chart-line text-slate-400"></i> บันทึกเวลาและต้นทุนโครงการ
+                            </button>
                             <button onclick="switchAdminTab('import-time')" id="admin-menu-import-time"
                                 class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
                                 <i class="fa-solid fa-file-import text-slate-400"></i> นำเข้าเวลางานใหม่ (.txt)
@@ -2008,7 +2012,7 @@
                             </button>
                             <button onclick="switchAdminTab('project-cost')" id="admin-menu-project-cost"
                                 class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-left">
-                                <i class="fa-solid fa-chart-line text-slate-400"></i> บันทึกเวลางานและวิเคราะห์ต้นทุนโครงการ
+                                <i class="fa-solid fa-chart-line text-slate-400"></i> บันทึกเวลาและต้นทุนโครงการ
                             </button>
                         </div>
                     </div>
@@ -2193,7 +2197,7 @@
                                     บันทึกเวลางานและวิเคราะห์ต้นทุนโครงการ
                                 </h3>
                                 <p class="text-[11px] text-slate-500 mt-1">
-                                    รวมรายงานเวลางานของพนักงานตามโครงการ และสรุปต้นทุนแรงงาน
+                                    ดูข้อมูลเวลางานและสรุปต้นทุนแรงงานจากหน้าจอ `project-cost.html`
                                 </p>
                             </div>
                             <div class="flex gap-2">
@@ -2220,25 +2224,24 @@
                         </div>
 
                         <div class="bg-white border border-slate-200 rounded-2xl p-5">
-                            <h4 class="text-sm font-semibold text-slate-700 mb-3">รายการเวลางานตามโครงการ</h4>
-                            <div class="hr-table-wrap overflow-x-auto">
-                                <table class="hr-table" style="min-width:600px">
-                                    <thead>
-                                        <tr>
-                                            <th>รหัสพนักงาน</th>
-                                            <th>ชื่อพนักงาน</th>
-                                            <th>โครงการ</th>
-                                            <th>วันที่</th>
-                                            <th>ชั่วโมง</th>
-                                            <th>ต้นทุน</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="project-cost-table-body">
-                                        <tr class="tbl-empty-row">
-                                            <td colspan="6">โปรดกดรีเฟรชเพื่อโหลดข้อมูลเวลางานตามโครงการ</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <h4 class="text-sm font-semibold text-slate-700">หน้าจอวิเคราะห์ต้นทุนโครงการ</h4>
+                                    <p class="text-[11px] text-slate-500 mt-1">โหลดหน้า <code class="bg-slate-100 px-1.5 py-0.5 rounded">project-cost.html</code> ผ่าน iframe ภายใน `index.html`</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="loadProjectCostSection()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center gap-2">
+                                        <i class="fa-solid fa-rotate"></i> รีเฟรช
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 text-sm text-slate-500">
+                                กดรีเฟรชเพื่อโหลดเนื้อหาจากไฟล์ `project-cost.html` แล้วดูงานวิเคราะห์ต้นทุนในกรอบนี้
+                            </div>
+
+                            <div id="project-cost-iframe-wrapper" class="mt-4 rounded-2xl overflow-hidden border border-slate-200" style="height:calc(100vh - 320px); min-height:560px;">
+                                <iframe id="project-cost-iframe" src="" class="w-full h-full border-none"></iframe>
                             </div>
                         </div>
                     </div>
@@ -4057,34 +4060,32 @@
 
             // โหลดข้อมูลตาราง Project Cost และเรนเดอร์ลงใน #project-cost-table-body
             async function loadProjectCostSection() {
-                const tbody = document.getElementById('project-cost-table-body');
+                const iframe = document.getElementById('project-cost-iframe');
                 const selectedProjectEl = document.getElementById('project-cost-selected-project');
                 const totalHoursEl = document.getElementById('project-cost-total-hours');
                 const totalCostEl = document.getElementById('project-cost-total-cost');
 
-                if (!tbody) return;
-                tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic"><i class="fa-solid fa-spinner animate-spin text-indigo-500"></i> ⏳ กำลังโหลดข้อมูลเวลางานตามโครงการ...</td></tr>`;
                 if (selectedProjectEl) selectedProjectEl.textContent = 'กำลังโหลด...';
                 if (totalHoursEl) totalHoursEl.textContent = '0 ชม.';
                 if (totalCostEl) totalCostEl.textContent = '฿0';
 
-                try {
-                    // เรียก API ฝั่งเซิร์ฟเวอร์ (ปรับ action ตาม API จริงหากจำเป็น)
-                    const url = `${SERVER_API_URL}?action=getProjectCost&empId=${currentEmployeeId}`;
-                    const res = await fetchWithTimeout(url);
+                if (!iframe) return;
+                iframe.src = 'project-cost.html';
 
-                    if (!res || res.status !== 'success' || !Array.isArray(res.data)) {
-                        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(res?.message || 'ไม่พบข้อมูล')}</td></tr>`;
-                        if (selectedProjectEl) selectedProjectEl.textContent = 'ยังไม่เลือก';
-                        return;
-                    }
+                iframe.onload = function () {
+                    if (selectedProjectEl) selectedProjectEl.textContent = 'พร้อมใช้งาน';
+                    if (totalHoursEl) totalHoursEl.textContent = '-';
+                    if (totalCostEl) totalCostEl.textContent = '-';
+                };
 
-                    const items = res.data;
-                    if (items.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ยังไม่มีข้อมูลเวลางานตามโครงการ</td></tr>`;
-                        if (selectedProjectEl) selectedProjectEl.textContent = 'ยังไม่เลือก';
-                        return;
-                    }
+                iframe.onerror = function () {
+                    if (selectedProjectEl) selectedProjectEl.textContent = 'โหลดไม่สำเร็จ';
+                    if (totalHoursEl) totalHoursEl.textContent = '0 ชม.';
+                    if (totalCostEl) totalCostEl.textContent = '฿0';
+                };
+
+                // หากต้องการให้เมนูแสดงสรุปจาก iframe ต้องข้ามฝั่งให้ iframe ส่ง message กลับมาด้วย postMessage
+            }
 
                     // สร้างแถวและสรุปยอด
                     tbody.innerHTML = '';
