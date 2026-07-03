@@ -513,7 +513,6 @@
                         <thead class="bg-slate-50 sticky top-0 z-10">
                             <tr>
                                 <th class="px-5 py-3 font-bold text-slate-500 text-center" style="width: 70px;">อันดับ</th>
-                                <th class="px-4 py-3 font-bold text-slate-500">รหัส</th>
                                 <th class="px-4 py-3 font-bold text-slate-500">พนักงาน</th>
                                 <th class="px-4 py-3 font-bold text-slate-500">บทบาทหน้างาน</th>
                                 <th class="px-4 py-3 font-bold text-slate-500 text-center">มาสายสะสม (วัน)</th>
@@ -1369,7 +1368,10 @@
                 tr.innerHTML = `
                     <td class="px-6 py-4.5 whitespace-nowrap">
                         <div class="flex items-center space-x-3.5">
-                            <img src="${emp.avatar}" alt="" class="w-10 h-10 rounded-full border border-slate-200 object-cover shadow-sm">
+                            ${emp.avatar ? `<img src="${emp.avatar}" alt="" class="w-10 h-10 rounded-full border border-slate-200 object-cover shadow-sm" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-300 text-slate-600 text-base font-bold shadow-sm" ${emp.avatar ? 'style="display:none;"' : ''}>
+                                <i class="fa-solid fa-user"></i>
+                            </div>
                             <div>
                                 <div class="flex items-center space-x-2">
                                     <p class="font-extrabold text-slate-800 text-sm">${emp.name}</p>
@@ -1822,7 +1824,10 @@
                 let rowHtml = `
                     <td class="px-4 py-3.5 whitespace-nowrap sticky left-0 bg-white z-10 border border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.03)]">
                         <div class="flex items-center space-x-2.5">
-                            <img src="${emp.avatar}" alt="" class="w-8 h-8 rounded-full object-cover border border-slate-100">
+                            ${emp.avatar ? `<img src="${emp.avatar}" alt="" class="w-8 h-8 rounded-full object-cover border border-slate-100" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+                            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 text-sm" ${emp.avatar ? 'style="display:none;"' : ''}>
+                                <i class="fa-solid fa-user text-xs"></i>
+                            </div>
                             <div class="leading-tight">
                                 <p class="font-extrabold text-slate-800 text-xs">${emp.name}</p>
                                 <p class="text-[9px] text-slate-400 font-semibold">${emp.id}</p>
@@ -1938,6 +1943,7 @@
                         costingDatabase[projName][empId] = {
                             empName: emp.name,
                             empId: emp.id,
+                            empAvatar: emp.avatar,
                             role: emp.role,
                             days: 0,
                             otHours: 0,
@@ -2013,7 +2019,18 @@
                     employeeRowsHtml += `
                         <tr class="hover:bg-slate-50/50">
                             <td class="px-6 py-4 text-center text-slate-500 font-semibold">${idx + 1}</td>
-                            <td class="px-4 py-4 font-extrabold text-slate-800 text-xs">${rec.empName} <p class="text-[10px] text-slate-400 font-bold mt-0.5">${rec.empId} · ${rec.role}</p></td>
+                            <td class="px-4 py-4 font-extrabold text-slate-800 text-xs">
+                                <div class="flex items-center space-x-2.5">
+                                    ${rec.empAvatar ? `<img src="${rec.empAvatar}" alt="" class="w-8 h-8 rounded-full object-cover border border-slate-200" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+                                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 text-xs" ${rec.empAvatar ? 'style="display:none;"' : ''}>
+                                        <i class="fa-solid fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <p>${rec.empName}</p>
+                                        <p class="text-[10px] text-slate-400 font-bold">${rec.empId} · ${rec.role}</p>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="px-4 py-4 text-center font-bold text-slate-700">${rec.days} วัน</td>
                             <td class="px-4 py-4 text-right font-extrabold text-slate-800">฿${rec.wages.toLocaleString('th-TH', { minimumFractionDigits: 2 })} <p class="text-[9px] text-blue-600 font-extrabold mt-0.5">${rec.otHours} ชม. OT</p></td>
                             <td class="px-4 py-4 text-right text-slate-600 font-semibold">฿${rec.food.toLocaleString('th-TH')}</td>
@@ -2124,6 +2141,7 @@
                             empSummaryDB[empId] = {
                                 empName: emp.name,
                                 empId: emp.id,
+                                empAvatar: emp.avatar,
                                 role: emp.role,
                                 workedDays: 0,
                                 lateDays: 0,
@@ -2166,6 +2184,7 @@
                                 date: date,
                                 empName: emp.name,
                                 empId: emp.id,
+                                empAvatar: emp.avatar,
                                 status: log.status,
                                 amount: dailyWelfareSum,
                                 memo: log.otherMemo || (log.status === 'A' ? "ขาดงานแต่ยังบันทึกเบิกค่าข้าว" : "วันหยุดประจำสัปดาห์แต่บันทึกสวัสดิการ")
@@ -2257,7 +2276,18 @@
                     welfareLeakTable.innerHTML += `
                         <tr class="hover:bg-slate-50 transition">
                             <td class="px-4 py-2.5 font-mono text-[10px] text-slate-500 font-bold">${leak.date.substring(5)}</td>
-                            <td class="px-4 py-2.5 font-extrabold text-slate-800">${leak.empName}</td>
+                            <td class="px-4 py-2.5 font-extrabold text-slate-800">
+                                <div class="flex items-center space-x-2">
+                                    ${leak.empAvatar ? `<img src="${leak.empAvatar}" alt="" class="w-7 h-7 rounded-full object-cover border border-slate-200" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+                                    <div class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-xs" ${leak.empAvatar ? 'style="display:none;"' : ''}>
+                                        <i class="fa-solid fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <p>${leak.empName}</p>
+                                        <p class="text-[9px] text-slate-400 font-bold">${leak.empId}</p>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="px-3 py-2.5 text-center">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-150">${leak.status}</span>
                             </td>
@@ -2288,7 +2318,18 @@
 
                     otExhaustionTable.innerHTML += `
                         <tr class="hover:bg-slate-50 transition">
-                            <td class="px-4 py-2.5 font-extrabold text-slate-800">${item.empName}</td>
+                            <td class="px-4 py-2.5 font-extrabold text-slate-800">
+                                <div class="flex items-center space-x-2">
+                                    ${item.empAvatar ? `<img src="${item.empAvatar}" alt="" class="w-7 h-7 rounded-full object-cover border border-slate-200" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+                                    <div class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-xs" ${item.empAvatar ? 'style="display:none;"' : ''}>
+                                        <i class="fa-solid fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <p>${item.empName}</p>
+                                        <p class="text-[9px] text-slate-400 font-bold">${item.empId}</p>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="px-4 py-2.5 text-slate-400 font-bold">${item.role}</td>
                             <td class="px-3 py-2.5 text-center font-black text-blue-900">${item.otHours.toFixed(1)} ชม.</td>
                             <td class="px-3 py-2.5 text-right font-bold text-slate-700">฿${item.otPaid.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
@@ -2328,8 +2369,18 @@
                     behaviorTable.innerHTML += `
                         <tr class="hover:bg-slate-50/50 transition">
                             <td class="px-5 py-3 text-center text-xs font-black text-slate-700">${rankBadge}</td>
-                            <td class="px-4 py-3 font-mono font-bold text-[10px] text-slate-400">${item.empId}</td>
-                            <td class="px-4 py-3 font-extrabold text-slate-800">${item.empName}</td>
+                            <td class="px-4 py-3 font-extrabold text-slate-800">
+                                <div class="flex items-center space-x-2">
+                                    ${item.empAvatar ? `<img src="${item.empAvatar}" alt="" class="w-7 h-7 rounded-full object-cover border border-slate-200" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+                                    <div class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-xs" ${item.empAvatar ? 'style="display:none;"' : ''}>
+                                        <i class="fa-solid fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <p>${item.empName}</p>
+                                        <p class="text-[9px] text-slate-400 font-bold">${item.empId}</p>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="px-4 py-3 text-slate-500 font-semibold">${item.role}</td>
                             <td class="px-4 py-3 text-center font-bold text-slate-700">${item.lateDays} วัน</td>
                             <td class="px-4 py-3 text-center font-black text-amber-700 bg-amber-50/40">${item.lateMins} นาที</td>
