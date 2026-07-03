@@ -3936,127 +3936,146 @@
         <!-- === JavaScript logic === -->
         <script>
             // --- State การทำงาน ---
-            let isLoggedIn = false;
-            let isAdminMode = false;
-            let adminActiveTab = "import-time";
-            let adminEmployeesList = [];
-            let adminCurrentDecisionData = null; // Holds target data for approval modal
-            let isBatchOperation = false; // Tracks if we're doing a batch approval/rejection
-            let batchOperationType = null; // "leave" | "correction" | "advance"
-            let batchOperationAction = null; // "approve" | "reject"
-            let selectedLeaveItems = new Set(); // For batch leave approval
-            let selectedCorrectionItems = new Set(); // For batch time correction approval
-            let selectedAdvanceItems = new Set(); // For batch advance approval
+let isLoggedIn = false;
+let isAdminMode = false;
+let adminActiveTab = "import-time";
+let adminEmployeesList = [];
+let adminEmployeesMap = new Map(); // คีย์หลักสำหรับทำ Indexing เพื่อดึงชื่อพนักงานได้เร็วขึ้น
+let adminCurrentDecisionData = null; // Holds target data for approval modal
+let isBatchOperation = false; // Tracks if we're doing a batch approval/rejection
+let batchOperationType = null; // "leave" | "correction" | "advance"
+let batchOperationAction = null; // "approve" | "reject"
+let selectedLeaveItems = new Set(); // For batch leave approval
+let selectedCorrectionItems = new Set(); // For batch time correction approval
+let selectedAdvanceItems = new Set(); // For batch advance approval
 
-            async function fetchAdminEmployeeList() {
-                if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) return;
-                if (!currentEmployeeId) return;
-                try {
-                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`);
-                    if (res.status === 'success' && Array.isArray(res.data)) {
-                        adminEmployeesList = res.data;
-                    }
-                } catch (err) {
-                    console.warn('fetchAdminEmployeeList failed', err);
-                }
-            }
+async function fetchAdminEmployeeList() {
+    if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) return;
+    if (!currentEmployeeId) return;
+    try {
+        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`);
+        if (res.status === 'success' && Array.isArray(res.data)) {
+            adminEmployeesList = res.data;
+            
+            // สร้าง Map ทันทีหลังจากดึงข้อมูลเสร็จ เพื่อเปลี่ยนความเร็วการค้นหาจาก O(N) เป็น O(1)
+            adminEmployeesMap.clear();
+            adminEmployeesList.forEach(emp => {
+                const id = (emp["รหัสพนักงาน"] || '').toString().trim();
+                if (id) adminEmployeesMap.set(id, emp);
+            });
+        }
+    } catch (err) {
+        console.warn('fetchAdminEmployeeList failed', err);
+    }
+}
 
-            function getAdminEmployeeName(empId) {
-                if (!empId) return '';
-                const normalizedId = empId.toString().trim();
-                if (!normalizedId) return '';
-                const emp = adminEmployeesList.find(item => (item["รหัสพนักงาน"] || '').toString().trim() === normalizedId);
-                if (emp) {
-                    return emp["ชื่อ-นามสกุล"] || emp["ชื่อ"] || emp["name"] || '';
-                }
-                return '';
-            }
+function getAdminEmployeeName(empId) {
+    if (!empId) return '';
+    const normalizedId = empId.toString().trim();
+    if (!normalizedId) return '';
 
-            function getAdminEmployeeDisplay(empId, recordName) {
-                const name = (recordName || '').toString().trim() || getAdminEmployeeName(empId);
-                const safeId = escapeHtml(empId || 'N/A');
-                if (!name) return safeId;
-                return `<div class="flex flex-col"><span class="font-bold text-slate-800">${safeId}</span><span class="text-[11px] text-slate-400 truncate" style="max-width:180px">${escapeHtml(name)}</span></div>`;
-            }
+    // ค้นหาผ่าน Map โดยตรง ไม่ต้องวนลูป .find() ใน Array ทุกรอบซ้ำ ๆ
+    const emp = adminEmployeesMap.get(normalizedId);
+    if (emp) {
+        return emp["ชื่อ-นามสกุล"] || emp["ชื่อ"] || emp["name"] || '';
+    }
+    return '';
+}
 
-            function getApprovalDocIdValue(req) {
-                const raw = (req['เลขที่เอกสาร'] || req['เลขที่'] || '').toString().trim();
-                return raw;
-            }
+function getAdminEmployeeDisplay(empId, recordName) {
+    const name = (recordName || '').toString().trim() || getAdminEmployeeName(empId);
+    const safeId = escapeHtml(empId || 'N/A');
+    if (!name) return safeId;
+    
+    return `
+        <div class="flex flex-col">
+            <span class="font-bold text-slate-800">${safeId}</span>
+            <span class="text-[11px] text-slate-400 truncate max-w-[180px]">${escapeHtml(name)}</span>
+        </div>
+    `.trim();
+}
 
-            function compareApprovalDocIdsDescending(a, b) {
-                const aId = getApprovalDocIdValue(a);
-                const bId = getApprovalDocIdValue(b);
-                if (!aId && !bId) return 0;
-                if (!aId) return 1;
-                if (!bId) return -1;
-                return bId.localeCompare(aId, undefined, { numeric: true, sensitivity: 'base' });
-            }
+function getApprovalDocIdValue(req) {
+    return (req['เลขที่เอกสาร'] || req['เลขที่'] || '').toString().trim();
+}
 
-            function getApprovalDateValue(type, req) {
-                const fieldOrder = {
-                    correction: ['วันที่ส่ง', 'วันที่'],
-                    advance: ['วันที่ส่ง', 'วันที่ส่งคำขอ', 'วันที่เบิก']
-                };
-                const fields = fieldOrder[type] || ['วันที่'];
-                for (const field of fields) {
-                    const rawValue = (req[field] || '').toString().trim();
-                    if (!rawValue) continue;
-                    const parsed = Date.parse(rawValue);
-                    if (!Number.isNaN(parsed)) return parsed;
-                }
-                return 0;
-            }
+function compareApprovalDocIdsDescending(a, b) {
+    const aId = getApprovalDocIdValue(a);
+    const bId = getApprovalDocIdValue(b);
+    if (!aId && !bId) return 0;
+    if (!aId) return 1;
+    if (!bId) return -1;
+    return bId.localeCompare(aId, undefined, { numeric: true, sensitivity: 'base' });
+}
 
-            function getApprovalSortValue(type, req) {
-                if (type === 'leave') {
-                    return getApprovalDocIdValue(req);
-                }
-                return getApprovalDateValue(type, req);
-            }
+function getApprovalDateValue(type, req) {
+    const fieldOrder = {
+        correction: ['วันที่ส่ง', 'วันที่'],
+        advance: ['วันที่ส่ง', 'วันที่ส่งคำขอ', 'วันที่เบิก']
+    };
+    const fields = fieldOrder[type] || ['วันที่'];
+    for (const field of fields) {
+        const rawValue = (req[field] || '').toString().trim();
+        if (!rawValue) continue;
+        const parsed = Date.parse(rawValue);
+        if (!Number.isNaN(parsed)) return parsed;
+    }
+    return 0;
+}
 
-            function getApprovalRowKey(type, recordData) {
-                if (type === "leave") {
-                    return recordData["เลขที่เอกสาร"] || "";
-                }
-                if (type === "correction") {
-                    return `${recordData["รหัสพนักงาน"] || ""}::${recordData["วันที่"] || ""}`;
-                }
-                if (type === "advance") {
-                    return `${recordData["รหัสพนักงาน"] || ""}::${recordData["วันที่เบิก"] || ""}::${recordData["จำนวนเงิน"] || ""}`;
-                }
-                return "";
-            }
+function getApprovalSortValue(type, req) {
+    return type === 'leave' ? getApprovalDocIdValue(req) : getApprovalDateValue(type, req);
+}
 
-            function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize = 40) {
-                bodyEl.innerHTML = '';
-                if (!Array.isArray(rowsHtml) || rowsHtml.length === 0) {
-                    bodyEl.innerHTML = `<tr><td colspan="${colspan}" class="py-6 text-center text-slate-500">${escapeHtml(emptyMessage)}</td></tr>`;
-                    return;
-                }
+function getApprovalRowKey(type, recordData) {
+    if (type === "leave") {
+        return recordData["เลขที่เอกสาร"] || "";
+    }
+    
+    const empId = recordData["รหัสพนักงาน"] || "";
+    if (type === "correction") {
+        return `${empId}::${recordData["วันที่"] || ""}`;
+    }
+    if (type === "advance") {
+        return `${empId}::${recordData["วันที่เบิก"] || ""}::${recordData["จำนวนเงิน"] || ""}`;
+    }
+    return "";
+}
 
-                let index = 0;
-                const total = rowsHtml.length;
+function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize = 40) {
+    bodyEl.innerHTML = '';
+    if (!Array.isArray(rowsHtml) || rowsHtml.length === 0) {
+        bodyEl.innerHTML = `<tr><td colspan="${colspan}" class="py-6 text-center text-slate-500">${escapeHtml(emptyMessage)}</td></tr>`;
+        return;
+    }
 
-                // ✅ FIX: กำหนด context ให้ range ชี้ที่ bodyEl (tbody) จริงๆ ใน DOM
-                // เพื่อให้ createContextualFragment parse <tr>/<td> ใน context ของ tbody
-                // ไม่ใช่ body ซึ่งจะทำให้ browser strip table tags และข้อมูลกองรวมคอลัมน์แรก
-                const range = document.createRange();
-                range.selectNodeContents(bodyEl);
+    let index = 0;
+    const total = rowsHtml.length;
 
-                const appendChunk = () => {
-                    const fragment = document.createDocumentFragment();
-                    const end = Math.min(index + chunkSize, total);
-                    for (; index < end; index++) {
-                        const rowFragment = range.createContextualFragment(rowsHtml[index]);
-                        fragment.appendChild(rowFragment);
-                    }
-                    bodyEl.appendChild(fragment);
-                    if (index < total) requestAnimationFrame(appendChunk);
-                };
+    // ✅ โค้ดเดิมของคุณทำไว้ดีมาก: กำหนด context ให้ range ชี้ที่ bodyEl (tbody) จริงๆ ใน DOM
+    // เพื่อให้สร้าง Fragment ภายใต้บริบทของ tbody ได้อย่างสมบูรณ์แบบ ตารางไม่เพี้ยน
+    const range = document.createRange();
+    range.selectNodeContents(bodyEl);
 
-                appendChunk();
-            }
+    const appendChunk = () => {
+        const fragment = document.createDocumentFragment();
+        const end = Math.min(index + chunkSize, total);
+        
+        for (; index < end; index++) {
+            const rowFragment = range.createContextualFragment(rowsHtml[index]);
+            fragment.appendChild(rowFragment);
+        }
+        
+        bodyEl.appendChild(fragment);
+        
+        // ส่งไม้ต่อให้เฟรมถัดไปด้วย requestAnimationFrame ช่วยลดอาการกระตุกของเบราว์เซอร์
+        if (index < total) {
+            requestAnimationFrame(appendChunk);
+        }
+    };
+
+    appendChunk();
+}
 
             // --- Project Cost: load iframe preview ---
             async function loadProjectCostSection() {
