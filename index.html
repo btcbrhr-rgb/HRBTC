@@ -2227,7 +2227,7 @@
                             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div>
                                     <h4 class="text-sm font-semibold text-slate-700">หน้าจอวิเคราะห์ต้นทุนโครงการ</h4>
-                                    <p class="text-[11px] text-slate-500 mt-1">โหลดหน้า <code class="bg-slate-100 px-1.5 py-0.5 rounded">project-cost.html</code> ผ่าน iframe ภายใน `index.html`</p>
+                                    <p class="text-[11px] text-slate-500 mt-1">ฝังเนื้อหาจาก <code class="bg-slate-100 px-1.5 py-0.5 rounded">project-cost.html</code> เข้ากับหน้า (ไม่มีการใช้ iframe)</p>
                                 </div>
                                 <div class="flex gap-2">
                                     <button onclick="loadProjectCostSection()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center gap-2">
@@ -2240,8 +2240,8 @@
                                 กดรีเฟรชเพื่อโหลดเนื้อหาจากไฟล์ `project-cost.html` แล้วดูงานวิเคราะห์ต้นทุนในกรอบนี้
                             </div>
 
-                            <div id="project-cost-iframe-wrapper" class="mt-4 rounded-2xl overflow-hidden border border-slate-200" style="height:calc(100vh - 320px); min-height:560px;">
-                                <iframe id="project-cost-iframe" src="" class="w-full h-full border-none"></iframe>
+                            <div id="project-cost-container" class="mt-4 rounded-2xl overflow-hidden border border-slate-200" style="min-height:560px;">
+                                <div id="project-cost-loading" class="p-6 text-center text-slate-500">กำลังโหลดส่วนแสดงผล...</div>
                             </div>
                         </div>
                     </div>
@@ -4077,9 +4077,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
     appendChunk();
 }
 
-            // --- Project Cost: load iframe preview ---
+            // --- Project Cost: inline load and inject project-cost.html into the page (no iframe) ---
             async function loadProjectCostSection() {
-                const iframe = document.getElementById('project-cost-iframe');
+                const container = document.getElementById('project-cost-container') || document.getElementById('project-cost-iframe-wrapper');
                 const selectedProjectEl = document.getElementById('project-cost-selected-project');
                 const totalHoursEl = document.getElementById('project-cost-total-hours');
                 const totalCostEl = document.getElementById('project-cost-total-cost');
@@ -4088,20 +4088,64 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (totalHoursEl) totalHoursEl.textContent = '0 ชม.';
                 if (totalCostEl) totalCostEl.textContent = '฿0';
 
-                if (!iframe) return;
-                iframe.src = 'project-cost.html';
+                if (!container) return;
+                try {
+                    const res = await fetch('project-cost.html', { cache: 'no-store' });
+                    if (!res.ok) throw new Error('Failed to fetch project-cost.html');
+                    const text = await res.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, 'text/html');
 
-                iframe.onload = function () {
+                    // Copy <style> blocks from project-cost into current head (avoid duplicates)
+                    Array.from(doc.querySelectorAll('style')).forEach(st => {
+                        const exists = Array.from(document.head.querySelectorAll('style')).some(hs => hs.textContent === st.textContent);
+                        if (!exists) document.head.appendChild(st.cloneNode(true));
+                    });
+
+                    // Copy stylesheet links except fonts/font-awesome/tailwind to avoid redundant loads
+                    Array.from(doc.querySelectorAll('link[rel="stylesheet"]')).forEach(link => {
+                        const href = link.getAttribute('href') || '';
+                        if (href.includes('fonts.googleapis.com') || href.includes('font-awesome') || href.includes('tailwindcss.com')) return;
+                        const exists = Array.from(document.head.querySelectorAll('link[rel="stylesheet"]')).some(l => l.href === link.href);
+                        if (!exists) document.head.appendChild(link.cloneNode(true));
+                    });
+
+                    // Inject body content
+                    container.innerHTML = '';
+                    const contentEl = doc.querySelector('main') || doc.body;
+                    container.insertAdjacentHTML('beforeend', contentEl.innerHTML);
+
+                    // Execute any scripts inside injected content (in order)
+                    const scripts = Array.from(container.querySelectorAll('script'));
+                    for (const s of scripts) {
+                        const src = s.getAttribute('src');
+                        // Skip tailwind/font links already present
+                        if (src && (src.includes('tailwindcss.com') || src.includes('fonts.googleapis.com') || src.includes('fontawesome') || src.includes('cdnjs.cloudflare.com/ajax/libs/font-awesome'))) {
+                            s.remove();
+                            continue;
+                        }
+                        const newS = document.createElement('script');
+                        if (src) {
+                            newS.src = src;
+                            newS.async = false;
+                            document.body.appendChild(newS);
+                        } else {
+                            newS.textContent = s.textContent;
+                            document.body.appendChild(newS);
+                        }
+                        s.remove();
+                    }
+
                     if (selectedProjectEl) selectedProjectEl.textContent = 'พร้อมใช้งาน';
                     if (totalHoursEl) totalHoursEl.textContent = '-';
                     if (totalCostEl) totalCostEl.textContent = '-';
-                };
-
-                iframe.onerror = function () {
+                } catch (err) {
+                    container.innerHTML = '<div class="p-6 text-center text-rose-600">โหลดไม่สำเร็จ</div>';
                     if (selectedProjectEl) selectedProjectEl.textContent = 'โหลดไม่สำเร็จ';
                     if (totalHoursEl) totalHoursEl.textContent = '0 ชม.';
                     if (totalCostEl) totalCostEl.textContent = '฿0';
-                };
+                    console.error('loadProjectCostSection error', err);
+                }
             }
 
             function decreaseApprovalBadgeCount(type) {
