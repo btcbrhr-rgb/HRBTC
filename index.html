@@ -4939,6 +4939,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     cycleDisplayEl.innerHTML = `<i class="fa-solid fa-calendar-days text-[10px]"></i> ช่วงรอบบัญชี: ${formatThaiDate(range.start)} - ${formatThaiDate(range.end)}`;
                 }
 
+                // อัปเดต Label รอบบัญชีในหน้าแรก (Home) และหน้าสถิติ
+                const homeCycleRange = document.getElementById("home-cycle-range");
+                if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(range.start)} - ${formatThaiDate(range.end)}`;
+                const statCycleLabel = document.getElementById("stat-cycle-label");
+                if (statCycleLabel) statCycleLabel.textContent = `${formatThaiDateShort(range.start)} - ${formatThaiDateShort(range.end)}`;
+
+                // โหลดและคำนวณข้อมูลใหม่ทั้งหมด (สำหรับหน้าแรกและสถิติ)
+                loadAllData();
+                
+                // ดึงข้อมูลแสดงในปฏิทิน
                 fetchWithCycleFilter(range.start, range.end);
             }
 
@@ -4947,20 +4957,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function getCurrentCycleRange() {
-                const now = new Date();
-                let month = now.getMonth();
-                let year = now.getFullYear();
-                // ถ้าวันที่ปัจจุบัน < 26 → รอบบัญชีเริ่มต้นที่ "เดือนก่อนหน้า วันที่ 26"
-                // และสิ้นสุดที่ "เดือนปัจจุบัน วันที่ 25"
-                // ดังนั้น month ที่ส่งให้ getCycleDateRange คือ "เดือนเริ่มต้น" (= month-1)
-                if (now.getDate() < 26) {
-                    month -= 1;
-                    if (month < 0) {
-                        month = 11;
-                        year -= 1;
-                    }
+                // เชื่อมโยงกับค่าที่เลือกใน Month Switcher ของหน้าปฏิทิน
+                let startMonth = calendarActiveMonth - 1;
+                let startYear = calendarActiveYear;
+                if (startMonth < 0) {
+                    startMonth = 11;
+                    startYear -= 1;
                 }
-                return getCycleDateRange(year, month);
+                return getCycleDateRange(startYear, startMonth);
             }
 
             function getPinStorageKey(empId) {
@@ -7095,8 +7099,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }
                         });
 
-                        // เรียงวันที่จากน้อยไปมาก
-                        timeRecords.sort((a, b) => (a["วันที่"] || "").localeCompare(b["วันที่"] || ""));
+                        // เรียงวันที่จากมากไปน้อย (ล่าสุดอยู่บนสุด)
+                        timeRecords.sort((a, b) => (b["วันที่"] || "").localeCompare(a["วันที่"] || ""));
 
                         displayCalendarDays(timeRecords);
                     } else {
