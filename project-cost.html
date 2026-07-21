@@ -795,6 +795,22 @@
         let selectedEmpId = null;
         let activeProject = "all";
 
+        let systemSettings = {
+            dailyDivisor: 30,
+            workHoursPerDay: 8,
+            workStartTimeStr: '08:00',
+            workEndTimeStr: '17:00',
+            lateCutoffTimeStr: '08:15',
+            otStartTimeStr: '17:15',
+            defaultOtRate: 1.5,
+            billingCycleStartDay: 26,
+            billingCycleEndDay: 25,
+            otIntervalMinutes: 30,
+            defaultFoodAllowance: 50,
+            holidayOtRate: 2.0,
+            holidayWorkRate: 1.0
+        };
+
         // Helper to format Date into local "YYYY-MM-DD" string correctly without UTC shifts
         function getLocalDateString(date) {
             const y = date.getFullYear();
@@ -831,6 +847,23 @@
             return Number.isFinite(number) ? number : 0;
         }
 
+        function getStatusCategory(status) {
+            if (!status) return 'unknown';
+            const s = status.toString().trim();
+
+            if (['W', 'ปกติ', 'ทำงานปกติ', 'ทำงาน', '✓', '1', 'ปกติ (W)'].includes(s)) return 'work';
+            if (['L', 'สาย', 'มาสาย', 'สาย (L)', '3'].includes(s)) return 'late';
+            if (['A', 'ขาด', 'ขาดงาน', '0'].includes(s)) return 'absent';
+            
+            if (['พร', 'คส', 'S+', 'H+', 'B+', 'นข', 'ลาป่วย', 'ลาพักร้อน', 'ลากิจ', 'วันหยุดนักขัตฤกษ์', 'เพิ่มแรง', 'สวัสดิการ'].includes(s)) return 'work_other';
+            if (['MI', 'MO', 'ลืมเข้า', 'ลืมออก', 'ลืมลงเวลา'].includes(s)) return 'work_incomplete';
+            if (['ย', 'วันหยุด', 'วันหยุดประจำสัปดาห์'].includes(s)) return 'off';
+            
+            if (s.startsWith('S') || s.startsWith('H') || s.startsWith('B') || s.includes('ลา')) return 'work_other';
+            
+            return 'work';
+        }
+
         function mapEmployeeRow(row) {
             return {
                 id: (row['รหัสพนักงาน'] || row.empId || row['employee id'] || '').toString().trim(),
@@ -839,8 +872,9 @@
                 project: (row['โครงการ'] || row['Project'] || '').toString().trim(),
                 avatar: '',
                 baseSalary: parseFloatOrZero(row['ฐานเงินเดือน'] || row['Base Salary'] || row['Salary']),
-                divisor: parseFloatOrZero(row['ตัวหารค่าแรง'] || row['Divisor']) || 30,
-                workHoursPerDay: parseFloatOrZero(row['ชั่วโมงทำงานต่อวัน'] || row['Hours per Day']) || 8
+                divisor: parseFloatOrZero(row['ตัวหารค่าแรง'] || row['Divisor']) || systemSettings.dailyDivisor || 30,
+                workHoursPerDay: parseFloatOrZero(row['ชั่วโมงทำงานต่อวัน'] || row['Hours per Day']) || systemSettings.workHoursPerDay || 8,
+                otMultiplier: parseFloatOrZero(row['ตัวคูณโอที'] || row['OT Multiplier'] || row['otMultiplier']) || systemSettings.defaultOtRate || 1.5
             };
         }
 
@@ -956,6 +990,41 @@
                 select.appendChild(option);
             });
             select.disabled = false;
+        }
+
+        function loadSystemSettingsFromSheet() {
+            return new Promise(resolve => {
+                if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings`, { timeout: 60000 })
+                        .then(res => {
+                            if (res && res.status === 'success' && res.data) {
+                                systemSettings = Object.assign({}, systemSettings, res.data);
+                            }
+                        })
+                        .catch(err => console.warn('getSystemSettings failed', err))
+                        .finally(() => resolve());
+                    return;
+                }
+                if (!isGoogleScriptEnvironment) {
+                    resolve();
+                    return;
+                }
+                google.script.run
+                    .withSuccessHandler(function(res) {
+                        if (res && (res.status === 'success' || typeof res === 'object')) {
+                            const data = res.data || res;
+                            if (typeof data === 'object') {
+                                systemSettings = Object.assign({}, systemSettings, data);
+                            }
+                        }
+                        resolve();
+                    })
+                    .withFailureHandler(function(err) {
+                        console.warn('getSystemSettings failed', err);
+                        resolve();
+                    })
+                    .getSystemSettings();
+            });
         }
 
         function loadEmployeesFromSheet() {
@@ -1106,7 +1175,7 @@
         }
 
         async function loadSheetData() {
-            await Promise.all([loadEmployeesFromSheet(), loadProjectsFromSheet()]);
+            await Promise.all([loadSystemSettingsFromSheet(), loadEmployeesFromSheet(), loadProjectsFromSheet()]);
             await loadAttendanceForCycle();
         }
 
@@ -1402,13 +1471,16 @@
                 }
             }
 
-            // Fallback: 26th of prev month → 25th of current month
+            // Fallback: startDay of prev month → endDay of current month
             const parts = yearMonthStr.split('-');
             const year = parseInt(parts[0]);
             const month = parseInt(parts[1]) - 1; // 0-indexed
 
-            const prevMonthDate = new Date(year, month - 1, 26, 12, 0, 0);
-            const currentMonthDate = new Date(year, month, 25, 12, 0, 0);
+            const startDay = systemSettings.billingCycleStartDay || 26;
+            const endDay = systemSettings.billingCycleEndDay || 25;
+
+            const prevMonthDate = new Date(year, month - 1, startDay, 12, 0, 0);
+            const currentMonthDate = new Date(year, month, endDay, 12, 0, 0);
             const dates = [];
             let current = new Date(prevMonthDate);
             while (current <= currentMonthDate) {
@@ -1524,9 +1596,10 @@
                     status: 'ย', timeIn: '', timeOut: '', ot: 0, food: 0, trip: 0, other: 0, otherMemo: '', penalty: 0, project: emp.project
                 };
 
-                if (log.status === 'W') normalCount++;
-                else if (log.status === 'L') lateCount++;
-                else if (log.status === 'A') absentCount++;
+                const cat = getStatusCategory(log.status);
+                if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') normalCount++;
+                else if (cat === 'late') lateCount++;
+                else if (cat === 'absent') absentCount++;
 
                 const statusObj = GLOBAL_STATUS[log.status] || { label: 'ไม่มีสถานะ', icon: '❓', bgColor: 'bg-slate-100', textColor: 'text-slate-800' };
                 const totalAllowance = parseFloat(log.food || 0) + parseFloat(log.trip || 0) + parseFloat(log.other || 0);
@@ -1742,12 +1815,15 @@
             const minutesLate = parseInt(lateEl.value) || 0;
 
             if (minutesLate > 0) {
-                const baseHour = 8;
-                const totalMinutes = minutesLate;
+                const workStartStr = systemSettings.workStartTimeStr || '08:00';
+                const parts = workStartStr.split(':').map(Number);
+                const startH = parts[0] || 8;
+                const startM = parts[1] || 0;
+                const totalMinutes = (startH * 60 + startM) + minutesLate;
                 const addedHours = Math.floor(totalMinutes / 60);
                 const remainingMins = totalMinutes % 60;
 
-                const finalHoursStr = String(baseHour + addedHours).padStart(2, '0');
+                const finalHoursStr = String(addedHours).padStart(2, '0');
                 const finalMinsStr = String(remainingMins).padStart(2, '0');
 
                 timeInInput.value = `${finalHoursStr}:${finalMinsStr}`;
@@ -1766,12 +1842,15 @@
             const otHours = parseFloat(otEl.value) || 0;
 
             if (otHours >= 0) {
-                const baseHour = 17; 
+                const otStartStr = systemSettings.otStartTimeStr || '17:15';
+                const parts = otStartStr.split(':').map(Number);
+                const otStartH = parts[0] || 17;
+                const otStartM = parts[1] || 15;
                 const otMinutes = otHours * 60;
-                const endMinutes = (baseHour * 60) + otMinutes;
+                const endMinutes = (otStartH * 60 + otStartM) + otMinutes;
 
                 const finalHours = Math.floor(endMinutes / 60);
-                const finalMins = endMinutes % 60;
+                const finalMins = Math.round(endMinutes % 60);
 
                 timeOutInput.value = `${String(finalHours).padStart(2, '0')}:${String(finalMins).padStart(2, '0')}`;
             }
@@ -2051,13 +2130,16 @@
                         const matchesFilter = (activeProject === 'all' || log.project === activeProject);
                         
                         if (matchesFilter) {
-                            if (log.status === 'W') workedDaysCount++;
-                            else if (log.status === 'L') { 
+                            const cat = getStatusCategory(log.status);
+                            if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
+                                workedDaysCount++;
+                            } else if (cat === 'late') { 
                                 workedDaysCount++; 
                                 lateDaysCount++; 
                                 lateMinutesSum += parseFloat(log.penalty || 0);
+                            } else if (cat === 'absent') {
+                                absentDaysCount++;
                             }
-                            else if (log.status === 'A') absentDaysCount++;
 
                             totalOtHours += parseFloat(log.ot || 0);
                             totalFoodSum += parseFloat(log.food || 0);
@@ -2117,13 +2199,11 @@
                         statusClass = "bg-slate-100 text-slate-400 border-slate-200 font-semibold";
                         statusSymbol = `↳(${otherProjCode})`;
                     } else {
-                        if (log.status === 'W') statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
-                        else if (log.status === 'L') statusClass = "bg-amber-100 text-amber-800 border-amber-200 font-extrabold shadow-sm";
-                        else if (log.status === 'A') statusClass = "bg-rose-100 text-rose-700 border-rose-200 font-extrabold shadow-sm";
-                        else if (log.status === 'ย') statusClass = "bg-rose-50/30 text-rose-500 border-rose-100/30";
-                        else if (log.status.includes('S')) statusClass = "bg-violet-100 text-violet-800 border-violet-200 font-bold";
-                        else if (log.status.includes('H')) statusClass = "bg-sky-100 text-sky-800 border-sky-200 font-bold";
-                        else if (log.status.includes('B')) statusClass = "bg-purple-100 text-purple-800 border-purple-200 font-bold";
+                        const cat = getStatusCategory(log.status);
+                        if (cat === 'work' || cat === 'work_other') statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
+                        else if (cat === 'late' || cat === 'work_incomplete') statusClass = "bg-amber-100 text-amber-800 border-amber-200 font-extrabold shadow-sm";
+                        else if (cat === 'absent') statusClass = "bg-rose-100 text-rose-700 border-rose-200 font-extrabold shadow-sm";
+                        else if (cat === 'off') statusClass = "bg-rose-50/30 text-rose-500 border-rose-100/30";
                     }
 
                     let borderRightClass = "border-slate-100";
@@ -2178,17 +2258,21 @@
 
                     if (activeProject !== 'all' && projName !== activeProject) return;
 
-                    const isWorking = ['W', 'L', 'พร', 'คส', 'S+', 'H+', 'B+', 'นข'].includes(log.status);
+                    const isWorking = ['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status));
                     if (!isWorking) return;
 
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
 
-                    const baseDailyWage = emp.baseSalary / emp.divisor; 
-                    const baseHourlyWage = baseDailyWage / 8; 
+                    const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
+                    const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
+                    const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
+
+                    const baseDailyWage = emp.baseSalary / divisor; 
+                    const baseHourlyWage = baseDailyWage / workHours; 
                     
                     const logOtHours = parseFloat(log.ot || 0);
-                    const logWages = baseDailyWage + (logOtHours * baseHourlyWage * 1.5); 
+                    const logWages = baseDailyWage + (logOtHours * baseHourlyWage * otRate); 
 
                     if (!costingDatabase[projName]) {
                         costingDatabase[projName] = {};
@@ -2407,22 +2491,29 @@
                             };
                         }
 
+                        const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
+                        const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
+                        const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
+
+                        const baseDailyWage = emp.baseSalary / divisor;
+                        const baseHourlyWage = baseDailyWage / workHours;
+
                         const stat = empSummaryDB[empId];
 
-                        if (['W', 'L', 'พร', 'คส', 'S+', 'H+', 'B+', 'นข'].includes(log.status)) {
+                        if (['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status))) {
                             actualWorkedManDays++;
                             stat.workedDays++;
                             stat.wagesPaid += baseDailyWage;
                             totalBaseSalaryPay += baseDailyWage;
                             
-                            if (log.status === 'L') {
+                            if (getStatusCategory(log.status) === 'late') {
                                 stat.lateDays++;
                                 stat.lateMins += parseFloat(log.penalty || 0);
                             }
                         }
 
                         if (logOtHours > 0) {
-                            const otCost = logOtHours * baseHourlyWage * 1.5;
+                            const otCost = logOtHours * baseHourlyWage * otRate;
                             stat.otHours += logOtHours;
                             stat.otPaid += otCost;
                             totalOtPay += otCost;
@@ -2446,7 +2537,7 @@
                         }
 
                         if (projectActualDB[log.project] !== undefined) {
-                            projectActualDB[log.project] += (baseDailyWage + (logOtHours * baseHourlyWage * 1.5) + dailyWelfareSum);
+                            projectActualDB[log.project] += (baseDailyWage + (logOtHours * baseHourlyWage * otRate) + dailyWelfareSum);
                         }
                     }
                 });
@@ -2666,16 +2757,20 @@
                     const log = dayData[empId];
                     if (!log || log.project !== projName) return;
 
-                    const isWorking = ['W', 'L', 'พร', 'คส', 'S+', 'H+', 'B+', 'นข'].includes(log.status);
+                    const isWorking = ['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status));
                     if (!isWorking) return;
 
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
 
-                    const dailyWage = emp.baseSalary / emp.divisor;
-                    const hourlyWage = dailyWage / 8;
+                    const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
+                    const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
+                    const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
+
+                    const dailyWage = emp.baseSalary / divisor;
+                    const hourlyWage = dailyWage / workHours;
                     const otHours = parseFloat(log.ot || 0);
-                    const logWages = dailyWage + (otHours * hourlyWage * 1.5);
+                    const logWages = dailyWage + (otHours * hourlyWage * otRate);
 
                     let record = invoiceDetails.find(r => r.empId === empId);
                     if (!record) {
