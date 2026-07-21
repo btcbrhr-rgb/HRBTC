@@ -417,6 +417,62 @@
             background: #94a3b8;
         }
 
+        /* Matrix Fullscreen mode */
+        .matrix-fullscreen-active {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 99999 !important;
+            border-radius: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            background: white !important;
+        }
+        .matrix-fullscreen-active #matrix-table-wrap {
+            flex: 1 !important;
+            max-height: calc(100vh - 60px) !important;
+        }
+        .matrix-fullscreen-active #matrixMainTable td,
+        .matrix-fullscreen-active #matrixMainTable th {
+            padding-top: 0.25rem !important;
+            padding-bottom: 0.25rem !important;
+            font-size: 11px !important;
+        }
+
+        /* Legal Print Styles for Matrix */
+        @media print {
+            body.print-matrix-mode * {
+                visibility: hidden;
+            }
+            body.print-matrix-mode #matrix-card,
+            body.print-matrix-mode #matrix-card * {
+                visibility: visible;
+            }
+            body.print-matrix-mode #matrix-card {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                border: none !important;
+                box-shadow: none !important;
+            }
+            body.print-matrix-mode #matrix-table-wrap {
+                max-height: none !important;
+                overflow: visible !important;
+            }
+            body.print-matrix-mode #matrix-fullscreen-btn,
+            body.print-matrix-mode button {
+                display: none !important;
+            }
+            @page {
+                size: legal landscape;
+                margin: 5mm;
+            }
+        }
+
         /* Print Media Setup */
         @media print {
             body {
@@ -2772,17 +2828,28 @@
             </div>
 
             <!-- Matrix Calendar -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="px-6 py-3 border-b border-slate-100 flex justify-between items-center flex-wrap gap-2 bg-slate-50/50">
+            <div id="matrix-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all">
+                <div class="px-4 py-3 border-b border-slate-100 flex justify-between items-center flex-wrap gap-2 bg-slate-50/50">
                     <div>
                         <h3 class="text-sm font-extrabold text-slate-800">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet)</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">แสดงข้อมูลรายวันตลอดรอบเงินเดือน สามารถคลิกไอคอนสถานะของพนักงานเพื่อแก้ไขข้อมูลเวลางานและสถานะได้ทันที</p>
+                        <p class="text-xs text-slate-500 mt-0.5">คลิกไอคอนสถานะเพื่อแก้ไขข้อมูลเวลางานได้ทันที</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="printMatrixLegal()" title="พิมพ์ตาราง (Legal)"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold rounded-lg transition-all shadow-sm active:scale-95">
+                            <i class="fa-solid fa-print"></i> พิมพ์ตาราง
+                        </button>
+                        <button id="matrix-fullscreen-btn" onclick="toggleMatrixFullscreen()" title="ขยายเต็มจอ"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-900 text-white text-[11px] font-semibold rounded-lg transition-all shadow-sm active:scale-95">
+                            <i id="matrix-fullscreen-icon" class="fa-solid fa-expand"></i>
+                            <span id="matrix-fullscreen-label">เต็มจอ</span>
+                        </button>
                     </div>
                 </div>
 
                 <!-- Matrix Table Wrap -->
-                <div class="overflow-x-auto overflow-y-auto custom-scrollbar" style="max-height: 600px;">
-                    <table class="min-w-full divide-y divide-slate-200 text-xs border-collapse">
+                <div id="matrix-table-wrap" class="overflow-x-auto overflow-y-auto custom-scrollbar" style="max-height: 580px;">
+                    <table id="matrixMainTable" class="min-w-full divide-y divide-slate-200 text-xs border-collapse">
                         <thead class="bg-slate-100 sticky top-0 z-20">
                             <tr id="matrixHeaderRow">
                                 <!-- Dynamic Header -->
@@ -3271,6 +3338,9 @@
                                 <h3 class="text-sm font-bold text-slate-700">คำขอการลางานของพนักงานทั้งหมด</h3>
                                 <p class="text-xs text-slate-500">ตรวจสอบคำขอลาที่ยังรออนุมัติ
                                     หรือดูผลการอนุมัติที่ผ่านมา</p>
+                                <span id="admin-cycle-range-label" class="inline-block mt-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                                    <i class="fa-solid fa-calendar-alt mr-1"></i>รอบ: กำลังโหลด...
+                                </span>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
                                 <button onclick="openCreateLeaveByHRModal()"
@@ -4259,80 +4329,118 @@
     <!-- =============================================================== -->
     <div id="admin-create-leave-modal"
         class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs hidden">
-        <div class="bg-white border border-slate-200 max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl">
-            <div class="flex justify-between items-center">
+        <div class="bg-white border border-slate-200 max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl animate-slide-up">
+            <div class="flex justify-between items-center border-b pb-3 border-slate-100">
                 <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
                     <i class="fa-solid fa-file-circle-plus text-blue-600"></i> บันทึกใบลาแทนพนักงาน
                 </h3>
-                <button onclick="closeCreateLeaveByHRModal()" class="text-slate-400 hover:text-slate-600" title="ปิด">
+                <button onclick="closeCreateLeaveByHRModal()" class="text-slate-400 hover:text-slate-600 transition-colors" title="ปิด">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
 
-            <div class="space-y-2 text-xs">
+            <div class="space-y-3 text-xs">
+                <!-- ข้อมูลพนักงาน -->
                 <div class="grid grid-cols-3 gap-2">
                     <div>
-                        <label class="text-[11px] text-slate-500">รหัสพนักงาน</label>
+                        <label class="text-[11px] text-slate-500 font-semibold">รหัสพนักงาน</label>
                         <input id="admin-create-leave-empid" type="text"
-                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
-                            placeholder="รหัสพนักงาน" />
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800"
+                            placeholder="ระบุรหัส" onchange="lookupAdminCreateLeaveEmpName()" />
                     </div>
                     <div class="col-span-2">
-                        <label class="text-[11px] text-slate-500">ชื่อพนักงาน</label>
+                        <label class="text-[11px] text-slate-500 font-semibold">ชื่อพนักงาน</label>
                         <div id="admin-create-leave-empname"
-                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-600">-
+                            class="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs text-slate-700 font-bold truncate">-
                         </div>
                     </div>
                 </div>
 
-                <div>
-                    <label for="admin-create-leave-type" class="text-[11px] text-slate-500">ประเภทการลา</label>
-                    <select id="admin-create-leave-type"
-                        class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
-                        <option value="" disabled selected>-เลือกประเภทการลา-</option>
-                        <option value="ลากิจ">ลากิจ</option>
-                        <option value="ลาป่วย">ลาป่วย</option>
-                        <option value="ลาพักร้อน">ลาพักร้อน</option>
-                        <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
-                        <option value="ลาอื่นๆ">ลาอื่นๆ</option>
-                    </select>
+                <!-- ระยะเวลา (top row) -->
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500 font-semibold">ระยะเวลา</label>
+                    <div class="flex gap-2">
+                        <label class="admin-leave-period-option flex-1 flex items-center justify-center gap-1 border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-700 cursor-pointer transition-all">
+                            <input type="radio" name="admin-leave-period" id="admin-leave-period-full" value="เต็มวัน"
+                                checked onchange="calculateAdminLeaveDays()" class="w-3 h-3 text-blue-600">
+                            <span>เต็มวัน</span>
+                        </label>
+                        <label class="admin-leave-period-option flex-1 flex items-center justify-center gap-1 border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-700 cursor-pointer transition-all">
+                            <input type="radio" name="admin-leave-period" id="admin-leave-period-morning"
+                                value="ครึ่งวันเช้า" onchange="calculateAdminLeaveDays()" class="w-3 h-3 text-blue-600">
+                            <span>เช้า</span>
+                        </label>
+                        <label class="admin-leave-period-option flex-1 flex items-center justify-center gap-1 border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-xs text-slate-700 cursor-pointer transition-all">
+                            <input type="radio" name="admin-leave-period" id="admin-leave-period-afternoon"
+                                value="ครึ่งวันบ่าย" onchange="calculateAdminLeaveDays()" class="w-3 h-3 text-blue-600">
+                            <span>บ่าย</span>
+                        </label>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
+                <!-- ประเภทการลา + จำนวนวัน (same row) -->
+                <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label for="admin-create-leave-start" class="text-[11px] text-slate-500">วันที่เริ่มต้น</label>
+                        <label for="admin-create-leave-type" class="text-xs text-slate-500 font-semibold">ประเภทการลา</label>
+                        <select id="admin-create-leave-type"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-700 font-medium">
+                            <option value="" disabled selected>-เลือกประเภทการลา-</option>
+                            <option value="ลากิจ">ลากิจ</option>
+                            <option value="ลาป่วย">ลาป่วย</option>
+                            <option value="ลาพักร้อน">ลาพักร้อน</option>
+                            <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
+                            <option value="ลาอื่นๆ">ลาอื่นๆ</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="admin-create-leave-days" class="text-xs text-slate-500 font-semibold">จำนวนวันลา</label>
+                        <input id="admin-create-leave-days" type="number" step="0.5" min="0.5"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-700 font-medium" value="1" />
+                    </div>
+                </div>
+
+                <!-- วันที่เริ่มต้น + วันที่สิ้นสุด -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="admin-create-leave-start" class="text-xs text-slate-500 font-semibold">วันที่เริ่มต้นลา</label>
                         <input id="admin-create-leave-start" type="date"
-                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-700"
                             onchange="calculateAdminLeaveDays()" />
                     </div>
                     <div>
-                        <label for="admin-create-leave-end" class="text-[11px] text-slate-500">วันที่สิ้นสุด</label>
+                        <label for="admin-create-leave-end" class="text-xs text-slate-500 font-semibold">วันที่สิ้นสุดลา</label>
                         <input id="admin-create-leave-end" type="date"
-                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-700"
                             onchange="calculateAdminLeaveDays()" />
                     </div>
                 </div>
 
+                <!-- เหตุผล/คำชี้แจง -->
                 <div>
-                    <label for="admin-create-leave-days" class="text-[11px] text-slate-500">จำนวนวัน</label>
-                    <input id="admin-create-leave-days" type="number" step="0.5" min="0.5"
-                        class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs" value="1" />
+                    <label for="admin-create-leave-reason" class="text-xs text-slate-500 font-semibold">เหตุผล/คำชี้แจง</label>
+                    <textarea id="admin-create-leave-reason" rows="2"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="กรุณาระบุรายละเอียดการขอลา..."></textarea>
                 </div>
 
-                <div>
-                    <label class="text-[11px] text-slate-500">เหตุผล/คำชี้แจง</label>
-                    <textarea id="admin-create-leave-reason" rows="3"
-                        class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
-                        placeholder="ระบุเหตุผล..."></textarea>
+                <!-- เอกสารแนบใบลา -->
+                <div class="space-y-1">
+                    <label for="admin-create-leave-file" class="text-xs text-slate-500 font-semibold">เอกสารแนบใบลา (ทางเลือก - ไฟล์ภาพ)</label>
+                    <input id="admin-create-leave-file" type="file" accept="image/*"
+                        onchange="convertAdminLeaveFileToBase64()" title="เอกสารแนบใบลา"
+                        class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <p class="text-[9px] text-slate-400">แนบหลักฐาน เช่น ใบรับรองแพทย์ หรือ เอกสารสำคัญอื่นๆ</p>
                 </div>
 
             </div>
 
-            <div class="flex justify-end gap-2">
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button onclick="closeCreateLeaveByHRModal()"
-                    class="px-4 py-2 bg-slate-100 rounded-lg text-slate-600">ยกเลิก</button>
+                    class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 text-xs font-semibold transition-all">ยกเลิก</button>
                 <button id="admin-create-leave-submit" onclick="submitLeaveByAdminFromAdminUI()"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg">บันทึกและอนุมัติ</button>
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-all shadow">
+                    <i class="fa-solid fa-check-circle mr-1"></i> บันทึกและอนุมัติ
+                </button>
             </div>
         </div>
     </div>
@@ -4981,9 +5089,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // โหลดและคำนวณข้อมูลใหม่ทั้งหมด (สำหรับหน้าแรกและสถิติ)
                 loadAllData();
-                
+
                 // ดึงข้อมูลแสดงในปฏิทิน
                 fetchWithCycleFilter(range.start, range.end);
+
+                // หากอยู่ใน Admin mode ให้รีโหลดข้อมูล Admin ด้วยรอบบัญชีที่เลือก
+                if (typeof isAdminMode !== 'undefined' && isAdminMode && typeof loadAdminApprovals === 'function') {
+                    loadAdminApprovals();
+                }
             }
 
             function generateCycleOptions() {
@@ -8869,9 +8982,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 advanceContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ โหลดคำขอเบิกเงินสะสมกลางเดือน...</td></tr>`;
 
                 const today = getTodayDateString();
-                const leaveUrl = `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`;
-                const corrUrl = `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`;
-                const advUrl = `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`;
+                // ดึงช่วงรอบบัญชีปัจจุบันที่เลือกใน header เพื่อกรองข้อมูลให้ตรงกัน
+                const adminCycle = getCurrentCycleRange();
+                const adminCycleStart = adminCycle ? adminCycle.start : '';
+                const adminCycleEnd = adminCycle ? adminCycle.end : '';
+                const cycleParams = adminCycleStart && adminCycleEnd
+                    ? `&startDate=${encodeURIComponent(adminCycleStart)}&endDate=${encodeURIComponent(adminCycleEnd)}`
+                    : '';
+                const leaveUrl = `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}${cycleParams}`;
+                const corrUrl = `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}${cycleParams}`;
+                const advUrl = `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}${cycleParams}`;
+
+                // อัปเดต Label รอบบัญชีในส่วนหัว Admin (ถ้ามี)
+                const adminCycleLabelEl = document.getElementById('admin-cycle-range-label');
+                if (adminCycleLabelEl && adminCycleStart && adminCycleEnd) {
+                    adminCycleLabelEl.textContent = `รอบ: ${formatThaiDate(adminCycleStart)} - ${formatThaiDate(adminCycleEnd)}`;
+                }
 
                 const safeJson = obj => JSON.stringify(obj).replace(/'/g, "\\'");
 
@@ -9828,7 +9954,50 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     document.getElementById('admin-create-leave-end').value = '';
                     document.getElementById('admin-create-leave-days').value = '1';
                     document.getElementById('admin-create-leave-reason').value = '';
+                    const fileInput = document.getElementById('admin-create-leave-file');
+                    if (fileInput) fileInput.value = '';
+                    window._adminLeaveAttachment = '';
+                    // Reset period to full day
+                    const fullDayRadio = document.getElementById('admin-leave-period-full');
+                    if (fullDayRadio) fullDayRadio.checked = true;
                     modal.classList.remove('hidden');
+                }
+
+                // Auto-lookup employee name when typing empId in admin leave form
+                async function lookupAdminCreateLeaveEmpName() {
+                    const empId = (document.getElementById('admin-create-leave-empid').value || '').toString().trim();
+                    const nameEl = document.getElementById('admin-create-leave-empname');
+                    if (!empId || empId.length < 3) { nameEl.textContent = '-'; return; }
+                    nameEl.textContent = '⏳ กำลังค้นหา...';
+                    try {
+                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`, { timeout: 6000 });
+                        if (res && res.status === 'success' && res.data) {
+                            nameEl.textContent = res.data['ชื่อ-นามสกุล'] || res.data.name || '(ไม่พบชื่อ)';
+                        } else {
+                            nameEl.textContent = '❌ ไม่พบพนักงาน';
+                        }
+                    } catch (e) {
+                        nameEl.textContent = '❌ ข้อผิดพลาด';
+                    }
+                }
+
+                // Convert selected file to base64 for admin leave attachment
+                function convertAdminLeaveFileToBase64() {
+                    const fileInput = document.getElementById('admin-create-leave-file');
+                    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                        window._adminLeaveAttachment = '';
+                        return;
+                    }
+                    const file = fileInput.files[0];
+                    if (file.size > 5 * 1024 * 1024) {
+                        showToast('ไฟล์ใหญ่เกิน 5MB กรุณาเลือกไฟล์ขนาดเล็กกว่า', 'warning');
+                        fileInput.value = '';
+                        window._adminLeaveAttachment = '';
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (e) => { window._adminLeaveAttachment = e.target.result || ''; };
+                    reader.readAsDataURL(file);
                 }
 
                 function closeCreateLeaveByHRModal() {
@@ -9837,16 +10006,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     modal.classList.add('hidden');
                 }
 
-                async function calculateAdminLeaveDays() {
+                function calculateAdminLeaveDays() {
                     const start = document.getElementById('admin-create-leave-start').value;
                     const end = document.getElementById('admin-create-leave-end').value;
                     const input = document.getElementById('admin-create-leave-days');
-                    if (!start || !end) return;
+                    const periodRadio = document.querySelector('input[name="admin-leave-period"]:checked');
+                    const period = periodRadio ? periodRadio.value : 'เต็มวัน';
+                    if (!start || !end) {
+                        // If half-day and single date not yet set, just set 0.5
+                        if (period !== 'เต็มวัน' && start) input.value = '0.5';
+                        return;
+                    }
                     const s = new Date(start);
                     const e = new Date(end);
                     if (s > e) return;
-                    const diff = (e.getTime() - s.getTime()) / (1000 * 3600 * 24);
-                    input.value = diff + 1;
+                    let diff = (e.getTime() - s.getTime()) / (1000 * 3600 * 24) + 1;
+                    if (period !== 'เต็มวัน') diff = Math.max(0.5, diff - 0.5);
+                    input.value = diff;
                 }
 
                 async function submitLeaveByAdminFromAdminUI() {
@@ -9856,20 +10032,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const end = (document.getElementById('admin-create-leave-end').value || '').toString().trim();
                     const days = parseFloat(document.getElementById('admin-create-leave-days').value || '1');
                     const reason = (document.getElementById('admin-create-leave-reason').value || '').toString().trim();
+                    const periodRadio = document.querySelector('input[name="admin-leave-period"]:checked');
+                    const period = periodRadio ? periodRadio.value : 'เต็มวัน';
+                    const attachment = window._adminLeaveAttachment || '';
 
                     if (!empId) return showToast('⚠️ กรุณาระบุรหัสพนักงาน', 'warning');
                     if (!type) return showToast('⚠️ กรุณาเลือกประเภทการลา', 'warning');
                     if (!start || !end || !reason) return showToast('⚠️ กรอกข้อมูลให้ครบถ้วน', 'warning');
 
-                    // Verify employee exists
-                    try {
-                        const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`);
-                        if (!empRes || empRes.status !== 'success') {
-                            return showToast('❌ ไม่พบข้อมูลพนักงาน: ' + empId, 'error');
+                    // Verify employee exists (only if name still shows '-')
+                    const nameEl = document.getElementById('admin-create-leave-empname');
+                    if (!nameEl.textContent || nameEl.textContent === '-' || nameEl.textContent.startsWith('❌')) {
+                        try {
+                            const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`);
+                            if (!empRes || empRes.status !== 'success') {
+                                return showToast('❌ ไม่พบข้อมูลพนักงาน: ' + empId, 'error');
+                            }
+                            nameEl.textContent = empRes.data['ชื่อ-นามสกุล'] || empRes.data.name || '-';
+                        } catch (e) {
+                            return showToast('❌ ไม่สามารถตรวจสอบข้อมูลพนักงานได้: ' + e.message, 'error');
                         }
-                        document.getElementById('admin-create-leave-empname').textContent = empRes.data['ชื่อ-นามสกุล'] || empRes.data.name || '-';
-                    } catch (e) {
-                        return showToast('❌ ไม่สามารถตรวจสอบข้อมูลพนักงานได้: ' + e.message, 'error');
                     }
 
                     const payload = {
@@ -9878,12 +10060,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         adminName: employeeData['ชื่อ-นามสกุล'] || '',
                         empId: empId,
                         type: type,
-                        period: 'เต็มวัน',
+                        period: period,
                         days: days,
                         start: start,
                         end: end,
                         reason: reason,
-                        attachment: '',
+                        attachment: attachment,
                         lat: currentGpsLocation.lat || '',
                         lng: currentGpsLocation.lng || ''
                     };
@@ -14970,6 +15152,35 @@ function renderSummaryMatrix() {
                     setTimeout(() => { if (tip.style.opacity === '0') tip.style.display = 'none'; }, 160);
                 }
             }, 80);
+        }
+
+        // Toggle Fullscreen View for Matrix Timesheet
+        function toggleMatrixFullscreen() {
+            const card = document.getElementById('matrix-card');
+            const btn = document.getElementById('matrix-fullscreen-btn');
+            const icon = document.getElementById('matrix-fullscreen-icon');
+            const label = document.getElementById('matrix-fullscreen-label');
+            if (!card) return;
+
+            const isFS = card.classList.toggle('matrix-fullscreen-active');
+            if (isFS) {
+                if (icon) icon.className = 'fa-solid fa-compress';
+                if (label) label.textContent = 'ย่อขนาด';
+                document.body.style.overflow = 'hidden';
+            } else {
+                if (icon) icon.className = 'fa-solid fa-expand';
+                if (label) label.textContent = 'เต็มจอ';
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Print Matrix Timesheet in Legal Landscape Format
+        function printMatrixLegal() {
+            document.body.classList.add('print-matrix-mode');
+            window.print();
+            setTimeout(() => {
+                document.body.classList.remove('print-matrix-mode');
+            }, 1000);
         }
 
         // ─── Auto-initialize page when DOM loads ───
