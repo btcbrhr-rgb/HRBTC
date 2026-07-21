@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
@@ -1095,6 +1095,7 @@
         }
 
         async function loadAttendanceForCycle() {
+            showMatrixLoadingState();
             const currentCycleMonth = document.getElementById('billingMonth').value;
             const cycleDates = getBillingCycleDates(currentCycleMonth);
             const startDate = cycleDates[0];
@@ -1103,7 +1104,7 @@
             if (!cycleDates.includes(selectedDateStr)) {
                 selectedDateStr = startDate;
             }
-            document.getElementById('currentSelectedDate').value = selectedDateStr;
+            const curSelDateEl = document.getElementById('currentSelectedDate'); if (curSelDateEl) curSelDateEl.value = selectedDateStr;
             updateDayLabel();
 
             const records = await loadAttendanceRecordsForCycle(startDate, endDate);
@@ -1230,8 +1231,9 @@
                 updateBillingCycleDateRange(currentBillingMonth);
             }
 
-            document.getElementById('currentSelectedDate').value = selectedDateStr;
+            const curSelDateEl = document.getElementById('currentSelectedDate'); if (curSelDateEl) curSelDateEl.value = selectedDateStr;
             updateDayLabel();
+            showMatrixLoadingState("กำลังโหลดข้อมูลระบบและรอบบันทึกเวลา...");
             await loadSheetData();
             switchTab('summary');
         }
@@ -1433,6 +1435,7 @@
         }
 
         async function generateBillingCycleData() {
+            showMatrixLoadingState();
             const selectedMonth = document.getElementById('billingMonth').value;
             updateBillingCycleDateRange(selectedMonth);
             await loadAttendanceForCycle();
@@ -1456,7 +1459,7 @@
             const current = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
             current.setDate(current.getDate() + offset);
             selectedDateStr = getLocalDateString(current);
-            document.getElementById('currentSelectedDate').value = selectedDateStr;
+            const curSelDateEl = document.getElementById('currentSelectedDate'); if (curSelDateEl) curSelDateEl.value = selectedDateStr;
             updateDayLabel();
             renderDailyTable();
         }
@@ -1957,7 +1960,29 @@
         }
 
         // ─── [SUMMARY TAB: MATRIX GENERATION] ────────────────────────────────────
-        function renderSummaryMatrix() {
+        
+        // Display Loading State in Matrix Table
+        function showMatrixLoadingState(msg = 'กำลังโหลดข้อมูลเวลางานและคำนวณสถิติ กรุณารอสักครู่...') {
+            const tableBody = document.getElementById('matrixTableBody');
+            if (!tableBody) return;
+            const datesCount = 31; // Default skeleton span
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="${datesCount + 11}" class="px-6 py-16 text-center">
+                        <div class="inline-flex flex-col items-center justify-center p-6 bg-slate-50/80 rounded-2xl border border-slate-200 shadow-sm max-w-md w-full mx-auto">
+                            <div class="relative w-12 h-12 mb-3.5">
+                                <div class="absolute inset-0 rounded-full border-4 border-indigo-200 animate-ping opacity-25"></div>
+                                <div class="w-12 h-12 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+                            </div>
+                            <p class="text-sm font-extrabold text-slate-800 tracking-wide">${msg}</p>
+                            <p class="text-xs text-slate-400 font-semibold mt-1">ระบบกำลังดึงข้อมูลจาก Google Sheets...</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+function renderSummaryMatrix() {
             const currentCycleMonth = document.getElementById('billingMonth').value;
             const dates = getBillingCycleDates(currentCycleMonth);
             
