@@ -5112,24 +5112,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         sessionStorage.setItem("is_logged_in", "true");
                         localStorage.setItem("hr_emp_id", currentEmployeeId);
 
-                        // ตรวจสอบสถานะ PIN ของพนักงาน
+                        // ตรวจสอบสถานะ PIN จากข้อมูลพนักงานที่ได้จากฐานข้อมูล (Server Response)
+                        const dbPin = (employeeData["PIN"] || employeeData["รหัส PIN"] || employeeData["รหัสPIN"] || "").toString().trim();
                         const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
-                        if (!savedPinHash) {
-                            // กรณีครั้งแรก: เปิด Pop-up ให้ตั้งรหัส PIN และยืนยันตัวตน
+
+                        // หากในตารางฐานข้อมูลไม่มี PIN ( Admin กดล้าง PIN หรือยังไม่ได้ตั้ง ) 
+                        // ให้ล้าง PIN ในเครื่องทิ้งทันที และเปิด Pop-up ให้พนักงานตั้งค่า PIN ใหม่
+                        if (!dbPin) {
+                            localStorage.removeItem(getPinStorageKey(currentEmployeeId));
                             document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
                             showModal("pin-setup-modal");
                             return;
-                        } else {
-                            // กรณีมี PIN แล้ว: เปิด Pop-up ให้กรอกรหัส PIN 6 หลักเพื่อยืนยันก่อนเข้าสู่ระบบ
-                            document.getElementById("pin-login-emp-id").value = currentEmployeeId;
-                            document.getElementById("pin-login-input").value = "";
-                            showModal("pin-login-modal");
-                            setTimeout(() => {
-                                const inputEl = document.getElementById("pin-login-input");
-                                if (inputEl) inputEl.focus();
-                            }, 300);
-                            return;
                         }
+
+                        // หากในเครื่องยังไม่มี Hash ให้บันทึกเทียบไว้เพื่อใช้งาน
+                        if (!savedPinHash) {
+                            // หากคอลัมน์ PIN ใน DB เก็บเป็น Plain Text หรือ Hash ให้อัปเดต Hash ลงเครื่อง
+                            if (dbPin.length === 6) {
+                                hashPin(dbPin).then(h => localStorage.setItem(getPinStorageKey(currentEmployeeId), h));
+                            }
+                        }
+
+                        // เปิด Pop-up ให้กรอกรหัส PIN 6 หลักเพื่อยืนยันก่อนเข้าสู่ระบบ
+                        document.getElementById("pin-login-emp-id").value = currentEmployeeId;
+                        document.getElementById("pin-login-input").value = "";
+                        showModal("pin-login-modal");
+                        setTimeout(() => {
+                            const inputEl = document.getElementById("pin-login-input");
+                            if (inputEl) inputEl.focus();
+                        }, 300);
+                        return;
 
                         // แสดง loading overlay บนหน้า login แล้วรอโหลดข้อมูลก่อน
                         showLoginLoading(employeeData["ชื่อ-นามสกุล"] || empIdInput);
