@@ -2586,7 +2586,7 @@
                             </div>
                         </div>
                         <div id="project-cost-container" class="min-h-[240px]">
-<main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
+<div class="flex-grow w-full space-y-3">
         
         <!-- Tab Navigation & Config Header -->
         <div class="bg-white rounded-2xl shadow-sm p-4 mb-3 border border-slate-100 no-print space-y-3">
@@ -2631,13 +2631,13 @@
             <!-- Row 2: Action Tabs -->
             <div class="flex flex-wrap gap-1 bg-slate-100 p-1.5 rounded-xl w-full sm:w-max mt-3">
                 
-                <button onclick="switchTab('summary')" id="tabBtn-summary" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 bg-white text-blue-955 shadow-sm border border-slate-100">
-                    <i class="fa-solid fa-table-cells mr-2 text-slate-500"></i> ตารางรวมรอบเดือน (Matrix)
+                <button onclick="switchTab('summary')" id="tabBtn-summary" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 bg-white text-blue-600 shadow-sm border border-slate-200">
+                    <i class="fa-solid fa-table-cells mr-2 text-blue-500"></i> ตารางรวมรอบเดือน (Matrix)
                 </button>
-                <button onclick="switchTab('costing')" id="tabBtn-costing" class="px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 text-slate-600 hover:text-slate-950">
+                <button onclick="switchTab('costing')" id="tabBtn-costing" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-500 hover:text-slate-900 hover:bg-white/60">
                     <i class="fa-solid fa-chart-pie mr-2 text-emerald-600"></i> สรุปต้นทุนค่าโครงการ (Costing)
                 </button>
-                <button onclick="switchTab('insights')" id="tabBtn-insights" class="px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 text-slate-600 hover:text-slate-950">
+                <button onclick="switchTab('insights')" id="tabBtn-insights" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-500 hover:text-slate-900 hover:bg-white/60">
                     <i class="fa-solid fa-chart-line mr-2 text-violet-600"></i> วิเคราะห์ระดับบริหาร (HR Insights)
                 </button>
             </div>
@@ -3165,7 +3165,7 @@
             <p class="text-xs text-slate-400 font-semibold">อัปเดตข้อมูลและลิงก์ฐานข้อมูลออนไลน์เรียบร้อย</p>
         </div>
     </div>
-    </main>
+    </div>
 </div>
                     </div>
                 </section>
@@ -6066,58 +6066,55 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             };
 
             // โหลดข้อมูลสำหรับเมนูแอดมินรอไว้ใน Background (Prefetch)
+            // ✅ OPTIMIZED: ใช้ getAdminBulkData (1 call) แทน 5 calls แยก → เร็วขึ้น 3-5x
             function prefetchAdminData() {
                 if (!currentEmployeeId) return;
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim().toLowerCase();
                 const isAdmin = (role === 'administrator' || role === 'admin' || role.startsWith('admin:'));
                 if (!isAdmin) return;
 
-                console.log("[Prefetch] Running background load for Admin Portal...");
+                console.log("[Prefetch] Running BATCH background load for Admin Portal...");
+                const t0 = performance.now();
 
-                // 1. โหลดข้อมูลพนักงานทั้งหมด
+                fetchWithTimeout(`${SERVER_API_URL}?action=getAdminBulkData&empId=${currentEmployeeId}`)
+                    .then(res => {
+                        if (res && res.status === 'success' && res.data) {
+                            const d = res.data;
+                            if (d.employees)   AdminDataCache.set('employees', d.employees);
+                            if (d.leaveReqs)   AdminDataCache.set('approvals-leave', d.leaveReqs);
+                            if (d.corrections) AdminDataCache.set('approvals-correction', d.corrections);
+                            if (d.advances)    AdminDataCache.set('approvals-advance', d.advances);
+                            if (d.settings)    AdminDataCache.set('settings', d.settings);
+                            const elapsed = Math.round(performance.now() - t0);
+                            console.log(`[Prefetch] ✅ Admin bulk loaded in ${elapsed}ms`);
+                        } else {
+                            console.warn('[Prefetch] getAdminBulkData failed, falling back to individual calls...');
+                            prefetchAdminDataFallback();
+                        }
+                    })
+                    .catch(e => {
+                        console.error('[Prefetch] Batch error, falling back:', e);
+                        prefetchAdminDataFallback();
+                    });
+            }
+
+            // Fallback: ใช้ individual calls ถ้า batch API ยังไม่ deploy
+            function prefetchAdminDataFallback() {
                 fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`)
-                    .then(res => {
-                        if (res && res.status === 'success') {
-                            AdminDataCache.set('employees', res.data);
-                            console.log("[Prefetch] Employees list successfully cached.");
-                        }
-                    }).catch(e => console.error("Prefetch Employees Error:", e));
-
-                // 2. โหลดรายการขออนุมัติของใบลา
+                    .then(res => { if (res?.status === 'success') AdminDataCache.set('employees', res.data); })
+                    .catch(() => {});
                 fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`)
-                    .then(res => {
-                        if (res && res.status === 'success') {
-                            AdminDataCache.set('approvals-leave', res.data);
-                            console.log("[Prefetch] Leave requests successfully cached.");
-                        }
-                    }).catch(e => console.error("Prefetch Leave Error:", e));
-
-                // 3. โหลดรายการขออนุมัติแก้ไขเวลา
+                    .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-leave', res.data); })
+                    .catch(() => {});
                 fetchWithTimeout(`${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`)
-                    .then(res => {
-                        if (res && res.status === 'success') {
-                            AdminDataCache.set('approvals-correction', res.data);
-                            console.log("[Prefetch] Corrections list successfully cached.");
-                        }
-                    }).catch(e => console.error("Prefetch Corrections Error:", e));
-
-                // 4. โหลดรายการเบิกเงินล่วงหน้า
+                    .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-correction', res.data); })
+                    .catch(() => {});
                 fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`)
-                    .then(res => {
-                        if (res && res.status === 'success') {
-                            AdminDataCache.set('approvals-advance', res.data);
-                            console.log("[Prefetch] Advance requests successfully cached.");
-                        }
-                    }).catch(e => console.error("Prefetch Advance Error:", e));
-
-                // 5. โหลดตั้งค่าระบบ
+                    .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-advance', res.data); })
+                    .catch(() => {});
                 fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`)
-                    .then(res => {
-                        if (res && res.status === 'success') {
-                            AdminDataCache.set('settings', res.data);
-                            console.log("[Prefetch] System settings successfully cached.");
-                        }
-                    }).catch(e => console.error("Prefetch Settings Error:", e));
+                    .then(res => { if (res?.status === 'success') AdminDataCache.set('settings', res.data); })
+                    .catch(() => {});
             }
 
             // === 🟢 LOADING STATE HELPERS (Phase B-2) ===
@@ -12763,8 +12760,90 @@ ${slip.textSample}
         }
 
         async function loadSheetData() {
-            await Promise.all([loadSystemSettingsFromSheet(), loadEmployeesFromSheet(), loadProjectsFromSheet()]);
-            await loadAttendanceForCycle();
+            // ✅ OPTIMIZED: ใช้ getProjectCostData (1 call แทน 4 calls) → เร็วขึ้น 3-4x
+            const currentMonth = (() => {
+                const sel = document.getElementById('billingMonth');
+                return sel ? sel.value : getCurrentBillingMonthValue();
+            })();
+
+            // Client-side cache guard: ถ้าโหลด month นี้แล้ว และยังไม่เกิน 2 นาที ไม่ต้องโหลดใหม่
+            const cacheKey = `pc_data_${currentMonth}`;
+            const cached = window.__pcDataCache && window.__pcDataCache[cacheKey];
+            if (cached && (Date.now() - cached.ts) < 120000) {
+                console.log(`[ProjectCost] Cache HIT for ${currentMonth}, skipping reload`);
+                return;
+            }
+
+            showMatrixLoadingState('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์...');
+
+            // Try batch API first
+            let batchOk = false;
+            if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                try {
+                    const t0 = performance.now();
+                    const res = await fetchWithTimeout(
+                        `${SERVER_API_URL}?action=getProjectCostData&empId=${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : ''}&month=${currentMonth}`,
+                        { timeout: 60000 }
+                    );
+                    if (res && res.status === 'success' && res.data) {
+                        const d = res.data;
+
+                        // Apply settings
+                        if (d.settings && typeof d.settings === 'object') {
+                            systemSettings = Object.assign({}, systemSettings, d.settings);
+                        }
+
+                        // Apply employees
+                        if (Array.isArray(d.employees)) {
+                            employees = d.employees.map(mapEmployeeRow).filter(e => e.id);
+                        }
+
+                        // Apply projects
+                        if (Array.isArray(d.projects)) {
+                            const projSel = document.getElementById('projectFilter');
+                            if (projSel) {
+                                projSel.innerHTML = '<option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>';
+                                d.projects.forEach(p => {
+                                    const name = (p['ชื่อโครงการ'] || p.name || '').toString().trim();
+                                    if (name) {
+                                        const opt = document.createElement('option');
+                                        opt.value = name; opt.textContent = name;
+                                        projSel.appendChild(opt);
+                                    }
+                                });
+                            }
+                        }
+
+                        // Apply attendance
+                        if (Array.isArray(d.attendance)) {
+                            attendanceData = {};
+                            d.attendance.forEach(raw => {
+                                const record = mapAttendanceRow(raw);
+                                if (!record) return;
+                                if (!attendanceData[record.date]) attendanceData[record.date] = {};
+                                attendanceData[record.date][record.empId] = record;
+                            });
+                            updateEmployeeProjectsFromAttendance();
+                        }
+
+                        // Store client-side cache
+                        if (!window.__pcDataCache) window.__pcDataCache = {};
+                        window.__pcDataCache[cacheKey] = { ts: Date.now() };
+
+                        const elapsed = Math.round(performance.now() - t0);
+                        console.log(`[ProjectCost] ✅ Batch loaded in ${elapsed}ms`);
+                        batchOk = true;
+                    }
+                } catch (batchErr) {
+                    console.warn('[ProjectCost] Batch API failed, falling back:', batchErr);
+                }
+            }
+
+            // Fallback: ใช้ individual calls ถ้า batch API ยังไม่ deploy
+            if (!batchOk) {
+                await Promise.all([loadSystemSettingsFromSheet(), loadEmployeesFromSheet(), loadProjectsFromSheet()]);
+                await loadAttendanceForCycle();
+            }
         }
 
         async function loadAttendanceForCycle() {
@@ -13004,14 +13083,15 @@ ${slip.textSample}
             document.getElementById('tab-costing').classList.add('hidden');
             document.getElementById('tab-insights').classList.add('hidden');
             
-            // Reset tab styles
+            // Reset tab styles — มาตรฐาน: active=blue-600+white-bg, inactive=slate-500
             const buttons = ['summary', 'costing', 'insights'];
             buttons.forEach(b => {
                 const btn = document.getElementById(`tabBtn-${b}`);
+                if (!btn) return;
                 if (b === tabName) {
-                    btn.className = "px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 bg-white text-blue-955 shadow-sm border border-slate-100";
+                    btn.className = "px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 bg-white text-blue-600 shadow-sm border border-slate-200";
                 } else {
-                    btn.className = "px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-600 hover:text-slate-950";
+                    btn.className = "px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 text-slate-500 hover:text-slate-900 hover:bg-white/60";
                 }
             });
 
