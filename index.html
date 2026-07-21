@@ -5364,10 +5364,32 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 }, 1000);
             }
-            function clearEmployeePin(empId, empName) {
-                if (!confirm(`ต้องการล้าง PIN ของคุณ ${empName} (${empId}) ใช่หรือไม่?\nพนักงานจะต้องตั้ง PIN ใหม่เมื่อเข้าแอปครั้งต่อไป`)) return;
+            async function clearEmployeePin(empId, empName) {
+                if (!confirm(`ต้องการล้าง PIN ของคุณ ${empName} (${empId}) ใช่หรือไม่?\nพนักงานจะต้องยืนยันตัวตนและตั้ง PIN ใหม่เมื่อเข้าแอปครั้งต่อไป`)) return;
+                
+                try {
+                    if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                        const res = await fetchWithTimeout(SERVER_API_URL, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                            body: new URLSearchParams({
+                                action: "adminResetPin",
+                                adminId: currentEmployeeId || "admin",
+                                targetEmpId: empId
+                            }).toString()
+                        });
+
+                        if (res && res.status === "error") {
+                            showToast("❌ " + (res.message || "ล้าง PIN ล้มเหลว"), "error");
+                            return;
+                        }
+                    }
+                } catch (err) {
+                    console.warn("[adminResetPin] API notice:", err);
+                }
+
                 localStorage.removeItem(getPinStorageKey(empId));
-                showToast(`🔑 ล้าง PIN ของ ${empName} เรียบร้อยแล้ว`, "success");
+                showToast(`🔑 ล้าง PIN ของ ${empName} (${empId}) ในระบบเรียบร้อยแล้ว`, "success");
             }
 
             // --- ส่วนบริการดึงข้อมูลและ API (API Services) ---
