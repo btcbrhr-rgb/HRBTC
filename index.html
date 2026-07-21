@@ -5217,9 +5217,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const dbPin = (employeeData["PIN"] || employeeData["รหัส PIN"] || employeeData["รหัสPIN"] || "").toString().trim();
                         const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
 
+                        // หากเข้าสู่ระบบด้วยรหัส admin ไม่ต้องบังคับตั้งค่า PIN หรือกรอก PIN
+                        const isAdminUser = currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin';
+
                         // หากในตารางฐานข้อมูลไม่มี PIN ( Admin กดล้าง PIN หรือยังไม่ได้ตั้ง ) 
-                        // ให้ล้าง PIN ในเครื่องทิ้งทันที และเปิด Pop-up ให้พนักงานตั้งค่า PIN ใหม่
-                        if (!dbPin) {
+                        // ให้ล้าง PIN ในเครื่องทิ้งทันที และเปิด Pop-up ให้พนักงานตั้งค่า PIN ใหม่ (ยกเว้น admin)
+                        if (!dbPin && !isAdminUser) {
                             localStorage.removeItem(getPinStorageKey(currentEmployeeId));
                             document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
                             showModal("pin-setup-modal");
@@ -5232,6 +5235,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             if (dbPin.length === 6) {
                                 hashPin(dbPin).then(h => localStorage.setItem(getPinStorageKey(currentEmployeeId), h));
                             }
+                        }
+
+                        // หากเข้าสู่ระบบด้วย admin สามารถผ่านเข้าสู่ระบบได้เลย ไม่ต้องกรอก PIN
+                        if (isAdminUser) {
+                            proceedToMainApp();
+                            return;
                         }
 
                         // เปิด Pop-up ให้กรอกรหัส PIN 6 หลักเพื่อยืนยันก่อนเข้าสู่ระบบ
@@ -6491,7 +6500,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 if (!fileId) return url;
-                return "https://drive.google.com/uc?export=view&id=" + fileId;
+                return "https://lh3.googleusercontent.com/d/" + fileId;
             }
 
             function openDriveFile(url) {
@@ -7383,7 +7392,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 const exceededLeaves = getExceededLeavesSet();
 
-                leaveRequestsList.forEach(l => {
+                // เรียงลำดับจากใหม่ไปเก่า (Newest to Oldest)
+                const sortedLeaves = [...leaveRequestsList].sort((a, b) => {
+                    const dateA = new Date(a["วันที่เริ่ม"] || a["วันที่"] || a["Timestamp"] || a["เลขที่เอกสาร"] || 0);
+                    const dateB = new Date(b["วันที่เริ่ม"] || b["วันที่"] || b["Timestamp"] || b["เลขที่เอกสาร"] || 0);
+                    if (!isNaN(dateA) && !isNaN(dateB) && dateA.getTime() !== dateB.getTime()) {
+                        return dateB - dateA;
+                    }
+                    return (b["เลขที่เอกสาร"] || "").localeCompare(a["เลขที่เอกสาร"] || "");
+                });
+
+                sortedLeaves.forEach(l => {
                     const docId = l["เลขที่เอกสาร"] || "N/A";
                     const type = l["ประเภทการลา"] || "ลาอื่นๆ";
                     const period = l["ระยะเวลา"] || "เต็มวัน";
@@ -7421,13 +7440,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
           ${signatureUrl ? `
             <div class="mt-1.5 pt-1.5 border-t border-slate-50">
               <p class="text-[9px] text-slate-400 mb-1"><i class="fa-solid fa-signature"></i> ลายมือชื่อ:</p>
-              <img src="${convertDriveUrl(signatureUrl)}" alt="Signature" class="w-full h-16 object-contain bg-slate-50 rounded border border-slate-100">
+              <img src="${signatureUrl.startsWith('data:image') ? signatureUrl : convertDriveUrl(signatureUrl)}" alt="Signature" onError="if(!this.dataset.retry){this.dataset.retry='1';this.src='https://drive.google.com/thumbnail?id='+((this.src.match(/\/d\/([a-zA-Z0-9_-]+)/)||[])[1]||'');}" class="w-full h-16 object-contain bg-slate-50 rounded border border-slate-100">
             </div>
           ` : ""}
           
           <div class="text-[9px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-50">
             <span>เลขที่ใบคำขอ: ${docId}</span>
             <span>อนุมัติโดย: ${l["อนุมัติโดย"] || "--"}</span>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 flex justify-end">
+            <button onclick='printLeaveRecord(${safeJson(docId)})' 
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-indigo-700 text-white text-[10px] font-semibold transition-all shadow-xs active:scale-95">
+              <i class="fa-solid fa-file-pdf text-rose-400"></i> ดูใบลา / พิมพ์ PDF
+            </button>
           </div>
         `;
                     container.appendChild(card);
