@@ -5105,15 +5105,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         sessionStorage.setItem("is_logged_in", "true");
                         localStorage.setItem("hr_emp_id", currentEmployeeId);
 
-                        if (isPWAApp) {
-                            const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
-                            if (!savedPinHash) {
-                                document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
-                                showModal("pin-setup-modal");
-                                return;
-                            }
-                            document.getElementById("pin-login-emp-id").value = currentEmployeeId;
-                            showModal("pin-login-modal");
+                        // ตรวจสอบการตั้งรหัส PIN ครั้งแรก: หากพนักงานยังไม่เคยตั้ง PIN ให้ป๊อปอัพเปิดหน้าตั้ง PIN
+                        const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
+                        if (!savedPinHash) {
+                            document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
+                            showModal("pin-setup-modal");
                             return;
                         }
 
@@ -5211,11 +5207,29 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     const pinHash = await hashPin(pin);
                     localStorage.setItem(getPinStorageKey(empId), pinHash);
+
+                    // บันทึก PIN ลงตารางฐานข้อมูล 'พนักงาน' บน Google Sheets ผ่าน API
+                    try {
+                        if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                            await fetchWithTimeout(SERVER_API_URL, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                                body: new URLSearchParams({
+                                    action: "savePin",
+                                    empId: empId,
+                                    pin: pin
+                                }).toString()
+                            });
+                        }
+                    } catch (apiErr) {
+                        console.warn("[savePin] API sync notice:", apiErr);
+                    }
+
                     closeModal("pin-setup-modal");
                     document.getElementById("pin-setup-input").value = "";
                     document.getElementById("pin-setup-confirm").value = "";
 
-                    showToast("🔐 ตั้งค่า PIN เรียบร้อยแล้ว", "success");
+                    showToast("🔐 ตั้งค่าและบันทึก PIN เรียบร้อยแล้ว", "success");
                     proceedToMainApp();
                 }, {
                     buttonId: "btn-submit-pin-setup",
