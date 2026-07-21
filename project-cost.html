@@ -2218,7 +2218,10 @@
                     // MODIFIED: Click handler changed to openMatrixStatusModal so it directly pops up the edit screen
                     rowHtml += `
                         <td class="p-1 border-t border-b border-l ${borderRightClass} text-center">
-                            <span class="inline-block w-7 h-7 leading-7 text-[10px] rounded-lg ${statusClass} cursor-pointer transition transform hover:scale-110" onclick="openMatrixStatusModal('${emp.id}', '${date}')" title="${date} - [${log.project}] - คลิกเพื่อปรับแก้เวลาทำงานของวันนี้ทันที">
+                            <span class="inline-block w-7 h-7 leading-7 text-[10px] rounded-lg ${statusClass} cursor-pointer transition transform hover:scale-110"
+                                onmouseenter="showMatrixTooltip(this, '${emp.id}', '${date}')"
+                                onmouseleave="hideMatrixTooltip()"
+                                onclick="openMatrixStatusModal('${emp.id}', '${date}')">
                                 ${statusSymbol}
                             </span>
                         </td>
@@ -2848,6 +2851,80 @@
             }, 300);
         }
 
+
+        // ══════════════════════════════════════════════════════
+        // Matrix Day Hover Tooltip Functions
+        // ══════════════════════════════════════════════════════
+        let _matrixTooltipTimer = null;
+
+        function showMatrixTooltip(el, empId, dateStr) {
+            clearTimeout(_matrixTooltipTimer);
+            const tip = document.getElementById('matrixDayTooltip');
+            if (!tip) return;
+            const log = (attendanceData[dateStr] || {})[empId];
+            const emp = employees.find(e => e.id === empId);
+            if (!emp) return;
+
+            const parts = dateStr.split('-');
+            const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+            const dateLabel = d.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            let html = '';
+            const avatarHtml = `<div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-user text-slate-400 text-[11px]"></i></div>`;
+            const headerHtml = `<div class="flex items-center gap-2.5 mb-3"><div class="flex-shrink-0">${avatarHtml}</div><div><p class="font-extrabold text-slate-800 text-xs leading-tight">${emp.name}</p><p class="text-[10px] text-slate-400 leading-tight mt-0.5">${dateLabel}</p></div></div>`;
+
+            if (!log) {
+                html = `${headerHtml}<div class="bg-rose-50 rounded-xl p-3 text-center"><i class="fa-solid fa-calendar-xmark text-rose-300 text-xl mb-1.5 block"></i><p class="text-rose-500 font-bold text-[10px]">ไม่มีข้อมูลวันนี้</p></div><p class="text-[10px] text-indigo-500 text-center font-bold mt-2.5 pt-2 border-t border-slate-100"><i class="fa-solid fa-plus mr-1"></i>คลิกเพื่อเพิ่มข้อมูล</p>`;
+            } else {
+                const cat = getStatusCategory(log.status);
+                const scMap = {
+                    work:            { bg: 'bg-green-50',  text: 'text-green-700',  icon: 'fa-circle-check',       ic: 'text-green-400' },
+                    work_other:      { bg: 'bg-teal-50',   text: 'text-teal-700',   icon: 'fa-circle-check',       ic: 'text-teal-400' },
+                    work_incomplete: { bg: 'bg-amber-50',  text: 'text-amber-700',  icon: 'fa-circle-half-stroke', ic: 'text-amber-400' },
+                    late:            { bg: 'bg-amber-50',  text: 'text-amber-700',  icon: 'fa-clock-rotate-left',  ic: 'text-amber-400' },
+                    absent:          { bg: 'bg-rose-50',   text: 'text-rose-700',   icon: 'fa-circle-xmark',       ic: 'text-rose-400' },
+                    off:             { bg: 'bg-slate-50',  text: 'text-slate-500',  icon: 'fa-moon',               ic: 'text-slate-300' },
+                };
+                const sc = scMap[cat] || scMap.off;
+                const totalAllow = (parseFloat(log.food)||0) + (parseFloat(log.trip)||0) + (parseFloat(log.other)||0);
+
+                const statusRow = `<div class="${sc.bg} rounded-xl px-3 py-2 mb-2.5 flex items-center gap-2"><i class="fa-solid ${sc.icon} ${sc.ic} text-sm"></i><span class="font-extrabold ${sc.text} text-xs">${log.status}</span>${parseFloat(log.penalty||0)>0?`<span class="ml-auto text-amber-600 font-bold text-[10px]">สาย ${log.penalty} น.</span>`:''}</div>`;
+                const timeRow = `<div class="grid grid-cols-2 gap-1.5 mb-2"><div class="bg-slate-50 rounded-lg px-2.5 py-1.5"><p class="text-[9px] text-slate-400 font-semibold">เข้างาน</p><p class="font-extrabold text-slate-700">${log.timeIn||'--:--'}</p></div><div class="bg-slate-50 rounded-lg px-2.5 py-1.5"><p class="text-[9px] text-slate-400 font-semibold">ออกงาน</p><p class="font-extrabold text-slate-700">${log.timeOut||'--:--'}</p></div></div>`;
+                const otRow = parseFloat(log.ot||0)>0 ? `<div class="bg-blue-50 rounded-lg px-2.5 py-1.5 mb-2 flex items-center gap-2"><i class="fa-solid fa-star-half-stroke text-blue-400 text-[10px]"></i><span class="text-[10px] text-slate-500">ล่วงเวลา (OT)</span><span class="ml-auto font-extrabold text-blue-700">${log.ot} ชม.</span></div>` : '';
+                const allowRow = totalAllow>0 ? `<div class="bg-emerald-50 rounded-lg px-2.5 py-1.5 mb-2 flex items-center gap-2"><i class="fa-solid fa-coins text-emerald-400 text-[10px]"></i><span class="text-[10px] text-slate-500">เบี้ยเลี้ยงรวม</span><span class="ml-auto font-extrabold text-emerald-700">฿${totalAllow.toLocaleString('th-TH')}</span></div>` : '';
+                const projRow = log.project ? `<div class="bg-indigo-50 rounded-lg px-2.5 py-1.5 mb-2 flex items-center gap-2 min-w-0"><i class="fa-solid fa-building-columns text-indigo-300 text-[10px] flex-shrink-0"></i><span class="text-[10px] text-indigo-700 font-semibold truncate">${log.project}</span></div>` : '';
+                const noteRow = log.otherMemo ? `<div class="flex items-start gap-1.5 mb-2 text-[10px] text-slate-500"><i class="fa-solid fa-note-sticky text-slate-300 mt-0.5 flex-shrink-0"></i><span>${log.otherMemo}</span></div>` : '';
+                const editHint = `<p class="text-[10px] text-indigo-500 text-center font-bold pt-2 border-t border-slate-100"><i class="fa-solid fa-pen-to-square mr-1 text-indigo-400"></i>คลิกเพื่อแก้ไขข้อมูล</p>`;
+
+                html = `${headerHtml}${statusRow}${timeRow}${otRow}${allowRow}${projRow}${noteRow}${editHint}`;
+            }
+
+            document.getElementById('matrixTipContent').innerHTML = html;
+
+            const rect = el.getBoundingClientRect();
+            const tipW = 256;
+            let left = rect.right + 10;
+            if (left + tipW > window.innerWidth - 12) left = rect.left - tipW - 10;
+            let top = rect.top - 12;
+            if (top + 340 > window.innerHeight - 8) top = window.innerHeight - 348;
+            if (top < 8) top = 8;
+
+            tip.style.left = left + 'px';
+            tip.style.top = top + 'px';
+            tip.style.display = 'block';
+            requestAnimationFrame(() => { tip.style.opacity = '1'; });
+        }
+
+        function hideMatrixTooltip() {
+            _matrixTooltipTimer = setTimeout(() => {
+                const tip = document.getElementById('matrixDayTooltip');
+                if (tip) {
+                    tip.style.opacity = '0';
+                    setTimeout(() => { if (tip.style.opacity === '0') tip.style.display = 'none'; }, 160);
+                }
+            }, 80);
+        }
+
         // ─── Auto-initialize page when DOM loads ───
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initializeProjectCostPage);
@@ -2856,5 +2933,12 @@
             initializeProjectCostPage();
         }
     </script>
+
+    <!-- ═══ Matrix Day Hover Tooltip ═══ -->
+    <div id="matrixDayTooltip"
+        style="display:none;position:fixed;z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.15s ease;width:256px;"
+        class="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div id="matrixTipContent" class="p-3.5 text-xs"></div>
+    </div>
 </body>
 </html>
