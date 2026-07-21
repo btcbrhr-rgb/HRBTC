@@ -749,6 +749,13 @@
                                 class="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800">
                         </div>
                         <div>
+                            <label for="pin-setup-idcard-last4"
+                                class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">ยืนยันตัวตน (เลข 4 ตัวท้ายบัตรประชาชน)</label>
+                            <input id="pin-setup-idcard-last4" type="password" maxlength="4" placeholder="• • • •"
+                                title="เลข 4 ตัวท้ายของบัตรประชาชน"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-center tracking-widest text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
                             <label for="pin-setup-input"
                                 class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">กำหนดรหัส
                                 PIN 6 หลัก</label>
@@ -5105,11 +5112,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         sessionStorage.setItem("is_logged_in", "true");
                         localStorage.setItem("hr_emp_id", currentEmployeeId);
 
-                        // ตรวจสอบการตั้งรหัส PIN ครั้งแรก: หากพนักงานยังไม่เคยตั้ง PIN ให้ป๊อปอัพเปิดหน้าตั้ง PIN
+                        // ตรวจสอบสถานะ PIN ของพนักงาน
                         const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
                         if (!savedPinHash) {
+                            // กรณีครั้งแรก: เปิด Pop-up ให้ตั้งรหัส PIN และยืนยันตัวตน
                             document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
                             showModal("pin-setup-modal");
+                            return;
+                        } else {
+                            // กรณีมี PIN แล้ว: เปิด Pop-up ให้กรอกรหัส PIN 6 หลักเพื่อยืนยันก่อนเข้าสู่ระบบ
+                            document.getElementById("pin-login-emp-id").value = currentEmployeeId;
+                            document.getElementById("pin-login-input").value = "";
+                            showModal("pin-login-modal");
+                            setTimeout(() => {
+                                const inputEl = document.getElementById("pin-login-input");
+                                if (inputEl) inputEl.focus();
+                            }, 300);
                             return;
                         }
 
@@ -5192,10 +5210,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (activeSubmitActions.has("pinSetup")) return;
 
                 return withSubmitLock("pinSetup", async () => {
+                    const idCardLast4 = (document.getElementById("pin-setup-idcard-last4")?.value || "").trim();
                     const pin = document.getElementById("pin-setup-input").value.trim();
                     const pinConfirm = document.getElementById("pin-setup-confirm").value.trim();
                     const empId = document.getElementById("pin-setup-emp-id").value.trim();
 
+                    if (!/^\d{4}$/.test(idCardLast4)) {
+                        showToast("⚠️ กรุณากรอกเลข 4 ตัวท้ายของบัตรประชาชน (ตัวเลข 4 หลัก)", "warning");
+                        return;
+                    }
                     if (!/^\d{6}$/.test(pin)) {
                         showToast("⚠️ กรุณากรอกรหัส PIN 6 หลัก (ตัวเลขเท่านั้น)", "warning");
                         return;
@@ -5205,29 +5228,45 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return;
                     }
 
-                    const pinHash = await hashPin(pin);
-                    localStorage.setItem(getPinStorageKey(empId), pinHash);
-
-                    // บันทึก PIN ลงตารางฐานข้อมูล 'พนักงาน' บน Google Sheets ผ่าน API
+                    // ส่ง API ยืนยันตัวตนและบันทึก PIN ลงตาราง 'พนักงาน' บน Google Sheets
+                    let saveSuccess = false;
                     try {
                         if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                            await fetchWithTimeout(SERVER_API_URL, {
+                            const res = await fetchWithTimeout(SERVER_API_URL, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                                 body: new URLSearchParams({
                                     action: "savePin",
                                     empId: empId,
+                                    idCardLast4: idCardLast4,
                                     pin: pin
                                 }).toString()
                             });
+
+                            if (res && res.status === "error") {
+                                showToast("❌ " + (res.message || "ยืนยันตัวตนไม่ถูกต้อง"), "error");
+                                return;
+                            }
+                            saveSuccess = true;
                         }
                     } catch (apiErr) {
                         console.warn("[savePin] API sync notice:", apiErr);
+                        // หากติดต่อเซิร์ฟเวอร์ไม่ได้ชั่วคราว ยอมให้เซ็ตในเครื่อง
+                        saveSuccess = true;
                     }
 
-                    closeModal("pin-setup-modal");
-                    document.getElementById("pin-setup-input").value = "";
-                    document.getElementById("pin-setup-confirm").value = "";
+                    if (saveSuccess) {
+                        const pinHash = await hashPin(pin);
+                        localStorage.setItem(getPinStorageKey(empId), pinHash);
+
+                        closeModal("pin-setup-modal");
+                        if (document.getElementById("pin-setup-idcard-last4")) document.getElementById("pin-setup-idcard-last4").value = "";
+                        document.getElementById("pin-setup-input").value = "";
+                        document.getElementById("pin-setup-confirm").value = "";
+
+                        showToast("🔐 ยืนยันตัวตนและตั้งค่า PIN เรียบร้อยแล้ว", "success");
+                        proceedToMainApp();
+                    }
 
                     showToast("🔐 ตั้งค่าและบันทึก PIN เรียบร้อยแล้ว", "success");
                     proceedToMainApp();
