@@ -11091,7 +11091,6 @@ ${slip.textSample}
                         const progressPercent = Math.round(((i + 1) / targets.length) * 100);
                         document.getElementById("pdf-parse-progress").style.width = `${progressPercent}%`;
                         document.getElementById("pdf-parse-status").textContent = `กำลังอัปโหลด ${i + 1}/${targets.length} (รหัส: ${slip.empId || 'ไม่ระบุ'})...`;
-
                         const payload = {
                             action: "uploadPayslipFile",
                             empId: slip.empId,
@@ -12396,7 +12395,8 @@ ${slip.textSample}
             otIntervalMinutes: 30,
             defaultFoodAllowance: 50,
             holidayOtRate: 2.0,
-            holidayWorkRate: 1.0
+            holidayWorkRate: 1.0,
+            latePenaltyPerMinute: 1.0
         };
 
         // Helper to format Date into local "YYYY-MM-DD" string correctly without UTC shifts
@@ -13322,7 +13322,8 @@ ${slip.textSample}
             
             Object.keys(GLOBAL_STATUS).forEach(key => {
                 const s = GLOBAL_STATUS[key];
-                const isActive = log.status === key;
+                const normLogStatus = (log.status || '').toString().trim();
+                const isActive = (normLogStatus === key || (key === 'W' && normLogStatus === 'ปกติ') || (key === 'L' && normLogStatus === 'สาย') || (key === 'A' && normLogStatus === 'ขาด'));
                 const activeClasses = isActive ? 'ring-2 ring-blue-600 bg-blue-50 border-blue-400 font-bold' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100';
 
                 statusBox.innerHTML += `
@@ -14323,7 +14324,7 @@ function renderSummaryMatrix() {
                 `;
             } else {
                 sortedByLateness.forEach((item, index) => {
-                    const penaltyCost = item.lateMins * 2;
+                    const penaltyCost = item.lateMins * (systemSettings.latePenaltyPerMinute || 1.0);
                     let rankBadge = `${index + 1}`;
                     if (index === 0) rankBadge = '🥇';
                     else if (index === 1) rankBadge = '🥈';
