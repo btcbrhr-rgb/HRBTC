@@ -781,6 +781,58 @@
             </div>
 
             <!-- === [MODAL: PIN Login - ป้อน PIN เข้าแอป] === -->
+            <!-- === [MODAL: PIN Confirm - ยืนยันข้อมูลก่อนบันทึก PIN] === -->
+            <div id="pin-confirm-modal"
+                class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+                <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl animate-slide-up overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 pt-6 pb-10 text-center">
+                        <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                            <i class="fa-solid fa-circle-check text-white text-2xl"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-base">ยืนยันข้อมูลก่อนบันทึก PIN</h3>
+                        <p class="text-blue-100 text-xs mt-1">ตรวจสอบให้แน่ใจว่าข้อมูลด้านล่างถูกต้อง</p>
+                    </div>
+                    <div class="-mt-6 mx-4">
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-md p-4 flex items-center gap-4">
+                            <img id="pin-confirm-avatar"
+                                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"
+                                class="w-14 h-14 rounded-xl object-cover border-2 border-blue-100 shadow-sm flex-shrink-0"
+                                onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'">
+                            <div class="flex-1 min-w-0">
+                                <p id="pin-confirm-name" class="font-bold text-slate-800 text-sm truncate">-</p>
+                                <p id="pin-confirm-empid" class="text-xs text-slate-400 mt-0.5">รหัส: -</p>
+                                <p id="pin-confirm-position" class="text-xs text-indigo-600 font-semibold mt-0.5 truncate">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-4 pt-4 pb-1 space-y-1">
+                        <div class="flex justify-between items-center py-2.5 border-b border-slate-100">
+                            <span class="text-xs text-slate-500 flex items-center gap-1.5"><i class="fa-solid fa-building text-slate-300"></i> บริษัท</span>
+                            <span id="pin-confirm-company" class="text-xs font-semibold text-slate-700">-</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2.5 border-b border-slate-100">
+                            <span class="text-xs text-slate-500 flex items-center gap-1.5"><i class="fa-solid fa-id-card text-slate-300"></i> ยืนยันตัวตน</span>
+                            <span class="text-xs font-semibold text-emerald-600"><i class="fa-solid fa-check-circle mr-1"></i>บัตรประชาชน 4 หลักท้าย ✓</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2.5">
+                            <span class="text-xs text-slate-500 flex items-center gap-1.5"><i class="fa-solid fa-lock text-slate-300"></i> รหัส PIN ใหม่</span>
+                            <span class="text-xs font-bold tracking-widest text-slate-700">• • • • • •</span>
+                        </div>
+                    </div>
+                    <div class="px-4 pb-5 pt-3 space-y-2">
+                        <button id="btn-pin-confirm-save" onclick="confirmAndSavePin()"
+                            class="btn-press w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-shield-halved"></i> ยืนยันและบันทึก PIN
+                        </button>
+                        <button onclick="cancelPinConfirm()"
+                            class="w-full text-center text-xs text-slate-400 hover:text-slate-600 transition-all py-1">
+                            ← กลับไปแก้ไขข้อมูล
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === [MODAL: PIN Login - ป้อน PIN เข้าแอป] === -->
             <div id="pin-login-modal"
                 class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
                 <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-5 shadow-2xl animate-slide-up">
@@ -5218,6 +5270,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 document.getElementById("pin-login-input").focus();
             }
 
+            // ตัวแปรชั่วคราวเก็บข้อมูล PIN ระหว่างรอยืนยัน
+            let _pendingPinData = null;
+
             async function submitPinSetup() {
                 if (activeSubmitActions.has("pinSetup")) return;
 
@@ -5240,51 +5295,103 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return;
                     }
 
-                    // ส่ง API ยืนยันตัวตนและบันทึก PIN ลงตาราง 'พนักงาน' บน Google Sheets
-                    let saveSuccess = false;
-                    try {
-                        if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                            const res = await fetchWithTimeout(SERVER_API_URL, {
-                                method: "POST",
-                                body: JSON.stringify({
-                                    action: "savePin",
-                                    empId: empId,
-                                    idCardLast4: idCardLast4,
-                                    pin: pin
-                                })
-                            });
-
-                            if (res && res.status === "error") {
-                                showToast("❌ " + (res.message || "ยืนยันตัวตนไม่ถูกต้อง"), "error");
-                                return;
-                            }
-                            saveSuccess = true;
-                        } else {
-                            saveSuccess = true;
-                        }
-                    } catch (apiErr) {
-                        console.warn("[savePin] API sync notice:", apiErr);
-                        saveSuccess = true;
-                    }
-
-                    if (saveSuccess) {
-                        const pinHash = await hashPin(pin);
-                        localStorage.setItem(getPinStorageKey(empId), pinHash);
-
-                        closeModal("pin-setup-modal");
-                        if (document.getElementById("pin-setup-idcard-last4")) document.getElementById("pin-setup-idcard-last4").value = "";
-                        document.getElementById("pin-setup-input").value = "";
-                        document.getElementById("pin-setup-confirm").value = "";
-
-                        showToast("🔐 ยืนยันตัวตนและตั้งค่า PIN เรียบร้อยแล้ว", "success");
-                        await proceedToMainApp();
-                    }
+                    // เก็บข้อมูลไว้ชั่วคราวแล้วเปิด Modal ยืนยันข้อมูล
+                    _pendingPinData = { empId, idCardLast4, pin };
+                    showPinConfirmModal(empId);
                 }, {
                     buttonId: "btn-submit-pin-setup",
-                    activeLabel: "บันทึก PIN",
-                    loadingLabel: "กำลังบันทึก..."
+                    activeLabel: "บันทึกและเข้าใช้งาน",
+                    loadingLabel: "กำลังตรวจสอบ..."
                 });
             }
+
+            function showPinConfirmModal(empId) {
+                const data = employeeData || {};
+                const name = data["ชื่อ-นามสกุล"] || empId;
+                const pos = data["ตำแหน่ง"] || "-";
+                const company = data["ชื่อบริษัท"] || "-";
+                const avatarUrl = convertDriveUrl(data["ลิ้งภาพโปรไฟล์"]) ||
+                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80";
+
+                const avatarEl = document.getElementById("pin-confirm-avatar");
+                if (avatarEl) avatarEl.src = avatarUrl;
+                const nameEl = document.getElementById("pin-confirm-name");
+                if (nameEl) nameEl.textContent = name;
+                const empidEl = document.getElementById("pin-confirm-empid");
+                if (empidEl) empidEl.textContent = `รหัส: ${empId}`;
+                const posEl = document.getElementById("pin-confirm-position");
+                if (posEl) posEl.textContent = pos;
+                const companyEl = document.getElementById("pin-confirm-company");
+                if (companyEl) companyEl.textContent = company;
+
+                closeModal("pin-setup-modal");
+                showModal("pin-confirm-modal");
+            }
+
+            function cancelPinConfirm() {
+                _pendingPinData = null;
+                closeModal("pin-confirm-modal");
+                showModal("pin-setup-modal");
+            }
+
+            async function confirmAndSavePin() {
+                if (!_pendingPinData) {
+                    showToast("⚠️ ไม่พบข้อมูล PIN กรุณาเริ่มใหม่", "warning");
+                    return;
+                }
+
+                const btn = document.getElementById("btn-pin-confirm-save");
+                if (btn) { btn.disabled = true; btn.textContent = "กำลังบันทึก..."; }
+
+                const { empId, idCardLast4, pin } = _pendingPinData;
+
+                // ส่ง API ยืนยันตัวตนและบันทึก PIN ลงตาราง 'พนักงาน' บน Google Sheets
+
+                let saveSuccess = false;
+                try {
+                    if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                        const res = await fetchWithTimeout(SERVER_API_URL, {
+                            method: "POST",
+                            body: JSON.stringify({
+                                action: "savePin",
+                                empId: empId,
+                                idCardLast4: idCardLast4,
+                                pin: pin
+                            })
+                        });
+
+                        if (res && res.status === "error") {
+                            showToast("❌ " + (res.message || "ยืนยันตัวตนไม่ถูกต้อง"), "error");
+                            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> ยืนยันและบันทึก PIN'; }
+                            return;
+                        }
+                        saveSuccess = true;
+                    } else {
+                        saveSuccess = true;
+                    }
+                } catch (apiErr) {
+                    console.warn("[savePin] API sync notice:", apiErr);
+                    saveSuccess = true;
+                }
+
+                if (saveSuccess) {
+                    const pinHash = await hashPin(pin);
+                    localStorage.setItem(getPinStorageKey(empId), pinHash);
+                    _pendingPinData = null;
+
+                    closeModal("pin-confirm-modal");
+                    if (document.getElementById("pin-setup-idcard-last4")) document.getElementById("pin-setup-idcard-last4").value = "";
+                    document.getElementById("pin-setup-input").value = "";
+                    document.getElementById("pin-setup-confirm").value = "";
+
+                    showToast("🔐 ยืนยันตัวตนและตั้งค่า PIN เรียบร้อยแล้ว", "success");
+                    await proceedToMainApp();
+                }
+
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> ยืนยันและบันทึก PIN'; }
+            }
+
+
 
             async function submitPinLogin() {
                 if (activeSubmitActions.has("pinLogin")) return;
@@ -6949,7 +7056,49 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     if (recordsRes.status === "success") {
-                        displayCalendarDays(recordsRes.data);
+                        let timeRecords = recordsRes.data || [];
+
+                        // ── Merge วันลาที่อนุมัติแล้ว/รออนุมัติที่ยังไม่มีในตารางเวลา ──
+                        const existingDates = new Set(timeRecords.map(r => r["วันที่"]));
+                        const leaveList = Array.isArray(leaveRequestsList) ? leaveRequestsList : [];
+
+                        leaveList.forEach(l => {
+                            const leaveStatus = (l["สถานะ"] || "").toString().trim();
+                            // ไม่รวมวันลาที่ถูกปฏิเสธ
+                            if (leaveStatus === "ไม่อนุมัติ" || leaveStatus === "ปฏิเสธ") return;
+
+                            const leaveStart = (l["วันที่เริ่ม"] || "").toString().trim();
+                            const leaveEnd   = (l["วันที่สิ้นสุด"] || leaveStart).toString().trim();
+                            const leaveType  = (l["ประเภทการลา"] || "ลา").toString().trim();
+                            if (!leaveStart) return;
+
+                            // วนสร้าง record สำหรับแต่ละวันในช่วงลา
+                            let cur = new Date(leaveStart);
+                            const endDate = new Date(leaveEnd);
+                            while (cur <= endDate) {
+                                const dateStr = cur.toISOString().slice(0, 10); // YYYY-MM-DD
+                                // อยู่ในช่วง filter ที่ปฏิทินกำลังแสดง
+                                if (dateStr >= start && dateStr <= end && !existingDates.has(dateStr)) {
+                                    existingDates.add(dateStr);
+                                    timeRecords.push({
+                                        "วันที่": dateStr,
+                                        "เวลาเข้า": "--:--",
+                                        "เวลาออก": "--:--",
+                                        "นาทีสาย": 0,
+                                        "ชั่วโมง OT": 0,
+                                        "สถานะสรุป": leaveType,
+                                        "โครงการ (เข้า)": "",
+                                        "_leaveStatus": leaveStatus  // เก็บสถานะการลาไว้ใช้แสดง badge
+                                    });
+                                }
+                                cur.setDate(cur.getDate() + 1);
+                            }
+                        });
+
+                        // เรียงวันที่จากน้อยไปมาก
+                        timeRecords.sort((a, b) => (a["วันที่"] || "").localeCompare(b["วันที่"] || ""));
+
+                        displayCalendarDays(timeRecords);
                     } else {
                         showToast("❌ โหลดข้อมูลปฏิทินไม่สำเร็จ: " + recordsRes.message, "error");
                     }
@@ -7027,6 +7176,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     }
 
+                    // ตรวจว่า record นี้เป็น "วันลา" ที่ merge มา (ไม่มีเวลาเข้า-ออกจริง)
+                    const isLeaveDay = rec["_leaveStatus"] !== undefined;
+                    const leaveApprovalStatus = rec["_leaveStatus"] || "";
+
                     let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
                     if (status === "สาย") badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
                     else if (status === "MI" || status.includes("ลืมลงเวลาเข้า") || status.includes("ลืมลงชื่อเข้า") || status.includes("ลืมเข้า")) badgeColor = "bg-orange-50 text-orange-700 border-orange-100";
@@ -7036,14 +7189,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     else if (status.includes("ทำงานครึ่งวันบ่าย")) badgeColor = "bg-sky-50 text-sky-700 border-sky-100";
                     else if (status.includes("ลา")) badgeColor = "bg-violet-50 text-violet-700 border-violet-100";
 
+                    // badge สถานะการอนุมัติลา (เฉพาะวันลา)
+                    const leaveApproveBadge = isLeaveDay
+                        ? (leaveApprovalStatus === 'อนุมัติแล้ว' || leaveApprovalStatus === 'อนุมัติ'
+                            ? `<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold"><i class="fa-solid fa-check mr-0.5"></i>อนุมัติแล้ว</span>`
+                            : `<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold"><i class="fa-solid fa-clock mr-0.5"></i>รออนุมัติ</span>`)
+                        : '';
+
                     const correctionRecord = timeCorrectionsList.find(c => c['วันที่'] === dateStr && c['รหัสพนักงาน']?.toString().trim() === currentEmployeeId?.toString().trim());
                     const correctionStatus = correctionRecord ? (correctionRecord['สถานะ'] || 'รออนุมัติ') : '';
                     const hasCorrection = !!correctionRecord;
                     const correctionLabel = hasCorrection ? `
             <p class="text-[10px] text-slate-500">คำขอแก้ไข: <span class="font-semibold ${correctionStatus === 'อนุมัติแล้ว' ? 'text-emerald-700' : correctionStatus === 'รออนุมัติ' ? 'text-amber-700' : 'text-rose-700'}">${correctionStatus}</span></p>` : '';
-                    const requestButtonHtml = hasCorrection
+                    // ซ่อนปุ่มขอแก้ไขเวลาสำหรับวันลา
+                    const requestButtonHtml = isLeaveDay ? '' : (hasCorrection
                         ? `<button disabled class="btn-press text-[10px] text-slate-400 font-semibold bg-slate-100 border border-slate-200 px-2 py-1 rounded-md flex items-center gap-1 transition-all cursor-not-allowed"><i class="fa-solid fa-user-pen"></i> ติดต่อฝ่ายบุคคล</button>`
-                        : `<button onclick="openCorrectionModal('${dateStr}')" class="btn-press text-[10px] text-blue-600 font-semibold bg-blue-50/70 hover:bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-all"><i class="fa-solid fa-user-pen"></i> ขอแก้ไขเวลา</button>`;
+                        : `<button onclick="openCorrectionModal('${dateStr}')" class="btn-press text-[10px] text-blue-600 font-semibold bg-blue-50/70 hover:bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-all"><i class="fa-solid fa-user-pen"></i> ขอแก้ไขเวลา</button>`);
                     let cardBorderClass = 'border border-slate-100';
                     if (status === 'สาย') cardBorderClass = 'border-2 border-amber-300';
                     else if (status === 'MI' || status.includes('ลืมลงเวลาเข้า') || status.includes('ลืมลงชื่อเข้า') || status.includes('ลืมเข้า')) cardBorderClass = 'border-2 border-orange-300';
@@ -7066,23 +7227,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeColor}">${status}</span>
           </div>
 
-          <div class="grid grid-cols-3 gap-2 py-2 border-y border-slate-50 text-center">
-            <div>
-              <p class="text-[10px] text-slate-400">เวลาเข้า - ออก</p>
-              <p class="text-xs font-bold text-slate-700 mt-0.5">${timeIn} - ${timeOut}</p>
-            </div>
-            <div>
-              <p class="text-[10px] text-slate-400">สาย (นาที)</p>
-              <p class="text-xs font-bold ${late > 0 ? 'text-amber-600' : 'text-slate-700'} mt-0.5">${late}</p>
-            </div>
-            <div>
-              <p class="text-[10px] text-slate-400">โอที (ชม.)</p>
-              <p class="text-xs font-bold ${ot > 0 ? 'text-blue-600' : 'text-slate-700'} mt-0.5">${ot.toFixed(1)}</p>
-            </div>
-          </div>
+          ${isLeaveDay
+            ? `<div class="flex items-center gap-2 py-3 border-y border-violet-50 bg-violet-50/40 rounded-lg px-2">
+                 <i class="fa-solid fa-bed text-violet-400 text-base"></i>
+                 <div class="flex-1">
+                   <p class="text-[10px] text-violet-600 font-bold">วันลา</p>
+                   <p class="text-xs text-slate-600 font-semibold">${status}</p>
+                 </div>
+                 ${leaveApproveBadge}
+               </div>`
+            : `<div class="grid grid-cols-3 gap-2 py-2 border-y border-slate-50 text-center">
+                 <div>
+                   <p class="text-[10px] text-slate-400">เวลาเข้า - ออก</p>
+                   <p class="text-xs font-bold text-slate-700 mt-0.5">${timeIn} - ${timeOut}</p>
+                 </div>
+                 <div>
+                   <p class="text-[10px] text-slate-400">สาย (นาที)</p>
+                   <p class="text-xs font-bold ${late > 0 ? 'text-amber-600' : 'text-slate-700'} mt-0.5">${late}</p>
+                 </div>
+                 <div>
+                   <p class="text-[10px] text-slate-400">โอที (ชม.)</p>
+                   <p class="text-xs font-bold ${ot > 0 ? 'text-blue-600' : 'text-slate-700'} mt-0.5">${ot.toFixed(1)}</p>
+                 </div>
+               </div>`
+          }
 
           <div class="flex items-center justify-between pt-1">
-            <span class="text-[9px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || "ปกติ"}</span>
+            ${isLeaveDay
+              ? `<span class="text-[9px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i>ติดต่อฝ่ายบุคคลเพื่อยกเลิกการลา</span>`
+              : `<span class="text-[9px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || "ปกติ"}</span>`
+            }
             ${requestButtonHtml}
           </div>
           ${correctionLabel}
