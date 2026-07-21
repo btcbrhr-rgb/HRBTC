@@ -1006,6 +1006,27 @@
                     </button>
                 </div>
             </div>
+
+            <!-- === 🆕 ตัวเลือกเลือกรอบบัญชีด้วยเดือนใน Header (ครอบคลุมทุกเมนู) === -->
+            <div id="global-cycle-switcher" class="mt-3.5 bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-2.5 space-y-1.5 shadow-inner">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-blue-100 uppercase tracking-wider"><i class="fa-solid fa-business-time mr-1"></i>เลือกรอบบัญชีทำงาน</span>
+                    <span id="global-cycle-range" class="text-[10px] text-white font-medium bg-white/15 px-2.5 py-0.5 rounded-full">...</span>
+                </div>
+                <div class="flex items-center justify-between bg-white rounded-xl p-1 shadow-sm">
+                    <button onclick="changeCalendarMonth(-1)"
+                        class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 active:scale-95 transition-all"
+                        title="เดือนก่อนหน้า" aria-label="เดือนก่อนหน้า">
+                        <i class="fa-solid fa-chevron-left text-xs"></i>
+                    </button>
+                    <span id="calendar-month-year-display" class="text-xs font-bold text-slate-800">พฤษภาคม 2569</span>
+                    <button onclick="changeCalendarMonth(1)"
+                        class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 active:scale-95 transition-all"
+                        title="เดือนถัดไป" aria-label="เดือนถัดไป">
+                        <i class="fa-solid fa-chevron-right text-xs"></i>
+                    </button>
+                </div>
+            </div>
         </header>
 
         <!-- === เนื้อหาแอปพลิเคชัน (Main Screen Container) === -->
@@ -1168,28 +1189,7 @@
             <!-- 2. ปฏิทินรอบบัญชี (Calendar Page) -->
             <!-- ============================================== -->
             <section id="page-calendar" class="hidden space-y-4">
-                <!-- กล่องฟิลเตอร์เลือกรอบบัญชีแบบ Month Switcher -->
-                <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
-                    <span class="block text-xs font-semibold text-slate-500">เลือกรอบบัญชีด้วยเดือน</span>
-                    <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-1.5">
-                        <button onclick="changeCalendarMonth(-1)"
-                            class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-200 text-slate-600 active:scale-95 transition-all"
-                            title="เดือนก่อนหน้า" aria-label="เดือนก่อนหน้า">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
-                        <span id="calendar-month-year-display" class="text-sm font-bold text-slate-800">พฤษภาคม
-                            2569</span>
-                        <button onclick="changeCalendarMonth(1)"
-                            class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-200 text-slate-600 active:scale-95 transition-all"
-                            title="เดือนถัดไป" aria-label="เดือนถัดไป">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
-                    </div>
-                    <p id="calendar-cycle-display"
-                        class="text-[11px] text-indigo-600 font-semibold bg-indigo-50/50 p-2 rounded-lg text-center flex items-center justify-center gap-1">
-                        <i class="fa-solid fa-calendar-days text-[10px]"></i> ช่วงรอบบัญชี: 26 เม.ย. 2569 - 25 พ.ค. 2569
-                    </p>
-                </div>
+
 
                 <!-- รายการเวลาเข้า-ออก และสถานะรายวัน -->
                 <div class="space-y-3">
@@ -4934,9 +4934,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     startYear -= 1;
                 }
                 const range = getCycleDateRange(startYear, startMonth);
-                const cycleDisplayEl = document.getElementById("calendar-cycle-display");
-                if (cycleDisplayEl) {
-                    cycleDisplayEl.innerHTML = `<i class="fa-solid fa-calendar-days text-[10px]"></i> ช่วงรอบบัญชี: ${formatThaiDate(range.start)} - ${formatThaiDate(range.end)}`;
+                const globalRangeEl = document.getElementById("global-cycle-range");
+                if (globalRangeEl) {
+                    globalRangeEl.textContent = `${formatThaiDate(range.start)} - ${formatThaiDate(range.end)}`;
                 }
 
                 // อัปเดต Label รอบบัญชีในหน้าแรก (Home) และหน้าสถิติ
@@ -5080,6 +5080,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 loginCont.classList.remove("hidden");
                 loginCont.classList.remove("opacity-0");
                 loginCont.classList.add("opacity-100");
+
+                // ซ่อนตัวเลือกเดือนเมื่อยังไม่ล็อกอิน
+                const switcher = document.getElementById("global-cycle-switcher");
+                if (switcher) switcher.classList.add("hidden");
             }
 
             function hideLoginContainer() {
@@ -5089,6 +5093,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const overlay = document.getElementById("login-loading-overlay");
                 if (overlay) overlay.classList.remove("visible");
                 loginCont.classList.add("opacity-0");
+
+                // แสดงตัวเลือกเดือนเมื่อล็อกอินสำเร็จแล้ว
+                const switcher = document.getElementById("global-cycle-switcher");
+                if (switcher) switcher.classList.remove("hidden");
+
                 setTimeout(() => {
                     loginCont.classList.add("hidden");
                     if (bottomNav) bottomNav.classList.remove("hidden");
@@ -5247,6 +5256,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 document.getElementById("admin-app").classList.add("hidden");
                 document.getElementById("app").classList.remove("hidden");
+
+                // ซ่อนตัวเลือกเดือนด้วย
+                const switcher = document.getElementById("global-cycle-switcher");
+                if (switcher) switcher.classList.add("hidden");
 
                 showToast("🔒 ออกจากระบบเรียบร้อยแล้ว", "success");
                 document.getElementById("login-emp-id").value = "";
@@ -8512,6 +8525,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 appContainer.classList.add("hidden");
                 adminContainer.classList.remove("hidden");
 
+                // ซ่อนตัวเลือกรอบบัญชีเมื่อเข้าโหมด Admin
+                const switcher = document.getElementById("global-cycle-switcher");
+                if (switcher) switcher.classList.add("hidden");
+
                 // อัปเดตข้อมูลผู้ใช้ในแถบเมนูแอดมิน
                 document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
                 document.getElementById("admin-profile-role").textContent = employeeData["สิทธิ์การใช้งาน"] || "Administrator";
@@ -8534,9 +8551,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const appContainer = document.getElementById("app");
                 const adminContainer = document.getElementById("admin-app");
 
+                const switcher = document.getElementById("global-cycle-switcher");
+
                 if (isAdminMode) {
                     appContainer.classList.add("hidden");
                     adminContainer.classList.remove("hidden");
+
+                    // ซ่อนตัวเลือกเดือนเมื่อเข้าโหมดแอดมิน
+                    if (switcher) switcher.classList.add("hidden");
 
                     // อัปเดตข้อมูลผู้ใช้ในแถบเมนูแอดมิน
                     document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
@@ -8548,6 +8570,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } else {
                     adminContainer.classList.add("hidden");
                     appContainer.classList.remove("hidden");
+
+                    // แสดงตัวเลือกเดือนเมื่อกลับสู่โหมดพนักงาน
+                    if (switcher) switcher.classList.remove("hidden");
+
                     showToast("📱 กลับสู่โหมดพนักงานทั่วไป", "info");
                     navigateTo("home");
                 }
