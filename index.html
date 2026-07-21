@@ -5246,13 +5246,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
                             const res = await fetchWithTimeout(SERVER_API_URL, {
                                 method: "POST",
-                                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                                body: new URLSearchParams({
+                                body: JSON.stringify({
                                     action: "savePin",
                                     empId: empId,
                                     idCardLast4: idCardLast4,
                                     pin: pin
-                                }).toString()
+                                })
                             });
 
                             if (res && res.status === "error") {
@@ -5260,10 +5259,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 return;
                             }
                             saveSuccess = true;
+                        } else {
+                            saveSuccess = true;
                         }
                     } catch (apiErr) {
                         console.warn("[savePin] API sync notice:", apiErr);
-                        // หากติดต่อเซิร์ฟเวอร์ไม่ได้ชั่วคราว ยอมให้เซ็ตในเครื่อง
                         saveSuccess = true;
                     }
 
@@ -5277,11 +5277,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         document.getElementById("pin-setup-confirm").value = "";
 
                         showToast("🔐 ยืนยันตัวตนและตั้งค่า PIN เรียบร้อยแล้ว", "success");
-                        proceedToMainApp();
+                        await proceedToMainApp();
                     }
-
-                    showToast("🔐 ตั้งค่าและบันทึก PIN เรียบร้อยแล้ว", "success");
-                    proceedToMainApp();
                 }, {
                     buttonId: "btn-submit-pin-setup",
                     activeLabel: "บันทึก PIN",
@@ -5383,12 +5380,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
                         const res = await fetchWithTimeout(SERVER_API_URL, {
                             method: "POST",
-                            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                            body: new URLSearchParams({
+                            body: JSON.stringify({
                                 action: "adminResetPin",
                                 adminId: currentEmployeeId || "admin",
                                 targetEmpId: empId
-                            }).toString()
+                            })
                         });
 
                         if (res && res.status === "error") {
