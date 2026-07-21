@@ -1153,76 +1153,11 @@
         }
 
         async function generatePDF() {
-            const element = document.getElementById('capture-target');
-            showToast("กำลังประมวลผล PDF...", "info");
-
-            const mmToPx = mm => Math.round(mm * 96 / 25.4);
-            const contentWidthMm = 210 - (8 + 8);
-            const A4_WIDTH_PX = mmToPx(contentWidthMm);
-
-            const clone = element.cloneNode(true);
-            copyFormValues(element, clone);
-            clone.classList.add('pdf-render');
-            clone.style.width = `${contentWidthMm}mm`;
-            clone.style.maxWidth = `${contentWidthMm}mm`;
-            clone.style.minHeight = 'auto';
-            clone.style.margin = '0';
-            clone.style.padding = '0';
-            clone.style.boxShadow = 'none';
-            clone.style.border = 'none';
-            clone.style.backgroundColor = '#ffffff';
-            const printableBlock = clone.querySelector('.printable-content');
-            if (printableBlock) {
-                printableBlock.style.transform = 'none';
-                printableBlock.style.transformOrigin = 'top center';
-            }
-
-            const wrapper = document.createElement('div');
-            wrapper.style.position = 'absolute';
-            wrapper.style.left = '-9999px';
-            wrapper.style.top = '0';
-            wrapper.style.opacity = '0';
-            wrapper.style.pointerEvents = 'none';
-            wrapper.style.width = `${contentWidthMm}mm`;
-            wrapper.style.height = 'auto';
-            wrapper.style.overflow = 'visible';
-            wrapper.style.zIndex = '-9999';
-            wrapper.appendChild(clone);
-            document.body.appendChild(wrapper);
-
-            await waitForImages(clone, 4000);
-            await new Promise(r => setTimeout(r, 260));
-
-            const elementHeightPx = Math.ceil(clone.getBoundingClientRect().height);
-            const options = {
-                margin:       [6, 8, 6, 8],
-                filename:     `Leave_Request_Form_${new Date().toISOString().slice(0,10)}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  {
-                    scale: Math.max(2, window.devicePixelRatio || 2),
-                    useCORS: true,
-                    letterRendering: false,
-                    scrollY: 0,
-                    scrollX: 0,
-                    width: A4_WIDTH_PX,
-                    height: elementHeightPx,
-                    backgroundColor: '#ffffff',
-                    allowTaint: true,
-                    dpi: 300
-                },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: ['css', 'legacy'], avoid: ['tr', 'img'] }
-            };
-
-            try {
-                await html2pdf().set(options).from(clone).save();
-                showToast("ดาวน์โหลด PDF สำเร็จ!", "success");
-            } catch (error) {
-                console.error("PDF generation error: ", error);
-                showToast("เกิดข้อผิดพลาดในการดาวน์โหลด PDF", "error");
-            } finally {
-                wrapper.remove();
-            }
+            showToast("กำลังเปิดหน้าต่างบันทึก PDF...", "info");
+            // Native print dialog handles 100% exact pixel-perfect A4 PDF rendering
+            setTimeout(() => {
+                window.print();
+            }, 300);
         }
     </script>
 </body>
