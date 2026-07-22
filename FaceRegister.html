@@ -392,6 +392,10 @@
     <!-- Camera stream -->
     <div class="camera-wrapper">
       <div id="hud-text" class="hud-guide">กำลังเตรียมความพร้อมของกล้อง...</div>
+      <!-- ปุ่มสลับกล้องหน้า/หลังสำหรับมือถือ -->
+      <button id="btn-toggle-camera" onclick="switchCameraSource()" style="position: absolute; bottom: 15px; right: 15px; z-index: 20; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; cursor: pointer; backdrop-filter: blur(5px); box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.2s;">
+        🔄
+      </button>
       <video id="webcam" autoplay muted playsinline></video>
       <canvas id="overlay-canvas"></canvas>
     </div>
@@ -474,15 +478,31 @@
     }
 
     // เริ่มสตรีมกล้อง
+    let currentFacingMode = 'user'; // 'user' = front, 'environment' = rear
     async function startCamera() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480, facingMode: 'user' },
+          video: { width: 640, height: 480, facingMode: currentFacingMode },
           audio: false
         });
         webcam.srcObject = localStream;
+        
+        // กลับภาพเฉพาะกล้องหน้าพนักงาน
+        if (currentFacingMode === 'user') {
+          webcam.style.transform = "scaleX(-1)";
+          canvas.style.transform = "scaleX(-1)";
+        } else {
+          webcam.style.transform = "none";
+          canvas.style.transform = "none";
+        }
+
         return new Promise((resolve) => {
           webcam.onloadedmetadata = () => {
+            canvas.width = webcam.videoWidth;
+            canvas.height = webcam.videoHeight;
             resolve(true);
           };
         });
@@ -490,6 +510,17 @@
         console.error(err);
         showToast('error', 'ไม่สามารถเข้าถึงกล้องถ่ายภาพได้ กรุณาให้สิทธิ์เข้าใช้งานกล้อง');
         return false;
+      }
+    }
+
+    async function switchCameraSource() {
+      currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+      hudText.textContent = 'กำลังสลับกล้อง...';
+      const success = await startCamera();
+      if (success) {
+        hudText.textContent = isRegistering ? 'กรุณามองตรงไปที่กล้อง' : 'สลับกล้องสำเร็จแล้ว';
+      } else {
+        hudText.textContent = 'สลับกล้องขัดข้อง';
       }
     }
 
