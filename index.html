@@ -13263,7 +13263,9 @@ ${slip.textSample}
         function loadSystemSettingsFromSheet() {
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings`, { timeout: 60000 })
+                    // 💡 ต้องส่ง empId ของ admin เพื่อผ่าน authorization check
+                    if (!currentEmployeeId) { console.warn('loadSystemSettingsFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`, { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && res.data) {
                                 systemSettings = Object.assign({}, systemSettings, res.data);
@@ -13298,6 +13300,8 @@ ${slip.textSample}
         function loadEmployeesFromSheet() {
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
+                    // 💡 ต้องมี currentEmployeeId เพื่อผ่าน isAdministrator check
+                    if (!currentEmployeeId) { console.warn('loadEmployeesFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
                     fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`, { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
@@ -13401,6 +13405,8 @@ ${slip.textSample}
         function loadAttendanceRecordsForCycle(start, end) {
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
+                    // 💡 ต้องมี adminId เพื่อผ่าน *ALL* admin check (บรรทัด 1156-1165 ใน Code.gs)
+                    if (!currentEmployeeId) { console.warn('loadAttendanceRecordsForCycle: skipped (no admin id)'); resolve([]); return; }
                     fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=*ALL*&adminId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`, { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
