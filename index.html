@@ -7675,7 +7675,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
           </div>
 
           <div class="pt-2 border-t border-slate-100 flex justify-end">
-            <button onclick='printLeaveRecord(${safeJson(docId)})' 
+            <button onclick='printLeaveRecord(${safeJson(l)})' 
               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-indigo-700 text-white text-[10px] font-semibold transition-all shadow-xs active:scale-95">
               <i class="fa-solid fa-file-pdf text-rose-400"></i> ดูใบลา / พิมพ์ PDF
             </button>
@@ -8042,6 +8042,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     if (!docId) {
                         return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
+                    }
+
+                    // Save the record to localStorage so the template can load it instantly!
+                    if (typeof recordOrDoc === 'object' && recordOrDoc) {
+                        localStorage.setItem('print_leave_data_' + docId, JSON.stringify(recordOrDoc));
+                    } else if (typeof recordOrDoc === 'string') {
+                        const found = (leaveRequestsList || []).find(l => {
+                            const currentId = l.docId || l.documentId || l['เลขที่เอกสาร'] || l['เลขที่'] || l['doc_no'] || l['document_no'] || l['id'];
+                            return String(currentId) === String(recordOrDoc);
+                        });
+                        if (found) {
+                            localStorage.setItem('print_leave_data_' + docId, JSON.stringify(found));
+                        }
                     }
 
                     // Use only docId in URL (standard flow). Template will fetch the record.
@@ -9205,7 +9218,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                   <td><span class="badge badge-pending">⏳ รออนุมัติ</span></td>
                   <td style="text-align:right">
                     <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
-                      <button onclick='printLeaveRecord(${safeJson(req["เลขที่เอกสาร"] || req["เลขที่"] || req.docId || req.documentId || req.doc_no || req.document_no || "")})' class="tbl-btn tbl-btn-print"><i class="fa-solid fa-print"></i> พิมพ์</button>
+                      <button onclick='printLeaveRecord(${safeJson(req)})' class="tbl-btn tbl-btn-print"><i class="fa-solid fa-print"></i> พิมพ์</button>
                       <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="tbl-btn tbl-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
                       <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="tbl-btn tbl-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                     </div>
