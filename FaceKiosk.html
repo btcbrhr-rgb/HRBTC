@@ -603,11 +603,25 @@
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
+      
+      let constraints = {
+        video: { facingMode: currentFacingMode },
+        audio: false
+      };
+      
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480, facingMode: currentFacingMode },
-          audio: false
-        });
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (firstErr) {
+        console.warn("Retrying with fallback constraints due to:", firstErr);
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (secondErr) {
+          console.error("Camera access failed completely:", secondErr);
+          return false;
+        }
+      }
+
+      try {
         webcam.srcObject = localStream;
         
         if (currentFacingMode === 'user') {

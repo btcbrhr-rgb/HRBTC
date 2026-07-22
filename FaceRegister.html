@@ -502,11 +502,28 @@
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
+      
+      // ข้อกำหนดกล้อง (Constraints)
+      let constraints = {
+        video: { facingMode: currentFacingMode },
+        audio: false
+      };
+      
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480, facingMode: currentFacingMode },
-          audio: false
-        });
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (firstErr) {
+        console.warn("Retrying with fallback constraints due to:", firstErr);
+        try {
+          // Fallback 1: หากขอความละเอียดเฉพาะเจาะจง หรือกล้องหลังตัวนั้นไม่มี ให้ใช้แบบทั่วไป
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (secondErr) {
+          console.error("Camera access failed completely:", secondErr);
+          showToast('error', 'ไม่สามารถเข้าถึงกล้องถ่ายภาพได้: ' + secondErr.message);
+          return false;
+        }
+      }
+
+      try {
         webcam.srcObject = localStream;
         
         // กลับภาพเฉพาะกล้องหน้าพนักงาน
@@ -529,7 +546,6 @@
         });
       } catch (err) {
         console.error(err);
-        showToast('error', 'ไม่สามารถเข้าถึงกล้องถ่ายภาพได้ กรุณาให้สิทธิ์เข้าใช้งานกล้อง');
         return false;
       }
     }
