@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ลงทะเบียนใบหน้าพนักงาน - Face Register</title>
+  <!-- Google Fonts & Tailwind-like CSS variables -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- TensorFlow.js and Face-API.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --primary-light: #EEF2FF;
+      --success: #10B981;
+      --success-light: #ECFDF5;
+      --danger: #EF4444;
+      --dark: #1E293B;
+      --light: #F8FAFC;
+      --border: #E2E8F0;
+      --font-family: 'Outfit', 'Sarabun', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background: radial-gradient(circle at 10% 20%, rgba(242, 235, 243, 0.5) 0%, rgba(228, 237, 246, 0.5) 90.1%);
+      color: var(--dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 680px;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+      margin-top: 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+
+    header p {
+      font-size: 14px;
+      color: #64748B;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--dark);
+    }
+
+    select, input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: var(--font-family);
+      background-color: white;
+      transition: all 0.2s;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    }
+
+    /* Camera Area */
+    .camera-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      height: 360px;
+      margin: 0 auto 25px;
+      border-radius: 20px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      border: 4px solid white;
+    }
+
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirror view */
+    }
+
+    #overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1); /* Mirror canvas to match video */
+      pointer-events: none;
+    }
+
+    /* Guide HUD Overlay */
+    .hud-guide {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      right: 15px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px 15px;
+      border-radius: 12px;
+      font-size: 14px;
+      text-align: center;
+      font-weight: 500;
+      backdrop-filter: blur(4px);
+      z-index: 10;
+      transition: all 0.3s;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* HUD Steps indicator */
+    .steps-container {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 25px;
+    }
+
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      position: relative;
+    }
+
+    .step-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: calc(50% + 20px);
+      right: calc(-50% + 20px);
+      height: 2px;
+      background: var(--border);
+      z-index: 1;
+    }
+
+    .step-item.active:not(:last-child)::after {
+      background: var(--primary);
+    }
+
+    .step-item.success:not(:last-child)::after {
+      background: var(--success);
+    }
+
+    .step-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748B;
+      margin-bottom: 6px;
+      z-index: 2;
+      transition: all 0.3s;
+    }
+
+    .step-item.active .step-circle {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+    }
+
+    .step-item.success .step-circle {
+      border-color: var(--success);
+      background: var(--success-light);
+      color: var(--success);
+    }
+
+    .step-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #64748B;
+    }
+
+    .step-item.active .step-label {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .step-item.success .step-label {
+      color: var(--success);
+    }
+
+    /* Actions and Buttons */
+    .actions-panel {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    button {
+      flex: 1;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font-family);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      box-shadow: 0 8px 16px rgba(79, 70, 229, 0.25);
+    }
+
+    .btn-primary:disabled {
+      background: #CBD5E1;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #E2E8F0;
+      color: var(--dark);
+      max-width: 150px;
+    }
+
+    .btn-secondary:hover {
+      background: #CBD5E1;
+    }
+
+    /* Status Bar */
+    .status-toast {
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 20px;
+      display: none;
+      text-align: center;
+      animation: fadeIn 0.3s;
+    }
+
+    .status-toast.success {
+      display: block;
+      background: var(--success-light);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .status-toast.error {
+      display: block;
+      background: #FEF2F2;
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .status-toast.info {
+      display: block;
+      background: #F0F9FF;
+      color: #0369A1;
+      border: 1px solid rgba(14, 165, 233, 0.2);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>🧬 ระบบลงทะเบียนใบหน้าพนักงาน</h1>
+      <p>สแกนใบหน้าครบ 3 มุมมองเพื่อประสิทธิภาพสูงสุดในการรู้จำ</p>
+    </header>
+
+    <div id="toast" class="status-toast info">กำลังโหลดโมเดลปัญญาประดิษฐ์ (AI Models)... กรุณารอสักครู่</div>
+
+    <!-- ค้นหาพนักงาน -->
+    <div class="form-group">
+      <label for="employee-select">เลือกรหัสพนักงานเพื่อผูกใบหน้า</label>
+      <select id="employee-select" disabled>
+        <option value="">-- โหลดรายชื่อพนักงาน... --</option>
+      </select>
+    </div>
+
+    <!-- HUD Step Bar -->
+    <div class="steps-container">
+      <div id="hud-step-1" class="step-item active">
+        <div class="step-circle">1</div>
+        <div class="step-label">มองตรง</div>
+      </div>
+      <div id="hud-step-2" class="step-item">
+        <div class="step-circle">2</div>
+        <div class="step-label">หันซ้าย</div>
+      </div>
+      <div id="hud-step-3" class="step-item">
+        <div class="step-circle">3</div>
+        <div class="step-label">หันขวา</div>
+      </div>
+    </div>
+
+    <!-- Camera stream -->
+    <div class="camera-wrapper">
+      <div id="hud-text" class="hud-guide">กำลังเตรียมความพร้อมของกล้อง...</div>
+      <video id="webcam" autoplay muted playsinline></video>
+      <canvas id="overlay-canvas"></canvas>
+    </div>
+
+    <!-- Action panel -->
+    <div class="actions-panel">
+      <button id="btn-back" class="btn-secondary" onclick="window.history.back()">ย้อนกลับ</button>
+      <button id="btn-start" class="btn-primary" disabled onclick="startRegistrationFlow()">
+        <span id="btn-text">เริ่มสแกนลงทะเบียน</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const webcam = document.getElementById('webcam');
+    const canvas = document.getElementById('overlay-canvas');
+    const toast = document.getElementById('toast');
+    const hudText = document.getElementById('hud-text');
+    const employeeSelect = document.getElementById('employee-select');
+    const btnStart = document.getElementById('btn-start');
+    const btnText = document.getElementById('btn-text');
+
+    let modelsLoaded = false;
+    let localStream = null;
+    let faceDetectionInterval = null;
+    let isRegistering = false;
+    
+    // สถานะขั้นตอนการเก็บ Vector
+    let currentStep = 0; // 0 = ยังไม่เริ่ม, 1 = มองตรง, 2 = หันซ้าย, 3 = หันขวา
+    let descriptorsCollected = {
+      straight: null,
+      left: null,
+      right: null
+    };
+
+    // 1. โหลดโมเดล Face-API.js
+    async function loadModels() {
+      showToast('info', 'กำลังดาวน์โหลด AI Models (ประมาณ 5MB)...');
+      try {
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        
+        modelsLoaded = true;
+        showToast('success', 'ดาวน์โหลด AI Models สำเร็จแล้ว');
+        hudText.textContent = 'เลือกพนักงานและกด "เริ่มสแกนลงทะเบียน"';
+        loadEmployeeList();
+      } catch (err) {
+        console.error(err);
+        showToast('error', 'ไม่สามารถดาวน์โหลด AI Models ได้ กรุณาเชื่อมต่ออินเทอร์เน็ตใหม่');
+      }
+    }
+
+    // โหลดรายชื่อพนักงาน
+    function loadEmployeeList() {
+      google.script.run
+        .withSuccessHandler(function(response) {
+          if (response.status === 'success') {
+            employeeSelect.innerHTML = '<option value="">-- กรุณาเลือกพนักงาน --</option>';
+            response.data.forEach(function(emp) {
+              const opt = document.createElement('option');
+              opt.value = emp.empId;
+              opt.textContent = `${emp.empId} - ${emp.name} (${emp.dept || 'ไม่ระบุแผนก'})`;
+              employeeSelect.appendChild(opt);
+            });
+            employeeSelect.disabled = false;
+            btnStart.disabled = false;
+          } else {
+            showToast('error', 'โหลดรายชื่อพนักงานไม่สำเร็จ: ' + response.message);
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('error', 'เชื่อมต่อระบบไม่สำเร็จ: ' + err.message);
+        })
+        .adminGetAllEmployees(); // เรียกจาก Code.gs
+    }
+
+    // เริ่มสตรีมกล้อง
+    async function startCamera() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' },
+          audio: false
+        });
+        webcam.srcObject = localStream;
+        return new Promise((resolve) => {
+          webcam.onloadedmetadata = () => {
+            resolve(true);
+          };
+        });
+      } catch (err) {
+        console.error(err);
+        showToast('error', 'ไม่สามารถเข้าถึงกล้องถ่ายภาพได้ กรุณาให้สิทธิ์เข้าใช้งานกล้อง');
+        return false;
+      }
+    }
+
+    function stopCamera() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      if (faceDetectionInterval) {
+        clearInterval(faceDetectionInterval);
+      }
+    }
+
+    // เริ่ม Flow ลงทะเบียน
+    async function startRegistrationFlow() {
+      const empId = employeeSelect.value;
+      if (!empId) {
+        showToast('error', 'กรุณาเลือกพนักงานก่อนลงทะเบียน');
+        return;
+      }
+
+      btnStart.disabled = true;
+      employeeSelect.disabled = true;
+      isRegistering = true;
+
+      const cameraReady = await startCamera();
+      if (!cameraReady) {
+        btnStart.disabled = false;
+        employeeSelect.disabled = false;
+        isRegistering = false;
+        return;
+      }
+
+      // ปรับขนาดแคนวาสซ้อนทับกล้อง
+      canvas.width = webcam.videoWidth;
+      canvas.height = webcam.videoHeight;
+
+      // รีเซ็ตขั้นตอนสแกน
+      currentStep = 1;
+      descriptorsCollected = { straight: null, left: null, right: null };
+      updateStepUI();
+
+      // เริ่มสแกนเรียลไทม์
+      runFaceTracking();
+    }
+
+    // ฟังก์ชันรันกล้องและหาเฟซเวกเตอร์
+    function runFaceTracking() {
+      const displaySize = { width: webcam.videoWidth, height: webcam.videoHeight };
+      faceapi.matchDimensions(canvas, displaySize);
+
+      faceDetectionInterval = setInterval(async () => {
+        if (!isRegistering) return;
+
+        // คำนวณตรวจจับใบหน้า
+        const detection = await faceapi.detectSingleFace(webcam)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (detection) {
+          // วาดกรอบใบหน้า
+          const resizedDetections = faceapi.resizeResults(detection, displaySize);
+          faceapi.draw.drawDetections(canvas, resizedDetections);
+
+          // วิเคราะห์ท่าทาง (Head Pose Analysis จากจุดบนใบหน้า)
+          const landmarks = detection.landmarks;
+          const nose = landmarks.getNose();
+          const leftEye = landmarks.getLeftEye();
+          const rightEye = landmarks.getRightEye();
+          const jawOutline = landmarks.getJawOutline();
+
+          // คำนวณแกนกลางใบหน้าคร่าวๆ
+          const jawLeft = jawOutline[0];
+          const jawRight = jawOutline[16];
+          const faceWidth = Math.abs(jawRight.x - jawLeft.x);
+          const noseTip = nose[3]; // ปลายจมูก
+          
+          // ดูระยะห่างปลายจมูกไปยังขอบหน้าซ้ายและขวา
+          const noseToLeftDist = Math.abs(noseTip.x - jawLeft.x);
+          const noseToRightDist = Math.abs(noseTip.x - jawRight.x);
+          
+          // คำนวณอัตราส่วนการเบี่ยง
+          const poseRatio = noseToLeftDist / faceWidth;
+
+          if (currentStep === 1) {
+            hudText.textContent = 'มองตรง: ค้างไว้นิ่งๆ ในกรอบสแกน...';
+            // หน้าตรง (อัตราส่วนจมูกอยู่กึ่งกลางใกล้ 0.5)
+            if (poseRatio > 0.43 && poseRatio < 0.57) {
+              descriptorsCollected.straight = Array.from(detection.descriptor);
+              showToast('success', 'เก็บมุมมองหน้าตรงสำเร็จแล้ว!');
+              currentStep = 2;
+              updateStepUI();
+            }
+          } 
+          else if (currentStep === 2) {
+            hudText.textContent = 'กรุณาหันหน้าไปทางซ้ายเล็กน้อย ⬅️';
+            // หันซ้าย (จมูกขยับเข้าใกล้ขอบแก้มซ้าย)
+            if (poseRatio <= 0.40) {
+              descriptorsCollected.left = Array.from(detection.descriptor);
+              showToast('success', 'เก็บมุมมองหันซ้ายสำเร็จแล้ว!');
+              currentStep = 3;
+              updateStepUI();
+            }
+          } 
+          else if (currentStep === 3) {
+            hudText.textContent = 'กรุณาหันหน้าไปทางขวาเล็กน้อย ➡️';
+            // หันขวา (จมูกขยับเข้าใกล้ขอบแก้มขวา)
+            if (poseRatio >= 0.60) {
+              descriptorsCollected.right = Array.from(detection.descriptor);
+              showToast('success', 'เก็บมุมมองหันขวาสำเร็จแล้ว!');
+              
+              // จบภารกิจสแกนครบ 3 มิติ
+              isRegistering = false;
+              clearInterval(faceDetectionInterval);
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              hudText.textContent = 'บันทึกภาพครบแล้ว กำลังอัปโหลดข้อมูลเข้าระบบ...';
+              
+              uploadFaceData();
+            }
+          }
+        } else {
+          hudText.textContent = 'ไม่พบใบหน้าในกรอบสแกน กรุณาจัดระเบียบหน้าให้อยู่ในกล้อง';
+        }
+      }, 300);
+    }
+
+    // แสดงขั้นตอน HUD
+    function updateStepUI() {
+      // รีเซ็ต UI ขั้นตอนทั้งหมด
+      document.querySelectorAll('.step-item').forEach(item => {
+        item.className = 'step-item';
+      });
+
+      if (currentStep === 1) {
+        document.getElementById('hud-step-1').className = 'step-item active';
+      } else if (currentStep === 2) {
+        document.getElementById('hud-step-1').className = 'step-item success';
+        document.getElementById('hud-step-2').className = 'step-item active';
+      } else if (currentStep === 3) {
+        document.getElementById('hud-step-1').className = 'step-item success';
+        document.getElementById('hud-step-2').className = 'step-item success';
+        document.getElementById('hud-step-3').className = 'step-item active';
+      } else if (currentStep > 3) {
+        document.getElementById('hud-step-1').className = 'step-item success';
+        document.getElementById('hud-step-2').className = 'step-item success';
+        document.getElementById('hud-step-3').className = 'step-item success';
+      }
+    }
+
+    // อัปโหลด เวกเตอร์ เข้าชีต Google Sheets
+    function uploadFaceData() {
+      showToast('info', 'กำลังส่งข้อมูลใบหน้าเพื่อเก็บบันทึกลงในระบบ...');
+      btnText.innerHTML = '<span class="spinner"></span>กำลังบันทึกข้อมูล...';
+      
+      const payload = {
+        empId: employeeSelect.value,
+        descriptors: descriptorsCollected,
+        updatedBy: 'Admin (FaceRegister)'
+      };
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          stopCamera();
+          btnText.textContent = 'เริ่มสแกนลงทะเบียน';
+          btnStart.disabled = false;
+          employeeSelect.disabled = false;
+          currentStep = 0;
+          updateStepUI();
+
+          if (response.status === 'success') {
+            showToast('success', response.message);
+            hudText.textContent = 'บันทึกและเปิดสแกนพนักงานรายถัดไปได้ทันที';
+          } else {
+            showToast('error', 'ล้มเหลว: ' + response.message);
+            hudText.textContent = 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+          }
+        })
+        .withFailureHandler(function(err) {
+          stopCamera();
+          btnText.textContent = 'เริ่มสแกนลงทะเบียน';
+          btnStart.disabled = false;
+          employeeSelect.disabled = false;
+          showToast('error', 'ระบบขัดข้อง: ' + err.message);
+          hudText.textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อบันทึกข้อมูลได้';
+        })
+        .saveFaceDescriptor(payload);
+    }
+
+    function showToast(type, msg) {
+      toast.className = 'status-toast ' + type;
+      toast.textContent = msg;
+    }
+
+    // เริ่มต้นระบบเมื่อเปิดหน้าเว็บ
+    window.onload = function() {
+      loadModels();
+    };
+  </script>
+</body>
+</html>

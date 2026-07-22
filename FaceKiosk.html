@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบลงเวลางานสแกนใบหน้า - Face Kiosk Portal</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- TensorFlow.js and Face-API.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-light: #EEF2FF;
+      --success: #10B981;
+      --success-light: #ECFDF5;
+      --danger: #EF4444;
+      --dark: #0F172A;
+      --gray: #64748B;
+      --border: #E2E8F0;
+      --font-family: 'Outfit', 'Sarabun', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background: #090D1A;
+      color: #F8FAFC;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    .kiosk-container {
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 30px;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 32px;
+      padding: 30px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    @media(max-width: 768px) {
+      .kiosk-container {
+        grid-template-columns: 1fr;
+        padding: 20px;
+      }
+    }
+
+    /* Left panel: Camera stream */
+    .viewport-panel {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .camera-box {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #020617;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+    }
+
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    #overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+      pointer-events: none;
+    }
+
+    /* HUD overlay target frame */
+    .hud-scanner-target {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60%;
+      height: 70%;
+      border: 2px dashed rgba(255,255,255,0.3);
+      border-radius: 120px;
+      pointer-events: none;
+      z-index: 5;
+      box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.4);
+      transition: border-color 0.3s;
+    }
+
+    .scanning .hud-scanner-target {
+      border-color: var(--primary);
+      animation: pulseBorder 1.5s infinite ease-in-out;
+    }
+
+    .success-match .hud-scanner-target {
+      border-color: var(--success);
+      box-shadow: 0 0 0 9999px rgba(16, 185, 129, 0.15), 0 0 25px rgba(16, 185, 129, 0.5);
+      border-style: solid;
+    }
+
+    @keyframes pulseBorder {
+      0% { opacity: 0.5; box-shadow: 0 0 0 9999px rgba(79, 70, 229, 0.1); }
+      50% { opacity: 1; box-shadow: 0 0 0 9999px rgba(79, 70, 229, 0.3); }
+      100% { opacity: 0.5; box-shadow: 0 0 0 9999px rgba(79, 70, 229, 0.1); }
+    }
+
+    /* Status Label inside camera viewport */
+    .hud-status-badge {
+      position: absolute;
+      bottom: 20px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #F1F5F9;
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      backdrop-filter: blur(8px);
+      z-index: 10;
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Right panel: Information */
+    .info-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .system-title {
+      margin-bottom: 20px;
+    }
+
+    .system-title h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 5px;
+    }
+
+    .system-title p {
+      color: var(--gray);
+      font-size: 13px;
+    }
+
+    /* Success Info Card */
+    .result-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 25px;
+      text-align: center;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+      margin-bottom: 20px;
+    }
+
+    .result-card.success {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .status-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      margin-bottom: 15px;
+    }
+
+    .success .status-icon {
+      background: var(--success);
+      color: white;
+      animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes bounceIn {
+      from { transform: scale(0.3); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .result-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 5px;
+    }
+
+    .result-details {
+      color: var(--gray);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Live Clock */
+    .kiosk-clock {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: white;
+      text-align: center;
+      padding: 10px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 14px;
+      margin-bottom: 20px;
+    }
+
+    .kiosk-clock span {
+      color: var(--primary);
+    }
+
+    /* Settings and Buttons */
+    .kiosk-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .kiosk-select {
+      background: #1E293B;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 12px;
+      border-radius: 12px;
+      width: 100%;
+      font-family: var(--font-family);
+      font-size: 14px;
+    }
+
+    /* Loading Overlay spinner */
+    .kiosk-loader {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #090D1A;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 32px;
+      z-index: 100;
+      transition: opacity 0.5s;
+    }
+
+    .spinner-large {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255,255,255,0.1);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 1s infinite linear;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Audio components */
+    #sound-success, #sound-error {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Kiosk Main Frame -->
+  <div class="kiosk-container">
+    
+    <!-- Loader Screen (Loding AI weights and descriptors) -->
+    <div id="kiosk-loader" class="kiosk-loader">
+      <div class="spinner-large"></div>
+      <h3 style="margin-bottom: 8px;">ดาวน์โหลดปัญญาประดิษฐ์และฐานข้อมูลใบหน้า...</h3>
+      <p id="loader-status" style="color: var(--gray); font-size: 14px;">เชื่อมต่อระบบ...</p>
+    </div>
+
+    <!-- Left Camera Panel -->
+    <div class="viewport-panel">
+      <div class="camera-box id-scan-box" id="camera-box">
+        <div class="hud-scanner-target"></div>
+        <video id="webcam" autoplay muted playsinline></video>
+        <canvas id="overlay-canvas"></canvas>
+      </div>
+      <div id="hud-status" class="hud-status-badge">
+        <span class="spinner-large" style="width:14px; height:14px; margin-bottom:0; border-width:2px;"></span>
+        <span>ระบบกำลังค้นหาใบหน้า...</span>
+      </div>
+    </div>
+
+    <!-- Right Control Panel -->
+    <div class="info-panel">
+      <div class="system-title" style="position: relative;">
+        <h1>📸 Face Kiosk Portal</h1>
+        <p>เปิดระบบสแกนใบหน้าลงเวลากลางส่วนกลาง ค้างไว้เพื่อความพร้อมใช้งาน</p>
+        <button id="btn-admin-config" style="position: absolute; top: 0; right: 0; background: none; border: none; font-size: 20px; color: var(--gray); cursor: pointer; padding: 5px; flex: none; width: auto;" onclick="openConfigModal()">⚙️</button>
+      </div>
+
+      <!-- Clock -->
+      <div class="kiosk-clock" id="kiosk-clock">
+        00:00:00 <span>น.</span>
+      </div>
+
+      <!-- Active Project Info Banner -->
+      <div id="project-banner" style="background: rgba(79, 70, 229, 0.15); border: 1px solid rgba(79, 70, 229, 0.3); padding: 12px; border-radius: 12px; text-align: center; font-size: 14px; font-weight: 600; color: #818CF8; margin-bottom: 15px;">
+        📍 ประจำหน้างาน: <span id="lbl-active-project">ยังไม่ได้ระบุโครงการ</span>
+      </div>
+
+      <!-- Result Card -->
+      <div id="result-card" class="result-card">
+        <div id="result-icon" class="status-icon">👤</div>
+        <div id="result-name" class="result-name">สแตนด์บาย</div>
+        <div id="result-details" class="result-details">
+          กรุณาขยับหน้าเข้ามาใกล้กล้องหน้าตรงเพื่อสแกนลงบันทึกเวลางาน
+        </div>
+      </div>
+
+      <!-- Settings / Options -->
+      <div class="kiosk-footer">
+        <select id="mode-select" class="kiosk-select">
+          <option value="AUTO">ลงเวลาทำงานอัตโนมัติ (AUTO)</option>
+          <option value="เข้างาน">ลงเวลาเข้างานเท่านั้น (CHECK-IN)</option>
+          <option value="ออกงาน">ลงเวลาออกงานเท่านั้น (CHECK-OUT)</option>
+        </select>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Admin/Setup Modal สำหรับล็อกโครงการ -->
+  <div id="config-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div style="background: #1E293B; border: 1px solid rgba(255,255,255,0.1); padding: 30px; border-radius: 20px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);">
+      <h2 style="color: white; font-size: 18px; font-weight: 700; margin-bottom: 15px; text-align: center;">⚙️ ตั้งค่าโครงการ / จุดติดตั้งสแกน</h2>
+      
+      <!-- ขั้นตอนที่ 1: ตรวจรหัสผ่าน Admin -->
+      <div id="sec-password-check">
+        <p style="color: var(--gray); font-size: 13px; margin-bottom: 12px; text-align: center;">กรุณาป้อนรหัส PIN 6 หลักเพื่อเข้าการตั้งค่า</p>
+        <input type="password" id="admin-pin-input" maxlength="6" placeholder="รหัส PIN 6 หลัก" style="text-align: center; font-size: 20px; letter-spacing: 5px; margin-bottom: 20px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.15);">
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-secondary" onclick="closeConfigModal()" style="flex: 1;">ยกเลิก</button>
+          <button class="btn-primary" onclick="verifyAdminPin()" style="flex: 1;">ยืนยัน</button>
+        </div>
+      </div>
+
+      <!-- ขั้นตอนที่ 2: เลือกโครงการและเซฟ -->
+      <div id="sec-project-lock" style="display: none;">
+        <label style="color: #94A3B8; font-size: 13px; display: block; margin-bottom: 8px;">ระบุโครงการ/หน้างานที่จะล็อกการลงเวลา</label>
+        <select id="project-select" class="kiosk-select" style="margin-bottom: 20px; font-size: 15px; padding: 12px;"></select>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-secondary" onclick="closeConfigModal()" style="flex: 1;">ปิด</button>
+          <button class="btn-primary" onclick="saveProjectLockSetting()" style="flex: 1;">บันทึกและล็อก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio feedbacks -->
+  <audio id="sound-success" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav" preload="auto"></audio>
+
+  <script>
+    const webcam = document.getElementById('webcam');
+    const canvas = document.getElementById('overlay-canvas');
+    const kioskLoader = document.getElementById('kiosk-loader');
+    const loaderStatus = document.getElementById('loader-status');
+    const hudStatus = document.getElementById('hud-status');
+    const cameraBox = document.getElementById('camera-box');
+    
+    const resultCard = document.getElementById('result-card');
+    const resultIcon = document.getElementById('result-icon');
+    const resultName = document.getElementById('result-name');
+    const resultDetails = document.getElementById('result-details');
+    
+    const modeSelect = document.getElementById('mode-select');
+    const projectSelect = document.getElementById('project-select');
+    const soundSuccess = document.getElementById('sound-success');
+
+    let faceDatabase = [];
+    let localStream = null;
+    let mainInterval = null;
+    let isProcessingMatch = false; // ป้องกันการส่งข้อมูลลงเวลาซ้อนในขณะทำ API call
+    let lastMatchedEmpId = "";
+    let lastMatchedTime = 0; // cooldown ป้องกันพนักงานคนเดิมสแกนซ้ำภายใน 30 วินาที
+
+    // 1. นาฬิกาแบบ Realtime
+    function updateClock() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('th-TH', { hour12: false });
+      document.getElementById('kiosk-clock').innerHTML = timeString + ' <span>น.</span>';
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // --- ⚙️ ฟังก์ชันตั้งค่าและล็อกโครงการ ---
+    const activeProjectLabel = document.getElementById('lbl-active-project');
+    const configModal = document.getElementById('config-modal');
+    const secPasswordCheck = document.getElementById('sec-password-check');
+    const secProjectLock = document.getElementById('sec-project-lock');
+    const adminPinInput = document.getElementById('admin-pin-input');
+    let lockedProject = localStorage.getItem('face_kiosk_locked_project') || "";
+
+    function updateProjectUI() {
+      if (lockedProject) {
+        activeProjectLabel.textContent = lockedProject;
+        activeProjectLabel.style.color = '#34D399'; // สีเขียวสว่าง แสดงสถานะล็อกสำเร็จ
+      } else {
+        activeProjectLabel.textContent = "ยังไม่ได้ล็อกโครงการ (กรุณากดไอคอนฟันเฟืองเพื่อล็อก)";
+        activeProjectLabel.style.color = '#F87171'; // สีแดงแจ้งเตือน
+      }
+    }
+
+    function openConfigModal() {
+      adminPinInput.value = "";
+      secPasswordCheck.style.display = "block";
+      secProjectLock.style.display = "none";
+      configModal.style.display = "flex";
+    }
+
+    function closeConfigModal() {
+      configModal.style.display = "none";
+    }
+
+    // ตรวจสอบ PIN 6 หลักในการเข้าตั้งค่าโครงการ (ความปลอดภัย)
+    function verifyAdminPin() {
+      const pin = adminPinInput.value;
+      if (pin === "123456" || pin === "999999") { // ตัวอย่างรหัส PIN ล็อกเครื่องชั่วคราว หรือใช้ของบริษัท
+        secPasswordCheck.style.display = "none";
+        secProjectLock.style.display = "block";
+        // ดึงรายชื่อโครงการใส่ select
+        if (projectSelect.options.length > 0) {
+          projectSelect.value = lockedProject || projectSelect.options[0].value;
+        }
+      } else {
+        alert("รหัส PIN ไม่ถูกต้อง!");
+      }
+    }
+
+    function saveProjectLockSetting() {
+      const selectedProj = projectSelect.value;
+      if (!selectedProj) {
+        alert("กรุณาเลือกโครงการก่อนบันทึก");
+        return;
+      }
+      lockedProject = selectedProj;
+      localStorage.setItem('face_kiosk_locked_project', lockedProject);
+      updateProjectUI();
+      closeConfigModal();
+    }
+
+    // 2. โหลดโมเดลและข้อมูล Database พร้อมกัน
+    async function initKiosk() {
+      updateProjectUI();
+      try {
+        loaderStatus.textContent = 'ดาวน์โหลดปัญญาประดิษฐ์จาก Cloud...';
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
+        loaderStatus.textContent = 'เชื่อมต่อฐานข้อมูลชีตพนักงานและประวัติใบหน้า...';
+        
+        // ดึงโครงการ
+        google.script.run
+          .withSuccessHandler(function(projRes) {
+            if(projRes.status === 'success') {
+              projectSelect.innerHTML = '';
+              projRes.data.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p['ชื่อโครงการ'] || p.name;
+                opt.textContent = p['ชื่อโครงการ'] || p.name;
+                projectSelect.appendChild(opt);
+              });
+              // เซ็ตโครงการที่บันทึกไว้ในอดีต (ถ้ามี)
+              if (lockedProject) {
+                projectSelect.value = lockedProject;
+              }
+            }
+          }).getProjects();
+
+        // ดึงโมเดลข้อมูลใบหน้า
+        google.script.run
+          .withSuccessHandler(async function(dbResponse) {
+            if (dbResponse.status === 'success') {
+              faceDatabase = dbResponse.data;
+              loaderStatus.textContent = `พบข้อมูลใบหน้าพนักงานลงทะเบียนแล้ว ${faceDatabase.length} คน`;
+              
+              // เปิดกล้องเว็บแคม
+              const cameraReady = await startCamera();
+              if (cameraReady) {
+                kioskLoader.style.opacity = '0';
+                setTimeout(() => kioskLoader.style.display = 'none', 500);
+                startKioskFaceMonitoring();
+              } else {
+                loaderStatus.textContent = 'ไม่สามารถใช้กล้องบนอุปกรณ์นี้ได้!';
+              }
+            } else {
+              loaderStatus.textContent = 'ล้มเหลว: ' + dbResponse.message;
+            }
+          })
+          .withFailureHandler(function(err) {
+            loaderStatus.textContent = 'ขัดข้อง: ' + err.message;
+          })
+          .getFaceDatabase();
+
+      } catch (err) {
+        console.error(err);
+        loaderStatus.textContent = 'เกิดข้อผิดพลาดรุนแรง: ' + err.message;
+      }
+    }
+
+    // 3. เริ่มสตรีมมิ่งกล้องเว็บแคม
+    async function startCamera() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' },
+          audio: false
+        });
+        webcam.srcObject = localStream;
+        return new Promise((resolve) => {
+          webcam.onloadedmetadata = () => {
+            canvas.width = webcam.videoWidth;
+            canvas.height = webcam.videoHeight;
+            resolve(true);
+          };
+        });
+      } catch (err) {
+        console.error(err);
+        return false;
+      }
+    }
+
+    // 4. สแกนประมวลผลกล้อง Realtime
+    function startKioskFaceMonitoring() {
+      const displaySize = { width: webcam.videoWidth, height: webcam.videoHeight };
+      faceapi.matchDimensions(canvas, displaySize);
+      cameraBox.classList.add('scanning');
+
+      mainInterval = setInterval(async () => {
+        if (isProcessingMatch) return; // หากกำลังอัปโหลดเวลา ให้ข้ามการประมวลผลก่อน
+
+        // ตรวจหาใบหน้าเพียงใบหน้าเดียวในกล้อง
+        const detection = await faceapi.detectSingleFace(webcam)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (detection) {
+          hudStatus.innerHTML = '<span style="color:var(--primary)">🟢 พบใบหน้าในกล้อง... วิเคราะห์อัตลักษณ์</span>';
+          
+          // วาดกรอบใบหน้า
+          const resizedDetections = faceapi.resizeResults(detection, displaySize);
+          faceapi.draw.drawDetections(canvas, resizedDetections);
+
+          // ทำการ Matching ใบหน้ากับ Database
+          if (faceDatabase.length > 0) {
+            const matchResult = findBestMatchInDatabase(detection.descriptor);
+            
+            if (matchResult && matchResult.distance < 0.45) { // Threshold ความแม่นยำในการเทียบเคียง (ต่ำ = เข้มงวดสูง)
+              const empId = matchResult.empId;
+              const nowTime = Date.now();
+
+              // ตรวจสอบ Cooldown ป้องกันลงเวลาซ้ำใน 20 วินาที
+              if (empId === lastMatchedEmpId && (nowTime - lastMatchedTime) < 20000) {
+                hudStatus.innerHTML = `<span>⚠️ ${matchResult.name} ลงเวลาแล้ว (ป้องกันสแกนซ้ำชั่วคราว)</span>`;
+                return;
+              }
+
+              // ผ่านเงื่อนไข -> สั่งลงเวลางานฝั่ง Backend
+              isProcessingMatch = true;
+              triggerAttendanceCheckin(empId, matchResult.name);
+            }
+          }
+        } else {
+          hudStatus.innerHTML = '<span>🔍 ค้นหาใบหน้า... กรุณายืนหน้าตรงในกรอบ</span>';
+        }
+      }, 500); // วนลูปเช็คทุกครึ่งวินาที
+    }
+
+    // 5. เทียบข้อมูลใบหน้าที่ตรวจพบกับ Descriptors ทั้งหมดใน Database
+    function findBestMatchInDatabase(queryDescriptor) {
+      let bestMatch = null;
+      let minDistance = 99.0;
+
+      faceDatabase.forEach(person => {
+        const descSet = person.descriptors;
+        // เทียบ 3 รูปถ่ายของคนนั้น (straight, left, right) เพื่อหาค่าระยะห่าง (Distance) ที่น้อยที่สุด
+        const angles = ['straight', 'left', 'right'];
+        angles.forEach(ang => {
+          if (descSet[ang]) {
+            const savedDescriptor = new Float32Array(descSet[ang]);
+            const dist = faceapi.euclideanDistance(queryDescriptor, savedDescriptor);
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestMatch = {
+                empId: person.empId,
+                name: person.name,
+                dept: person.dept,
+                distance: dist
+              };
+            }
+          }
+        });
+      });
+
+      return bestMatch;
+    }
+
+    // 6. ส่งข้อมูลสแกนหน้าสำเร็จเข้าระบบ HR
+    function triggerAttendanceCheckin(empId, employeeName) {
+      hudStatus.innerHTML = `<span>⚙️ กำลังประมวลผลลงทะเบียนเวลา: ${employeeName}</span>`;
+      
+      const payload = {
+        empId: empId,
+        deviceId: 'WEB_FACE_KIOSK',
+        type: modeSelect.value,
+        project: lockedProject || "สำนักงานใหญ่",
+        notes: 'บันทึกเวลาผ่านระบบสแกนใบหน้ากลางส่วนกลาง'
+      };
+
+      cameraBox.classList.remove('scanning');
+      cameraBox.classList.add('success-match');
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          if (response.status === 'success') {
+            // เล่นเสียงบี๊บสำเร็จ
+            try { soundSuccess.play(); } catch(e){}
+
+            // อัปเดตการแสดงผลฝั่งขวา
+            resultCard.className = "result-card success";
+            resultIcon.textContent = "✅";
+            resultName.textContent = response.data.name;
+            resultDetails.innerHTML = `ลงเวลา <strong>${response.data.type}</strong> สำเร็จ<br>เวลา: ${response.data.time} น. (${response.data.date})`;
+
+            // เก็บ Cooldown บันทึกเวลาสำเร็จ
+            lastMatchedEmpId = empId;
+            lastMatchedTime = Date.now();
+          } else {
+            resultCard.className = "result-card";
+            resultIcon.textContent = "❌";
+            resultName.textContent = "ไม่สำเร็จ";
+            resultDetails.textContent = response.message;
+          }
+
+          // แสดงผลสัมฤทธิ์เป็นเวลา 3 วินาทีก่อนรีเซ็ตกลับสู่โหมดพร้อมสแกนคนใหม่
+          setTimeout(resetKioskToWaitingMode, 3000);
+        })
+        .withFailureHandler(function(err) {
+          resultCard.className = "result-card";
+          resultIcon.textContent = "⚠️";
+          resultName.textContent = "ระบบมีปัญหา";
+          resultDetails.textContent = err.message;
+          
+          setTimeout(resetKioskToWaitingMode, 3500);
+        })
+        .checkInWithFace(payload);
+    }
+
+    // 7. รีเซ็ตหน้าจอกลับมาสแตนด์บายเพื่อสแกนคนถัดไป
+    function resetKioskToWaitingMode() {
+      cameraBox.classList.remove('success-match');
+      cameraBox.classList.add('scanning');
+      
+      resultCard.className = "result-card";
+      resultIcon.textContent = "👤";
+      resultName.textContent = "สแตนด์บาย";
+      resultDetails.textContent = "กรุณาขยับหน้าเข้ามาใกล้กล้องหน้าตรงเพื่อสแกนลงบันทึกเวลางาน";
+      
+      isProcessingMatch = false; // ปลดล็อกให้สแกนหน้าต่อได้
+    }
+
+    // เริ่มต้นระบบ
+    window.onload = function() {
+      initKiosk();
+    };
+  </script>
+</body>
+</html>
