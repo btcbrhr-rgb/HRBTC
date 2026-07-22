@@ -449,12 +449,28 @@
     const projectSelect = document.getElementById('project-select');
     const soundSuccess = document.getElementById('sound-success');
 
+    const SERVER_API_URL = "https://script.google.com/macros/s/AKfycbycaWVV_K5EA7gJ3WTfbUJN1VSQ7vLvSsDytdGu7dg6yiFjKMIjQtK6KaWdE6jmrjAYew/exec";
+
     let faceDatabase = [];
     let localStream = null;
     let mainInterval = null;
     let isProcessingMatch = false; // ป้องกันการส่งข้อมูลลงเวลาซ้อนในขณะทำ API call
     let lastMatchedEmpId = "";
     let lastMatchedTime = 0; // cooldown ป้องกันพนักงานคนเดิมสแกนซ้ำภายใน 30 วินาที
+
+    // Helper function to call backend using fetch instead of google.script.run
+    async function callBackend(action, payload = {}) {
+      const url = `${SERVER_API_URL}?action=${action}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify(payload)
+      });
+      return await response.json();
+    }
 
     // 1. นาฬิกาแบบ Realtime
     function updateClock() {
@@ -534,8 +550,8 @@
         loaderStatus.textContent = 'เชื่อมต่อฐานข้อมูลชีตพนักงานและประวัติใบหน้า...';
         
         // ดึงโครงการ
-        google.script.run
-          .withSuccessHandler(function(projRes) {
+        callBackend('getProjectsList')
+          .then(function(projRes) {
             if(projRes.status === 'success') {
               projectSelect.innerHTML = '';
               projRes.data.forEach(p => {
@@ -549,11 +565,11 @@
                 projectSelect.value = lockedProject;
               }
             }
-          }).getProjectsList();
+          });
 
         // ดึงโมเดลข้อมูลใบหน้า
-        google.script.run
-          .withSuccessHandler(async function(dbResponse) {
+        callBackend('getFaceDatabase')
+          .then(async function(dbResponse) {
             if (dbResponse.status === 'success') {
               faceDatabase = dbResponse.data;
               loaderStatus.textContent = `พบข้อมูลใบหน้าพนักงานลงทะเบียนแล้ว ${faceDatabase.length} คน`;
@@ -571,10 +587,9 @@
               loaderStatus.textContent = 'ล้มเหลว: ' + dbResponse.message;
             }
           })
-          .withFailureHandler(function(err) {
+          .catch(function(err) {
             loaderStatus.textContent = 'ขัดข้อง: ' + err.message;
-          })
-          .getFaceDatabase();
+          });
 
       } catch (err) {
         console.error(err);
@@ -722,8 +737,8 @@
       cameraBox.classList.remove('scanning');
       cameraBox.classList.add('success-match');
 
-      google.script.run
-        .withSuccessHandler(function(response) {
+      callBackend('checkInWithFace', payload)
+        .then(function(response) {
           if (response.status === 'success') {
             // เล่นเสียงบี๊บสำเร็จ
             try { soundSuccess.play(); } catch(e){}
@@ -747,15 +762,14 @@
           // แสดงผลสัมฤทธิ์เป็นเวลา 3 วินาทีก่อนรีเซ็ตกลับสู่โหมดพร้อมสแกนคนใหม่
           setTimeout(resetKioskToWaitingMode, 3000);
         })
-        .withFailureHandler(function(err) {
+        .catch(function(err) {
           resultCard.className = "result-card";
           resultIcon.textContent = "⚠️";
           resultName.textContent = "ระบบมีปัญหา";
           resultDetails.textContent = err.message;
           
           setTimeout(resetKioskToWaitingMode, 3500);
-        })
-        .checkInWithFace(payload);
+        });
     }
 
     // --- 🔐 ระบบความปลอดภัยควบคุมโหมดเต็มหน้าจอ (Fullscreen Lock) ---

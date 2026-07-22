@@ -431,7 +431,23 @@
       right: null
     };
 
-    // 1. โหลดโมเดล Face-API.js
+    const SERVER_API_URL = "https://script.google.com/macros/s/AKfycbycaWVV_K5EA7gJ3WTfbUJN1VSQ7vLvSsDytdGu7dg6yiFjKMIjQtK6KaWdE6jmrjAYew/exec";
+
+    // Helper function to call backend using fetch instead of google.script.run
+    async function callBackend(action, payload = {}) {
+      const url = `${SERVER_API_URL}?action=${action}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify(payload)
+      });
+      return await response.json();
+    }
+
+    // 1. โหลดโมเดล Face-API.js และเริ่มเปิดกล้องสดทันที
     async function loadModels() {
       showToast('info', 'กำลังดาวน์โหลด AI Models (ประมาณ 5MB)...');
       try {
@@ -442,7 +458,11 @@
         
         modelsLoaded = true;
         showToast('success', 'ดาวน์โหลด AI Models สำเร็จแล้ว');
-        hudText.textContent = 'เลือกพนักงานและกด "เริ่มสแกนลงทะเบียน"';
+        hudText.textContent = 'กรุณาเลือกพนักงานเพื่อเริ่มต้นบันทึกใบหน้า';
+        
+        // สั่งรันกล้องสดทันทีหลังจากโมเดลโหลดเสร็จ
+        await startCamera();
+        
         loadEmployeeList();
       } catch (err) {
         console.error(err);
@@ -452,8 +472,8 @@
 
     // โหลดรายชื่อพนักงาน
     function loadEmployeeList() {
-      google.script.run
-        .withSuccessHandler(function(response) {
+      callBackend('adminGetAllEmployees')
+        .then(function(response) {
           if (response.status === 'success') {
             employeeSelect.innerHTML = '<option value="">-- กรุณาเลือกพนักงาน --</option>';
             response.data.forEach(function(emp) {
@@ -471,10 +491,9 @@
             showToast('error', 'โหลดรายชื่อพนักงานไม่สำเร็จ: ' + response.message);
           }
         })
-        .withFailureHandler(function(err) {
+        .catch(function(err) {
           showToast('error', 'เชื่อมต่อระบบไม่สำเร็จ: ' + err.message);
-        })
-        .adminGetAllEmployees(); // เรียกจาก Code.gs
+        });
     }
 
     // เริ่มสตรีมกล้อง
@@ -503,6 +522,8 @@
           webcam.onloadedmetadata = () => {
             canvas.width = webcam.videoWidth;
             canvas.height = webcam.videoHeight;
+            const displaySize = { width: webcam.videoWidth, height: webcam.videoHeight };
+            faceapi.matchDimensions(canvas, displaySize);
             resolve(true);
           };
         });
@@ -545,17 +566,20 @@
       employeeSelect.disabled = true;
       isRegistering = true;
 
-      const cameraReady = await startCamera();
-      if (!cameraReady) {
-        btnStart.disabled = false;
-        employeeSelect.disabled = false;
-        isRegistering = false;
-        return;
+      // ตรวจสอบว่ากล้องเปิดอยู่แล้วหรือไม่ ถ้าไม่เปิดให้เปิดใหม่
+      if (!localStream) {
+        const cameraReady = await startCamera();
+        if (!cameraReady) {
+          btnStart.disabled = false;
+          employeeSelect.disabled = false;
+          isRegistering = false;
+          return;
+        }
       }
 
       // ปรับขนาดแคนวาสซ้อนทับกล้อง
-      canvas.width = webcam.videoWidth;
-      canvas.height = webcam.videoHeight;
+      canvas.width = webcam.videoWidth || 640;
+      canvas.height = webcam.videoHeight || 480;
 
       // รีเซ็ตขั้นตอนสแกน
       currentStep = 1;
@@ -683,8 +707,8 @@
         updatedBy: 'Admin (FaceRegister)'
       };
 
-      google.script.run
-        .withSuccessHandler(function(response) {
+      callBackend('saveFaceDescriptor', payload)
+        .then(function(response) {
           stopCamera();
           btnText.textContent = 'เริ่มสแกนลงทะเบียน';
           btnStart.disabled = false;
@@ -700,15 +724,14 @@
             hudText.textContent = 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
           }
         })
-        .withFailureHandler(function(err) {
+        .catch(function(err) {
           stopCamera();
           btnText.textContent = 'เริ่มสแกนลงทะเบียน';
           btnStart.disabled = false;
           employeeSelect.disabled = false;
           showToast('error', 'ระบบขัดข้อง: ' + err.message);
           hudText.textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อบันทึกข้อมูลได้';
-        })
-        .saveFaceDescriptor(payload);
+        });
     }
 
     function showToast(type, msg) {
