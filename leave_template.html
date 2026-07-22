@@ -824,6 +824,23 @@
                 return Promise.resolve(null);
             }
 
+            // Check localStorage first to load instantly without server request
+            if (!forceServer && docId) {
+                const localData = localStorage.getItem('print_leave_data_' + docId);
+                if (localData) {
+                    try {
+                        const parsed = JSON.parse(localData);
+                        if (parsed) {
+                            const payload = mapLeaveRecordPayload(parsed);
+                            bindDatabaseData(payload);
+                            return Promise.resolve(payload);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing local storage leave data', e);
+                    }
+                }
+            }
+
             showLoading();
 
             // Helper: map employee sheet row object (Thai headers) to template shape
@@ -1017,22 +1034,13 @@
 
         // Prepare data from server then trigger browser print
         async function prepareAndPrint() {
-            showToast('กำลังดึงข้อมูลก่อนพิมพ์...', 'info');
-            const docNoValue = document.getElementById('doc_no')?.value?.trim() || null;
-            const empIdValue = document.getElementById('emp_id')?.value?.trim() || null;
-
             try {
-                const result = await loadDataFromServer({ docId: docNoValue, empId: empIdValue, forceServer: true });
-                if (!result && !docNoValue && !empIdValue) {
-                    showToast('ไม่พบตัวระบุสำหรับดึงข้อมูลจริง, จะพิมพ์เฉพาะข้อมูลที่กรอกแล้ว', 'info');
-                }
-                await waitForImages(document.getElementById('capture-target'), 1500);
+                // Since data is already loaded on DOMContentLoaded, we just wait for images if any and print
+                await waitForImages(document.getElementById('capture-target'), 800);
             } catch (err) {
                 console.error(err);
-                showToast('เกิดข้อผิดพลาดขณะดึงข้อมูลก่อนพิมพ์', 'error');
             }
-
-            setTimeout(() => window.print(), 300);
+            setTimeout(() => window.print(), 200);
         }
 
         // Auto-run when the template is rendered/loaded in the user's browser
