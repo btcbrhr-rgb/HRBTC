@@ -364,9 +364,28 @@
           <option value="เข้างาน">ลงเวลาเข้างานเท่านั้น (CHECK-IN)</option>
           <option value="ออกงาน">ลงเวลาออกงานเท่านั้น (CHECK-OUT)</option>
         </select>
+        
+        <button id="btn-fullscreen-lock" class="btn-primary" style="margin-top: 10px;" onclick="enterFullscreenLockdown()">
+          🔒 เปิดโหมดเต็มหน้าจอป้องกันการออก
+        </button>
       </div>
     </div>
 
+  </div>
+
+  <!-- หน้าต่างม่านดำบังจอ (Lockout Screen) บังคับกรอกรหัสเมื่อพยายามกดย่อหน้าจอออก -->
+  <div id="lockout-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; bg: #000; background: black; z-index: 9999; align-items: center; justify-content: center; flex-direction: column;">
+    <div style="background: #111827; border: 2px solid #EF4444; padding: 40px; border-radius: 24px; width: 90%; max-width: 420px; text-align: center; box-shadow: 0 0 50px rgba(239, 68, 68, 0.25);">
+      <div style="font-size: 50px; margin-bottom: 20px; animation: pulse 2s infinite;">🚨</div>
+      <h2 style="color: white; font-size: 22px; font-weight: 700; margin-bottom: 10px;">ระบบตรวจพบการย่อหน้าจอ</h2>
+      <p style="color: #9CA3AF; font-size: 13px; margin-bottom: 25px; line-height: 1.5;">การลงเวลากลางถูกล็อกเพื่อความปลอดภัย กรุณาเรียกหัวหน้างานมาใส่รหัส PIN 6 หลักเพื่อปลดล็อกหน้าจอ</p>
+      
+      <input type="password" id="lockout-pin-input" maxlength="6" placeholder="• • • • • •" style="text-align: center; font-size: 28px; letter-spacing: 8px; margin-bottom: 25px; background: #030712; color: #EF4444; border: 2px solid #374151; border-radius: 12px; width: 100%; padding: 10px; font-weight: bold; focus:outline-none; focus:border-red-500;">
+      
+      <button class="btn-primary" onclick="unlockKioskScreen()" style="background: #EF4444; color: white; width: 100%; font-weight: bold; padding: 14px;">
+        🔓 ปลดล็อกและกลับเข้าสู่โหมดสแกน
+      </button>
+    </div>
   </div>
 
   <!-- Admin/Setup Modal สำหรับล็อกโครงการ -->
@@ -698,6 +717,68 @@
         })
         .checkInWithFace(payload);
     }
+
+    // --- 🔐 ระบบความปลอดภัยควบคุมโหมดเต็มหน้าจอ (Fullscreen Lock) ---
+    let isFullscreenLocked = false;
+    const lockoutScreen = document.getElementById('lockout-screen');
+    const lockoutPinInput = document.getElementById('lockout-pin-input');
+
+    function enterFullscreenLockdown() {
+      const docEl = document.documentElement;
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen();
+      } else if (docEl.mozRequestFullScreen) { /* Firefox */
+        docEl.mozRequestFullScreen();
+      } else if (docEl.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+        docEl.webkitRequestFullscreen();
+      } else if (docEl.msRequestFullscreen) { /* IE/Edge */
+        docEl.msRequestFullscreen();
+      }
+      
+      isFullscreenLocked = true;
+      document.getElementById('btn-fullscreen-lock').textContent = "🔒 บังคับล็อกหน้าจอสำเร็จ (กด ESC เพื่อทดสอบ)";
+      document.getElementById('btn-fullscreen-lock').style.background = "#059669";
+    }
+
+    // ตรวจจับเมื่อหน้าจอถูกย่อ
+    function handleFullscreenChange() {
+      const isCurrentlyFullscreen = document.fullscreenElement || 
+                                    document.webkitFullscreenElement || 
+                                    document.mozFullScreenElement || 
+                                    document.msFullscreenElement;
+
+      // ถ้าผู้ใช้เคยเปิดโหมดล็อกค้างไว้ แล้วจู่ๆ หลุดออกจาก Fullscreen (เช่น พนักงานกด ESC)
+      if (isFullscreenLocked && !isCurrentlyFullscreen) {
+        triggerScreenLockout();
+      }
+    }
+
+    // แสดงม่านดำบังทั้งจอ
+    function triggerScreenLockout() {
+      lockoutPinInput.value = "";
+      lockoutScreen.style.display = "flex";
+      isProcessingMatch = true; // หยุดการทำงานของสแกนหน้า
+    }
+
+    // ปลดล็อกหน้าจอ Kiosk ด้วย PIN
+    function unlockKioskScreen() {
+      const pin = lockoutPinInput.value;
+      if (pin === "123456" || pin === "999999") { // ใช้รหัสผ่านตัวเดียวกับการตั้งค่า
+        lockoutScreen.style.display = "none";
+        isFullscreenLocked = false;
+        isProcessingMatch = false; // ปลดล็อกสแกนหน้าต่อ
+        document.getElementById('btn-fullscreen-lock').textContent = "🔒 เปิดโหมดเต็มหน้าจอป้องกันการออก";
+        document.getElementById('btn-fullscreen-lock').style.background = "var(--primary)";
+      } else {
+        alert("รหัสผ่านไม่ถูกต้อง! ไม่สามารถปลดล็อกหน้าจอได้");
+      }
+    }
+
+    // เชื่อมต่อ Event Listener ตรวจสอบการย่อขยายหน้าจอของ Browser
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 
     // 7. รีเซ็ตหน้าจอกลับมาสแตนด์บายเพื่อสแกนคนถัดไป
     function resetKioskToWaitingMode() {
