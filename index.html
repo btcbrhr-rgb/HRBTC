@@ -468,6 +468,25 @@
             font-size: 11px !important;
         }
 
+        /* Matrix Row Focus & Dimming Styles */
+        .matrix-row-focused {
+            background-color: #eff6ff !important; /* Soft Blue Highlight */
+            box-shadow: inset 0 0 0 2px #3b82f6 !important;
+            position: relative;
+            z-index: 5;
+        }
+        .matrix-row-focused td {
+            background-color: #eff6ff !important;
+        }
+        .matrix-row-focused td.sticky {
+            background-color: #dbeafe !important; /* Slightly darker blue for sticky name column */
+        }
+        .matrix-row-dimmed {
+            opacity: 0.35 !important;
+            filter: grayscale(40%) !important;
+            transition: opacity 0.25s ease, filter 0.25s ease;
+        }
+
         /* Legal Print Styles for Matrix */
         @media print {
             body.print-matrix-mode * {
@@ -14424,14 +14443,15 @@ function renderSummaryMatrix() {
                 const latestProject = getLatestProjectForEmp(emp.id, dates);
 
                 let rowHtml = `
-                    <td class="px-4 py-3.5 whitespace-nowrap sticky left-0 bg-white z-10 border border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.03)]">
+                    <td onclick="toggleMatrixRowFocus(this)" title="คลิกเพื่อโฟกัส/ยกเลิกโฟกัสแถวพนักงานคนนี้"
+                        class="px-4 py-3.5 whitespace-nowrap sticky left-0 bg-white z-10 border border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.03)] cursor-pointer hover:bg-blue-50/80 transition-colors group">
                         <div class="flex items-center space-x-2.5">
                             ${emp.avatar ? `<img src="${emp.avatar}" alt="" class="w-8 h-8 rounded-full object-cover border border-slate-100" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
-                            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 text-sm" ${emp.avatar ? 'style="display:none;"' : ''}>
+                            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 text-sm group-hover:bg-blue-200 group-hover:text-blue-700 transition-colors" ${emp.avatar ? 'style="display:none;"' : ''}>
                                 <i class="fa-solid fa-user text-xs"></i>
                             </div>
                             <div class="leading-tight">
-                                <p class="font-extrabold text-slate-800 text-xs">${emp.name}</p>
+                                <p class="font-extrabold text-slate-800 text-xs group-hover:text-blue-700 transition-colors">${emp.name}</p>
                                 <p class="text-[9px] text-slate-400 font-semibold">${emp.id}</p>
                             </div>
                         </div>
@@ -15191,7 +15211,34 @@ function renderSummaryMatrix() {
             }, 80);
         }
 
-        // Toggle Fullscreen View for Matrix Timesheet
+        // Toggle Row Focus & Dim Other Rows in Matrix Timesheet Table
+        function toggleMatrixRowFocus(tdEl) {
+            const tr = tdEl.parentElement;
+            if (!tr) return;
+            const tbody = tr.parentElement;
+            if (!tbody) return;
+
+            const isAlreadyFocused = tr.classList.contains('matrix-row-focused');
+            const allRows = tbody.querySelectorAll('tr');
+
+            if (isAlreadyFocused) {
+                // If already focused, reset all rows back to normal
+                allRows.forEach(row => {
+                    row.classList.remove('matrix-row-focused', 'matrix-row-dimmed');
+                });
+            } else {
+                // Apply focus to clicked row, dim all other rows
+                allRows.forEach(row => {
+                    if (row === tr) {
+                        row.classList.add('matrix-row-focused');
+                        row.classList.remove('matrix-row-dimmed');
+                    } else {
+                        row.classList.remove('matrix-row-focused');
+                        row.classList.add('matrix-row-dimmed');
+                    }
+                });
+            }
+        }
         function toggleMatrixFullscreen() {
             const card = document.getElementById('matrix-card');
             const btn = document.getElementById('matrix-fullscreen-btn');
