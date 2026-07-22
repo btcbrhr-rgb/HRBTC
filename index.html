@@ -5135,9 +5135,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // โหลดและคำนวณข้อมูลใหม่ทั้งหมด (สำหรับหน้าแรกและสถิติ)
                 loadAllData();
 
-                // ดึงข้อมูลแสดงในปฏิทิน
-                fetchWithCycleFilter(range.start, range.end);
-
                 // หากอยู่ใน Admin mode ให้รีโหลดข้อมูล Admin ด้วยรอบบัญชีที่เลือก
                 if (typeof isAdminMode !== 'undefined' && isAdminMode && typeof loadAdminApprovals === 'function') {
                     loadAdminApprovals();
@@ -5787,6 +5784,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         // Calculate stats after all data lists are populated
                         calculateAndDisplayStats();
+
+                        // Render calendar days instantly from local data
+                        if (typeof renderCalendarDaysFromLocal === 'function') {
+                            renderCalendarDaysFromLocal();
+                        }
 
                         document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
 
@@ -7266,7 +7268,61 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function loadCalendarRecords() {
-                updateCalendarCycleUI();
+                renderCalendarDaysFromLocal();
+            }
+
+            function renderCalendarDaysFromLocal() {
+                const range = getCurrentCycleRange();
+                const start = range.start;
+                const end = range.end;
+
+                const container = document.getElementById("calendar-days-list");
+                if (!container) return;
+
+                // Deep copy of timeRecordsList to avoid modifying original array
+                let timeRecords = timeRecordsList ? JSON.parse(JSON.stringify(timeRecordsList)) : [];
+
+                // ── Merge วันลาที่อนุมัติแล้ว/รออนุมัติที่ยังไม่มีในตารางเวลา ──
+                const existingDates = new Set(timeRecords.map(r => r["วันที่"]));
+                const leaveList = Array.isArray(leaveRequestsList) ? leaveRequestsList : [];
+
+                leaveList.forEach(l => {
+                    const leaveStatus = (l["สถานะ"] || "").toString().trim();
+                    // ไม่รวมวันลาที่ถูกปฏิเสธ
+                    if (leaveStatus === "ไม่อนุมัติ" || leaveStatus === "ปฏิเสธ") return;
+
+                    const leaveStart = (l["วันที่เริ่ม"] || "").toString().trim();
+                    const leaveEnd   = (l["วันที่สิ้นสุด"] || leaveStart).toString().trim();
+                    const leaveType  = (l["ประเภทการลา"] || "ลา").toString().trim();
+                    if (!leaveStart) return;
+
+                    // วนสร้าง record สำหรับแต่ละวันในช่วงลา
+                    let cur = new Date(leaveStart);
+                    const endDate = new Date(leaveEnd);
+                    while (cur <= endDate) {
+                        const dateStr = cur.toISOString().slice(0, 10); // YYYY-MM-DD
+                        // อยู่ในช่วง filter ที่ปฏิทินกำลังแสดง
+                        if (dateStr >= start && dateStr <= end && !existingDates.has(dateStr)) {
+                            existingDates.add(dateStr);
+                            timeRecords.push({
+                                "วันที่": dateStr,
+                                "เวลาเข้า": "--:--",
+                                "เวลาออก": "--:--",
+                                "นาทีสาย": 0,
+                                "ชั่วโมง OT": 0,
+                                "สถานะสรุป": leaveType,
+                                "โครงการ (เข้า)": "",
+                                "_leaveStatus": leaveStatus  // เก็บสถานะการลาไว้ใช้แสดง badge
+                            });
+                        }
+                        cur.setDate(cur.getDate() + 1);
+                    }
+                });
+
+                // เรียงวันที่จากมากไปน้อย (ล่าสุดอยู่บนสุด)
+                timeRecords.sort((a, b) => (b["วันที่"] || "").localeCompare(a["วันที่"] || ""));
+
+                displayCalendarDays(timeRecords);
             }
 
             async function fetchWithCycleFilter(start, end) {
@@ -12153,37 +12209,47 @@ ${slip.textSample}
                     return value.toString();
                 }
 
+                function populateProfileUI(data) {
+                    currentProfileData = data;
+
+                    // Update read-only fields
+                    document.getElementById("profile-emp-id").value = data["รหัสพนักงาน"] || "";
+                    document.getElementById("profile-name").value = data["ชื่อ-นามสกุล"] || "";
+                    document.getElementById("profile-position").value = data["ตำแหน่ง"] || "";
+                    document.getElementById("profile-start-date").value = formatDateForInput(data["วันที่เริ่มงาน"]);
+                    document.getElementById("profile-id-card").value = data["เลขบัตรประชาชน"] || "";
+                    document.getElementById("profile-status").value = data["สถานะ"] || "";
+                    document.getElementById("profile-dayoff").value = data["วันหยุดประจําสัปดาห์"] || "";
+                    document.getElementById("profile-company").value = data["ชื่อบริษัท"] || "";
+                    document.getElementById("profile-bank").value = data["ธนาคาร"] || "";
+                    document.getElementById("profile-bank-branch").value = data["สาขาธนาคาร"] || "";
+                    document.getElementById("profile-bank-account").value = data["หมายเลขบัญชี"] || "";
+
+                    // Update editable fields
+                    document.getElementById("profile-phone").value = data["เบอร์โทรศัพท์"] || "";
+                    document.getElementById("profile-address").value = data["ที่อยู่"] || "";
+                    document.getElementById("profile-birthdate").value = formatDateForInput(data["วันเดือนปีเกิด"]);
+
+                    // Update profile photo
+                    const photoUrl = convertDriveUrl(data["ลิ้งภาพโปรไฟล์"]);
+                    if (photoUrl) {
+                        document.getElementById("profile-avatar").src = photoUrl;
+                    }
+                }
+
                 async function loadProfileData() {
+                    // Check local memory cache first
+                    if (typeof employeeData !== "undefined" && employeeData && Object.keys(employeeData).length > 0) {
+                        populateProfileUI(employeeData);
+                        return;
+                    }
+
                     showToast("⏳ กำลังโหลดข้อมูลโปรไฟล์...", "info");
                     try {
                         const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployeeData&empId=${currentEmployeeId}`);
                         if (res.status === "success") {
-                            currentProfileData = res.data;
-
-                            // Update read-only fields
-                            document.getElementById("profile-emp-id").value = res.data["รหัสพนักงาน"] || "";
-                            document.getElementById("profile-name").value = res.data["ชื่อ-นามสกุล"] || "";
-                            document.getElementById("profile-position").value = res.data["ตำแหน่ง"] || "";
-                            document.getElementById("profile-start-date").value = formatDateForInput(res.data["วันที่เริ่มงาน"]);
-                            document.getElementById("profile-id-card").value = res.data["เลขบัตรประชาชน"] || "";
-                            document.getElementById("profile-status").value = res.data["สถานะ"] || "";
-                            document.getElementById("profile-dayoff").value = res.data["วันหยุดประจําสัปดาห์"] || "";
-                            document.getElementById("profile-company").value = res.data["ชื่อบริษัท"] || "";
-                            document.getElementById("profile-bank").value = res.data["ธนาคาร"] || "";
-                            document.getElementById("profile-bank-branch").value = res.data["สาขาธนาคาร"] || "";
-                            document.getElementById("profile-bank-account").value = res.data["หมายเลขบัญชี"] || "";
-
-                            // Update editable fields
-                            document.getElementById("profile-phone").value = res.data["เบอร์โทรศัพท์"] || "";
-                            document.getElementById("profile-address").value = res.data["ที่อยู่"] || "";
-                            document.getElementById("profile-birthdate").value = formatDateForInput(res.data["วันเดือนปีเกิด"]);
-
-                            // Update profile photo
-                            const photoUrl = convertDriveUrl(res.data["ลิ้งภาพโปรไฟล์"]);
-                            if (photoUrl) {
-                                document.getElementById("profile-avatar").src = photoUrl;
-                            }
-
+                            employeeData = res.data; // Cache locally
+                            populateProfileUI(res.data);
                             showToast("✅ โหลดข้อมูลโปรไฟล์สำเร็จ", "success");
                         } else {
                             showToast("❌ โหลดโปรไฟล์ล้มเหลว: " + res.message, "error");
