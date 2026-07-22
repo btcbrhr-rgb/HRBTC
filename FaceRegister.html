@@ -474,7 +474,18 @@
 
     // โหลดรายชื่อพนักงาน
     function loadEmployeeList() {
-      callBackend('adminGetAllEmployees')
+      // 💡 ใช้ agentGetMasterEmployees เพราะเป็น public-agent action ที่ดึง
+      // master employee list ได้โดยไม่ต้องล็อกอิน admin (เหมาะกับหน้า Kiosk/Register)
+      // และต้องส่ง deviceId ไปด้วย เพราะ action นี้อยู่ใน AGENT_ACTIONS
+      const deviceId = (function () {
+        let id = localStorage.getItem('hrbtc_device_id');
+        if (!id) {
+          id = 'FACE_REG_' + Math.random().toString(36).slice(2, 10).toUpperCase();
+          try { localStorage.setItem('hrbtc_device_id', id); } catch (e) { /* ignore */ }
+        }
+        return id;
+      })();
+      callBackend('agentGetMasterEmployees', { deviceId: deviceId })
         .then(function(response) {
           if (response.status === 'success') {
             employeeSelect.innerHTML = '<option value="">-- กรุณาเลือกพนักงาน --</option>';
