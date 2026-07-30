@@ -13436,13 +13436,20 @@ ${slip.textSample}
                 return;
             }
 
-            showMatrixLoadingState('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์...');
+            // ตรวจสอบว่ามีข้อมูลเดิมอยู่แล้วหรือไม่ ถ้ามี... ไม่ต้องแสดงหน้ากากโหลดบล็อกจอ (โหลดแบบเบื้องหลังเงียบๆ)
+            const hasExistingData = Object.keys(attendanceData || {}).length > 0 && (employees && employees.length > 0);
+            if (!hasExistingData) {
+                showMatrixLoadingState('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์...');
+            } else {
+                console.log('[ProjectCost] Existing local data found. Loading new updates in the background...');
+            }
 
             // Try batch API first
             let batchOk = false;
             if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
                 try {
                     const t0 = performance.now();
+
                     const res = await fetchWithTimeout(
                         `${SERVER_API_URL}?action=getProjectCostData&empId=${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : ''}&month=${currentMonth}`,
                         { timeout: 60000 }
@@ -13495,11 +13502,15 @@ ${slip.textSample}
                         const elapsed = Math.round(performance.now() - t0);
                         console.log(`[ProjectCost] ✅ Batch loaded in ${elapsed}ms`);
                         batchOk = true;
+                        
+                        // ✅ Refresh Matrix UI immediately after background download finishes
+                        refreshActiveTab();
                     }
                 } catch (batchErr) {
                     console.warn('[ProjectCost] Batch API failed, falling back:', batchErr);
                 }
             }
+
 
             // Fallback: ใช้ individual calls ถ้า batch API ยังไม่ deploy
             if (!batchOk) {
@@ -13647,9 +13658,12 @@ ${slip.textSample}
 
             const curSelDateEl = document.getElementById('currentSelectedDate'); if (curSelDateEl) curSelDateEl.value = selectedDateStr;
             updateDayLabel();
-            showMatrixLoadingState("กำลังโหลดข้อมูลระบบและรอบบันทึกเวลา...");
-            await loadSheetData();
+            
+            // ✅ OPTIMISTIC TAB NAVIGATION: สลับเข้าแท็บ Matrix และวาดโครงสร้างทันทีก่อนเริ่มโหลดข้อมูล
             switchTab('summary');
+            
+            // โหลดข้อมูลจริงในลักษณะเบื้องหลัง (Background loading) ไม่ล็อกการทำงานของผู้ใช้
+            loadSheetData().catch(err => console.error('[Matrix load error]', err));
         }
 
         // Initialize billing month dropdown with options from 12 months back to 6 months forward
