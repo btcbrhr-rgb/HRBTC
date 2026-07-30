@@ -5159,20 +5159,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return `pin_hash_${empId}`;
             }
 
-            // ฟังก์ชันสำหรับเปิดหน้าจอ Kiosk และ Register สแกนใบหน้าแบบแยกแท็บใหม่โดยเฉพาะผ่าน GitHub Pages ตรงๆ
+            // ฟังก์ชันสำหรับเปิดหน้าจอ Kiosk และ Register สแกนใบหน้าแบบแยกแท็บใหม่
+            // ใช้ GitHub Pages URL โดยตรง เพราะ FaceKiosk.html / FaceRegister.html
+            // โฮสต์อยู่บน GitHub Pages เท่านั้น (ไม่ได้ deploy ไป Vercel)
             function openFacePage(pageName) {
-                // อ้างอิงพาธจาก URL หลักของเบราว์เซอร์ปัจจุบัน (เช่น https://btcbrhr-rgb.github.io/HRBTC/)
-                let base = window.location.href.split('?')[0];
-                if (!base.endsWith('/')) {
-                    // หา directory base URL
-                    const lastSlash = base.lastIndexOf('/');
-                    base = base.substring(0, lastSlash + 1);
-                }
-                
+                const GITHUB_PAGES_BASE = 'https://btcbrhr-rgb.github.io/HRBTC/';
                 if (pageName === 'kiosk') {
-                    window.open(base + "FaceKiosk.html", "_blank");
+                    window.open(GITHUB_PAGES_BASE + "FaceKiosk.html", "_blank");
                 } else if (pageName === 'register') {
-                    window.open(base + "FaceRegister.html", "_blank");
+                    window.open(GITHUB_PAGES_BASE + "FaceRegister.html", "_blank");
                 }
             }
 
@@ -5200,24 +5195,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 localStorage.setItem("hr_emp_id", currentEmployeeId);
                 // ใช้ sessionStorage สำหรับ login status - ล้างเมื่อปิดเบราว์เซอร์
                 sessionStorage.setItem("is_logged_in", "true");
-                // แสดง loading overlay บนหน้า login รอโหลดข้อมูลก่อน
-                showLoginLoading(employeeData["ชื่อ-นามสกุล"] || "");
+                // ✅ Optimistic Login: เข้าสู่ระบบทันทีแล้วโหลดข้อมูล background
                 generateCycleOptions();
                 const currentCycle = getCurrentCycleRange();
                 const homeCycleRange = document.getElementById("home-cycle-range");
                 if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                const success = await loadAllData();
-                if (success) {
-                    hideLoginContainer();
-                    navigateTo(navigateToPage || targetPage || "home");
-                } else {
-                    const retryBtn = document.getElementById("login-loading-retry-btn");
-                    if (retryBtn) retryBtn.classList.remove("hidden");
-                    const subEl = document.getElementById("login-loading-sub");
-                    if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
-                }
+                hideLoginContainer();
+                navigateTo(navigateToPage || targetPage || "home");
+                // โหลดข้อมูลจริงใน background (skeleton จะแสดงระหว่างรอ)
+                loadAllData().catch(err => console.warn('[autoLoginAndNavigate background load]', err));
             }
+
 
 
 
@@ -5243,28 +5232,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return;
                     }
 
-                    // No PIN needed, login directly — แสดง loading overlay บนหน้า login รอข้อมูลก่อน
-                    showLoginContainer();
-                    showLoginLoading(savedEmpId);
+                    // ✅ Optimistic Login: เข้าสู่ระบบทันทีแล้วโหลดข้อมูล background
                     generateCycleOptions();
                     const currentCycle = getCurrentCycleRange();
                     const homeCycleRange = document.getElementById("home-cycle-range");
                     if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                     document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                    const success = await loadAllData();
-                    if (success) {
-                        hideLoginContainer();
-                        if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
-                            enterAdminMode();
-                        } else {
-                            navigateTo("home");
-                        }
+                    hideLoginContainer();
+                    if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
+                        enterAdminMode();
                     } else {
-                        const retryBtn = document.getElementById("login-loading-retry-btn");
-                        if (retryBtn) retryBtn.classList.remove("hidden");
-                        const subEl = document.getElementById("login-loading-sub");
-                        if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+                        navigateTo("home");
                     }
+                    // โหลดข้อมูลจริงใน background (skeleton จะแสดงระหว่างรอ)
+                    loadAllData().catch(err => console.warn('[Auto-login background load]', err));
                     return;
                 }
 
@@ -5677,28 +5658,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function proceedToMainApp() {
-                // แสดง loading overlay บนหน้า login ขณะดึงข้อมูล
-                showLoginContainer();
-                showLoginLoading(currentEmployeeId);
+                // ✅ Optimistic Login: เข้าสู่ระบบทันทีแล้วโหลดข้อมูล background
                 updateCalendarCycleUI();
                 const currentCycle = getCurrentCycleRange();
                 const homeCycleRange = document.getElementById("home-cycle-range");
                 if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                const success = await loadAllData();
-                if (success) {
-                    hideLoginContainer();
-                    if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
-                        enterAdminMode();
-                    } else {
-                        navigateTo("home");
-                    }
+                hideLoginContainer();
+                if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
+                    enterAdminMode();
                 } else {
-                    const retryBtn = document.getElementById("login-loading-retry-btn");
-                    if (retryBtn) retryBtn.classList.remove("hidden");
-                    const subEl = document.getElementById("login-loading-sub");
-                    if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+                    navigateTo("home");
                 }
+                // โหลดข้อมูลจริงใน background (skeleton จะแสดงระหว่างรอ)
+                loadAllData().catch(err => console.warn('[proceedToMainApp background load]', err));
             }
 
             function startLockoutCountdown() {
