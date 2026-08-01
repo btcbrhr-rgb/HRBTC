@@ -1050,7 +1050,35 @@
             if (dateInput && !dateInput.value) {
                 dateInput.value = today;
             }
-            
+
+            // ── กรณี 1: Code.gs inject ข้อมูลมาผ่าน window.__LEAVE_DATA__ ──
+            if (window.__LEAVE_DATA__ && window.__OPENED_FROM_GAS__) {
+                const d = window.__LEAVE_DATA__;
+                if (d.empName && d.leaveType && d.start) {
+                    const payload = {
+                        employee: { name: d.empName },
+                        start_date: d.start,
+                        end_date: d.end || d.start,
+                        total_days: d.days || '',
+                        leave_reason: d.reason || '',
+                        _leaveType: d.leaveType,
+                        metadata: {
+                            doc_no: d.docId || '',
+                            doc_date: today,
+                            employee_signature: d.signature || ''
+                        }
+                    };
+                    bindDatabaseData(payload);
+
+                    if (d.autoPrint) {
+                        waitForImages(document.getElementById('capture-target'), 1200)
+                            .then(() => window.print());
+                    }
+                }
+                return; // ไม่ต้องเช็ค URL params อีก
+            }
+
+            // ── กรณี 2: เปิดจาก index.html ปกติ (URL params) ──
             const params = new URLSearchParams(window.location.search);
             const openedFromIndex = params.get('openedFromIndex') === '1';
 
@@ -1071,7 +1099,7 @@
                 return;
             }
 
-            // ตรวจว่าส่งข้อมูลใบลามาครบผ่าน Query params หรือไม่ (กรณีส่งมาจาก Line.gs โดยตรง)
+            // ตรวจว่าส่งข้อมูลมาครบผ่าน URL params (กรณี index.html)
             const empName   = params.get('empName');
             const leaveType = params.get('leaveType');
             const startDate = params.get('start');
@@ -1083,7 +1111,6 @@
             const autoPrint = params.get('autoPrint') === '1';
 
             if (empName && leaveType && startDate) {
-                // มีข้อมูลครบจาก URL → bind ลง DOM เลย ไม่ต้องเรียก server
                 const payload = {
                     employee: { name: empName },
                     start_date: startDate,
@@ -1100,7 +1127,6 @@
                 bindDatabaseData(payload);
 
                 if (autoPrint) {
-                    // รอภาพลายเซ็นโหลดเสร็จก่อนค่อยสั่งพิมพ์
                     waitForImages(document.getElementById('capture-target'), 1200)
                         .then(() => window.print());
                 }
