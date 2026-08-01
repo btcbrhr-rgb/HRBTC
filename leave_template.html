@@ -1095,8 +1095,19 @@
                         waitForImages(document.getElementById('capture-target'), 1200)
                             .then(() => window.print());
                     }
+                    return; // ถ้ามีข้อมูลครบก็เสร็จ
                 }
-                return; // ไม่ต้องเช็ค URL params อีก
+
+                if (d.docId) {
+                    loadDataFromServer({ docId: d.docId, forceServer: true })
+                        .then(payload => {
+                            if (payload && d.autoPrint) {
+                                waitForImages(document.getElementById('capture-target'), 1200)
+                                    .then(() => window.print());
+                            }
+                        });
+                    return;
+                }
             }
 
             // ── กรณี 2: เปิดจาก index.html ปกติ (URL params) ──
