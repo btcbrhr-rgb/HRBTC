@@ -848,7 +848,14 @@
                         if (parsed) {
                             const payload = mapLeaveRecordPayload(parsed);
                             bindDatabaseData(payload);
-                            return Promise.resolve(payload);
+
+                            // Only return early if the cached payload already includes leave balance info
+                            const hasLeaveSummary = payload.leave_records && Object.values(payload.leave_records).some(rec => {
+                                return rec && (rec.entitled !== '' || rec.used !== '' || rec.current !== '' || rec.remaining !== '');
+                            });
+                            if (hasLeaveSummary) {
+                                return Promise.resolve(payload);
+                            }
                         }
                     } catch (e) {
                         console.error('Error parsing local storage leave data', e);
