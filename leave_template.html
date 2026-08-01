@@ -1052,12 +1052,7 @@
             }
             
             const params = new URLSearchParams(window.location.search);
-            const hasSource = params.has('docId') || params.has('documentId') || params.has('id') || params.has('empId') || params.has('employeeId');
             const openedFromIndex = params.get('openedFromIndex') === '1';
-
-            if (!hasSource && dateInput && !dateInput.value) {
-                dateInput.value = today;
-            }
 
             if (!openedFromIndex) {
                 const message = document.createElement('div');
@@ -1076,7 +1071,41 @@
                 return;
             }
 
-            if (hasSource) {
+            // ตรวจว่าส่งข้อมูลใบลามาครบผ่าน Query params หรือไม่ (กรณีส่งมาจาก Line.gs โดยตรง)
+            const empName   = params.get('empName');
+            const leaveType = params.get('leaveType');
+            const startDate = params.get('start');
+            const endDate   = params.get('end');
+            const days      = params.get('days');
+            const reason    = params.get('reason');
+            const signature = params.get('signature');
+            const docId     = params.get('docId');
+            const autoPrint = params.get('autoPrint') === '1';
+
+            if (empName && leaveType && startDate) {
+                // มีข้อมูลครบจาก URL → bind ลง DOM เลย ไม่ต้องเรียก server
+                const payload = {
+                    employee: { name: empName },
+                    start_date: startDate,
+                    end_date: endDate || startDate,
+                    total_days: days || '',
+                    leave_reason: reason || '',
+                    _leaveType: leaveType,
+                    metadata: {
+                        doc_no: docId || '',
+                        doc_date: today,
+                        employee_signature: signature || ''
+                    }
+                };
+                bindDatabaseData(payload);
+
+                if (autoPrint) {
+                    // รอภาพลายเซ็นโหลดเสร็จก่อนค่อยสั่งพิมพ์
+                    waitForImages(document.getElementById('capture-target'), 1200)
+                        .then(() => window.print());
+                }
+            } else if (docId) {
+                // fallback: มีแค่ docId → โหลดจาก server ตามปกติ
                 loadDataFromServer();
             }
         });
