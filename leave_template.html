@@ -810,7 +810,7 @@
             const params = new URLSearchParams(window.location.search);
             const docId = options.docId || params.get('docId') || params.get('documentId') || params.get('id') || null;
             const empId = options.empId || params.get('empId') || params.get('employeeId') || null;
-            const openedFromIndex = params.get('openedFromIndex') === '1';
+            const openedFromIndex = params.get('openedFromIndex') === '1' || (typeof window !== 'undefined' && window.__OPENED_FROM_GAS__);
             const apiUrlFromQuery = params.get('apiUrl');
             const forceServer = options.forceServer === true;
 
@@ -828,6 +828,7 @@
             }
 
             const apiUrlFromQueryClean = apiUrlFromQuery ? decodeUriRecursive(apiUrlFromQuery) : null;
+            const injectedGASUrl = (typeof window !== 'undefined' && window.__GAS_WEB_APP_URL__) ? window.__GAS_WEB_APP_URL__ : '';
 
             if (!docId && !empId) {
                 showToast('ไม่พบตัวระบุข้อมูลเพื่อเรียกใช้งานข้อมูลจริง', 'info');
@@ -925,7 +926,7 @@
 
             const runViaGoogleScript = typeof google !== 'undefined' && google && google.script && google.script.run;
             const apiUrlFromStorage = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem) ? window.localStorage.getItem('hr_api_url') : null;
-            const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (apiUrlFromQueryClean ? apiUrlFromQueryClean.trim() : (apiUrlFromStorage ? apiUrlFromStorage.trim() : null));
+            const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (injectedGASUrl ? injectedGASUrl.trim() : (apiUrlFromQueryClean ? apiUrlFromQueryClean.trim() : (apiUrlFromStorage ? apiUrlFromStorage.trim() : null)));
 
             if (runViaGoogleScript) {
                 const promise = new Promise((resolve) => {
