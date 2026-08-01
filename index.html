@@ -8027,36 +8027,61 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return recordOrDoc.docId || recordOrDoc.documentId || recordOrDoc['เลขที่เอกสาร'] || recordOrDoc['เลขที่'] || recordOrDoc['doc_no'] || recordOrDoc['document_no'] || recordOrDoc['id'] || null;
                     })();
 
-                    const url = new URL('leave_template.html', window.location.href);
-
                     if (!docId) {
                         return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
                     }
 
-                    // Save the record to localStorage so the template can load it instantly!
+                    // ดึงออบเจ็กต์ข้อมูลใบลาเต็ม
+                    let recordObj = null;
                     if (typeof recordOrDoc === 'object' && recordOrDoc) {
-                        localStorage.setItem('print_leave_data_' + docId, JSON.stringify(recordOrDoc));
+                        recordObj = recordOrDoc;
                     } else if (typeof recordOrDoc === 'string') {
-                        const found = (leaveRequestsList || []).find(l => {
+                        recordObj = (leaveRequestsList || []).find(l => {
                             const currentId = l.docId || l.documentId || l['เลขที่เอกสาร'] || l['เลขที่'] || l['doc_no'] || l['document_no'] || l['id'];
                             return String(currentId) === String(recordOrDoc);
                         });
-                        if (found) {
-                            localStorage.setItem('print_leave_data_' + docId, JSON.stringify(found));
-                        }
                     }
 
-                    // Use only docId in URL (standard flow). Template will fetch the record.
-                    url.searchParams.set('docId', docId);
-                    url.searchParams.set('openedFromIndex', '1');
-                    if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                        url.searchParams.set('apiUrl', encodeURIComponent(SERVER_API_URL));
-                    }
-                    if (isAdminMode) {
-                        url.searchParams.set('adminMode', '1');
+                    if (!recordObj) {
+                        // ถ้าไม่มีข้อมูลในรายการ ให้เปิดแบบดึงข้อมูลสดผ่าน docId จาก server
+                        const url = SERVER_API_URL + 
+                            '?action=printLeavePage' +
+                            '&docId=' + encodeURIComponent(docId) +
+                            '&openedFromIndex=1' +
+                            '&autoPrint=1' +
+                            '&openExternalBrowser=1';
+                        const w = window.open(url, '_blank', 'noopener');
+                        if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                        w.focus && w.focus();
+                        return;
                     }
 
-                    const w = window.open(url.toString(), '_blank', 'noopener');
+                    // Map ข้อมูลที่มีอยู่แล้วส่งไปแสดงผลทันทีโดยไม่ต้อง fetch server ซ้ำ
+                    const empName = recordObj['ชื่อ-นามสกุล'] || recordObj['ชื่อพนักงาน'] || recordObj['employeeName'] || recordObj.empName || '';
+                    const leaveType = recordObj['ประเภทการลา'] || recordObj['type'] || recordObj.leaveType || '';
+                    const period = recordObj['ระยะเวลา'] || recordObj.period || 'เต็มวัน';
+                    const start = recordObj['วันที่เริ่ม'] || recordObj['จากวันที่'] || recordObj['เริ่มวันที่'] || recordObj.start || '';
+                    const end = recordObj['วันที่สิ้นสุด'] || recordObj['ถึงวันที่'] || recordObj.end || '';
+                    const days = recordObj['จำนวนวัน'] || recordObj.days || '';
+                    const reason = recordObj['เหตุผล'] || recordObj.reason || '';
+                    const signature = recordObj['ลายมือชื่อ'] || recordObj['ลายเซ็น'] || recordObj.signature || recordObj.signatureUrl || '';
+
+                    const url = SERVER_API_URL + 
+                        '?action=printLeavePage' +
+                        '&docId=' + encodeURIComponent(docId) +
+                        '&empName=' + encodeURIComponent(empName) +
+                        '&leaveType=' + encodeURIComponent(leaveType) +
+                        '&period=' + encodeURIComponent(period) +
+                        '&start=' + encodeURIComponent(start) +
+                        '&end=' + encodeURIComponent(end) +
+                        '&days=' + encodeURIComponent(days) +
+                        '&reason=' + encodeURIComponent(reason) +
+                        '&signature=' + encodeURIComponent(signature) +
+                        '&openedFromIndex=1' +
+                        '&autoPrint=1' +
+                        '&openExternalBrowser=1';
+
+                    const w = window.open(url, '_blank', 'noopener');
                     if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
                     w.focus && w.focus();
                 } catch (e) {
