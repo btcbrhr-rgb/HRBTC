@@ -814,6 +814,21 @@
             const apiUrlFromQuery = params.get('apiUrl');
             const forceServer = options.forceServer === true;
 
+            function decodeUriRecursive(value) {
+                if (!value || typeof value !== 'string') return value;
+                let decoded = value;
+                try {
+                    while (decoded !== decodeURIComponent(decoded)) {
+                        decoded = decodeURIComponent(decoded);
+                    }
+                } catch (err) {
+                    // stop if the string is not valid encoded URI component
+                }
+                return decoded;
+            }
+
+            const apiUrlFromQueryClean = apiUrlFromQuery ? decodeUriRecursive(apiUrlFromQuery) : null;
+
             if (!docId && !empId) {
                 showToast('ไม่พบตัวระบุข้อมูลเพื่อเรียกใช้งานข้อมูลจริง', 'info');
                 return Promise.resolve(null);
@@ -903,7 +918,7 @@
 
             const runViaGoogleScript = typeof google !== 'undefined' && google && google.script && google.script.run;
             const apiUrlFromStorage = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem) ? window.localStorage.getItem('hr_api_url') : null;
-            const apiUrlFromQueryClean = apiUrlFromQuery ? decodeURIComponent(apiUrlFromQuery) : null;
+            const apiUrlFromQueryClean = apiUrlFromQuery ? decodeUriRecursive(apiUrlFromQuery) : null;
             const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (apiUrlFromQueryClean ? apiUrlFromQueryClean.trim() : (apiUrlFromStorage ? apiUrlFromStorage.trim() : null));
 
             if (runViaGoogleScript) {
