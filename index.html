@@ -13372,6 +13372,12 @@ ${slip.textSample}
         }
 
         async function loadSheetData() {
+            // 🔴 GUARD: ตรวจสอบว่า currentEmployeeId มีค่าแล้ว ถ้าไม่ใจจะ return ไม่ต้องโหลด
+            if (!currentEmployeeId || currentEmployeeId.trim() === '') {
+                console.log('[loadSheetData] Skipped: currentEmployeeId is empty (user not logged in yet)');
+                return;
+            }
+
             // ✅ OPTIMIZED: ใช้ getProjectCostData (1 call แทน 4 calls) → เร็วขึ้น 3-4x
             const currentMonth = (() => {
                 const sel = document.getElementById('billingMonth');
@@ -13457,7 +13463,11 @@ ${slip.textSample}
                         refreshActiveTab();
                     }
                 } catch (batchErr) {
-                    console.warn('[ProjectCost] Batch API failed, falling back:', batchErr);
+                    console.warn('[ProjectCost] Batch API failed:', batchErr.message || batchErr);
+                    // Show gentle warning but continue with fallback
+                    if (batchErr.response?.status === 404) {
+                        console.log('[ProjectCost] 404 error - possible authorization issue, retrying with fallback');
+                    }
                 }
             }
 
