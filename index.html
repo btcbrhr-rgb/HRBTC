@@ -9276,13 +9276,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     loadAdminSettings();
                     renderSystemConfigSummary();
                     // หากยังไม่มี Firebase config ครบ ให้เปิด modal ให้อัตโนมัติเพื่อให้ผู้ดูแลใส่ค่า
+                    // แต่ต้องแน่ใจว่าเป็นผู้ดูแลระบบจริงเท่านั้น (isAdminMode หรือสิทธิ์ผู้ดูแล)
                     try {
-                        const fb = getFirebaseConfigFromStorage();
-                        const hasFb = fb.apiKey && fb.authDomain && fb.projectId && fb.appId;
-                        if (!hasFb) {
-                            setTimeout(() => {
-                                toggleConfigModal();
-                            }, 200);
+                        const isAdminUser = (typeof isAdminMode !== 'undefined' && isAdminMode) || isAdminLoginAccount(currentEmployeeId) || isAdminRole(employeeData["สิทธิ์การใช้งาน"] || "");
+                        if (isAdminUser) {
+                            const fb = getFirebaseConfigFromStorage();
+                            const hasFb = fb.apiKey && fb.authDomain && fb.projectId && fb.appId;
+                            if (!hasFb) {
+                                setTimeout(() => {
+                                    toggleConfigModal();
+                                }, 200);
+                            }
                         }
                     } catch (e) { console.warn('render config check failed', e); }
                 }
