@@ -4999,6 +4999,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let payslipsList = [];
             let projectsList = [];
 
+            async function ensureApiConnectivity() {
+                if (!SERVER_API_URL) return { ok: false, reason: 'missing-url' };
+                try {
+                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=health`, { timeout: 10000, skipPerf: true });
+                    if (response && response.status === 'success' && response.data && response.data.ok) {
+                        return { ok: true, data: response.data };
+                    }
+                    return { ok: false, reason: response?.message || 'health-check-failed' };
+                } catch (err) {
+                    return { ok: false, reason: err?.message || 'health-check-error' };
+                }
+            }
+
             async function loadProjects() {
                 try {
                     const response = await fetchWithTimeout(`${SERVER_API_URL}?action=getProjects`);
@@ -5740,6 +5753,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 showSkeleton('leave-history-list', 'table', 3);
                 showSkeleton('advance-history-list', 'table', 3);
 
+                const healthCheck = await ensureApiConnectivity();
+                if (!healthCheck.ok) {
+                    console.warn('[API] Health check failed before dashboard load:', healthCheck.reason);
+                } else {
+                    console.log('[API] Health check ok:', healthCheck.data);
+                }
+
                 // === 🟢 PHASE B-1: ใช้ cachedFetch → cache 30s สำหรับ dashboard ===
                 const t0 = performance.now();
                 try {
@@ -6271,6 +6291,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const action = _extractAction(resource);
                 const t0 = performance.now();
 
+                const persistResolvedApiUrl = (url) => {
+                    const normalized = resolveApiUrl(url);
+                    if (!normalized) return;
+                    if (SERVER_API_URL !== normalized) {
+                        SERVER_API_URL = normalized;
+                        try {
+                            localStorage.setItem('hr_api_url', normalized);
+                        } catch (err) {
+                            console.warn('[API] Could not persist resolved URL', err);
+                        }
+                    }
+                };
+
                 // ถ้า timeout = 0 หรือ null → ไม่มี timeout
                 if (timeout > 0) {
                     id = setTimeout(() => controller.abort(new DOMException("Request timed out", "AbortError")), timeout);
@@ -6299,15 +6332,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const resolvedResource = resolveApiUrl(resource);
                     let result = await tryFetch(resolvedResource);
 
-                    if ((result.status === 'error' && result.code === 404) || (result.status === 'error' && result.code === 410)) {
+                    if (result && result.data !== undefined) {
+                        persistResolvedApiUrl(resolvedResource);
+                        return result.data;
+                    }
+
+                    const shouldRetryWithFallback = result && result.status === 'error' && [404, 410, 500, 502, 503].includes(result.code);
+                    if (shouldRetryWithFallback) {
                         const fallbackUrl = getFallbackApiUrl(resource);
                         if (fallbackUrl && fallbackUrl !== resolvedResource) {
                             console.warn(`[API] Retrying ${action} via fallback URL`, fallbackUrl);
                             result = await tryFetch(fallbackUrl);
+                            if (result && result.data !== undefined) {
+                                persistResolvedApiUrl(fallbackUrl);
+                                return result.data;
+                            }
                         }
                     }
 
-                    if (result && result.data !== undefined) return result.data;
                     if (result && result.status === 'error') return result;
                     return { status: 'error', message: 'Unknown fetch error' };
                 } catch (err) {
