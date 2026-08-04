@@ -4696,6 +4696,8 @@ let batchOperationAction = null; // "approve" | "reject"
 let selectedLeaveItems = new Set(); // For batch leave approval
 let selectedCorrectionItems = new Set(); // For batch time correction approval
 let selectedAdvanceItems = new Set(); // For batch advance approval
+let currentEmployeeId;
+let SERVER_API_URL;
 
 async function fetchAdminEmployeeList() {
     if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) return;
@@ -4962,8 +4964,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return fallback;
             }
 
-            let currentEmployeeId = "";
-            let SERVER_API_URL = resolveApiUrl(localStorage.getItem("hr_api_url") || "");
+            currentEmployeeId = "";
+            SERVER_API_URL = resolveApiUrl(localStorage.getItem("hr_api_url") || "");
             if (!SERVER_API_URL) {
                 SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
             }
@@ -5438,84 +5440,47 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}&adminId=${encodeURIComponent(empIdInput)}`
                     ], { timeout: 10000 });
 
-                    if (empResponse && empResponse.status === "success") {
-                        currentEmployeeId = getEmployeeIdFromData(empResponse.data || {}, empIdInput);
-                        isLoggedIn = true;
-                        employeeData = empResponse.data || {};
-                        sessionStorage.setItem("is_logged_in", "true");
-                        localStorage.setItem("hr_emp_id", currentEmployeeId);
-                    } else {
-                        console.warn('[Login] getEmployee returned invalid response', empResponse);
-                    }
-
-                        // ตรวจสอบสถานะ PIN จากข้อมูลพนักงานที่ได้จากฐานข้อมูล (Server Response)
-                        const dbPin = (employeeData["PIN"] || employeeData["รหัส PIN"] || employeeData["รหัสPIN"] || "").toString().trim();
-                        const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
-
-                        // หากเข้าสู่ระบบด้วยรหัส admin ไม่ต้องบังคับตั้งค่า PIN หรือกรอก PIN
-                        const isAdminUser = currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin';
-
-                        // หากในตารางฐานข้อมูลไม่มี PIN ( Admin กดล้าง PIN หรือยังไม่ได้ตั้ง ) 
-                        // ให้ล้าง PIN ในเครื่องทิ้งทันที และเปิด Pop-up ให้พนักงานตั้งค่า PIN ใหม่ (ยกเว้น admin)
-                        if (!dbPin && !isAdminUser) {
-                            localStorage.removeItem(getPinStorageKey(currentEmployeeId));
-                            document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
-                            showModal("pin-setup-modal");
-                            return;
-                        }
-
-                        // หากในเครื่องยังไม่มี Hash ให้บันทึกเทียบไว้เพื่อใช้งาน
-                        if (!savedPinHash) {
-                            // หากคอลัมน์ PIN ใน DB เก็บเป็น Plain Text หรือ Hash ให้อัปเดต Hash ลงเครื่อง
-                            if (dbPin.length === 6) {
-                                hashPin(dbPin).then(h => localStorage.setItem(getPinStorageKey(currentEmployeeId), h));
-                            }
-                        }
-
-                        // หากเข้าสู่ระบบด้วย admin สามารถผ่านเข้าสู่ระบบได้เลย ไม่ต้องกรอก PIN
-                        if (isAdminUser) {
-                            proceedToMainApp();
-                            return;
-                        }
-
-                        // เปิด Pop-up ให้กรอกรหัส PIN 6 หลักเพื่อยืนยันก่อนเข้าสู่ระบบ
-                        document.getElementById("pin-login-emp-id").value = currentEmployeeId;
-                        document.getElementById("pin-login-input").value = "";
-                        showModal("pin-login-modal");
-                        setTimeout(() => {
-                            const inputEl = document.getElementById("pin-login-input");
-                            if (inputEl) inputEl.focus();
-                        }, 300);
-                        return;
-
-                        // แสดง loading overlay บนหน้า login แล้วรอโหลดข้อมูลก่อน
-                        showLoginLoading(employeeData["ชื่อ-นามสกุล"] || empIdInput);
-                        generateCycleOptions();
-                        const currentCycle = getCurrentCycleRange();
-                        const homeCycleRange = document.getElementById("home-cycle-range");
-                        if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-                        document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                        const success = await loadAllData();
-                        if (success) {
-                            hideLoginContainer();
-                            if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
-                                enterAdminMode();
-                            } else {
-                                navigateTo("home");
-                                showToast(`🎉 ยินดีต้อนรับคุณ ${employeeData["ชื่อ-นามสกุล"] || empIdInput}`, "success");
-                            }
-                        } else {
-                            const retryBtn = document.getElementById("login-loading-retry-btn");
-                            if (retryBtn) retryBtn.classList.remove("hidden");
-                            const subEl = document.getElementById("login-loading-sub");
-                            if (subEl) subEl.textContent = "ดึงข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
-                        }
-                    } else {
+                    if (!(empResponse && empResponse.status === "success")) {
                         showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
+                        return;
                     }
+
+                    currentEmployeeId = getEmployeeIdFromData(empResponse.data || {}, empIdInput);
+                    isLoggedIn = true;
+                    employeeData = empResponse.data || {};
+                    sessionStorage.setItem("is_logged_in", "true");
+                    localStorage.setItem("hr_emp_id", currentEmployeeId);
+
+                    const dbPin = (employeeData["PIN"] || employeeData["รหัส PIN"] || employeeData["รหัสPIN"] || "").toString().trim();
+                    const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
+                    const isAdminUser = currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin';
+
+                    if (!dbPin && !isAdminUser) {
+                        localStorage.removeItem(getPinStorageKey(currentEmployeeId));
+                        document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
+                        showModal("pin-setup-modal");
+                        return;
+                    }
+
+                    if (!savedPinHash && dbPin.length === 6) {
+                        hashPin(dbPin).then(h => localStorage.setItem(getPinStorageKey(currentEmployeeId), h));
+                    }
+
+                    if (isAdminUser) {
+                        proceedToMainApp();
+                        return;
+                    }
+
+                    document.getElementById("pin-login-emp-id").value = currentEmployeeId;
+                    document.getElementById("pin-login-input").value = "";
+                    showModal("pin-login-modal");
+                    setTimeout(() => {
+                        const inputEl = document.getElementById("pin-login-input");
+                        if (inputEl) inputEl.focus();
+                    }, 300);
                 }, {
                     buttonId: "login-btn",
-                    activeLabel: `<span>เข้าสู่ระบบ</span>`,
+                    activeLabel: '<span>เข้าสู่ระบบ</span>',
                     loadingLabel: "กำลังเข้าสู่ระบบ..."
                 });
             }
