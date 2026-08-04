@@ -6436,21 +6436,32 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             window.__perfReport = () => PerfStats.report();
             window.__perfClear = () => PerfStats.clear();
 
-            // helper แกะ action ออกจาก URL
+            // helper แกะ action ออกจาก URL หรือ body
             function _extractAction(url) {
                 try {
-                    const u = typeof url === 'string' ? new URL(url, location.href) : null;
-                    if (!u) return 'unknown';
-                    const a = u.searchParams.get('action');
-                    return a || (url.includes('method:') ? 'POST' : 'unknown');
-                } catch { return 'unknown'; }
+                    if (typeof url === 'string') {
+                        const u = new URL(url, location.href);
+                        const a = u.searchParams.get('action');
+                        if (a) return a;
+                    }
+                } catch { /* fall through */ }
+                // [FIX] ไม่เจอ action ใน URL → ลอง parse body เผื่อ POST ใส่ action ใน body
+                try {
+                    const opts = (typeof url === 'object' && url !== null) ? url : null;
+                    if (opts && opts.body) {
+                        const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
+                        if (body && body.action) return body.action;
+                    }
+                } catch { /* fall through */ }
+                return 'unknown';
             }
 
             async function fetchWithTimeout(resource, options = {}) {
                 const { timeout = 60000, skipPerf = false, ...fetchOptions } = options;
                 const controller = new AbortController();
                 let id = null;
-                const action = _extractAction(resource);
+                // [FIX] ส่ง options เข้า _extractAction ด้วย เพื่อให้รู้จัก action จาก POST body
+                const action = _extractAction(resource, fetchOptions);
                 const t0 = performance.now();
                 let effectiveTimeout = timeout;
                 if (effectiveTimeout === null || effectiveTimeout === undefined) {
@@ -6564,7 +6575,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 _key(url, body) {
                     // key = action + query + body hash
-                    const action = _extractAction(url) || 'POST';
+                    const action = _extractAction(url, { body }) || 'POST';
                     const bodyStr = body ? JSON.stringify(body) : '';
                     return `${action}::${url}::${bodyStr}`;
                 },
@@ -6577,7 +6588,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (!this.enabled) {
                         return fetchWithTimeout(url, options);
                     }
-                    const action = _extractAction(url);
+                    // [FIX] ส่ง options ไปด้วย เพื่อให้ _extractAction แกะจาก POST body ได้
+                    const action = _extractAction(url, options);
                     const ttl = this._ttlFor(action);
 
                     // POST/PUT → ไม่ cache (เป็น mutation)
@@ -8943,10 +8955,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // --- ส่วนบริหารระบบตั้งค่า API ---
             function toggleConfigModal() {
                 const modal = document.getElementById("config-modal");
-                if (modal.classList.contains("hidden")) {
-                    loadSystemConfigIntoModal();
+                if (!modal) {
+                    console.error("[toggleConfigModal] ไม่พบ #config-modal ใน DOM");
+                    showToast("❌ ไม่พบ Modal ตั้งค่า (ลองรีเฟรชหน้าเว็บ)", "error");
+                    return;
                 }
-                modal.classList.toggle("hidden");
+                const isHidden = modal.classList.contains("hidden");
+                if (isHidden) {
+                    loadSystemConfigIntoModal();
+                    modal.classList.remove("hidden");
+                    // [FIX] ยกเลข z-index สูงกว่า inapp-overlay เผื่อมี overlay ค้าง
+                    modal.style.zIndex = "100000";
+                    console.log("[toggleConfigModal] เปิด modal ตั้งค่าการเชื่อมต่อ");
+                } else {
+                    modal.classList.add("hidden");
+                    modal.style.zIndex = "";
+                    console.log("[toggleConfigModal] ปิด modal ตั้งค่าการเชื่อมต่อ");
+                }
             }
 
             function onConfigModeChange() {
