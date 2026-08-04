@@ -5445,7 +5445,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const empResponse = await tryApiRequest([
                         `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}`,
                         `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}&adminId=${encodeURIComponent(empIdInput)}`
-                    ], { timeout: 20000 });
+                    ], { timeout: 30000 });
 
                     if (!(empResponse && empResponse.status === "success")) {
                         showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
@@ -6341,6 +6341,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 let id = null;
                 const action = _extractAction(resource);
                 const t0 = performance.now();
+                let effectiveTimeout = timeout;
+                if (effectiveTimeout === null || effectiveTimeout === undefined) {
+                    effectiveTimeout = 60000;
+                }
+                if (effectiveTimeout > 0 && action === 'getEmployee' && effectiveTimeout < 20000) {
+                    effectiveTimeout = 20000;
+                }
 
                 const persistResolvedApiUrl = (url) => {
                     const normalized = resolveApiUrl(url);
@@ -6356,8 +6363,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 };
 
                 // ถ้า timeout = 0 หรือ null → ไม่มี timeout
-                if (timeout > 0) {
-                    id = setTimeout(() => controller.abort(new DOMException("Request timed out", "AbortError")), timeout);
+                if (effectiveTimeout > 0) {
+                    id = setTimeout(() => controller.abort(new DOMException("Request timed out", "AbortError")), effectiveTimeout);
                 }
 
                 const tryFetch = async (url) => {
