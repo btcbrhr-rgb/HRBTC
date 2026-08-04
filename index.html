@@ -35,6 +35,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
+    <!-- Firebase SDK (Firestore compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
     <!-- Google Fonts Prompt -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15651,12 +15655,81 @@ function renderSummaryMatrix() {
             }, 1000);
         }
 
+        async function initializeFirebase() {
+            try {
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDbGAvxtcOB1BHbc9ExwbBxG4IZ1ITv-s4",
+                    authDomain: "smart-hr-database.firebaseapp.com",
+                    projectId: "smart-hr-database",
+                    storageBucket: "smart-hr-database.firebasestorage.app",
+                    messagingSenderId: "658537722961",
+                    appId: "1:658537722961:web:7936398e0ade43afddb470",
+                    measurementId: "G-PFK2R35L81"
+                };
+
+                firebase.initializeApp(firebaseConfig);
+                window.firebaseDb = firebase.firestore();
+                console.log("[Firebase] initialized", firebaseConfig.projectId);
+            } catch (err) {
+                console.error("[Firebase] init failed", err);
+            }
+        }
+
+        async function saveEmployeeToFirebase(empId, data) {
+            if (!window.firebaseDb) {
+                console.error("[Firebase] db not initialized");
+                return null;
+            }
+            try {
+                const ref = window.firebaseDb.collection("employees").doc(empId);
+                await ref.set({
+                    ...data,
+                    empId,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+                console.log("[Firebase] saved employee", empId);
+                return true;
+            } catch (err) {
+                console.error("[Firebase] saveEmployee failed", err);
+                return false;
+            }
+        }
+
+        async function getEmployeeFromFirebase(empId) {
+            if (!window.firebaseDb) {
+                console.error("[Firebase] db not initialized");
+                return null;
+            }
+            try {
+                const ref = window.firebaseDb.collection("employees").doc(empId);
+                const doc = await ref.get();
+                if (!doc.exists) {
+                    console.warn("[Firebase] employee not found", empId);
+                    return null;
+                }
+                return { id: doc.id, ...doc.data() };
+            } catch (err) {
+                console.error("[Firebase] getEmployee failed", err);
+                return null;
+            }
+        }
+
+        async function syncCurrentEmployeeToFirebase() {
+            if (!currentEmployeeId || !employeeData) return false;
+            return saveEmployeeToFirebase(currentEmployeeId, employeeData);
+        }
+
         // ─── Auto-initialize page when DOM loads ───
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeProjectCostPage);
+            document.addEventListener('DOMContentLoaded', async () => {
+                await initializeFirebase();
+                initializeProjectCostPage();
+            });
         } else {
-            // DOM already loaded (if script added later)
-            initializeProjectCostPage();
+            (async () => {
+                await initializeFirebase();
+                initializeProjectCostPage();
+            })();
         }
     
 </script>
