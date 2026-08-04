@@ -3738,7 +3738,7 @@
                                 <h3 class="text-sm font-bold text-slate-900">ตั้งค่าการเชื่อมต่อ Google Sheets / Firebase</h3>
                                 <p class="text-xs text-slate-500">กดปุ่มด้านล่างเพื่อเปิดหน้าตั้งค่าการเชื่อมต่อ API และ Firebase</p>
                             </div>
-                            <button onclick="toggleConfigModal()"
+                            <button id="open-config-btn" onclick="toggleConfigModal()"
                                 class="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-all">
                                 <i class="fa-solid fa-plug"></i>
                                 เปิดการตั้งค่าการเชื่อมต่อ
@@ -9265,6 +9265,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     descEl.textContent = "กำหนดเวลาเข้างาน-ออกงาน เวลาสาย ค่าเวลา และตั้งค่าพารามิเตอร์หลักขององค์กร";
                     loadAdminSettings();
                     renderSystemConfigSummary();
+                    // หากยังไม่มี Firebase config ครบ ให้เปิด modal ให้อัตโนมัติเพื่อให้ผู้ดูแลใส่ค่า
+                    try {
+                        const fb = getFirebaseConfigFromStorage();
+                        const hasFb = fb.apiKey && fb.authDomain && fb.projectId && fb.appId;
+                        if (!hasFb) {
+                            setTimeout(() => {
+                                toggleConfigModal();
+                            }, 200);
+                        }
+                    } catch (e) { console.warn('render config check failed', e); }
                 }
             }
 
@@ -15852,11 +15862,26 @@ function renderSummaryMatrix() {
             document.addEventListener('DOMContentLoaded', async () => {
                 await initializeFirebase();
                 initializeProjectCostPage();
+                // Bind config button click to ensure it works even if inline onclick fails
+                try {
+                    const btn = document.getElementById('open-config-btn');
+                    if (btn && !btn._bound) {
+                        btn.addEventListener('click', () => toggleConfigModal());
+                        btn._bound = true;
+                    }
+                } catch (e) { console.warn('bind open-config-btn failed', e); }
             });
         } else {
             (async () => {
                 await initializeFirebase();
                 initializeProjectCostPage();
+                try {
+                    const btn = document.getElementById('open-config-btn');
+                    if (btn && !btn._bound) {
+                        btn.addEventListener('click', () => toggleConfigModal());
+                        btn._bound = true;
+                    }
+                } catch (e) { console.warn('bind open-config-btn failed', e); }
             })();
         }
     
