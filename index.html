@@ -4901,6 +4901,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return "";
             }
 
+            function normalizeApiBaseUrl(url) {
+                if (!url || typeof url !== "string") return "";
+                try {
+                    const parsed = new URL(url, window.location.href);
+                    return `${parsed.origin}${parsed.pathname}`;
+                } catch (err) {
+                    return url.trim();
+                }
+            }
+
             function resolveApiUrl(url) {
                 if (!url || typeof url !== "string") return getCurrentWebAppBaseUrl();
 
@@ -4911,17 +4921,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const parsed = new URL(trimmed, window.location.href);
                     const isEchoUrl = parsed.hostname === "script.googleusercontent.com" && parsed.pathname.includes("/macros/echo");
                     if (isEchoUrl) {
-                        return getCurrentWebAppBaseUrl() || trimmed;
+                        return getCurrentWebAppBaseUrl() || normalizeApiBaseUrl(trimmed);
                     }
 
                     if (parsed.protocol === "https:" && parsed.hostname.endsWith("google.com") && parsed.pathname.includes("/macros/")) {
-                        return trimmed;
+                        return normalizeApiBaseUrl(trimmed);
                     }
                 } catch (err) {
                     console.warn("[API] Invalid API URL candidate", err);
                 }
 
-                return getCurrentWebAppBaseUrl() || trimmed;
+                return getCurrentWebAppBaseUrl() || normalizeApiBaseUrl(trimmed);
             }
 
             function getFallbackApiUrl(resource) {
@@ -5045,13 +5055,30 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            function normalizeApiRequestUrl(url) {
+                if (!url || typeof url !== 'string') return url;
+                const hashIndex = url.indexOf('#');
+                const hash = hashIndex >= 0 ? url.slice(hashIndex) : '';
+                const main = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
+
+                const questionIndex = main.indexOf('?');
+                if (questionIndex < 0) {
+                    return url;
+                }
+
+                const prefix = main.slice(0, questionIndex + 1);
+                const query = main.slice(questionIndex + 1).replace(/\?/g, '&');
+                return prefix + query + hash;
+            }
+
             async function tryApiRequest(urls, options = {}) {
                 const candidates = Array.isArray(urls) ? urls.filter(Boolean) : [urls].filter(Boolean);
                 if (!candidates.length) return { status: 'error', message: 'No API URL candidates provided' };
 
                 let lastError = null;
                 for (const candidate of candidates) {
-                    const result = await fetchWithTimeout(candidate, options);
+                    const normalizedCandidate = normalizeApiRequestUrl(candidate);
+                    const result = await fetchWithTimeout(normalizedCandidate, options);
                     if (result && result.status === 'success') {
                         return result;
                     }
