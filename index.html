@@ -5018,15 +5018,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let payslipsList = [];
             let projectsList = [];
 
+            function getApiDebugInfo(targetUrl) {
+                return {
+                    location: window.location.href,
+                    resolvedServerApiUrl: SERVER_API_URL,
+                    targetUrl: targetUrl || `${SERVER_API_URL}?action=health`
+                };
+            }
+
             async function ensureApiConnectivity() {
                 if (!SERVER_API_URL) return { ok: false, reason: 'missing-url' };
+                const targetUrl = `${SERVER_API_URL}?action=health`;
                 try {
-                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=health`, { timeout: 10000, skipPerf: true });
+                    const response = await fetchWithTimeout(targetUrl, { timeout: 10000, skipPerf: true });
+                    console.log('[API] Health probe', getApiDebugInfo(targetUrl), response);
                     if (response && response.status === 'success' && response.data && response.data.ok) {
                         return { ok: true, data: response.data };
                     }
                     return { ok: false, reason: response?.message || 'health-check-failed' };
                 } catch (err) {
+                    console.warn('[API] Health probe error', getApiDebugInfo(targetUrl), err);
                     return { ok: false, reason: err?.message || 'health-check-error' };
                 }
             }
@@ -5811,9 +5822,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 const healthCheck = await ensureApiConnectivity();
                 if (!healthCheck.ok) {
-                    console.warn('[API] Health check failed before dashboard load:', healthCheck.reason);
+                    console.warn('[API] Health check failed before dashboard load:', healthCheck.reason, getApiDebugInfo());
+                    showToast('⚠️ Backend ยังไม่ตอบ หรือเว็บแอปที่เปิดอยู่ยังเป็นเวอร์ชันเก่า กรุณา redeploy Apps Script แล้วลองใหม่', 'warning');
                 } else {
-                    console.log('[API] Health check ok:', healthCheck.data);
+                    console.log('[API] Health check ok:', healthCheck.data, getApiDebugInfo());
                 }
 
                 // === 🟢 PHASE B-1: ใช้ cachedFetch → cache 30s สำหรับ dashboard ===
