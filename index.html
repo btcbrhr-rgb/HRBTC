@@ -5103,11 +5103,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 let lastError = null;
                 for (const candidate of candidates) {
                     const normalizedCandidate = normalizeApiRequestUrl(candidate);
+                    console.log('[tryApiRequest] attempting candidate', normalizedCandidate, options);
                     const result = await fetchWithTimeout(normalizedCandidate, options);
                     if (result && result.status === 'success') {
                         return result;
                     }
 
+                    console.warn('[tryApiRequest] candidate failed', normalizedCandidate, result);
                     const message = (result && (result.message || '')) || '';
                     const msg = message.toString().toLowerCase();
                     const isCompatError = msg.includes('รหัสพนักงานไม่ถูกต้อง') ||
@@ -5497,7 +5499,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const empResponse = await tryApiRequest([
                         `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}`,
                         `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}&adminId=${encodeURIComponent(empIdInput)}`
-                    ], { timeout: 30000 });
+                    ], { timeout: 60000 });
 
                     if (!(empResponse && empResponse.status === "success")) {
                         console.error('[handleLogin] getEmployee failed', empResponse, { empIdInput, SERVER_API_URL });
@@ -5543,6 +5545,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         console.warn('[handleLogin loadAllData]', err);
                         showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
                     });
+
+                    if (window.firebaseDb) {
+                        syncCurrentEmployeeToFirebase().then(saved => {
+                            if (saved) {
+                                console.log('[Firebase] current employee synced after login');
+                            }
+                        }).catch(err => {
+                            console.warn('[Firebase] syncCurrentEmployeeToFirebase failed', err);
+                        });
+                    }
+
                     return;
                 }, {
                     buttonId: "login-btn",
