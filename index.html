@@ -4880,8 +4880,74 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let selectedPayslipMonth = "";
             let selectedTxtFileContent = "";
 
+            function getCurrentWebAppBaseUrl() {
+                try {
+                    const fromQuery = new URLSearchParams(window.location.search).get("apiUrl");
+                    if (fromQuery) return fromQuery.trim();
+
+                    const currentUrl = new URL(window.location.href);
+                    const isAppsScriptLike = currentUrl.hostname.includes("google") &&
+                        (currentUrl.pathname.includes("/macros/s/") || currentUrl.pathname.includes("/macros/d/") || currentUrl.pathname.includes("/exec"));
+
+                    if (isAppsScriptLike) {
+                        return `${currentUrl.origin}${currentUrl.pathname}`;
+                    }
+                } catch (err) {
+                    console.warn("[API] Failed to resolve current web app URL", err);
+                }
+                return "";
+            }
+
+            function resolveApiUrl(url) {
+                if (!url || typeof url !== "string") return getCurrentWebAppBaseUrl();
+
+                const trimmed = url.trim();
+                if (!trimmed) return getCurrentWebAppBaseUrl();
+
+                try {
+                    const parsed = new URL(trimmed, window.location.href);
+                    const isEchoUrl = parsed.hostname === "script.googleusercontent.com" && parsed.pathname.includes("/macros/echo");
+                    if (isEchoUrl) {
+                        return getCurrentWebAppBaseUrl() || trimmed;
+                    }
+
+                    if (parsed.protocol === "https:" && parsed.hostname.endsWith("google.com") && parsed.pathname.includes("/macros/")) {
+                        return trimmed;
+                    }
+                } catch (err) {
+                    console.warn("[API] Invalid API URL candidate", err);
+                }
+
+                return getCurrentWebAppBaseUrl() || trimmed;
+            }
+
+            function getFallbackApiUrl(resource) {
+                const currentBase = getCurrentWebAppBaseUrl();
+                if (!currentBase || !resource || typeof resource !== "string") return null;
+
+                try {
+                    const currentUrl = new URL(resource, window.location.href);
+                    const fallbackUrl = new URL(currentBase, window.location.href);
+                    const action = currentUrl.searchParams.get("action");
+                    if (action) fallbackUrl.searchParams.set("action", action);
+
+                    for (const [key, value] of currentUrl.searchParams.entries()) {
+                        if (key === "action") continue;
+                        fallbackUrl.searchParams.set(key, value);
+                    }
+
+                    return fallbackUrl.toString();
+                } catch (err) {
+                    console.warn("[API] Failed to build fallback API URL", err);
+                    return null;
+                }
+            }
+
             let currentEmployeeId = "";
-            let SERVER_API_URL = localStorage.getItem("hr_api_url") || "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
+            let SERVER_API_URL = resolveApiUrl(localStorage.getItem("hr_api_url") || "");
+            if (!SERVER_API_URL) {
+                SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
+            }
             let activePage = "home";
             let currentGpsLocation = { lat: "", lng: "" };
             let streamRef = null;
@@ -6210,22 +6276,40 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     id = setTimeout(() => controller.abort(new DOMException("Request timed out", "AbortError")), timeout);
                 }
 
-                try {
-                    const response = await fetch(resource, { ...options, signal: controller.signal });
+                const tryFetch = async (url) => {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
                     if (id !== null) clearTimeout(id);
                     const ms = performance.now() - t0;
                     if (!response.ok) {
                         if (!skipPerf) PerfStats.record(action, ms, 'error', { httpStatus: response.status });
-                        return { status: 'error', message: 'Network response was not ok', code: response.status };
+                        return { response, status: 'error', message: 'Network response was not ok', code: response.status };
                     }
+
                     try {
                         const data = await response.json();
                         if (!skipPerf) PerfStats.record(action, ms, 'success', { bytes: JSON.stringify(data).length });
-                        return data;
+                        return { response, data };
                     } catch (parseErr) {
                         if (!skipPerf) PerfStats.record(action, ms, 'error', { parseError: parseErr.message });
-                        return { status: 'error', message: 'Invalid JSON response: ' + parseErr.message };
+                        return { response, status: 'error', message: 'Invalid JSON response: ' + parseErr.message };
                     }
+                };
+
+                try {
+                    const resolvedResource = resolveApiUrl(resource);
+                    let result = await tryFetch(resolvedResource);
+
+                    if ((result.status === 'error' && result.code === 404) || (result.status === 'error' && result.code === 410)) {
+                        const fallbackUrl = getFallbackApiUrl(resource);
+                        if (fallbackUrl && fallbackUrl !== resolvedResource) {
+                            console.warn(`[API] Retrying ${action} via fallback URL`, fallbackUrl);
+                            result = await tryFetch(fallbackUrl);
+                        }
+                    }
+
+                    if (result && result.data !== undefined) return result.data;
+                    if (result && result.status === 'error') return result;
+                    return { status: 'error', message: 'Unknown fetch error' };
                 } catch (err) {
                     if (id !== null) clearTimeout(id);
                     const ms = performance.now() - t0;
