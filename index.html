@@ -4921,17 +4921,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const parsed = new URL(trimmed, window.location.href);
                     const isEchoUrl = parsed.hostname === "script.googleusercontent.com" && parsed.pathname.includes("/macros/echo");
                     if (isEchoUrl) {
-                        return getCurrentWebAppBaseUrl() || normalizeApiBaseUrl(trimmed);
+                        return getCurrentWebAppBaseUrl() || trimmed;
                     }
 
                     if (parsed.protocol === "https:" && parsed.hostname.endsWith("google.com") && parsed.pathname.includes("/macros/")) {
-                        return normalizeApiBaseUrl(trimmed);
+                        return trimmed;
                     }
                 } catch (err) {
                     console.warn("[API] Invalid API URL candidate", err);
                 }
 
-                return getCurrentWebAppBaseUrl() || normalizeApiBaseUrl(trimmed);
+                return getCurrentWebAppBaseUrl() || trimmed;
             }
 
             function getFallbackApiUrl(resource) {
@@ -4976,7 +4976,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             currentEmployeeId = "";
-            SERVER_API_URL = resolveApiUrl(localStorage.getItem("hr_api_url") || "");
+            SERVER_API_URL = normalizeApiBaseUrl(localStorage.getItem("hr_api_url") || "") || resolveApiUrl(localStorage.getItem("hr_api_url") || "") || "";
             if (!SERVER_API_URL) {
                 SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
             }
@@ -6383,7 +6383,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 const persistResolvedApiUrl = (url) => {
-                    const normalized = resolveApiUrl(url);
+                    const normalized = normalizeApiBaseUrl(url);
                     if (!normalized) return;
                     if (SERVER_API_URL !== normalized) {
                         SERVER_API_URL = normalized;
