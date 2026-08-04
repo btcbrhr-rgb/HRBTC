@@ -5463,19 +5463,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const savedPinHash = localStorage.getItem(getPinStorageKey(currentEmployeeId));
                     const isAdminUser = currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin';
 
-                    if (!dbPin && !isAdminUser) {
-                        localStorage.removeItem(getPinStorageKey(currentEmployeeId));
-                        document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
-                        showModal("pin-setup-modal");
-                        return;
-                    }
-
                     if (!savedPinHash && dbPin.length === 6) {
                         hashPin(dbPin).then(h => localStorage.setItem(getPinStorageKey(currentEmployeeId), h));
                     }
 
                     if (isAdminUser) {
                         proceedToMainApp();
+                        return;
+                    }
+
+                    if (!dbPin) {
+                        // ไม่มี PIN ในระบบ → ไม่ต้องบังคับตั้ง PIN ในเบราว์เซอร์ปกติ
+                        if (isPWAApp) {
+                            localStorage.removeItem(getPinStorageKey(currentEmployeeId));
+                            document.getElementById("pin-setup-emp-id").value = currentEmployeeId;
+                            showModal("pin-setup-modal");
+                            return;
+                        }
+                        await proceedToMainApp();
                         return;
                     }
 
