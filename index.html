@@ -5264,6 +5264,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const homeCycleRange = document.getElementById("home-cycle-range");
                 if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+                if (typeof initializeProjectCostPage === 'function') {
+                    initializeProjectCostPage();
+                }
                 showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
                 const autoLoadSuccess = await loadAllData().catch(err => {
                     console.warn('[autoLoginAndNavigate loadAllData]', err);
@@ -5307,6 +5310,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const homeCycleRange = document.getElementById("home-cycle-range");
                     if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                     document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+                    if (typeof initializeProjectCostPage === 'function') {
+                        initializeProjectCostPage();
+                    }
                     showLoginLoading();
                     const autoLoadSuccess = await loadAllData().catch(err => {
                         console.warn('[Auto-login loadAllData]', err);
@@ -5491,6 +5497,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function logout() {
                 isLoggedIn = false;
                 isAdminMode = false;
+                sessionStorage.removeItem("is_logged_in");
                 localStorage.removeItem("is_logged_in");
                 localStorage.removeItem("hr_emp_id");
 
@@ -5706,6 +5713,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function proceedToMainApp() {
+                // ✅ Initialize project cost page once before loading user data
+                if (typeof initializeProjectCostPage === 'function') {
+                    initializeProjectCostPage();
+                }
                 // ✅ Optimistic Login: เข้าสู่ระบบทันทีแล้วโหลดข้อมูล background
                 updateCalendarCycleUI();
                 const currentCycle = getCurrentCycleRange();
@@ -13640,9 +13651,9 @@ ${slip.textSample}
         }
 
         async function loadSheetData() {
-            // 🔴 GUARD: ตรวจสอบว่า currentEmployeeId มีค่าแล้ว ถ้าไม่ใจจะ return ไม่ต้องโหลด
-            if (!currentEmployeeId || currentEmployeeId.trim() === '') {
-                console.log('[loadSheetData] Skipped: currentEmployeeId is empty (user not logged in yet)');
+            // 🔴 GUARD: ตรวจสอบว่า currentEmployeeId มีค่าแล้ว และล็อกอินแล้วก่อนโหลดข้อมูล
+            if (!isLoggedIn || !currentEmployeeId || currentEmployeeId.trim() === '') {
+                console.log('[loadSheetData] Skipped: not logged in or currentEmployeeId is empty', { isLoggedIn, currentEmployeeId });
                 return;
             }
 
@@ -13874,6 +13885,14 @@ ${slip.textSample}
         }
 
         async function initializeProjectCostPage() {
+            if (isProjectCostInitialized) {
+                if (isLoggedIn) {
+                    loadSheetData().catch(err => console.error('[Matrix load error]', err));
+                }
+                return;
+            }
+            isProjectCostInitialized = true;
+
             // Initialize billing month selector with dynamic options
             initializeBillingMonthSelector();
             
@@ -13891,7 +13910,11 @@ ${slip.textSample}
             switchTab('summary');
             
             // โหลดข้อมูลจริงในลักษณะเบื้องหลัง (Background loading) ไม่ล็อกการทำงานของผู้ใช้
-            loadSheetData().catch(err => console.error('[Matrix load error]', err));
+            if (isLoggedIn) {
+                loadSheetData().catch(err => console.error('[Matrix load error]', err));
+            } else {
+                console.log('[Matrix] Initialized project cost page before login; data load deferred until sign-in');
+            }
         }
 
         // Initialize billing month dropdown with options from 12 months back to 6 months forward
