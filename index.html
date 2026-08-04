@@ -1015,6 +1015,12 @@
                         <i class="fa-solid fa-users-gear"></i>
                     </button>
 
+                    <!-- ปุ่มตั้งค่าระบบ (header) - แสดงเฉพาะผู้ดูแลระบบ -->
+                    <button id="header-config-btn" onclick="toggleConfigModal()" title="ตั้งค่าระบบ" aria-label="ตั้งค่าระบบ"
+                        class="hidden w-8 h-8 rounded-full bg-white/10 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center text-sm transition-all">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+
                     <!-- ปุ่มออกจากระบบ -->
                     <button onclick="logout()" title="ออกจากระบบ" aria-label="ออกจากระบบ"
                         class="w-8 h-8 rounded-full bg-white/10 hover:bg-rose-600/35 hover:text-rose-200 flex items-center justify-center text-sm transition-all">
@@ -5542,7 +5548,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     sessionStorage.setItem("is_logged_in", "true");
                     localStorage.setItem("hr_emp_id", currentEmployeeId);
 
-                    // แสดงหน้า App ทันที และโหลดข้อมูลเบื้องหลัง
+                    // แสดงหน้า App หลังโหลดข้อมูลเสร็จ: แสดง overlay ขณะรอ loadAllData()
                     updateCalendarCycleUI();
                     const currentCycle = getCurrentCycleRange();
                     const homeCycleRange = document.getElementById("home-cycle-range");
@@ -5550,35 +5556,33 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const statCycleLabel = document.getElementById("stat-cycle-label");
                     if (statCycleLabel) statCycleLabel.textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
 
-                    hideLoginContainer();
-                    navigateTo("home");
-
-                    const loginCont = document.getElementById("login-container");
-                    if (loginCont) {
-                        loginCont.classList.add("hidden");
-                        loginCont.classList.remove("opacity-100");
-                    }
-                    const overlay = document.getElementById("login-loading-overlay");
-                    if (overlay) {
-                        overlay.classList.add("hidden");
-                        overlay.classList.remove("visible");
-                    }
-                    console.log('[handleLogin] login complete', { currentEmployeeId });
+                    // แสดง overlay loading บนหน้า login ขณะรอโหลดข้อมูลทั้งหมด
+                    showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
+                    console.log('[handleLogin] login initiated, loading dashboard', { currentEmployeeId });
 
                     const isAdminUser = isAdminLoginAccount(currentEmployeeId) || isAdminRole(employeeData["สิทธิ์การใช้งาน"] || "");
 
                     const loadSuccess = await loadAllData().catch(err => {
                         console.warn('[handleLogin loadAllData]', err);
-                        showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
                         return false;
                     });
 
                     if (loadSuccess) {
+                        // ซ่อนหน้าจอ login และ overlay เมื่อโหลดข้อมูลสำเร็จ
+                        hideLoginContainer();
+                        console.log('[handleLogin] loadAllData ✓, entering app', { currentEmployeeId });
+
                         if (isAdminUser) {
                             enterAdminMode();
                         } else {
                             navigateTo("home");
                         }
+                    } else {
+                        console.warn('[handleLogin] loadAllData failed', { currentEmployeeId });
+                        showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
+                        // ให้ผู้ใช้ลองใหม่ผ่านปุ่ม retry บน overlay
+                        const retryBtn = document.getElementById("login-loading-retry-btn");
+                        if (retryBtn) retryBtn.classList.remove("hidden");
                     }
 
                     if (window.firebaseDb) {
@@ -7081,6 +7085,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     } else {
                         switchBtn.classList.add("hidden");
                     }
+                }
+                // Header config button (quick access)
+                const headerConfigBtn = document.getElementById('header-config-btn');
+                if (headerConfigBtn) {
+                    if (isAdminOrSuper) headerConfigBtn.classList.remove('hidden');
+                    else headerConfigBtn.classList.add('hidden');
                 }
 
                 // ตรวจสอบสิทธิ์เมนู Bottom Navigation สำหรับสิทธิ์แบบจำกัดเมนู
@@ -15862,12 +15872,17 @@ function renderSummaryMatrix() {
             document.addEventListener('DOMContentLoaded', async () => {
                 await initializeFirebase();
                 initializeProjectCostPage();
-                // Bind config button click to ensure it works even if inline onclick fails
+                // Bind config buttons click to ensure they work even if inline onclick fails
                 try {
                     const btn = document.getElementById('open-config-btn');
                     if (btn && !btn._bound) {
                         btn.addEventListener('click', () => toggleConfigModal());
                         btn._bound = true;
+                    }
+                    const hbtn = document.getElementById('header-config-btn');
+                    if (hbtn && !hbtn._bound) {
+                        hbtn.addEventListener('click', () => toggleConfigModal());
+                        hbtn._bound = true;
                     }
                 } catch (e) { console.warn('bind open-config-btn failed', e); }
             });
@@ -15880,6 +15895,11 @@ function renderSummaryMatrix() {
                     if (btn && !btn._bound) {
                         btn.addEventListener('click', () => toggleConfigModal());
                         btn._bound = true;
+                    }
+                    const hbtn = document.getElementById('header-config-btn');
+                    if (hbtn && !hbtn._bound) {
+                        hbtn.addEventListener('click', () => toggleConfigModal());
+                        hbtn._bound = true;
                     }
                 } catch (e) { console.warn('bind open-config-btn failed', e); }
             })();
