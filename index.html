@@ -4943,6 +4943,25 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            function getEmployeeIdFromData(data, fallback = "") {
+                if (!data || typeof data !== 'object') return fallback;
+                const candidates = [
+                    data['รหัสพนักงาน'],
+                    data['empId'],
+                    data['employeeId'],
+                    data['id'],
+                    data['employee_id'],
+                    data['รหัสพนักงาน '],
+                    data['employee id'],
+                    data['EmployeeId']
+                ];
+                for (const value of candidates) {
+                    const text = String(value || '').trim();
+                    if (text) return text.toUpperCase();
+                }
+                return fallback;
+            }
+
             let currentEmployeeId = "";
             let SERVER_API_URL = resolveApiUrl(localStorage.getItem("hr_api_url") || "");
             if (!SERVER_API_URL) {
@@ -5010,6 +5029,34 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } catch (err) {
                     return { ok: false, reason: err?.message || 'health-check-error' };
                 }
+            }
+
+            async function tryApiRequest(urls, options = {}) {
+                const candidates = Array.isArray(urls) ? urls.filter(Boolean) : [urls].filter(Boolean);
+                if (!candidates.length) return { status: 'error', message: 'No API URL candidates provided' };
+
+                let lastError = null;
+                for (const candidate of candidates) {
+                    const result = await fetchWithTimeout(candidate, options);
+                    if (result && result.status === 'success') {
+                        return result;
+                    }
+
+                    const message = (result && (result.message || '')) || '';
+                    const msg = message.toString().toLowerCase();
+                    const isCompatError = msg.includes('รหัสพนักงานไม่ถูกต้อง') ||
+                        msg.includes('invalid input') ||
+                        msg.includes('invalid employee') ||
+                        msg.includes('unauthorized') ||
+                        msg.includes('must specify') ||
+                        msg.includes('requires auth');
+
+                    lastError = result || { status: 'error', message: 'Unknown API error' };
+                    if (!isCompatError || candidate === candidates[candidates.length - 1]) {
+                        break;
+                    }
+                }
+                return lastError;
             }
 
             async function loadProjects() {
@@ -5191,8 +5238,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             async function autoLoginAndNavigate(empData, navigateToPage = null) {
                 isLoggedIn = true;
                 employeeData = empData || {};
-                if (employeeData && employeeData["รหัสพนักงาน"]) {
-                    currentEmployeeId = employeeData["รหัสพนักงาน"];
+                const resolvedEmpId = getEmployeeIdFromData(employeeData, currentEmployeeId);
+                if (resolvedEmpId) {
+                    currentEmployeeId = resolvedEmpId;
                 }
                 localStorage.setItem("hr_emp_id", currentEmployeeId);
                 // ใช้ sessionStorage สำหรับ login status - ล้างเมื่อปิดเบราว์เซอร์
@@ -5374,10 +5422,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 return withSubmitLock("login", async () => {
                     showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
-                    const empResponse = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${empIdInput}`, { timeout: 10000 });
+                    const empResponse = await tryApiRequest([
+                        `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}`,
+                        `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}&adminId=${encodeURIComponent(empIdInput)}`
+                    ], { timeout: 10000 });
 
                     if (empResponse && empResponse.status === "success") {
-                        currentEmployeeId = empIdInput;
+                        currentEmployeeId = getEmployeeIdFromData(empResponse.data || {}, empIdInput);
                         isLoggedIn = true;
                         employeeData = empResponse.data || {};
                         sessionStorage.setItem("is_logged_in", "true");
@@ -5742,6 +5793,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // --- ส่วนบริการดึงข้อมูลและ API (API Services) ---
             async function loadAllData() {
                 if (!isLoggedIn) return false;
+                const trimmedEmpId = String(currentEmployeeId || '').trim();
+                if (!trimmedEmpId) {
+                    console.warn('[loadAllData] skipped: missing currentEmployeeId');
+                    return false;
+                }
 
                 showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
                 document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
@@ -5763,10 +5819,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // === 🟢 PHASE B-1: ใช้ cachedFetch → cache 30s สำหรับ dashboard ===
                 const t0 = performance.now();
                 try {
-                    const response = await cachedFetch(
-                        `${SERVER_API_URL}?action=getDashboardData&empId=${currentEmployeeId}&periodStart=${currentCycle.start}&periodEnd=${currentCycle.end}`,
-                        { timeout: 60000 }
-                    );
+                    const dashboardUrls = [
+                        `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(trimmedEmpId)}&periodStart=${encodeURIComponent(currentCycle.start)}&periodEnd=${encodeURIComponent(currentCycle.end)}`,
+                        `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(trimmedEmpId)}&adminId=${encodeURIComponent(trimmedEmpId)}&periodStart=${encodeURIComponent(currentCycle.start)}&periodEnd=${encodeURIComponent(currentCycle.end)}`
+                    ];
+                    const response = await tryApiRequest(dashboardUrls, { timeout: 60000 });
 
                     if (response && response.status === "success" && response.data) {
                         const d = response.data;
@@ -6561,7 +6618,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 console.log("[Prefetch] Running BATCH background load for Admin Portal...");
                 const t0 = performance.now();
 
-                fetchWithTimeout(`${SERVER_API_URL}?action=getAdminBulkData&empId=${currentEmployeeId}`)
+                tryApiRequest([
+                    `${SERVER_API_URL}?action=getAdminBulkData&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
+                    `${SERVER_API_URL}?action=getAdminBulkData&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
+                ])
                     .then(res => {
                         if (res && res.status === 'success' && res.data) {
                             const d = res.data;
@@ -6585,19 +6645,34 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // Fallback: ใช้ individual calls ถ้า batch API ยังไม่ deploy
             function prefetchAdminDataFallback() {
-                fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`)
+                tryApiRequest([
+                    `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
+                    `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
+                ])
                     .then(res => { if (res?.status === 'success') AdminDataCache.set('employees', res.data); })
                     .catch(() => {});
-                fetchWithTimeout(`${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`)
+                tryApiRequest([
+                    `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
+                    `${SERVER_API_URL}?action=getLeaveRequests&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
+                ])
                     .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-leave', res.data); })
                     .catch(() => {});
-                fetchWithTimeout(`${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`)
+                tryApiRequest([
+                    `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
+                    `${SERVER_API_URL}?action=getTimeCorrections&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
+                ])
                     .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-correction', res.data); })
                     .catch(() => {});
-                fetchWithTimeout(`${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`)
+                tryApiRequest([
+                    `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
+                    `${SERVER_API_URL}?action=getAdvanceRequests&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
+                ])
                     .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-advance', res.data); })
                     .catch(() => {});
-                fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`)
+                tryApiRequest([
+                    `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
+                    `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
+                ])
                     .then(res => { if (res?.status === 'success') AdminDataCache.set('settings', res.data); })
                     .catch(() => {});
             }
@@ -13313,8 +13388,12 @@ ${slip.textSample}
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
                     // 💡 ต้องส่ง empId ของ admin เพื่อผ่าน authorization check
-                    if (!currentEmployeeId) { console.warn('loadSystemSettingsFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`, { timeout: 60000 })
+                    const trimmedEmpId = String(currentEmployeeId || '').trim();
+                    if (!trimmedEmpId) { console.warn('loadSystemSettingsFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
+                    tryApiRequest([
+                        `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(trimmedEmpId)}`,
+                        `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(trimmedEmpId)}&adminId=${encodeURIComponent(trimmedEmpId)}`
+                    ], { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && res.data) {
                                 systemSettings = Object.assign({}, systemSettings, res.data);
@@ -13350,8 +13429,12 @@ ${slip.textSample}
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
                     // 💡 ต้องมี currentEmployeeId เพื่อผ่าน isAdministrator check
-                    if (!currentEmployeeId) { console.warn('loadEmployeesFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`, { timeout: 60000 })
+                    const trimmedEmpId = String(currentEmployeeId || '').trim();
+                    if (!trimmedEmpId) { console.warn('loadEmployeesFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
+                    tryApiRequest([
+                        `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(trimmedEmpId)}`,
+                        `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(trimmedEmpId)}&adminId=${encodeURIComponent(trimmedEmpId)}`
+                    ], { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
                                 employees = res.data.map(mapEmployeeRow).filter(emp => emp.id);
@@ -13455,8 +13538,12 @@ ${slip.textSample}
             return new Promise(resolve => {
                 if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
                     // 💡 ต้องมี adminId เพื่อผ่าน *ALL* admin check (บรรทัด 1156-1165 ใน Code.gs)
-                    if (!currentEmployeeId) { console.warn('loadAttendanceRecordsForCycle: skipped (no admin id)'); resolve([]); return; }
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getTimeRecords&empId=*ALL*&adminId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`, { timeout: 60000 })
+                    const trimmedEmpId = String(currentEmployeeId || '').trim();
+                    if (!trimmedEmpId) { console.warn('loadAttendanceRecordsForCycle: skipped (no admin id)'); resolve([]); return; }
+                    tryApiRequest([
+                        `${SERVER_API_URL}?action=getTimeRecords&empId=*ALL*&adminId=${encodeURIComponent(trimmedEmpId)}&periodStart=${encodeURIComponent(start)}&periodEnd=${encodeURIComponent(end)}`,
+                        `${SERVER_API_URL}?action=getTimeRecords&empId=${encodeURIComponent(trimmedEmpId)}&periodStart=${encodeURIComponent(start)}&periodEnd=${encodeURIComponent(end)}`
+                    ], { timeout: 60000 })
                         .then(res => {
                             if (res && res.status === 'success' && Array.isArray(res.data)) {
                                 resolve(res.data);
