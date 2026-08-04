@@ -3732,6 +3732,19 @@
 
                 <!-- SECTION 7: ตั้งค่าระบบ -->
                 <section id="admin-sec-settings" class="admin-sec hidden space-y-6">
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
+                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">ตั้งค่าการเชื่อมต่อ Google Sheets / Firebase</h3>
+                                <p class="text-xs text-slate-500">กดปุ่มด้านล่างเพื่อเปิดหน้าตั้งค่าการเชื่อมต่อ API และ Firebase</p>
+                            </div>
+                            <button onclick="toggleConfigModal()"
+                                class="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-all">
+                                <i class="fa-solid fa-plug"></i>
+                                เปิดการตั้งค่าการเชื่อมต่อ
+                            </button>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <!-- ค่าเวลาพื้นฐาน -->
                         <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
@@ -5374,7 +5387,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return false;
                     });
                     hideLoginContainer();
-                    if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
+                    const autoAdminUser = isAdminLoginAccount(currentEmployeeId) || isAdminRole(employeeData["สิทธิ์การใช้งาน"] || "");
+                    if (autoLoadSuccess && autoAdminUser) {
                         enterAdminMode();
                     } else {
                         navigateTo("home");
@@ -5525,10 +5539,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     hideLoginContainer();
                     navigateTo("home");
 
-                    const appEl = document.getElementById("app");
-                    const adminAppEl = document.getElementById("admin-app");
-                    if (appEl) appEl.classList.remove("hidden");
-                    if (adminAppEl) adminAppEl.classList.add("hidden");
                     const loginCont = document.getElementById("login-container");
                     if (loginCont) {
                         loginCont.classList.add("hidden");
@@ -5539,12 +5549,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         overlay.classList.add("hidden");
                         overlay.classList.remove("visible");
                     }
-                    console.log('[handleLogin] login complete, forced app visible', { currentEmployeeId });
+                    console.log('[handleLogin] login complete', { currentEmployeeId });
 
-                    loadAllData().catch(err => {
+                    const isAdminUser = isAdminLoginAccount(currentEmployeeId) || isAdminRole(employeeData["สิทธิ์การใช้งาน"] || "");
+
+                    const loadSuccess = await loadAllData().catch(err => {
                         console.warn('[handleLogin loadAllData]', err);
                         showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
+                        return false;
                     });
+
+                    if (loadSuccess) {
+                        if (isAdminUser) {
+                            enterAdminMode();
+                        } else {
+                            navigateTo("home");
+                        }
+                    }
 
                     if (window.firebaseDb) {
                         syncCurrentEmployeeToFirebase().then(saved => {
@@ -5803,7 +5824,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return false;
                 });
                 hideLoginContainer();
-                if (currentEmployeeId && currentEmployeeId.toString().trim().toLowerCase() === 'admin') {
+                const proceedAdminUser = isAdminLoginAccount(currentEmployeeId) || isAdminRole(employeeData["สิทธิ์การใช้งาน"] || "");
+                if (proceedLoadSuccess && proceedAdminUser) {
                     enterAdminMode();
                 } else {
                     navigateTo("home");
@@ -7037,7 +7059,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
                 const switchBtn = document.getElementById("admin-switch-btn");
 
-                const isAdminOrSuper = (role.toLowerCase() === 'administrator' || role.toLowerCase() === 'admin' || role.startsWith('admin:'));
+                const isAdminOrSuper = isAdminRole(role) || isAdminLoginAccount(currentEmployeeId);
 
                 if (switchBtn) {
                     if (isAdminOrSuper) {
@@ -9095,7 +9117,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function toggleAdminMode() {
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
-                const isAdminOrSuper = isAdminRole(role);
+                const isAdminOrSuper = isAdminRole(role) || isAdminLoginAccount(currentEmployeeId);
 
                 if (!isAdminOrSuper) {
                     showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
