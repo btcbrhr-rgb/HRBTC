@@ -6437,7 +6437,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             window.__perfClear = () => PerfStats.clear();
 
             // helper แกะ action ออกจาก URL หรือ body
-            function _extractAction(url) {
+            function _extractAction(url, options = {}) {
                 try {
                     if (typeof url === 'string') {
                         const u = new URL(url, location.href);
@@ -6447,9 +6447,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } catch { /* fall through */ }
                 // [FIX] ไม่เจอ action ใน URL → ลอง parse body เผื่อ POST ใส่ action ใน body
                 try {
-                    const opts = (typeof url === 'object' && url !== null) ? url : null;
-                    if (opts && opts.body) {
-                        const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
+                    const opts = options || {};
+                    const bodyObj = opts.body || (url && typeof url === 'object' ? url.body : null);
+                    if (bodyObj) {
+                        const body = typeof bodyObj === 'string' ? JSON.parse(bodyObj) : bodyObj;
                         if (body && body.action) return body.action;
                     }
                 } catch { /* fall through */ }
@@ -6554,6 +6555,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 getHolidays:           60 * 60_000,  // 1 ชั่วโมง — วันหยุดเปลี่ยนปีละครั้ง
                 getProjects:           15 * 60_000,  // 15 นาที
                 getAllEmployees:       5 * 60_000,   // 5 นาที — รายชื่อพนักงานเปลี่ยนไม่บ่อย
+                getAdminBulkData:      2 * 60_000,   // [OPTIMIZE] 2 นาที — server cache อยู่แล้ว 10 นาที
 
                 // ข้อมูล transaction ที่อาจเปลี่ยน → cache สั้น
                 getTimeRecords:        60_000,       // 1 นาที — เวลางานอาจเพิ่งบันทึก
@@ -6561,6 +6563,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 getAdvanceRequests:    60_000,       // 1 นาที
                 getTimeCorrections:    60_000,       // 1 นาที
                 getPayslips:           5 * 60_000,   // 5 นาที — สลิปอัปโหลดทีละงวด
+                getProjectCostData:    3 * 60_000,   // [OPTIMIZE] 3 นาที — server cache อยู่แล้ว
 
                 // ข้อมูล dashboard รวม → cache สั้น เพราะอาจมี transaction ใหม่
                 getDashboardData:      30_000,       // 30 วินาที
@@ -8962,14 +8965,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
                 const isHidden = modal.classList.contains("hidden");
                 if (isHidden) {
-                    loadSystemConfigIntoModal();
-                    modal.classList.remove("hidden");
-                    // [FIX] ยกเลข z-index สูงกว่า inapp-overlay เผื่อมี overlay ค้าง
-                    modal.style.zIndex = "100000";
-                    console.log("[toggleConfigModal] เปิด modal ตั้งค่าการเชื่อมต่อ");
+                    // [FIX] ถ้ายังไม่ login ให้ซ่อน inapp-overlay ก่อน เพราะ z-99999 จะทับ modal
+                    const inappOverlay = document.getElementById("inapp-overlay");
+                    if (inappOverlay && !inappOverlay.classList.contains("hidden")) {
+                        console.log("[toggleConfigModal] ซ่อน inapp-overlay ชั่วคราวเพื่อเปิด modal");
+                        inappOverlay.dataset.hiddenByConfigModal = "1";
+                        inappOverlay.classList.add("hidden");
+                    }
+                    // [FIX] ถ้ายังอยู่หน้า login ไม่ต้องบังคับ z-index สูง (จะทับ login)
+                    const loginOverlay = document.getElementById("login-loading-overlay");
+                    if (loginOverlay && !loginOverlay.classList.contains("hidden")) {
+                        // กำลัง login → เปิด modal แบบธรรมดา ไม่บังคับ z-index
+                        modal.classList.remove("hidden");
+                        modal.style.zIndex = ""; // ใช้ z-50 ตามเดิม
+                        console.log("[toggleConfigModal] เปิด modal (login overlay active)");
+                    } else {
+                        loadSystemConfigIntoModal();
+                        modal.classList.remove("hidden");
+                        modal.style.zIndex = "100000";
+                        console.log("[toggleConfigModal] เปิด modal ตั้งค่าการเชื่อมต่อ");
+                    }
                 } else {
                     modal.classList.add("hidden");
                     modal.style.zIndex = "";
+                    // [FIX] คืนค่า inapp-overlay ถ้าถูกซ่อนโดย modal
+                    const inappOverlay = document.getElementById("inapp-overlay");
+                    if (inappOverlay && inappOverlay.dataset.hiddenByConfigModal === "1") {
+                        inappOverlay.classList.remove("hidden");
+                        delete inappOverlay.dataset.hiddenByConfigModal;
+                        console.log("[toggleConfigModal] คืนค่า inapp-overlay");
+                    }
                     console.log("[toggleConfigModal] ปิด modal ตั้งค่าการเชื่อมต่อ");
                 }
             }
