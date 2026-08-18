@@ -5563,8 +5563,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function populateProjectDropdowns() {
+                // Normalize projectsList to array of strings
+                const rawList = Array.isArray(projectsList) ? projectsList : [];
+                const normalized = rawList.map(item => {
+                    if (typeof item === 'string') return item.trim();
+                    if (item && typeof item === 'object') {
+                        return (item['ชื่อโครงการ'] || item.name || '').toString().trim();
+                    }
+                    return String(item || '').trim();
+                }).filter(Boolean);
+
                 // Ensure (00)บุรีรัมย์ is the first option
-                const sortedProjects = [...projectsList];
+                const sortedProjects = [...new Set(normalized)];
                 sortedProjects.sort((a, b) => {
                     const isBuriramA = a === "(00)บุรีรัมย์" || a.includes("(00)บุรีรัมย์");
                     const isBuriramB = b === "(00)บุรีรัมย์" || b.includes("(00)บุรีรัมย์");
@@ -6382,7 +6392,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         "หมายเหตุ": c.notes
                     }));
 
-                    const projects = (projRes.data || []).map(p => ({ "ชื่อโครงการ": p.name }));
+                    const projects = (projRes.data || []).map(p => (p.name || '').toString().trim()).filter(Boolean);
                     const payslips = (slipRes.data || []).map(s => ({
                         "รหัสพนักงาน": s.emp_id,
                         "รอบเงินเดือน": s.period,
