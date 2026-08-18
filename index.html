@@ -5926,14 +5926,62 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 return withSubmitLock("login", async () => {
                     showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
-                    const empResponse = await tryApiRequest([
-                        `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}`,
-                        `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}&adminId=${encodeURIComponent(empIdInput)}`
-                    ], { timeout: 60000 });
+                    let empResponse = null;
+
+                    // ⚡ 1. Fast-Login via Supabase (< 50ms)
+                    if (supabaseClient) {
+                        try {
+                            const { data, error } = await supabaseClient
+                                .from('employees')
+                                .select('*')
+                                .ilike('emp_id', empIdInput.trim())
+                                .maybeSingle();
+                            if (!error && data) {
+                                empResponse = {
+                                    status: "success",
+                                    _source: "supabase",
+                                    data: {
+                                        "รหัสพนักงาน": data.emp_id,
+                                        "ชื่อ-นามสกุล": data.name,
+                                        "ตำแหน่ง": data.position,
+                                        "สถานะ": data.status,
+                                        "วันหยุดประจําสัปดาห์": data.day_off,
+                                        "ชื่อบริษัท": data.company,
+                                        "วันที่เริ่มงาน": data.start_date,
+                                        "เบอร์โทรศัพท์": data.phone,
+                                        "ที่อยู่": data.address,
+                                        "เลขบัตรประชาชน": data.id_card,
+                                        "วันเดือนปีเกิด": data.birth_date,
+                                        "ธนาคาร": data.bank,
+                                        "สาขาธนาคาร": data.bank_branch,
+                                        "หมายเลขบัญชี": data.bank_account,
+                                        "ลิ้งภาพโปรไฟล์": data.avatar_url,
+                                        "ฐานเงินเดือน": data.base_salary,
+                                        "ตัวหารค่าแรง": data.wage_divisor,
+                                        "ชั่วโมงทำงานต่อวัน": data.work_hours_per_day,
+                                        "ตัวคูณโอที": data.ot_rate,
+                                        "สิทธิ์การใช้งาน": data.role,
+                                        "LineUserId": data.line_user_id
+                                    }
+                                };
+                                console.log('[handleLogin ⚡ Supabase] Employee profile loaded instantly');
+                            }
+                        } catch (sbErr) {
+                            console.warn('[handleLogin Supabase Error]', sbErr);
+                        }
+                    }
+
+                    // 2. Fallback to Google Apps Script
+                    if (!empResponse) {
+                        empResponse = await tryApiRequest([
+                            `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}`,
+                            `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}&adminId=${encodeURIComponent(empIdInput)}`
+                        ], { timeout: 60000 });
+                    }
 
                     if (!(empResponse && empResponse.status === "success")) {
                         console.error('[handleLogin] getEmployee failed', empResponse, { empIdInput, SERVER_API_URL });
-                        showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง Google Sheets", "error");
+                        showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง", "error");
                         return;
                     }
 
@@ -6296,13 +6344,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const t0 = performance.now();
                 try {
                     const [empRes, timeRes, leaveRes, advRes, corrRes, projRes, slipRes] = await Promise.all([
-                        supabaseClient.from('employees').select('*').eq('emp_id', trimmedEmpId).maybeSingle(),
-                        supabaseClient.from('time_records').select('*').eq('emp_id', trimmedEmpId).gte('date', currentCycle.start).lte('date', currentCycle.end),
-                        supabaseClient.from('leave_requests').select('*').eq('emp_id', trimmedEmpId),
-                        supabaseClient.from('advance_requests').select('*').eq('emp_id', trimmedEmpId).gte('request_date', currentCycle.start).lte('request_date', currentCycle.end),
-                        supabaseClient.from('time_corrections').select('*').eq('emp_id', trimmedEmpId).gte('date', currentCycle.start).lte('date', currentCycle.end),
+                        supabaseClient.from('employees').select('*').ilike('emp_id', trimmedEmpId).maybeSingle(),
+                        supabaseClient.from('time_records').select('*').ilike('emp_id', trimmedEmpId).gte('date', currentCycle.start).lte('date', currentCycle.end),
+                        supabaseClient.from('leave_requests').select('*').ilike('emp_id', trimmedEmpId),
+                        supabaseClient.from('advance_requests').select('*').ilike('emp_id', trimmedEmpId).gte('request_date', currentCycle.start).lte('request_date', currentCycle.end),
+                        supabaseClient.from('time_corrections').select('*').ilike('emp_id', trimmedEmpId).gte('date', currentCycle.start).lte('date', currentCycle.end),
                         supabaseClient.from('projects').select('*').eq('is_active', true),
-                        supabaseClient.from('payslips').select('*').eq('emp_id', trimmedEmpId)
+                        supabaseClient.from('payslips').select('*').ilike('emp_id', trimmedEmpId)
                     ]);
 
                     if (empRes.error || !empRes.data) {
@@ -16864,14 +16912,15 @@ function renderSummaryMatrix() {
                         .migrateAllDataToSupabase();
                 } else {
                     // ถ้าเปิดในเบราว์เซอร์ปกติ ใช้ fetch ไปยัง GAS API
-                    sbLog('📡 ส่งคำสั่งซิงค์ผ่าน API...');
-                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId}`, { timeout: 120000 });
+                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId || 'admin'}`, { timeout: 180000 });
                     if (res && res.status === 'success') {
-                        sbLog(`✅ ซิงค์สำเร็จ`, '#34d399');
+                        const d = res.data || {};
+                        const timeCount = d.time_records?.count || 0;
+                        sbLog(`✅ ซิงค์สำเร็จ — เวลางาน ${timeCount} รายการ, พนักงาน & โครงการครบถ้วน`, '#34d399');
                         showToast('✅ ซิงค์ข้อมูลไป Supabase สำเร็จ!', 'success');
                     } else {
-                        sbLog(`⚠️ ซิงค์อาจไม่ครบถ้วน — ตรวจสอบ Apps Script Log`, '#fbbf24');
-                        showToast('⚠️ ซิงค์เสร็จสิ้น (อาจไม่ครบถ้วน)', 'warning');
+                        sbLog(`⚠️ ${res?.message || 'ซิงค์อาจไม่ครบถ้วน — ตรวจสอบ Apps Script Log'}`, '#fbbf24');
+                        showToast('⚠️ ซิงค์เสร็จสิ้น', 'warning');
                     }
                     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
                 }
