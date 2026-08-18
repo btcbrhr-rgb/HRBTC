@@ -6038,17 +6038,38 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 isPWAApp = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
                 localStorage.setItem("isPWAApp", isPWAApp ? "true" : "false");
 
-                // ตรวจสอบว่า login ไว้แล้วหรือไม่
-                const savedEmpId = localStorage.getItem("hr_emp_id");
-                const savedLoginStatus = sessionStorage.getItem("is_logged_in");
+                // 🌐 อ่าน URL Query Parameters สำหรับ Deep Linking จาก LINE Flex Message
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlEmpId = urlParams.get("empId");
+                const urlTab = urlParams.get("tab");
+                const urlModal = urlParams.get("openModal");
 
-                if (savedLoginStatus === "true" && savedEmpId) {
-                    // Auto login สำหรับเบราว์เซอร์ทั่วไป
+                // กำหนดหน้าเป้าหมายจาก tab param
+                let targetPage = "home";
+                if (urlTab === "history" || urlTab === "calendar") targetPage = "calendar";
+                else if (urlTab === "clock" || urlTab === "attendance") targetPage = "attendance";
+                else if (urlTab === "leave") targetPage = "leave";
+                else if (urlTab === "advance") targetPage = "advance";
+                else if (urlTab === "payslip") targetPage = "payslip";
+                else if (urlTab === "profile") targetPage = "profile";
+                else if (urlTab === "announcements") targetPage = "announcements";
+                else if (urlModal === "correction") targetPage = "calendar";
+                else if (urlModal === "advance") targetPage = "advance";
+                else if (urlModal === "payslip") targetPage = "payslip";
+                else if (urlModal === "profile" || urlModal === "salaryCert") targetPage = "profile";
+
+                // ตรวจสอบว่า login ไว้แล้วหรือไม่ หรือส่ง empId มาผ่าน URL จาก LINE
+                const savedEmpId = urlEmpId || localStorage.getItem("hr_emp_id");
+                const savedLoginStatus = urlEmpId ? "true" : sessionStorage.getItem("is_logged_in");
+
+                if ((savedLoginStatus === "true" || urlEmpId) && savedEmpId) {
                     isLoggedIn = true;
                     currentEmployeeId = savedEmpId;
+                    localStorage.setItem("hr_emp_id", savedEmpId);
+                    sessionStorage.setItem("is_logged_in", "true");
 
-                    // PWA mode + มี PIN ที่ตั้งไว้ → แสดงหน้าใส่ PIN
-                    if (isPWAApp && localStorage.getItem(getPinStorageKey(savedEmpId))) {
+                    // PWA mode + มี PIN ที่ตั้งไว้ → แสดงหน้าใส่ PIN (เฉพาะเมื่อไม่ได้เปิดตรงมาจาก LINE)
+                    if (!urlEmpId && isPWAApp && localStorage.getItem(getPinStorageKey(savedEmpId))) {
                         document.getElementById("pin-login-emp-id").value = savedEmpId;
                         showModal("pin-login-modal");
                         return;
@@ -6070,10 +6091,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     });
                     hideLoginContainer();
                     const autoAdminUser = isAdminLoginAccount(currentEmployeeId);
-                    if (autoLoadSuccess && autoAdminUser) {
+                    if (autoLoadSuccess && autoAdminUser && !urlTab && !urlModal) {
                         enterAdminMode();
                     } else {
-                        navigateTo("home");
+                        navigateTo(targetPage);
+                        // ถ้ามีคำขอเปิด Modal หรือแบบฟอร์มพิเศษ
+                        if (urlModal === "correction" && typeof openCorrectionModal === "function") {
+                            setTimeout(() => openCorrectionModal(), 350);
+                        }
                     }
                     if (!autoLoadSuccess) {
                         showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่", "error");
