@@ -397,6 +397,9 @@
             padding-bottom: 0.25rem !important;
             font-size: 11px !important;
         }
+        .matrix-fullscreen-active #matrix-fs-filterbar {
+            display: flex !important;
+        }
 
         /* Matrix Row Hover Highlight — เมาส์ชี้แถวไหน เน้นทั้งแถว (ชื่อ + ช่องวัน) */
         #matrixTableBody tr:hover td {
@@ -3055,14 +3058,7 @@
 
                 <!-- SECTION 2.x: บันทึกเวลางานและต้นทุนโครงการ (Admin panel container for embedded view) -->
                 <section id="admin-sec-project-cost" class="admin-sec hidden space-y-6">
-                    <div class="bg-white rounded-2xl border border-slate-200 p-5">
-                        <div class="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-800">บันทึกเวลางานและต้นทุนโครงการ</h3>
-                                <p class="text-xs text-slate-500">โหลดและแสดงเนื้อหาจากระบบบันทึกเวลาและต้นทุนโครงการ</p>
-                            </div>
-                        </div>
-                        <div id="project-cost-container" class="min-h-[240px]">
+                    <div id="project-cost-container" class="min-h-[240px]">
 <div class="flex-grow w-full space-y-3">
         
         <!-- Tab Navigation & Config Header -->
@@ -3136,6 +3132,12 @@
 
         </div>
 
+        <!-- Section Title (ย้ายลงมาจากบนสุด ตามคำขอ) -->
+        <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 px-1 pt-0.5">
+            <h3 class="text-sm font-bold text-slate-800">บันทึกเวลางานและต้นทุนโครงการ</h3>
+            <p class="text-xs text-slate-500">โหมดและแสดงเนื้อหาจากระบบบันทึกเวลาและต้นทุนโครงการ</p>
+        </div>
+
         <!-- TAB 2: ตารางรวมทั้งเดือน (Summary Matrix View) -->
         <div id="tab-summary" class="space-y-3 no-print">
             <!-- Summary Info Bar -->
@@ -3202,6 +3204,27 @@
                             <i id="matrix-fullscreen-icon" class="fa-solid fa-expand"></i>
                             <span id="matrix-fullscreen-label">เต็มจอ</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Fullscreen Filter Bar (shown only when matrix is fullscreen) -->
+                <div id="matrix-fs-filterbar" class="hidden no-print px-4 py-2.5 border-b border-slate-200 bg-brand-sky/50 flex-wrap items-center gap-2.5">
+                    <div class="relative flex-1 min-w-[170px]">
+                        <select id="projectFilterFS" onchange="matrixFsProjectChange()" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-brand-teal focus:outline-none focus:ring-2 focus:ring-brand-teal/15 appearance-none transition-all">
+                            <option value="all">🔍 ทุกโครงการ</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400"><i class="fa-solid fa-chevron-down text-[10px]"></i></div>
+                    </div>
+                    <div class="relative flex-1 min-w-[170px]">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] pointer-events-none"></i>
+                        <input type="text" id="matrixEmpSearchFS" placeholder="ค้นหาชื่อ / รหัสพนักงาน..." oninput="matrixFsSearchInput()"
+                            class="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:border-brand-teal focus:outline-none focus:ring-2 focus:ring-brand-teal/15 transition-all">
+                    </div>
+                    <div class="relative flex-1 min-w-[150px]">
+                        <select id="billingMonthFS" onchange="matrixFsBillingChange()" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-brand-teal focus:outline-none focus:ring-2 focus:ring-brand-teal/15 appearance-none transition-all">
+                            <!-- populated on entering fullscreen -->
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400"><i class="fa-solid fa-calendar-days text-[10px]"></i></div>
                     </div>
                 </div>
 
@@ -17095,11 +17118,48 @@ ${slip.textSample}
                 if (icon) icon.className = 'fa-solid fa-compress';
                 if (label) label.textContent = 'ย่อขนาด';
                 document.body.style.overflow = 'hidden';
+                syncMatrixFullscreenFilters();
             } else {
                 if (icon) icon.className = 'fa-solid fa-expand';
                 if (label) label.textContent = 'เต็มจอ';
                 document.body.style.overflow = '';
             }
+        }
+
+        // Sync the in-fullscreen filter strip with the main filter bar
+        function syncMatrixFullscreenFilters() {
+            const projMain = document.getElementById('projectFilter');
+            const projFS = document.getElementById('projectFilterFS');
+            if (projMain && projFS) {
+                projFS.innerHTML = projMain.innerHTML;
+                projFS.value = projMain.value;
+            }
+            const billMain = document.getElementById('billingMonth');
+            const billFS = document.getElementById('billingMonthFS');
+            if (billMain && billFS) {
+                billFS.innerHTML = billMain.innerHTML;
+                billFS.value = billMain.value;
+            }
+            const searchMain = document.getElementById('matrixEmpSearch');
+            const searchFS = document.getElementById('matrixEmpSearchFS');
+            if (searchMain && searchFS) searchFS.value = searchMain.value;
+        }
+
+        // Fullscreen filter strip handlers (sync back to the main filter bar)
+        function matrixFsProjectChange() {
+            const main = document.getElementById('projectFilter');
+            if (main) main.value = document.getElementById('projectFilterFS').value;
+            handleProjectChange();
+        }
+        function matrixFsSearchInput() {
+            const main = document.getElementById('matrixEmpSearch');
+            if (main) main.value = document.getElementById('matrixEmpSearchFS').value;
+            refreshActiveTab();
+        }
+        function matrixFsBillingChange() {
+            const main = document.getElementById('billingMonth');
+            if (main) main.value = document.getElementById('billingMonthFS').value;
+            generateBillingCycleData();
         }
 
         // Print Matrix Timesheet in Legal Landscape Format
