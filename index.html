@@ -7454,10 +7454,134 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            // helper: ตรวจสอบวันหยุดประจำสัปดาห์ของพนักงาน
+            function isDateEmployeeDayOff(dateStr, empData) {
+                const data = empData || employeeData || {};
+                const rawDayoff = (data["วันหยุดประจําสัปดาห์"] || data["วันหยุดประจำสัปดาห์"] || "").toString().trim() || "อาทิตย์";
+                if (!dateStr) return false;
+                const parts = dateStr.split('-');
+                if (parts.length < 3) return false;
+                const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+                const day = d.getDay(); // 0 = อาทิตย์, 6 = เสาร์
+
+                if (rawDayoff === "ผู้บริหาร") return true;
+                if (rawDayoff === "ทำงานทุกวัน") return false;
+                if (rawDayoff === "อาทิตย์") return day === 0;
+                if (rawDayoff === "เสาร์") return day === 6;
+                if (rawDayoff === "เสาร์-อาทิตย์") return day === 0 || day === 6;
+                if (rawDayoff.includes("อาทิตย์") && day === 0) return true;
+                if (rawDayoff.includes("เสาร์") && day === 6) return true;
+                return day === 0; // ค่าเริ่มต้นถ้าไม่ระบุ
+            }
+
+            // helper: รวมและสร้างข้อมูลครบทุกวันในรอบบัญชี (เวลางาน + วันลา + วันหยุด + วันขาดงาน)
+            function getFullCycleRecords(start, end, timeRecordsRaw, leaveRequestsRaw, empData) {
+                const rawRecords = Array.isArray(timeRecordsRaw) ? JSON.parse(JSON.stringify(timeRecordsRaw)) : [];
+                const leaveList = Array.isArray(leaveRequestsRaw) ? leaveRequestsRaw : [];
+                const emp = empData || employeeData || {};
+
+                // 1. Map บันทึกเวลางานตามวันที่
+                const recordByDate = new Map();
+                rawRecords.forEach(r => {
+                    const d = (r["วันที่"] || "").toString().trim();
+                    if (d) recordByDate.set(d, r);
+                });
+
+                // 2. Map ข้อมูลการลาตามวันที่
+                const leaveByDate = new Map();
+                leaveList.forEach(l => {
+                    const leaveStatus = (l["สถานะ"] || "").toString().trim();
+                    if (leaveStatus === "ไม่อนุมัติ" || leaveStatus === "ปฏิเสธ") return;
+
+                    const leaveStart = (l["วันที่เริ่ม"] || "").toString().trim();
+                    const leaveEnd   = (l["วันที่สิ้นสุด"] || leaveStart).toString().trim();
+                    const leaveType  = (l["ประเภทการลา"] || "ลา").toString().trim();
+                    if (!leaveStart) return;
+
+                    let cur = new Date(leaveStart + 'T12:00:00');
+                    const endDate = new Date(leaveEnd + 'T12:00:00');
+                    while (cur <= endDate) {
+                        const y = cur.getFullYear();
+                        const m = String(cur.getMonth() + 1).padStart(2, '0');
+                        const d = String(cur.getDate()).padStart(2, '0');
+                        const dateStr = `${y}-${m}-${d}`;
+                        if (dateStr >= start && dateStr <= end) {
+                            leaveByDate.set(dateStr, {
+                                "วันที่": dateStr,
+                                "เวลาเข้า": "--:--",
+                                "เวลาออก": "--:--",
+                                "นาทีสาย": 0,
+                                "ชั่วโมง OT": 0,
+                                "สถานะสรุป": leaveType,
+                                "โครงการ (เข้า)": "",
+                                "_leaveStatus": leaveStatus
+                            });
+                        }
+                        cur.setDate(cur.getDate() + 1);
+                    }
+                });
+
+                // 3. หาวันที่ปัจจุบันเพื่อไม่ให้นับวันในอนาคตเป็นขาดงาน
+                const todayObj = new Date();
+                const todayY = todayObj.getFullYear();
+                const todayM = String(todayObj.getMonth() + 1).padStart(2, '0');
+                const todayD = String(todayObj.getDate()).padStart(2, '0');
+                const todayStr = `${todayY}-${todayM}-${todayD}`;
+
+                // 4. วนลูปทุกวันในรอบบัญชี [start, end]
+                const fullRecords = [];
+                let curDate = new Date(start + 'T12:00:00');
+                const stopDate = new Date(end + 'T12:00:00');
+
+                while (curDate <= stopDate) {
+                    const y = curDate.getFullYear();
+                    const m = String(curDate.getMonth() + 1).padStart(2, '0');
+                    const d = String(curDate.getDate()).padStart(2, '0');
+                    const dateStr = `${y}-${m}-${d}`;
+
+                    if (recordByDate.has(dateStr)) {
+                        fullRecords.push(recordByDate.get(dateStr));
+                    } else if (leaveByDate.has(dateStr)) {
+                        fullRecords.push(leaveByDate.get(dateStr));
+                    } else {
+                        const isDayOff = isDateEmployeeDayOff(dateStr, emp);
+                        const isPastOrToday = dateStr <= todayStr;
+
+                        if (isDayOff) {
+                            fullRecords.push({
+                                "วันที่": dateStr,
+                                "เวลาเข้า": "--:--",
+                                "เวลาออก": "--:--",
+                                "นาทีสาย": 0,
+                                "ชั่วโมง OT": 0,
+                                "สถานะสรุป": "วันหยุด",
+                                "โครงการ (เข้า)": "วันหยุดประจำสัปดาห์",
+                                "_isDayOff": true
+                            });
+                        } else if (isPastOrToday) {
+                            fullRecords.push({
+                                "วันที่": dateStr,
+                                "เวลาเข้า": "--:--",
+                                "เวลาออก": "--:--",
+                                "นาทีสาย": 0,
+                                "ชั่วโมง OT": 0,
+                                "สถานะสรุป": "ขาดงาน",
+                                "โครงการ (เข้า)": "-",
+                                "_isAbsent": true
+                            });
+                        }
+                    }
+                    curDate.setDate(curDate.getDate() + 1);
+                }
+
+                // เรียงวันที่จากมากไปน้อย (ล่าสุดอยู่บนสุด)
+                fullRecords.sort((a, b) => (b["วันที่"] || "").localeCompare(a["วันที่"] || ""));
+                return fullRecords;
+            }
+
             // --- คำนวณวิเคราะห์สถิติตามรอบบัญชี (Phase D-1: คำนวณจากข้อมูลจริง) ---
             function calculateAndDisplayStats() {
                 // === 🟢 PHASE D-1: ใช้ Status Map ครอบคลุมทุกค่าที่ปรากฏในชีตจริง ===
-                // map จาก "สถานะสรุป" → หมวดหมู่ เพื่อนับสถิติได้แม่นยำ
                 const STATUS_CATEGORY = {
                     // ทำงานปกติ
                     'ปกติ':           'work',
@@ -7465,6 +7589,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     'สาย':             'work',
                     'มาสาย':           'work',
                     'OT':               'work',
+                    'ทำงานครึ่งวันเช้า': 'leave_half',
+                    'ทำงานครึ่งวันบ่าย': 'leave_half',
                     // ลา
                     'ลาป่วย':           'leave',
                     'ลากิจ':            'leave',
@@ -7507,11 +7633,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     recordsTotal: 0           // จำนวน record ทั้งหมดในรอบ
                 };
 
-                // นับจาก timeRecordsList (เฉพาะรอบบัญชีปัจจุบัน)
-                timeRecordsList.forEach(rec => {
+                const currentCycle = getCurrentCycleRange();
+                const fullCycleRecords = getFullCycleRecords(currentCycle.start, currentCycle.end, timeRecordsList, leaveRequestsList, employeeData);
+
+                // นับจาก fullCycleRecords (ครอบคลุมทั้งวันทำงานจริง, วันลา, วันหยุด, และวันขาดงาน)
+                fullCycleRecords.forEach(rec => {
                     stats.recordsTotal++;
                     const stat = (rec["สถานะสรุป"] || "ปกติ").toString().trim();
-                    const category = STATUS_CATEGORY[stat] || 'work';  // ถ้าไม่รู้จัก → นับเป็น work
+                    const category = STATUS_CATEGORY[stat] || 'work';
 
                     // สะสมตามหมวด
                     if (category === 'work') {
@@ -7522,12 +7651,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     } else if (category === 'leave') {
                         stats.leaveDaysCount++;
                     } else if (category === 'leave_half') {
-                        stats.leaveHalfDaysCount += 0.5;  // ครึ่งวัน = 0.5
+                        stats.leaveHalfDaysCount += 0.5;
                     } else if (category === 'holiday') {
                         stats.holidayDaysCount++;
                     }
 
-                    // รวมนาทีสาย (เฉพาะที่มาสายจริงๆ)
+                    // รวมนาทีสาย
                     const lateMin = parseInt(rec["นาทีสาย"] || 0);
                     if (lateMin > 0) stats.totalLateMin += lateMin;
 
@@ -7537,22 +7666,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 });
 
                 // นับวันลาจาก leaveRequestsList (เฉพาะที่อนุมัติแล้ว + รออนุมัติ)
-                // เพราะ "ลาในรอบบัญชี" ควรรวมทั้งที่กำลังรอ + อนุมัติแล้ว
-                const currentCycle = getCurrentCycleRange();
                 let sickUsed = 0, personalUsed = 0, vacationUsed = 0, otherLeave = 0;
                 let pendingLeaveCount = 0;
 
-                leaveRequestsList.forEach(l => {
+                (leaveRequestsList || []).forEach(l => {
                     const status = (l["สถานะ"] || "").toString().trim();
-                    // นับเฉพาะที่ยังไม่ถูกปฏิเสธ
                     if (status === "ไม่อนุมัติ" || status === "ปฏิเสธ") return;
 
-                    // ตรวจสอบว่าอยู่ในรอบบัญชีปัจจุบันหรือไม่
                     const leaveStart = (l["วันที่เริ่ม"] || "").toString().trim();
-                    const leaveEnd = (l["วันที่สิ้นสุด"] || leaveStart).toString().trim();
                     if (!leaveStart) return;
 
-                    // filter ตามปีปฏิทินปัจจุบัน (สิทธิ์วันลาประจำปี)
                     const currentYearStr = currentCycle.start.substring(0, 4);
                     if (!leaveStart.startsWith(currentYearStr)) return;
 
@@ -7567,7 +7690,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (status === "รออนุมัติ" || status === "ฝ่ายบุคคลตรวจสอบ") pendingLeaveCount++;
                 });
 
-                // คำนวณวันลาคงเหลือ (จาก settings — มี fallback เป็นค่า default ฝั่ง client)
+                // คำนวณวันลาคงเหลือ
                 let settings = {};
                 try {
                     if (window.__systemSettings && typeof window.__systemSettings === 'object') {
@@ -7620,7 +7743,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // helper: ดึง settings อย่างปลอดภัย (fallback ถ้ายังโหลดไม่เสร็จ)
             function safeGetSettings() {
-                // อ่านจาก window เท่านั้น — ไม่แตะ global var ที่อาจไม่มี
                 try {
                     if (window.__systemSettings && typeof window.__systemSettings === 'object') {
                         return window.__systemSettings;
@@ -7657,9 +7779,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const start = (l["วันที่เริ่ม"] || "").toString().trim();
                     const end = (l["วันที่สิ้นสุด"] || start).toString().trim();
                     if (!start) return;
-                    // overlap check
                     if (start > currentCycle.end || end < currentCycle.start) return;
-                    // ใช้วันที่ "วันที่ส่ง" เป็น sort key (ถ้ามี) ไม่งั้นใช้วันที่เริ่ม
                     const sortDate = (l["วันที่ส่ง"] || start).toString().trim();
                     allActivities.push({
                         type: 'leave',
@@ -7681,7 +7801,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     });
                 });
 
-                // เรียงจากใหม่ → เก่า
                 allActivities.sort((a, b) => b.ts - a.ts);
 
                 if (allActivities.length === 0) {
@@ -7689,7 +7808,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return;
                 }
 
-                // แสดง 5 รายการล่าสุด
                 const displayList = allActivities.slice(0, 5);
                 const exceededLeaves = getExceededLeavesSet();
                 displayList.forEach(act => {
@@ -7816,50 +7934,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const container = document.getElementById("calendar-days-list");
                 if (!container) return;
 
-                // Deep copy of timeRecordsList to avoid modifying original array
-                let timeRecords = timeRecordsList ? JSON.parse(JSON.stringify(timeRecordsList)) : [];
-
-                // ── Merge วันลาที่อนุมัติแล้ว/รออนุมัติที่ยังไม่มีในตารางเวลา ──
-                const existingDates = new Set(timeRecords.map(r => r["วันที่"]));
-                const leaveList = Array.isArray(leaveRequestsList) ? leaveRequestsList : [];
-
-                leaveList.forEach(l => {
-                    const leaveStatus = (l["สถานะ"] || "").toString().trim();
-                    // ไม่รวมวันลาที่ถูกปฏิเสธ
-                    if (leaveStatus === "ไม่อนุมัติ" || leaveStatus === "ปฏิเสธ") return;
-
-                    const leaveStart = (l["วันที่เริ่ม"] || "").toString().trim();
-                    const leaveEnd   = (l["วันที่สิ้นสุด"] || leaveStart).toString().trim();
-                    const leaveType  = (l["ประเภทการลา"] || "ลา").toString().trim();
-                    if (!leaveStart) return;
-
-                    // วนสร้าง record สำหรับแต่ละวันในช่วงลา
-                    let cur = new Date(leaveStart);
-                    const endDate = new Date(leaveEnd);
-                    while (cur <= endDate) {
-                        const dateStr = cur.toISOString().slice(0, 10); // YYYY-MM-DD
-                        // อยู่ในช่วง filter ที่ปฏิทินกำลังแสดง
-                        if (dateStr >= start && dateStr <= end && !existingDates.has(dateStr)) {
-                            existingDates.add(dateStr);
-                            timeRecords.push({
-                                "วันที่": dateStr,
-                                "เวลาเข้า": "--:--",
-                                "เวลาออก": "--:--",
-                                "นาทีสาย": 0,
-                                "ชั่วโมง OT": 0,
-                                "สถานะสรุป": leaveType,
-                                "โครงการ (เข้า)": "",
-                                "_leaveStatus": leaveStatus  // เก็บสถานะการลาไว้ใช้แสดง badge
-                            });
-                        }
-                        cur.setDate(cur.getDate() + 1);
-                    }
-                });
-
-                // เรียงวันที่จากมากไปน้อย (ล่าสุดอยู่บนสุด)
-                timeRecords.sort((a, b) => (b["วันที่"] || "").localeCompare(a["วันที่"] || ""));
-
-                displayCalendarDays(timeRecords);
+                const fullRecords = getFullCycleRecords(start, end, timeRecordsList, leaveRequestsList, employeeData);
+                displayCalendarDays(fullRecords);
             }
 
             async function fetchWithCycleFilter(start, end) {
@@ -7882,49 +7958,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     if (recordsRes.status === "success") {
-                        let timeRecords = recordsRes.data || [];
-
-                        // ── Merge วันลาที่อนุมัติแล้ว/รออนุมัติที่ยังไม่มีในตารางเวลา ──
-                        const existingDates = new Set(timeRecords.map(r => r["วันที่"]));
-                        const leaveList = Array.isArray(leaveRequestsList) ? leaveRequestsList : [];
-
-                        leaveList.forEach(l => {
-                            const leaveStatus = (l["สถานะ"] || "").toString().trim();
-                            // ไม่รวมวันลาที่ถูกปฏิเสธ
-                            if (leaveStatus === "ไม่อนุมัติ" || leaveStatus === "ปฏิเสธ") return;
-
-                            const leaveStart = (l["วันที่เริ่ม"] || "").toString().trim();
-                            const leaveEnd   = (l["วันที่สิ้นสุด"] || leaveStart).toString().trim();
-                            const leaveType  = (l["ประเภทการลา"] || "ลา").toString().trim();
-                            if (!leaveStart) return;
-
-                            // วนสร้าง record สำหรับแต่ละวันในช่วงลา
-                            let cur = new Date(leaveStart);
-                            const endDate = new Date(leaveEnd);
-                            while (cur <= endDate) {
-                                const dateStr = cur.toISOString().slice(0, 10); // YYYY-MM-DD
-                                // อยู่ในช่วง filter ที่ปฏิทินกำลังแสดง
-                                if (dateStr >= start && dateStr <= end && !existingDates.has(dateStr)) {
-                                    existingDates.add(dateStr);
-                                    timeRecords.push({
-                                        "วันที่": dateStr,
-                                        "เวลาเข้า": "--:--",
-                                        "เวลาออก": "--:--",
-                                        "นาทีสาย": 0,
-                                        "ชั่วโมง OT": 0,
-                                        "สถานะสรุป": leaveType,
-                                        "โครงการ (เข้า)": "",
-                                        "_leaveStatus": leaveStatus  // เก็บสถานะการลาไว้ใช้แสดง badge
-                                    });
-                                }
-                                cur.setDate(cur.getDate() + 1);
-                            }
-                        });
-
-                        // เรียงวันที่จากมากไปน้อย (ล่าสุดอยู่บนสุด)
-                        timeRecords.sort((a, b) => (b["วันที่"] || "").localeCompare(a["วันที่"] || ""));
-
-                        displayCalendarDays(timeRecords);
+                        const rawTimeRecords = recordsRes.data || [];
+                        const fullRecords = getFullCycleRecords(start, end, rawTimeRecords, leaveRequestsList, employeeData);
+                        displayCalendarDays(fullRecords);
                     } else {
                         showToast("❌ โหลดข้อมูลปฏิทินไม่สำเร็จ: " + recordsRes.message, "error");
                     }
@@ -8002,18 +8038,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     }
 
-                    // ตรวจว่า record นี้เป็น "วันลา" ที่ merge มา (ไม่มีเวลาเข้า-ออกจริง)
+                    // ตรวจว่า record นี้เป็น "วันลา" หรือ "วันหยุด" หรือ "ขาดงาน"
                     const isLeaveDay = rec["_leaveStatus"] !== undefined;
                     const leaveApprovalStatus = rec["_leaveStatus"] || "";
+                    const isDayOff = rec["_isDayOff"] === true || status.includes("หยุด") || status === "พร" || status === "H";
+                    const isAbsent = rec["_isAbsent"] === true || status.includes("ขาด") || status === "A";
 
                     let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
-                    if (status === "สาย") badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
+                    if (status === "สาย" || status === "มาสาย") badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
                     else if (status === "MI" || status.includes("ลืมลงเวลาเข้า") || status.includes("ลืมลงชื่อเข้า") || status.includes("ลืมเข้า")) badgeColor = "bg-orange-50 text-orange-700 border-orange-100";
                     else if (status === "MO" || status.includes("ลืมลงเวลาออก") || status.includes("ลืมลงชื่อออก") || status.includes("ลืมออก")) badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
-                    else if (status.includes("ขาด")) badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
+                    else if (status.includes("ขาด") || status === "A") badgeColor = "bg-rose-50 text-rose-700 border-rose-100";
                     else if (status.includes("ทำงานครึ่งวันเช้า")) badgeColor = "bg-cyan-50 text-cyan-700 border-cyan-100";
                     else if (status.includes("ทำงานครึ่งวันบ่าย")) badgeColor = "bg-sky-50 text-sky-700 border-sky-100";
                     else if (status.includes("ลา")) badgeColor = "bg-violet-50 text-violet-700 border-violet-100";
+                    else if (isDayOff) badgeColor = "bg-slate-50 text-slate-600 border-slate-200";
 
                     // badge สถานะการอนุมัติลา (เฉพาะวันลา)
                     const leaveApproveBadge = isLeaveDay
@@ -8027,42 +8066,59 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const hasCorrection = !!correctionRecord;
                     const correctionLabel = hasCorrection ? `
             <p class="text-[10px] text-slate-500">คำขอแก้ไข: <span class="font-semibold ${correctionStatus === 'อนุมัติแล้ว' ? 'text-emerald-700' : correctionStatus === 'รออนุมัติ' ? 'text-amber-700' : 'text-rose-700'}">${correctionStatus}</span></p>` : '';
-                    // ซ่อนปุ่มขอแก้ไขเวลาสำหรับวันลา
+                    
+                    // ปุ่มขอแก้ไขเวลา (ซ่อนสำหรับวันลา)
                     const requestButtonHtml = isLeaveDay ? '' : (hasCorrection
                         ? `<button disabled class="btn-press text-[10px] text-slate-400 font-semibold bg-slate-100 border border-slate-200 px-2 py-1 rounded-md flex items-center gap-1 transition-all cursor-not-allowed"><i class="fa-solid fa-user-pen"></i> ติดต่อฝ่ายบุคคล</button>`
                         : `<button onclick="openCorrectionModal('${dateStr}')" class="btn-press text-[10px] text-blue-600 font-semibold bg-blue-50/70 hover:bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-all"><i class="fa-solid fa-user-pen"></i> ขอแก้ไขเวลา</button>`);
+                    
                     let cardBorderClass = 'border border-slate-100';
-                    if (status === 'สาย') cardBorderClass = 'border-2 border-amber-300';
+                    if (status === 'สาย' || status === 'มาสาย') cardBorderClass = 'border-2 border-amber-300';
                     else if (status === 'MI' || status.includes('ลืมลงเวลาเข้า') || status.includes('ลืมลงชื่อเข้า') || status.includes('ลืมเข้า')) cardBorderClass = 'border-2 border-orange-300';
                     else if (status === 'MO' || status.includes('ลืมลงเวลาออก') || status.includes('ลืมลงชื่อออก') || status.includes('ลืมออก')) cardBorderClass = 'border-2 border-rose-300';
-                    else if (status.includes('ขาด')) cardBorderClass = 'border-2 border-rose-300';
+                    else if (isAbsent) cardBorderClass = 'border-2 border-rose-300 bg-rose-50/10';
                     else if (status.includes('ทำงานครึ่งวันเช้า')) cardBorderClass = 'border-2 border-cyan-300';
                     else if (status.includes('ทำงานครึ่งวันบ่าย')) cardBorderClass = 'border-2 border-sky-300';
                     else if (status.includes('ลา')) cardBorderClass = 'border-2 border-violet-300';
-                    else if (status.includes('ครึ่ง')) cardBorderClass = 'border-2 border-cyan-300';
+                    else if (isDayOff) cardBorderClass = 'border border-slate-200 bg-slate-50/30';
                     else if (status !== 'ปกติ') cardBorderClass = 'border-2 border-amber-300';
 
                     const card = document.createElement("div");
                     card.className = `bg-white rounded-xl p-3.5 shadow-xs relative overflow-hidden space-y-2.5 ${cardBorderClass}`;
 
-                    card.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <i class="fa-regular fa-calendar-days text-blue-500"></i> ${formatThaiDate(dateStr)}
-            </span>
-            <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeColor}">${status}</span>
-          </div>
-
-          ${isLeaveDay
-            ? `<div class="flex items-center gap-2 py-3 border-y border-violet-50 bg-violet-50/40 rounded-lg px-2">
+                    // เนื้อหากลางการ์ดตามประเภท
+                    let bodyHtml = '';
+                    if (isLeaveDay) {
+                        bodyHtml = `
+              <div class="flex items-center gap-2 py-3 border-y border-violet-50 bg-violet-50/40 rounded-lg px-2">
                  <i class="fa-solid fa-bed text-violet-400 text-base"></i>
                  <div class="flex-1">
                    <p class="text-[10px] text-violet-600 font-bold">วันลา</p>
                    <p class="text-xs text-slate-600 font-semibold">${status}</p>
                  </div>
                  ${leaveApproveBadge}
-               </div>`
-            : `<div class="grid grid-cols-3 gap-2 py-2 border-y border-slate-50 text-center">
+               </div>`;
+                    } else if (isDayOff) {
+                        bodyHtml = `
+              <div class="flex items-center gap-2 py-3 border-y border-slate-100 bg-slate-50/70 rounded-lg px-2">
+                 <i class="fa-solid fa-mug-hot text-slate-400 text-base"></i>
+                 <div class="flex-1">
+                   <p class="text-[10px] text-slate-500 font-bold">วันหยุดประจำสัปดาห์</p>
+                   <p class="text-xs text-slate-600 font-semibold">${status}</p>
+                 </div>
+               </div>`;
+                    } else if (isAbsent) {
+                        bodyHtml = `
+              <div class="flex items-center gap-2 py-3 border-y border-rose-100 bg-rose-50/50 rounded-lg px-2">
+                 <i class="fa-solid fa-circle-xmark text-rose-500 text-base"></i>
+                 <div class="flex-1">
+                   <p class="text-[10px] text-rose-600 font-bold">ไม่มีบันทึกเวลาทำงาน (ขาดงาน)</p>
+                   <p class="text-xs text-slate-500 font-semibold">ไม่ได้ลงเวลาเข้า-ออกงาน</p>
+                 </div>
+               </div>`;
+                    } else {
+                        bodyHtml = `
+              <div class="grid grid-cols-3 gap-2 py-2 border-y border-slate-50 text-center">
                  <div>
                    <p class="text-[10px] text-slate-400">เวลาเข้า - ออก</p>
                    <p class="text-xs font-bold text-slate-700 mt-0.5">${timeIn} - ${timeOut}</p>
@@ -8075,14 +8131,31 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                    <p class="text-[10px] text-slate-400">โอที (ชม.)</p>
                    <p class="text-xs font-bold ${ot > 0 ? 'text-blue-600' : 'text-slate-700'} mt-0.5">${ot.toFixed(1)}</p>
                  </div>
-               </div>`
-          }
+               </div>`;
+                    }
+
+                    // ส่วนท้ายการ์ด
+                    let footerLeft = `<span class="text-[9px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || "ปกติ"}</span>`;
+                    if (isLeaveDay) {
+                        footerLeft = `<span class="text-[9px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i>ติดต่อฝ่ายบุคคลเพื่อยกเลิกการลา</span>`;
+                    } else if (isDayOff) {
+                        footerLeft = `<span class="text-[9px] text-slate-400"><i class="fa-solid fa-calendar-day mr-1"></i>วันหยุด</span>`;
+                    } else if (isAbsent) {
+                        footerLeft = `<span class="text-[9px] text-rose-500 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>ยังไม่มีข้อมูลเวลา</span>`;
+                    }
+
+                    card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i class="fa-regular fa-calendar-days text-blue-500"></i> ${formatThaiDate(dateStr)}
+            </span>
+            <span class="text-[9px] px-2 py-0.5 rounded-full border ${badgeColor}">${status}</span>
+          </div>
+
+          ${bodyHtml}
 
           <div class="flex items-center justify-between pt-1">
-            ${isLeaveDay
-              ? `<span class="text-[9px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i>ติดต่อฝ่ายบุคคลเพื่อยกเลิกการลา</span>`
-              : `<span class="text-[9px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || "ปกติ"}</span>`
-            }
+            ${footerLeft}
             ${requestButtonHtml}
           </div>
           ${correctionLabel}
