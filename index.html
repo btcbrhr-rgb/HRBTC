@@ -39,6 +39,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
+    <!-- Supabase JS Client v2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <!-- Google Fonts Prompt -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5305,6 +5308,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             if (!SERVER_API_URL) {
                 SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
             }
+
+            // ⚡ SUPABASE DUAL-DATABASE CLIENT CONFIGURATION
+            const SUPABASE_CONFIG = {
+                url: "https://uldeugqrkabplavusoci.supabase.co",
+                anonKey: "sb_publishable__MbMYXLfBvlHHb6bKwigfA_vtGnn5Ll"
+            };
+
+            let supabaseClient = null;
+            try {
+                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                    supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+                    console.log('[Supabase ⚡] Client initialized successfully');
+                }
+            } catch (sbErr) {
+                console.warn('[Supabase ⚡] Client init failed:', sbErr);
+            }
+
             let activePage = "home";
             let currentGpsLocation = { lat: "", lng: "" };
             let streamRef = null;
@@ -6161,6 +6181,139 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 showToast(`🔑 ล้าง PIN ของ ${empName} (${empId}) ในระบบเรียบร้อยแล้ว`, "success");
             }
 
+            // ⚡ ฟังก์ชันดึงข้อมูลทั้งหมดจาก Supabase (Instant Fast Load < 80ms)
+            async function loadAllDataFromSupabase(trimmedEmpId, currentCycle) {
+                if (!supabaseClient) return null;
+                const t0 = performance.now();
+                try {
+                    const [empRes, timeRes, leaveRes, advRes, corrRes, projRes, slipRes] = await Promise.all([
+                        supabaseClient.from('employees').select('*').eq('emp_id', trimmedEmpId).maybeSingle(),
+                        supabaseClient.from('time_records').select('*').eq('emp_id', trimmedEmpId).gte('date', currentCycle.start).lte('date', currentCycle.end),
+                        supabaseClient.from('leave_requests').select('*').eq('emp_id', trimmedEmpId),
+                        supabaseClient.from('advance_requests').select('*').eq('emp_id', trimmedEmpId).gte('request_date', currentCycle.start).lte('request_date', currentCycle.end),
+                        supabaseClient.from('time_corrections').select('*').eq('emp_id', trimmedEmpId).gte('date', currentCycle.start).lte('date', currentCycle.end),
+                        supabaseClient.from('projects').select('*').eq('is_active', true),
+                        supabaseClient.from('payslips').select('*').eq('emp_id', trimmedEmpId)
+                    ]);
+
+                    if (empRes.error || !empRes.data) {
+                        console.log('[Supabase ⚡] Employee record not in Supabase yet, using GAS fallback');
+                        return null;
+                    }
+
+                    const empRow = empRes.data;
+                    const employeeObj = {
+                        "รหัสพนักงาน": empRow.emp_id,
+                        "ชื่อ-นามสกุล": empRow.name,
+                        "ตำแหน่ง": empRow.position,
+                        "สถานะ": empRow.status,
+                        "วันหยุดประจําสัปดาห์": empRow.day_off,
+                        "ชื่อบริษัท": empRow.company,
+                        "วันที่เริ่มงาน": empRow.start_date,
+                        "เบอร์โทรศัพท์": empRow.phone,
+                        "ที่อยู่": empRow.address,
+                        "เลขบัตรประชาชน": empRow.id_card,
+                        "วันเดือนปีเกิด": empRow.birth_date,
+                        "ธนาคาร": empRow.bank,
+                        "สาขาธนาคาร": empRow.bank_branch,
+                        "หมายเลขบัญชี": empRow.bank_account,
+                        "ลิ้งภาพโปรไฟล์": empRow.avatar_url,
+                        "ฐานเงินเดือน": empRow.base_salary,
+                        "ตัวหารค่าแรง": empRow.wage_divisor,
+                        "ชั่วโมงทำงานต่อวัน": empRow.work_hours_per_day,
+                        "ตัวคูณโอที": empRow.ot_rate,
+                        "สิทธิ์การใช้งาน": empRow.role,
+                        "LineUserId": empRow.line_user_id
+                    };
+
+                    const timeRecords = (timeRes.data || []).map(r => ({
+                        "วันที่": r.date,
+                        "เวลาเข้า": r.time_in,
+                        "เวลาออก": r.time_out,
+                        "รหัสพนักงาน": r.emp_id,
+                        "แก้ไขเวลา": r.is_edited,
+                        "แหล่งข้อมูล": r.source,
+                        "ภาพถ่าย": r.photo_url,
+                        "สถานะสรุป": r.status,
+                        "นาทีสาย": r.late_minutes,
+                        "ชั่วโมง OT": r.ot_hours,
+                        "ค่าข้าว": r.food_allowance,
+                        "เบี้ยเลี้ยง": r.shift_allowance,
+                        "เบี้ยอื่นๆ": r.other_allowance,
+                        "โครงการ (เข้า)": r.project_in,
+                        "โครงการ (ออก)": r.project_out,
+                        "หมายเหตุ": r.notes,
+                        "เอกสารแนบ": r.attachments
+                    }));
+
+                    const leaveRequests = (leaveRes.data || []).map(l => ({
+                        "เลขที่เอกสาร": l.doc_id,
+                        "รหัสพนักงาน": l.emp_id,
+                        "ประเภทการลา": l.leave_type,
+                        "ระยะเวลา": l.duration,
+                        "วันที่เริ่ม": l.start_date,
+                        "วันที่สิ้นสุด": l.end_date,
+                        "จำนวนวัน": l.days_count,
+                        "เหตุผล": l.reason,
+                        "สถานะ": l.status,
+                        "อนุมัติโดย": l.approved_by,
+                        "หมายเหตุ": l.notes,
+                        "ลายมือชื่อ": l.signature_url,
+                        "เอกสารแนบ": l.attachments
+                    }));
+
+                    const advanceRequests = (advRes.data || []).map(a => ({
+                        "รหัสพนักงาน": a.emp_id,
+                        "จำนวนเงิน": a.amount,
+                        "วันที่เบิก": a.request_date,
+                        "รอบจ่าย": a.pay_cycle,
+                        "สถานะ": a.status,
+                        "หมายเหตุ": a.notes
+                    }));
+
+                    const timeCorrections = (corrRes.data || []).map(c => ({
+                        "รหัสพนักงาน": c.emp_id,
+                        "วันที่": c.date,
+                        "เวลาเข้าใหม่": c.new_time_in,
+                        "เวลาออกใหม่": c.new_time_out,
+                        "เหตุผล": c.reason,
+                        "สถานะ": c.status,
+                        "โครงการ": c.project,
+                        "อนุมัติโดย": c.approved_by,
+                        "หมายเหตุ": c.notes
+                    }));
+
+                    const projects = (projRes.data || []).map(p => ({ "ชื่อโครงการ": p.name }));
+                    const payslips = (slipRes.data || []).map(s => ({
+                        "รหัสพนักงาน": s.emp_id,
+                        "รอบเงินเดือน": s.period,
+                        "ชื่อไฟล์": s.file_name,
+                        "ID ไฟล์": s.file_id,
+                        "URL สลิป": s.slip_url,
+                        "ยอดสุทธิ": s.net_amount
+                    }));
+
+                    const elapsed = Math.round(performance.now() - t0);
+                    return {
+                        status: "success",
+                        _source: "supabase",
+                        _elapsed: elapsed,
+                        data: {
+                            employee: employeeObj,
+                            timeRecords: timeRecords,
+                            leaveRequests: leaveRequests,
+                            advanceRequests: advanceRequests,
+                            timeCorrections: timeCorrections,
+                            projects: projects,
+                            payslips: payslips
+                        }
+                    };
+                } catch (err) {
+                    console.warn('[Supabase ⚡] Query exception, falling back to GAS', err);
+                    return null;
+                }
+            }
+
             // --- ส่วนบริการดึงข้อมูลและ API (API Services) ---
             async function loadAllData() {
                 if (!isLoggedIn) return false;
@@ -6180,6 +6333,52 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 showSkeleton('leave-history-list', 'table', 3);
                 showSkeleton('advance-history-list', 'table', 3);
 
+                const t0 = performance.now();
+
+                // ⚡ 1. พยายามดึงข้อมูลจาก Supabase ก่อน (ความเร็วระดับ ~30-80ms)
+                let sbResponse = await loadAllDataFromSupabase(trimmedEmpId, currentCycle);
+                if (sbResponse && sbResponse.status === "success" && sbResponse.data && sbResponse.data.employee) {
+                    const d = sbResponse.data;
+                    projectsList = d.projects || [];
+                    populateProjectDropdowns();
+                    employeeData = d.employee;
+                    updateEmployeeProfileUI();
+                    applyRolePermissions();
+                    timeRecordsList = d.timeRecords || [];
+                    timeCorrectionsList = d.timeCorrections || [];
+                    displayActivitiesList();
+                    updateAttendanceStatus();
+                    leaveRequestsList = d.leaveRequests || [];
+                    displayLeaveHistory();
+                    advanceRequestsList = d.advanceRequests || [];
+                    displayAdvanceHistory();
+                    payslipsList = d.payslips || [];
+                    displayPayslipList();
+                    calculateAndDisplayStats();
+                    if (typeof renderCalendarDaysFromLocal === 'function') {
+                        renderCalendarDaysFromLocal();
+                    }
+                    document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
+                    const elapsed = sbResponse._elapsed || Math.round(performance.now() - t0);
+                    console.log(`[loadAllData ⚡ Supabase] ✓ ${elapsed}ms`);
+                    showToast(`⚡ โหลดข้อมูลผ่าน Supabase สำเร็จ (${elapsed}ms)`, "success");
+                    displayMonthlyReminders();
+                    displayAnnouncements();
+
+                    // Background Preload Admin
+                    setTimeout(() => {
+                        if (typeof isAdminMode !== 'undefined' && isAdminMode && typeof loadAdminApprovals === 'function') {
+                            loadAdminApprovals().catch(err => console.log('[Background Preload Admin Error]', err));
+                        }
+                        if (typeof loadSheetData === 'function') {
+                            loadSheetData().catch(err => console.log('[Background Preload Matrix Error]', err));
+                        }
+                    }, 800);
+
+                    return true;
+                }
+
+                // 🔄 2. Fallback: ดึงจาก Google Apps Script หากยังไม่พบข้อมูลใน Supabase
                 const healthCheck = await ensureApiConnectivity();
                 if (!healthCheck.ok) {
                     console.warn('[API] Health check failed before dashboard load:', healthCheck.reason, getApiDebugInfo());
@@ -6188,8 +6387,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     console.log('[API] Health check ok:', healthCheck.data, getApiDebugInfo());
                 }
 
-                // === 🟢 PHASE B-1: ใช้ cachedFetch → cache 30s สำหรับ dashboard ===
-                const t0 = performance.now();
                 try {
                     const dashboardUrls = [
                         `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(trimmedEmpId)}&periodStart=${encodeURIComponent(currentCycle.start)}&periodEnd=${encodeURIComponent(currentCycle.end)}`,
@@ -6243,7 +6440,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         const elapsed = Math.round(performance.now() - t0);
                         const hitInfo = response._cacheHit ? " (cached)" : "";
-                        console.log(`[loadAllData] ✓ ${elapsed}ms${hitInfo}`);
+                        console.log(`[loadAllData Google Sheets] ✓ ${elapsed}ms${hitInfo}`);
                         showToast(`✅ อัปเดตข้อมูลสำเร็จ (${elapsed}ms)`, "success");
                         displayMonthlyReminders();
                         displayAnnouncements();

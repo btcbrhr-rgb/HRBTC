@@ -599,7 +599,6 @@
                 img.style.maxWidth = '100%';
                 let triedThumbnail = false;
                 img.onerror = function() {
-                    console.error('Signature image load failed:', img.src);
                     if (!triedThumbnail && /drive\.google\.com\/uc\?export=view&id=([^&]+)/i.test(signature.src)) {
                         triedThumbnail = true;
                         const idMatch = signature.src.match(/drive\.google\.com\/uc\?export=view&id=([^&]+)/i);
@@ -608,6 +607,16 @@
                             return;
                         }
                     }
+
+                    if (!triedThumbnail && /drive\.google\.com\/file\/d\/([^\/\?&]+)/i.test(signature.src)) {
+                        triedThumbnail = true;
+                        const idMatch = signature.src.match(/drive\.google\.com\/file\/d\/([^\/\?&]+)/i);
+                        if (idMatch && idMatch[1]) {
+                            img.src = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+                            return;
+                        }
+                    }
+
                     wrapper.innerHTML = '';
                     const fallback = document.createElement('span');
                     fallback.textContent = '[ไม่สามารถโหลดภาพลายเซ็นได้]';
