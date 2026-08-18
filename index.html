@@ -42,6 +42,9 @@
     <!-- Supabase JS Client v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+    <!-- SweetAlert2 for Admin confirm dialogs -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <!-- Google Fonts Prompt -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2285,6 +2288,25 @@
                 <nav class="p-3 space-y-5">
                     <div>
                         <div class="px-3 pb-2 flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <i class="fa-solid fa-gauge-high text-[9px] text-indigo-500"></i>
+                            <span>ภาพรวม</span>
+                        </div>
+                        <div class="space-y-1">
+                            <button onclick="switchAdminTab('dashboard')" id="admin-menu-dashboard"
+                                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left group">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-indigo-50 text-slate-500 group-hover:text-indigo-600 flex items-center justify-center text-xs transition-colors shrink-0">
+                                        <i class="fa-solid fa-gauge-high"></i>
+                                    </span>
+                                    <span class="font-semibold">แดชบอร์ดภาพรวม</span>
+                                </div>
+                                <span id="admin-menu-dashboard-badge"
+                                    class="inline-flex items-center justify-center min-w-[1.4rem] h-5 px-1.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200 hidden"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="px-3 pb-2 flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                             <i class="fa-solid fa-bolt text-[9px] text-indigo-500"></i>
                             <span>งานประจำวันและการอนุมัติ</span>
                         </div>
@@ -2495,6 +2517,132 @@
 
             <!-- Content Area Scrollable -->
             <div class="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto min-h-0 space-y-4 sm:space-y-6">
+
+                <!-- SECTION 0: แดชบอร์ดภาพรวม (Dashboard) -->
+                <section id="admin-sec-dashboard" class="admin-sec hidden space-y-6">
+                    <!-- Row 1: KPI Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-2xl border border-indigo-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">กำลังพลในระบบ</p>
+                                    <p id="dash-kpi-employees" class="text-3xl font-extrabold text-indigo-700 mt-1">…</p>
+                                    <p id="dash-kpi-employees-sub" class="text-[11px] text-slate-400 font-semibold mt-0.5 truncate">กำลังโหลดรายชื่อ...</p>
+                                </div>
+                                <div class="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-users text-lg"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-rose-50 to-white p-5 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">รอการอนุมัติรวม</p>
+                                    <p id="dash-kpi-pending" class="text-3xl font-extrabold text-rose-600 mt-1">…</p>
+                                    <p id="dash-kpi-pending-sub" class="text-[11px] text-slate-400 font-semibold mt-0.5 truncate">กำลังซิงค์ข้อมูล...</p>
+                                </div>
+                                <div class="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-inbox text-lg"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-amber-50 to-white p-5 rounded-2xl border border-amber-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">ถึงกำหนดวันนี้</p>
+                                    <p id="dash-kpi-due-today" class="text-3xl font-extrabold text-amber-600 mt-1">…</p>
+                                    <p id="dash-kpi-due-today-sub" class="text-[11px] text-slate-400 font-semibold mt-0.5 truncate">รายการเร่งด่วน 0-5 วัน</p>
+                                </div>
+                                <div class="w-11 h-11 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-bell text-lg"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-emerald-50 to-white p-5 rounded-2xl border border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">ประกาศล่าสุด</p>
+                                    <p id="dash-kpi-announcements" class="text-3xl font-extrabold text-emerald-600 mt-1">0</p>
+                                    <p id="dash-kpi-announcements-sub" class="text-[11px] text-slate-400 font-semibold mt-0.5 truncate">รายการในระบบ</p>
+                                </div>
+                                <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-bullhorn text-lg"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: รายการรออนุมัติล่าสุด -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="fa-solid fa-plane-departure text-sm"></i></span>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-slate-800">ใบลารออนุมัติ</h4>
+                                        <p class="text-[10px] text-slate-400">รอดำเนินการล่าสุด</p>
+                                    </div>
+                                </div>
+                                <span id="dash-pending-leave-count" class="inline-flex items-center justify-center min-w-[1.6rem] h-6 px-2 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-bold border border-indigo-200">0</span>
+                            </div>
+                            <div id="dash-pending-leave-list" class="space-y-2 flex-1 min-h-[140px]">
+                                <div class="py-8 text-center text-slate-400 text-xs italic">กำลังโหลด...</div>
+                            </div>
+                            <button onclick="switchAdminTab('approve-leave')" class="mt-3 w-full py-2 rounded-xl bg-slate-50 hover:bg-indigo-50 text-indigo-700 border border-slate-200 hover:border-indigo-200 text-[11px] font-bold transition-all">
+                                เปิดหน้าอนุมัติใบลา <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center"><i class="fa-solid fa-clock-rotate-left text-sm"></i></span>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-slate-800">แก้ไขเวลารออนุมัติ</h4>
+                                        <p class="text-[10px] text-slate-400">รอดำเนินการล่าสุด</p>
+                                    </div>
+                                </div>
+                                <span id="dash-pending-correction-count" class="inline-flex items-center justify-center min-w-[1.6rem] h-6 px-2 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200">0</span>
+                            </div>
+                            <div id="dash-pending-correction-list" class="space-y-2 flex-1 min-h-[140px]">
+                                <div class="py-8 text-center text-slate-400 text-xs italic">กำลังโหลด...</div>
+                            </div>
+                            <button onclick="switchAdminTab('approve-correction')" class="mt-3 w-full py-2 rounded-xl bg-slate-50 hover:bg-indigo-50 text-indigo-700 border border-slate-200 hover:border-indigo-200 text-[11px] font-bold transition-all">
+                                เปิดหน้าอนุมัติแก้ไขเวลา <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-hand-holding-dollar text-sm"></i></span>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-slate-800">เบิกเงินรออนุมัติ</h4>
+                                        <p class="text-[10px] text-slate-400">รอดำเนินการล่าสุด</p>
+                                    </div>
+                                </div>
+                                <span id="dash-pending-advance-count" class="inline-flex items-center justify-center min-w-[1.6rem] h-6 px-2 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">0</span>
+                            </div>
+                            <div id="dash-pending-advance-list" class="space-y-2 flex-1 min-h-[140px]">
+                                <div class="py-8 text-center text-slate-400 text-xs italic">กำลังโหลด...</div>
+                            </div>
+                            <button onclick="switchAdminTab('approve-advance')" class="mt-3 w-full py-2 rounded-xl bg-slate-50 hover:bg-indigo-50 text-indigo-700 border border-slate-200 hover:border-indigo-200 text-[11px] font-bold transition-all">
+                                เปิดหน้าอนุมัติเบิกเงิน <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: ประกาศล่าสุด -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center"><i class="fa-solid fa-bullhorn text-sm"></i></span>
+                                <div>
+                                    <h4 class="text-xs font-bold text-slate-800">ประกาศข่าวสารล่าสุด</h4>
+                                    <p class="text-[10px] text-slate-400">แสดงบนหน้าแรกของแอปพนักงาน</p>
+                                </div>
+                            </div>
+                            <button onclick="switchAdminTab('announcements')" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50 text-indigo-700 border border-slate-200 hover:border-indigo-200 text-[10px] font-bold transition-all">
+                                จัดการประกาศ <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+                        <div id="dash-announcements-list" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="md:col-span-3 py-6 text-center text-slate-400 text-xs italic">กำลังโหลด...</div>
+                        </div>
+                    </div>
+                </section>
 
                 <!-- SECTION 1: นำเข้าเวลางาน (.txt) -->
                 <section id="admin-sec-import-time" class="admin-sec hidden space-y-6">
@@ -5157,8 +5305,16 @@
             // --- State การทำงาน ---
 let isLoggedIn = false;
 let isAdminMode = false;
-let adminActiveTab = "project-cost";
+let adminActiveTab = "dashboard";
 let adminEmployeesList = [];
+// ข้อมูลรออนุมัติรวมสำหรับแดชบอร์ด (อัปเดตจาก loadAdminApprovals)
+let adminPendingCounts = {
+    leave: { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 },
+    correction: { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 },
+    advance: { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 }
+};
+let adminPendingRecent = { leave: [], correction: [], advance: [] };
+let adminApprovalsLoadedOnce = false; // กัน dashboard ยิง loadAdminApprovals ซ้ำ
 let adminEmployeesMap = new Map(); // คีย์หลักสำหรับทำ Indexing เพื่อดึงชื่อพนักงานได้เร็วขึ้น
 let adminCurrentDecisionData = null; // Holds target data for approval modal
 let isBatchOperation = false; // Tracks if we're doing a batch approval/rejection
@@ -6398,8 +6554,37 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 }, 1000);
             }
+            // ⚡ กล่องยืนยันการกระทำสำคัญ (SweetAlert2) — ใช้แทน native confirm() ให้เข้ากับธีมแอป
+            function adminConfirmDialog({ title, text = '', icon = 'warning', confirmText = 'ยืนยัน', cancelText = 'ยกเลิก', danger = true }) {
+                if (typeof Swal === 'undefined') {
+                    return Promise.resolve(window.confirm(`${title}\n\n${text}`));
+                }
+                return Swal.fire({
+                    title: title,
+                    html: text ? `<div style="font-size:14px;color:#64748b;line-height:1.7;text-align:left">${escapeHtml(text).replace(/\n/g, '<br>')}</div>` : '',
+                    icon: icon,
+                    iconColor: danger ? '#e11d48' : '#4f46e5',
+                    showCancelButton: true,
+                    confirmButtonText: confirmText,
+                    cancelButtonText: cancelText,
+                    confirmButtonColor: danger ? '#e11d48' : '#4f46e5',
+                    cancelButtonColor: '#94a3b8',
+                    reverseButtons: true,
+                    focusCancel: true,
+                    background: '#ffffff',
+                    color: '#1e293b'
+                }).then(result => result.isConfirmed);
+            }
+
             async function clearEmployeePin(empId, empName) {
-                if (!confirm(`ต้องการล้าง PIN ของคุณ ${empName} (${empId}) ใช่หรือไม่?\nพนักงานจะต้องยืนยันตัวตนและตั้ง PIN ใหม่เมื่อเข้าแอปครั้งต่อไป`)) return;
+                const ok = await adminConfirmDialog({
+                    title: 'ล้าง PIN พนักงาน',
+                    text: `ต้องการล้าง PIN ของ ${empName} (${empId}) ใช่หรือไม่?\nพนักงานจะต้องยืนยันตัวตนและตั้ง PIN ใหม่เมื่อเข้าแอปครั้งต่อไป`,
+                    confirmText: 'ยืนยันล้าง PIN',
+                    icon: 'warning',
+                    danger: true
+                });
+                if (!ok) return;
                 
                 try {
                     if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
@@ -10084,7 +10269,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 toggleAdminMobileSidebar(false);
 
                 // ปิดสีปุ่มเมนูเดิมทั้งหมด
-                const menus = ['import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'announcements', 'employees', 'settings'];
+                const menus = ['dashboard', 'import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'announcements', 'employees', 'settings'];
                 menus.forEach(m => {
                     const btn = document.getElementById(`admin-menu-${m}`);
                     if (btn) {
@@ -10108,7 +10293,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const titleEl = document.getElementById("admin-page-title");
                 const descEl = document.getElementById("admin-page-desc");
 
-                if (tabId === 'import-time') {
+                if (tabId === 'dashboard') {
+                    titleEl.textContent = "แดชบอร์ดภาพรวม";
+                    descEl.textContent = "ภาพรวมกำลังพล รายการรออนุมัติ และประกาศล่าสุดในที่เดียว";
+                    loadAdminDashboard();
+                } else if (tabId === 'import-time') {
                     titleEl.textContent = "นำเข้าเวลางานใหม่ (.txt)";
                     descEl.textContent = "นำเข้าประวัติการสแกนนิ้วล่าสุดของพนักงานในรูปแบบไฟล์ .txt เพื่อประมวลผลสรุปวันเข้างาน/OT อัตโนมัติ";
                 } else if (tabId === 'import-payslip') {
@@ -10176,6 +10365,153 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     } catch (e) { console.warn('render config check failed', e); }
                 }
+            }
+
+            // ⚡ แดชบอร์ดภาพรวม (Admin Dashboard)
+            function loadAdminDashboard() {
+                const sec = document.getElementById("admin-sec-dashboard");
+                if (!sec) return;
+
+                // KPI กำลังพล — ใช้ข้อมูลที่ fetch ไว้แล้ว ไม่ยิง API ซ้ำ
+                if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) {
+                    const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
+                    document.getElementById("dash-kpi-employees").textContent = adminEmployeesList.length;
+                    document.getElementById("dash-kpi-employees-sub").textContent = `${active} คน กำลังทำงาน`;
+                } else if (currentEmployeeId) {
+                    fetchAdminEmployeeList().then(() => {
+                        if (adminActiveTab === 'dashboard' && Array.isArray(adminEmployeesList)) {
+                            const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
+                            document.getElementById("dash-kpi-employees").textContent = adminEmployeesList.length;
+                            document.getElementById("dash-kpi-employees-sub").textContent = `${active} คน กำลังทำงาน`;
+                        }
+                    }).catch(() => {});
+                }
+
+                renderAdminDashboardPending();
+                renderAdminDashboardAnnouncements();
+
+                // ถ้ายังไม่เคยซิงค์คำขออนุมัติในรอบนี้เลย ให้โหลดแบบ background
+                // (ปกติ toggleAdminMode จะเรียก loadAdminApprovals อยู่แล้วตอนเข้า Admin)
+                if (!adminApprovalsLoadedOnce && typeof loadAdminApprovals === 'function') {
+                    loadAdminApprovals();
+                }
+            }
+
+            // เรนเดอร์ส่วนรออนุมัติบนแดชบอร์ด (เรียกซ้ำได้เมื่อ loadAdminApprovals เสร็จ)
+            function renderAdminDashboardPending() {
+                const counts = adminPendingCounts;
+                const total = counts.leave.total + counts.correction.total + counts.advance.total;
+                const dueToday = counts.leave.today + counts.correction.today + counts.advance.today;
+                const urgent = counts.leave.today + counts.leave.oneDay + counts.correction.today + counts.correction.oneDay + counts.advance.today + counts.advance.oneDay;
+
+                const kpiPending = document.getElementById("dash-kpi-pending");
+                const kpiPendingSub = document.getElementById("dash-kpi-pending-sub");
+                const kpiDue = document.getElementById("dash-kpi-due-today");
+                const kpiDueSub = document.getElementById("dash-kpi-due-today-sub");
+                if (kpiPending) {
+                    kpiPending.textContent = total;
+                    kpiPendingSub.textContent = dueToday > 0 ? `${dueToday} รายการถึงกำหนดวันนี้` : "ไม่มีรายการเร่งด่วนวันนี้";
+                }
+                if (kpiDue) {
+                    kpiDue.textContent = dueToday;
+                    kpiDueSub.textContent = `${urgent} รายการเร่งด่วน 0-1 วัน`;
+                }
+
+                // Badge รวมบนเมนู sidebar
+                const dashBadge = document.getElementById("admin-menu-dashboard-badge");
+                if (dashBadge) {
+                    if (total > 0) {
+                        dashBadge.textContent = total;
+                        dashBadge.classList.remove("hidden");
+                        dashBadge.className = `inline-flex items-center justify-center min-w-[1.4rem] h-5 px-1.5 rounded-full text-[10px] font-bold border ${dueToday > 0 ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`;
+                    } else {
+                        dashBadge.classList.add("hidden");
+                        dashBadge.textContent = "";
+                    }
+                }
+
+                renderDashPendingList('leave', 'dash-pending-leave-list', 'dash-pending-leave-count');
+                renderDashPendingList('correction', 'dash-pending-correction-list', 'dash-pending-correction-count');
+                renderDashPendingList('advance', 'dash-pending-advance-list', 'dash-pending-advance-count');
+            }
+
+            function renderDashPendingList(type, listId, countId) {
+                const listEl = document.getElementById(listId);
+                const countEl = document.getElementById(countId);
+                if (!listEl) return;
+                const items = (adminPendingRecent[type] || []).slice(0, 4);
+                const count = adminPendingCounts[type]?.total || 0;
+                if (countEl) countEl.textContent = count;
+
+                if (!adminApprovalsLoadedOnce) {
+                    listEl.innerHTML = '<div class="py-7 text-center text-slate-400 text-xs italic"><i class="fa-solid fa-spinner animate-spin mr-1.5"></i>กำลังโหลด...</div>';
+                    return;
+                }
+
+                if (count === 0) {
+                    listEl.innerHTML = '<div class="py-7 text-center text-slate-400 text-xs italic">ไม่มีรายการรออนุมัติ</div>';
+                    return;
+                }
+
+                listEl.innerHTML = items.map(item => {
+                    const empId = item["รหัสพนักงาน"] || 'N/A';
+                    const empName = getAdminEmployeeName(empId) || item["ชื่อ-นามสกุล"] || item["name"] || item["employee_name"] || '';
+                    let detail;
+                    if (type === 'leave') {
+                        const docId = item["เลขที่เอกสาร"] || 'N/A';
+                        const typeLabel = item["ประเภทการลา"] || 'ลาพักร้อน';
+                        detail = `<span class="font-bold text-slate-700 truncate">${escapeHtml(docId)}</span><span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(typeLabel)} · ${escapeHtml(String(item["จำนวนวัน"] || '0'))} วัน</span>`;
+                    } else if (type === 'correction') {
+                        detail = `<span class="font-bold text-slate-700 truncate">${formatThaiDate(item["วันที่"])}</span><span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(item["เวลาเข้าใหม่"] || '-')} → ${escapeHtml(item["เวลาออกใหม่"] || '-')}</span>`;
+                    } else {
+                        const amount = Number(item["จำนวนเงิน"] || 0).toLocaleString();
+                        const date = formatThaiDateShort(item["วันที่เบิก"]) || '-';
+                        detail = `<span class="font-bold text-emerald-700 truncate">฿ ${amount}</span><span class="text-[10px] text-slate-400 shrink-0">${date}</span>`;
+                    }
+                    return `
+                        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-6 h-6 rounded-md bg-white border border-slate-200 text-slate-500 flex items-center justify-center text-[9px] font-bold shrink-0">${escapeHtml(empId)}</span>
+                                <div class="min-w-0 flex flex-col">
+                                    <span class="text-[11px] font-semibold text-slate-600 truncate">${empName ? escapeHtml(empName) : escapeHtml(empId)}</span>
+                                    <div class="flex items-center gap-2 min-w-0">${detail}</div>
+                                </div>
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+
+            function renderAdminDashboardAnnouncements() {
+                let list = [];
+                try { list = getStoredAnnouncements(); } catch (e) { list = []; }
+                const kpi = document.getElementById("dash-kpi-announcements");
+                const kpiSub = document.getElementById("dash-kpi-announcements-sub");
+                if (kpi) kpi.textContent = list.length;
+                if (kpiSub) kpiSub.textContent = list.length > 0 ? `${list.length} รายการในระบบ` : "ยังไม่มีประกาศ";
+
+                const container = document.getElementById("dash-announcements-list");
+                if (!container) return;
+                const recent = list.slice(0, 3);
+                if (recent.length === 0) {
+                    container.innerHTML = '<div class="md:col-span-3 py-6 text-center text-slate-400 text-xs italic">ยังไม่มีประกาศ — กด "จัดการประกาศ" เพื่อสร้างประกาศแรก</div>';
+                    return;
+                }
+                container.innerHTML = recent.map(item => `
+                    <div class="bg-slate-50 rounded-xl border border-slate-100 p-3.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-xs font-bold text-slate-800 truncate"><i class="fa-solid fa-bullhorn text-[10px] text-indigo-500 mr-1.5"></i>${escapeHtml(item.title)}</p>
+                            <span class="text-[10px] text-slate-400 shrink-0">${formatThaiDate(item.date || '')}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1.5 line-clamp-2 whitespace-pre-line">${escapeHtml(item.message)}</p>
+                    </div>`).join('');
+            }
+
+            // เรียกเมื่อ loadAdminApprovals เสร็จเพื่อรีเฟรชแดชบอร์ด (ถ้ากำลังเปิดอยู่)
+            function refreshAdminDashboard() {
+                if (adminActiveTab !== 'dashboard') return;
+                const sec = document.getElementById("admin-sec-dashboard");
+                if (!sec || sec.classList.contains("hidden")) return;
+                renderAdminDashboardPending();
             }
 
             function switchApprovalSectionTab(type, tab) {
@@ -10441,8 +10777,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 </tr>`;
                         });
                         renderRowsInChunks(leaveContainer, rows, 'ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้', 10);
+                        adminPendingCounts.leave = { total: leavePendingCount, today: leaveDueToday, oneDay: leaveDueIn1, threeDays: leaveDueIn3, fiveDays: leaveDueIn5 };
+                        adminPendingRecent.leave = pending.slice(0, 5);
                     } else {
                         leaveContainer.innerHTML = `<tr><td colspan="10" class="py-6 text-center text-rose-600">❌ ${escapeHtml(leaveRes.message || 'โหลดข้อมูลใบลาล้มเหลว')}</td></tr>`;
+                        adminPendingCounts.leave = { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 };
+                        adminPendingRecent.leave = [];
                     }
                     updateApprovalMenu("admin-menu-approve-leave", "admin-menu-approve-leave-badge", {
                         total: leavePendingCount,
@@ -10451,6 +10791,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         threeDays: leaveDueIn3,
                         fiveDays: leaveDueIn5
                     });
+                    refreshAdminDashboard();
                 };
 
                 const renderCorrections = corrRes => {
@@ -10499,8 +10840,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 </tr>`;
                         });
                         renderRowsInChunks(correctionContainer, rows, 'ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ', 9);
+                        adminPendingCounts.correction = { total: corrPendingCount, today: corrDueToday, oneDay: corrDueIn1, threeDays: corrDueIn3, fiveDays: corrDueIn5 };
+                        adminPendingRecent.correction = pending.slice(0, 5);
                     } else {
                         correctionContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
+                        adminPendingCounts.correction = { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 };
+                        adminPendingRecent.correction = [];
                     }
                     updateApprovalMenu("admin-menu-approve-correction", "admin-menu-approve-correction-badge", {
                         total: corrPendingCount,
@@ -10509,6 +10854,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         threeDays: corrDueIn3,
                         fiveDays: corrDueIn5
                     });
+                    refreshAdminDashboard();
                 };
 
                 const renderAdvance = advRes => {
@@ -10557,8 +10903,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 </tr>`;
                         });
                         renderRowsInChunks(advanceContainer, rows, 'ไม่มีคำขอเบิกเงินที่รอการอนุมัติ', 8);
+                        adminPendingCounts.advance = { total: advPendingCount, today: advDueToday, oneDay: advDueIn1, threeDays: advDueIn3, fiveDays: advDueIn5 };
+                        adminPendingRecent.advance = pending.slice(0, 5);
                     } else {
                         advanceContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(advRes.message || 'โหลดข้อมูลคำขอเบิกเงินไม่สำเร็จ')}</td></tr>`;
+                        adminPendingCounts.advance = { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 };
+                        adminPendingRecent.advance = [];
                     }
                     updateApprovalMenu("admin-menu-approve-advance", "admin-menu-approve-advance-badge", {
                         total: advPendingCount,
@@ -10567,6 +10917,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         threeDays: advDueIn3,
                         fiveDays: advDueIn5
                     });
+                    refreshAdminDashboard();
                 };
 
                 // ⚡ 1. Fast-Load via Supabase (< 80ms)
@@ -10624,6 +10975,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 }))
                             });
                             console.log('[loadAdminApprovals ⚡ Supabase] ✓ Loaded pending approvals instantly');
+                            adminApprovalsLoadedOnce = true;
                             return;
                         }
                     } catch (sbErr) {
@@ -10645,6 +10997,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } catch (err) {
                     showToast("❌ ซิงค์ข้อมูลคำขออนุมัติล้มเหลว: " + err.message, "error");
                 }
+                adminApprovalsLoadedOnce = true;
             }
 
             async function loadAdminApprovalResults(type) {
@@ -11873,7 +12226,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                  * ลบเครื่องสแกนออกจากระบบ
                  */
                 window.deleteScanDevice = async function deleteScanDevice(deviceId, deviceName) {
-                    if (!confirm(`ต้องการลบเครื่อง "${deviceName}" ออกจากระบบ?\n(เครื่องที่ลบแล้วจะต้องลงทะเบียนใหม่)`)) return;
+                    const ok = await adminConfirmDialog({
+                        title: 'ลบเครื่องสแกน',
+                        text: `ต้องการลบเครื่อง "${deviceName}" ออกจากระบบ?\n(เครื่องที่ลบแล้วจะต้องลงทะเบียนใหม่)`,
+                        confirmText: 'ยืนยันลบเครื่อง',
+                        icon: 'warning',
+                        danger: true
+                    });
+                    if (!ok) return;
 
                     // ลบผ่าน adminApprove-style: เรียก listDevices ก่อน เพื่อให้ user เห็นการเปลี่ยนแปลง
                     // ใช้ adminSaveSystemSettings หรือเพิ่ม action ใหม่ — เพื่อความง่าย ใช้วิธี clear row
@@ -13111,9 +13471,14 @@ ${slip.textSample}
                     updatePdfButtonStates();
                     const unmatched = parsedPayslips.filter(s => s.status === 'UNMATCHED');
                     if (unmatched.length > 0) {
-                        if (!confirm(`⚠️ พบบางรายการ (${unmatched.length} หน้า) ที่ยังไม่ได้กำหนดคู่รหัสพนักงานที่ถูกต้อง\nต้องการอัปโหลดเฉพาะรายการที่จับคู่พนักงานแล้วใช่หรือไม่?`)) {
-                            return;
-                        }
+                        const ok = await adminConfirmDialog({
+                            title: 'อัปโหลดเฉพาะรายการที่จับคู่แล้ว',
+                            text: `พบบางรายการ (${unmatched.length} หน้า) ที่ยังไม่ได้กำหนดคู่รหัสพนักงานที่ถูกต้อง\nต้องการอัปโหลดเฉพาะรายการที่จับคู่พนักงานแล้วใช่หรือไม่?`,
+                            confirmText: 'อัปโหลดเฉพาะที่จับคู่',
+                            icon: 'warning',
+                            danger: false
+                        });
+                        if (!ok) return;
                     }
 
                     const targets = parsedPayslips.filter(s => s.status === 'MATCHED');
