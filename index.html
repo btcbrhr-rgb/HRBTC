@@ -3195,6 +3195,17 @@
                 <div id="matrix-table-wrap" class="overflow-x-auto overflow-y-auto custom-scrollbar" style="max-height: 580px;">
                     <div id="admin-matrix-table-container" class="matrix-table-container"></div>
                 </div>
+
+                <!-- Legend -->
+                <div class="px-4 py-2.5 border-t border-slate-100 bg-slate-50/60 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-slate-500 font-semibold no-print">
+                    <span class="text-slate-400 font-extrabold uppercase tracking-wider">สัญลักษณ์:</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-green-100 border border-green-200 inline-flex items-center justify-center text-[9px] font-bold text-green-800">W</span> ทำงานปกติ</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-amber-100 border border-amber-200 inline-flex items-center justify-center text-[9px] font-bold text-amber-800">L</span> มาสาย</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-rose-100 border border-rose-200 inline-flex items-center justify-center text-[9px] font-bold text-rose-700">A</span> ขาดงาน</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-rose-50 border border-rose-100 inline-flex items-center justify-center text-[9px] font-bold text-rose-400">ย</span> วันหยุด</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-slate-100 border border-slate-200 inline-flex items-center justify-center text-[9px] font-bold text-slate-500">↳</span> ทำงานโครงการอื่น</span>
+                    <span class="ml-auto inline-flex items-center gap-1.5 text-brand-teal font-bold"><i class="fa-solid fa-mouse-pointer"></i>คลิกช่องสีเพื่อแก้ไขข้อมูล</span>
+                </div>
             </div>
         </div>
 
@@ -14111,6 +14122,17 @@ ${slip.textSample}
                 <div class="overflow-x-auto overflow-y-auto custom-scrollbar" style="max-height: 600px;">
                     <div id="foreman-matrix-table-container" class="matrix-table-container"></div>
                 </div>
+
+                <!-- Legend -->
+                <div class="px-4 py-2.5 border-t border-slate-100 bg-slate-50/60 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-slate-500 font-semibold no-print">
+                    <span class="text-slate-400 font-extrabold uppercase tracking-wider">สัญลักษณ์:</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-green-100 border border-green-200 inline-flex items-center justify-center text-[9px] font-bold text-green-800">W</span> ทำงานปกติ</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-amber-100 border border-amber-200 inline-flex items-center justify-center text-[9px] font-bold text-amber-800">L</span> มาสาย</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-rose-100 border border-rose-200 inline-flex items-center justify-center text-[9px] font-bold text-rose-700">A</span> ขาดงาน</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-rose-50 border border-rose-100 inline-flex items-center justify-center text-[9px] font-bold text-rose-400">ย</span> วันหยุด</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-md bg-slate-100 border border-slate-200 inline-flex items-center justify-center text-[9px] font-bold text-slate-500">↳</span> ทำงานโครงการอื่น</span>
+                    <span class="ml-auto inline-flex items-center gap-1.5 text-brand-teal font-bold"><i class="fa-solid fa-mouse-pointer"></i>คลิกช่องสีเพื่อแก้ไขข้อมูล</span>
+                </div>
             </div>
         </div>
 
@@ -16022,31 +16044,59 @@ function renderSummaryMatrix() {
             const dates = getBillingCycleDates(currentCycleMonth);
             
             // Inject fresh table scaffold into every matrix container
-            const _matrixTplHtml = `<table id="matrixMainTable" class="min-w-full divide-y divide-slate-200 text-xs border-collapse"><thead class="bg-slate-100 sticky top-0 z-40"><tr id="matrixHeaderRow"></tr></thead><tbody id="matrixTableBody" class="bg-white divide-y divide-slate-200 font-medium"></tbody></table>`;
+            const _matrixTplHtml = `<table id="matrixMainTable" class="min-w-full border-collapse text-xs"><thead id="matrixThead" class="sticky top-0 z-40"></thead><tbody id="matrixTableBody" class="bg-white font-medium"></tbody></table>`;
             const _adminMatrixCont   = document.getElementById('admin-matrix-table-container');
             if (_adminMatrixCont)   _adminMatrixCont.innerHTML   = _matrixTplHtml;
             const _foremanMatrixCont = document.getElementById('foreman-matrix-table-container');
             if (_foremanMatrixCont) _foremanMatrixCont.innerHTML = _matrixTplHtml;
 
-            const headerRow = document.getElementById('matrixHeaderRow');
+            const thead = document.getElementById('matrixThead');
             const tableBody = document.getElementById('matrixTableBody');
 
-            headerRow.innerHTML = '';
+            thead.innerHTML = '';
             tableBody.innerHTML = '';
 
-            // Generate Table Header
-            headerRow.innerHTML += `
-                <th class="px-4 py-2.5 text-left font-bold text-slate-600 uppercase tracking-wide sticky left-0 bg-gradient-to-r from-slate-100 via-slate-50 to-white z-30 border-b-2 border-slate-300 shadow-sm text-xs" style="min-width: 190px;">พนักงาน</th>
-                <th class="px-2 py-2.5 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-green-50 to-white text-xs" style="min-width: 50px;">มา</th>
-                <th class="px-2 py-2.5 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-amber-50 to-white text-xs" style="min-width: 50px;">สาย (วัน)</th>
-                <th class="px-2 py-2.5 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-amber-50 to-white text-xs" style="min-width: 50px;">สาย (น.)</th>
-                <th class="px-2 py-2.5 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-rose-50 to-white text-xs" style="min-width: 50px;">ขาด</th>
-                <th class="px-2 py-2.5 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-blue-50 to-white text-xs" style="min-width: 50px;">OT (ชม.)</th>
-                <th class="px-2 py-2.5 text-right font-bold text-emerald-700 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-50 to-white text-xs" style="min-width: 70px;">ค่าข้าว</th>
-                <th class="px-2 py-2.5 text-right font-bold text-emerald-700 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-50 to-white text-xs" style="min-width: 70px;">ค่าเที่ยว</th>
-                <th class="px-2 py-2.5 text-right font-bold text-emerald-700 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-50 to-white text-xs" style="min-width: 70px;">ค่าอื่นๆ</th>
-                <th class="px-3 py-2.5 text-right font-bold text-slate-800 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-100 to-emerald-50 text-xs" style="min-width: 70px;">รวม</th>
-                <th class="px-3 py-2.5 text-left font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-slate-50 to-white text-xs" style="min-width: 120px;">โครงการ</th>
+            const SUMMARY_COLS = 11;
+            const todayStr = getLocalDateString(new Date());
+
+            // --- จัดกลุ่มเดือนเพื่อสร้างแถวหัวกลุ่ม (มองเห็นขอบเขตเดือนชัดเจน) ---
+            const monthGroups = [];
+            dates.forEach(date => {
+                const key = date.slice(0, 7);
+                let last = monthGroups[monthGroups.length - 1];
+                if (!last || last.key !== key) {
+                    const y = parseInt(key.slice(0, 4), 10);
+                    const m = parseInt(key.slice(5, 7), 10);
+                    const label = new Date(y, m - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+                    last = { key, label, days: 0 };
+                    monthGroups.push(last);
+                }
+                last.days += 1;
+            });
+
+            // Row 1: แถวหัวกลุ่ม (สรุปประจำงวด + ช่วงเดือน)
+            let groupRowHtml = `
+                <th colspan="${SUMMARY_COLS}" class="px-3 py-1.5 text-left text-[10px] font-extrabold uppercase tracking-wider bg-gradient-to-r from-brand-deep to-brand-teal text-white border-b border-white/20">
+                    <i class="fa-solid fa-chart-simple mr-1.5"></i> สรุปประจำงวด
+                </th>`;
+            monthGroups.forEach((g, gi) => {
+                groupRowHtml += `
+                <th colspan="${g.days}" class="px-1 py-1.5 text-center text-[10px] font-extrabold uppercase tracking-wider border-l border-b border-slate-200 ${gi % 2 === 0 ? 'bg-brand-sky/70 text-brand-deep' : 'bg-amber-50/80 text-amber-800'}">${g.label}</th>`;
+            });
+
+            // Row 2: หัวคอลัมน์สรุป + หัวคอลัมน์รายวัน
+            let headerRowHtml = `
+                <th class="px-3 py-2 text-left font-bold text-slate-700 uppercase tracking-wide sticky left-0 bg-gradient-to-r from-slate-100 via-slate-50 to-white z-30 border-b-2 border-slate-300 shadow-sm" style="min-width: 190px;">พนักงาน</th>
+                <th class="px-2 py-2 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-green-50 to-white" style="min-width: 50px;">มา</th>
+                <th class="px-2 py-2 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-amber-50 to-white" style="min-width: 52px;">สาย (วัน)</th>
+                <th class="px-2 py-2 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-amber-50 to-white" style="min-width: 52px;">สาย (น.)</th>
+                <th class="px-2 py-2 text-center font-bold text-slate-600 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-rose-50 to-white" style="min-width: 50px;">ขาด</th>
+                <th class="px-2 py-2 text-center font-bold text-brand-deep uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-brand-sky to-white" style="min-width: 56px;">OT (ชม.)</th>
+                <th class="px-2 py-2 text-right font-bold text-emerald-700 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-50 to-white" style="min-width: 70px;">ค่าข้าว</th>
+                <th class="px-2 py-2 text-right font-bold text-emerald-700 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-50 to-white" style="min-width: 70px;">ค่าเที่ยว</th>
+                <th class="px-2 py-2 text-right font-bold text-emerald-700 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-50 to-white" style="min-width: 70px;">ค่าอื่นๆ</th>
+                <th class="px-3 py-2 text-right font-bold text-slate-800 uppercase tracking-wide border-b-2 border-slate-300 bg-gradient-to-b from-emerald-100 to-emerald-50" style="min-width: 70px;">รวม</th>
+                <th class="px-3 py-2 text-left font-bold text-slate-600 uppercase tracking-wide border-b-2 border-r-2 border-slate-300 border-r-brand-deep/30 bg-gradient-to-b from-slate-50 to-white" style="min-width: 120px;">โครงการ</th>
             `;
 
             dates.forEach((date, idx) => {
@@ -16055,8 +16105,7 @@ function renderSummaryMatrix() {
                 const dayNum = d.getDate();
                 const dayName = d.toLocaleDateString('th-TH', { weekday: 'narrow' });
                 const isSunday = d.getDay() === 0;
-                const monthShort = d.toLocaleDateString('th-TH', { month: 'short' });
-                const monthNum = d.getMonth() + 1;
+                const isToday = date === todayStr;
                 
                 // ตรวจสอบและระบุเส้นขอบแนวตั้งแบบทึบตรงจุดรอยต่อเปลี่ยนเดือน
                 let borderRightClass = "border-slate-200";
@@ -16068,17 +16117,15 @@ function renderSummaryMatrix() {
                     }
                 }
 
-                // เลือกสีสำหรับป้ายสัญลักษณ์เดือนให้สลับกันเพื่อเห็นภาพแยกชัดเจน
-                const badgeColor = monthNum % 2 === 0 ? 'bg-brand-sky text-brand-deep border-brand-sky2 font-bold' : 'bg-amber-50 text-amber-700 border-amber-150 font-bold';
-
-                headerRow.innerHTML += `
-                    <th class="px-1.5 py-1.5 text-center border-b border-l ${borderRightClass} hover:bg-brand-sky transition text-xs" style="min-width: 40px;">
-                        <span class="inline-block text-[10px] font-bold px-1 py-0.5 rounded border ${badgeColor} mb-0.5">${monthShort}</span>
+                headerRowHtml += `
+                    <th class="px-1 py-1 text-center border-b border-l ${borderRightClass} ${isToday ? 'bg-brand-sky' : 'hover:bg-brand-sky/60'} transition text-xs" style="min-width: 42px;">
                         <span class="block text-[10px] ${isSunday ? 'text-red-500 font-bold' : 'text-slate-400 font-semibold'}">${dayName}</span>
-                        <span class="block text-xs font-semibold ${isSunday ? 'text-red-600 font-bold' : 'text-slate-800'}">${dayNum}</span>
+                        <span class="inline-flex items-center justify-center w-6 h-6 mt-0.5 rounded-full text-xs font-bold ${isToday ? 'bg-brand-deep text-white shadow-sm' : (isSunday ? 'text-red-600' : 'text-slate-800')}">${dayNum}</span>
                     </th>
                 `;
             });
+
+            thead.innerHTML = groupRowHtml + headerRowHtml;
 
             const filteredEmps = employees.filter(emp => activeProject === 'all' || isEmpWorkedInProject(emp.id, activeProject, dates));
 
@@ -16141,6 +16188,8 @@ function renderSummaryMatrix() {
 
                 const latestProject = getLatestProjectForEmp(emp.id, dates);
 
+                const chip = (val, cls) => `<span class="inline-flex items-center justify-center min-w-[26px] h-6 px-1.5 rounded-full text-[11px] font-bold ${cls}">${val}</span>`;
+
                 let rowHtml = `
                     <td onclick="toggleMatrixRowFocus(this)" title="คลิกเพื่อโฟกัส/ยกเลิกโฟกัสแถวพนักงานคนนี้"
                         class="px-3 py-2.5 whitespace-nowrap sticky left-0 z-20 border-b border-slate-200 shadow-[6px_0_12px_rgba(0,0,0,0.15)] cursor-pointer transition-all duration-200 group isolate ${empIdx % 2 === 0 ? 'bg-white hover:bg-brand-sky' : 'bg-slate-50 hover:bg-brand-sky2'}">
@@ -16155,17 +16204,17 @@ function renderSummaryMatrix() {
                             </div>
                         </div>
                     </td>
-                    <td class="px-2 py-2.5 text-center border-b border-slate-200 font-semibold text-slate-700 bg-green-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-green-50/20'} transition-colors duration-200" style="min-width: 50px;">${workedDaysCount}</td>
-                    <td class="px-2 py-2.5 text-center border-b border-slate-200 font-semibold text-slate-700 bg-amber-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-amber-50/20'} transition-colors duration-200" style="min-width: 50px;">${lateDaysCount}</td>
-                    <td class="px-2 py-2.5 text-center border-b border-slate-200 font-semibold text-slate-700 bg-amber-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-amber-50/20'} transition-colors duration-200" style="min-width: 50px;">${lateMinutesSum}</td>
-                    <td class="px-2 py-2.5 text-center border-b border-slate-200 font-semibold text-slate-700 bg-rose-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-rose-50/20'} transition-colors duration-200" style="min-width: 50px;">${absentDaysCount}</td>
-                    <td class="px-2 py-2.5 text-center border-b border-slate-200 font-semibold text-slate-700 bg-brand-sky/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-brand-sky/20'} transition-colors duration-200" style="min-width: 50px;">${totalOtHours}</td>
-                    <td class="px-2 py-2.5 text-right border-b border-slate-200 text-slate-600 font-medium bg-slate-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/50' : 'bg-slate-50/20'} transition-colors duration-200" style="min-width: 70px;">${totalFoodSum.toLocaleString('th-TH')}</td>
-                    <td class="px-2 py-2.5 text-right border-b border-slate-200 text-slate-600 font-medium bg-slate-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/50' : 'bg-slate-50/20'} transition-colors duration-200" style="min-width: 70px;">${totalTripSum.toLocaleString('th-TH')}</td>
-                    <td class="px-2 py-2.5 text-right border-b border-slate-200 text-slate-600 font-medium bg-slate-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/50' : 'bg-slate-50/20'} transition-colors duration-200" style="min-width: 70px;">${totalOtherSum.toLocaleString('th-TH')}</td>
-                    <td class="px-3 py-2.5 text-right border-b border-slate-200 font-bold text-emerald-700 bg-emerald-100/50 ${empIdx % 2 !== 0 ? 'bg-emerald-100/30' : 'bg-emerald-50/30'} transition-colors duration-200" style="min-width: 70px;">${totalAllowancesSum.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                    <td class="px-3 py-2.5 whitespace-nowrap border-b border-slate-200 ${empIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}">
-                        <span class="inline-block px-2 py-1 rounded-md bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold text-[10px] max-w-[120px] truncate shadow-sm hover:shadow-md transition-shadow" title="${latestProject}">
+                    <td class="px-1 py-2 text-center border-b border-slate-200 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 50px;">${chip(workedDaysCount, 'bg-green-100 text-green-800')}</td>
+                    <td class="px-1 py-2 text-center border-b border-slate-200 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 52px;">${chip(lateDaysCount, 'bg-amber-100 text-amber-800')}</td>
+                    <td class="px-1 py-2 text-center border-b border-slate-200 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 52px;">${chip(lateMinutesSum, 'bg-amber-50 text-amber-700')}</td>
+                    <td class="px-1 py-2 text-center border-b border-slate-200 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 50px;">${chip(absentDaysCount, 'bg-rose-100 text-rose-700')}</td>
+                    <td class="px-1 py-2 text-center border-b border-slate-200 ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 56px;">${chip(totalOtHours, 'bg-brand-sky text-brand-deep')}</td>
+                    <td class="px-2 py-2 text-right border-b border-slate-200 text-slate-600 font-medium ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 70px;">${totalFoodSum.toLocaleString('th-TH')}</td>
+                    <td class="px-2 py-2 text-right border-b border-slate-200 text-slate-600 font-medium ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 70px;">${totalTripSum.toLocaleString('th-TH')}</td>
+                    <td class="px-2 py-2 text-right border-b border-slate-200 text-slate-600 font-medium ${empIdx % 2 !== 0 ? 'bg-slate-50/60' : 'bg-white'}" style="min-width: 70px;">${totalOtherSum.toLocaleString('th-TH')}</td>
+                    <td class="px-3 py-2 text-right border-b border-slate-200 font-bold text-emerald-700 ${empIdx % 2 !== 0 ? 'bg-emerald-50/30' : 'bg-emerald-50/20'}" style="min-width: 70px;">${totalAllowancesSum.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-3 py-2 whitespace-nowrap border-b border-r-2 border-r-brand-deep/30 ${empIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}">
+                        <span class="inline-block px-2 py-1 rounded-md bg-gradient-to-r from-brand-deep to-brand-teal text-white font-semibold text-[10px] max-w-[120px] truncate shadow-sm hover:shadow-md transition-shadow" title="${latestProject}">
                             ${latestProject}
                         </span>
                     </td>
@@ -16196,14 +16245,16 @@ function renderSummaryMatrix() {
                         const curMonth = date.split('-')[1];
                         const nextMonth = dates[idx + 1].split('-')[1];
                         if (curMonth !== nextMonth) {
-                            borderRightClass = "border-r-4 border-r-blue-800/40"; 
+                            borderRightClass = "border-r-4 border-r-brand-navy/40";
                         }
                     }
 
+                    const isToday = date === todayStr;
+
                     // MODIFIED: Click handler changed to openMatrixStatusModal so it directly pops up the edit screen
                     rowHtml += `
-                        <td class="p-0.5 border-b border-l ${borderRightClass} text-center ${empIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}">
-                            <span class="inline-block w-6 h-6 leading-6 text-[10px] rounded-md ${statusClass} cursor-pointer transition-all duration-200 transform hover:scale-110 hover:shadow-lg font-medium"
+                        <td class="p-[3px] border-b border-l ${borderRightClass} text-center ${isToday ? 'bg-brand-sky/30' : (empIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50')}">
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[11px] ${statusClass} cursor-pointer transition-all duration-200 transform hover:scale-110 hover:shadow-md font-bold"
                                 onmouseenter="showMatrixTooltip(this, '${emp.id}', '${date}')"
                                 onmouseleave="hideMatrixTooltip()"
                                 onclick="openMatrixStatusModal('${emp.id}', '${date}')">
