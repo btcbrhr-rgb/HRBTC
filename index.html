@@ -4035,6 +4035,105 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- ⚡ SUPABASE INTEGRATION PANEL -->
+                    <div class="rounded-2xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-5 shadow-sm space-y-4">
+                        <!-- Header -->
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-200">
+                                    <i class="fa-solid fa-bolt text-white text-base"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-900">Supabase Integration Center</h3>
+                                    <p class="text-[11px] text-slate-500">Fast Database · ตั้งค่า API Key · ซิงค์ข้อมูล · เลือกโหมดการทำงาน</p>
+                                </div>
+                            </div>
+                            <!-- Live status badge -->
+                            <div id="sb-status-badge" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200 self-start sm:self-auto">
+                                <span id="sb-status-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                                <span id="sb-status-text">ยังไม่ได้ตรวจสอบ</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat Row -->
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">แหล่งข้อมูลปัจจุบัน</p>
+                                <p id="sb-current-source" class="text-sm font-extrabold text-slate-700 mt-1">GAS Sheets</p>
+                            </div>
+                            <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Ping ล่าสุด</p>
+                                <p id="sb-ping-ms" class="text-sm font-extrabold text-violet-600 mt-1">-</p>
+                            </div>
+                            <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">ทดสอบล่าสุด</p>
+                                <p id="sb-last-tested" class="text-sm font-extrabold text-slate-700 mt-1">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Config Inputs -->
+                        <div class="space-y-3">
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Supabase Project URL</label>
+                                <input id="sb-config-url" type="text"
+                                    placeholder="https://xxxx.supabase.co"
+                                    class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-violet-400 focus:border-violet-400 focus:outline-none transition">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Anon Public Key</label>
+                                <div class="relative">
+                                    <input id="sb-config-key" type="password"
+                                        placeholder="sb_publishable_..."
+                                        class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 pr-10 text-xs font-mono focus:ring-2 focus:ring-violet-400 focus:border-violet-400 focus:outline-none transition">
+                                    <button onclick="toggleSupabaseKeyVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm" title="แสดง/ซ่อน Key">
+                                        <i id="sb-key-eye" class="fa-solid fa-eye-slash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mode Switcher -->
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">โหมดการทำงาน (Database Mode)</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label id="sb-mode-hybrid-label" class="flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all border-violet-400 bg-violet-50">
+                                    <input type="radio" name="sb-db-mode" value="hybrid" class="mt-0.5 accent-violet-600" checked onchange="onSupabaseModeChange(this.value)">
+                                    <div>
+                                        <p class="text-xs font-bold text-violet-800">⚡ Fast-Hybrid (แนะนำ)</p>
+                                        <p class="text-[10px] text-violet-600 mt-0.5">อ่านจาก Supabase + บันทึกสำรองลง Sheets</p>
+                                    </div>
+                                </label>
+                                <label id="sb-mode-sheets-label" class="flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all border-slate-200 bg-white">
+                                    <input type="radio" name="sb-db-mode" value="sheets" class="mt-0.5 accent-slate-600" onchange="onSupabaseModeChange(this.value)">
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-700">📊 Google Sheets Only</p>
+                                        <p class="text-[10px] text-slate-500 mt-0.5">ใช้ Sheets เป็นฐานข้อมูลหลัก (โหมดบำรุงรักษา)</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button onclick="testSupabaseConnection()" id="sb-test-btn"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold shadow-lg shadow-violet-200 transition-all">
+                                <i class="fa-solid fa-satellite-dish"></i> ทดสอบการเชื่อมต่อ
+                            </button>
+                            <button onclick="saveSupabaseConfig()"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-lg shadow-indigo-200 transition-all">
+                                <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
+                            </button>
+                            <button onclick="triggerSupabaseMigration()" id="sb-sync-btn"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-200 transition-all">
+                                <i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase
+                            </button>
+                        </div>
+
+                        <!-- Result / Log area -->
+                        <div id="sb-result-log" class="hidden bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl p-3 space-y-0.5 max-h-28 overflow-y-auto leading-relaxed"></div>
+                    </div>
+
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <!-- ค่าเวลาพื้นฐาน -->
                         <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
@@ -16584,6 +16683,200 @@ function renderSummaryMatrix() {
             })();
         }
     
+        // ══════════════════════════════════════════════════════════════
+        // ⚡ SUPABASE INTEGRATION PANEL — UI Controls & Logic
+        // ══════════════════════════════════════════════════════════════
+
+        const SB_URL_KEY  = 'hrbtc_sb_url';
+        const SB_KEY_KEY  = 'hrbtc_sb_key';
+        const SB_MODE_KEY = 'hrbtc_sb_mode';
+
+        function sbLog(msg, color) {
+            const log = document.getElementById('sb-result-log');
+            if (!log) return;
+            log.classList.remove('hidden');
+            const ts = new Date().toLocaleTimeString('th-TH');
+            const span = document.createElement('div');
+            span.style.color = color || '#34d399';
+            span.textContent = `[${ts}] ${msg}`;
+            log.appendChild(span);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function initSupabasePanelUI() {
+            const urlEl  = document.getElementById('sb-config-url');
+            const keyEl  = document.getElementById('sb-config-key');
+            const modeEl = document.querySelector(`input[name="sb-db-mode"][value="${localStorage.getItem(SB_MODE_KEY) || 'hybrid'}"]`);
+
+            if (urlEl) urlEl.value  = localStorage.getItem(SB_URL_KEY)  || SUPABASE_CONFIG.url;
+            if (keyEl) keyEl.value  = localStorage.getItem(SB_KEY_KEY)  || SUPABASE_CONFIG.anonKey;
+            if (modeEl) { modeEl.checked = true; onSupabaseModeChange(modeEl.value); }
+
+            // แสดงแหล่งข้อมูลปัจจุบัน
+            const srcEl = document.getElementById('sb-current-source');
+            if (srcEl) {
+                const mode = localStorage.getItem(SB_MODE_KEY) || 'hybrid';
+                srcEl.textContent = mode === 'hybrid' ? '⚡ Supabase (Fast)' : '📊 Google Sheets';
+                srcEl.style.color = mode === 'hybrid' ? '#7c3aed' : '#475569';
+            }
+        }
+
+        function toggleSupabaseKeyVisibility() {
+            const input = document.getElementById('sb-config-key');
+            const icon  = document.getElementById('sb-key-eye');
+            if (!input) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            if (icon) {
+                icon.className = isHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+            }
+        }
+
+        function onSupabaseModeChange(value) {
+            const hybridLabel = document.getElementById('sb-mode-hybrid-label');
+            const sheetsLabel = document.getElementById('sb-mode-sheets-label');
+            if (!hybridLabel || !sheetsLabel) return;
+            if (value === 'hybrid') {
+                hybridLabel.className = 'flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all border-violet-400 bg-violet-50';
+                sheetsLabel.className = 'flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all border-slate-200 bg-white';
+            } else {
+                hybridLabel.className = 'flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all border-slate-200 bg-white';
+                sheetsLabel.className = 'flex items-start gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all border-indigo-400 bg-indigo-50';
+            }
+        }
+
+        function saveSupabaseConfig() {
+            const url  = (document.getElementById('sb-config-url')?.value || '').trim();
+            const key  = (document.getElementById('sb-config-key')?.value || '').trim();
+            const mode = document.querySelector('input[name="sb-db-mode"]:checked')?.value || 'hybrid';
+
+            if (!url || !key) {
+                showToast('⚠️ กรุณากรอก URL และ Anon Key ก่อนบันทึก', 'warning');
+                return;
+            }
+
+            localStorage.setItem(SB_URL_KEY, url);
+            localStorage.setItem(SB_KEY_KEY, key);
+            localStorage.setItem(SB_MODE_KEY, mode);
+
+            // Re-initialize supabase client with new config
+            try {
+                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                    supabaseClient = window.supabase.createClient(url, key);
+                    console.log('[Supabase ⚡] Client re-initialized with new config');
+                }
+            } catch (e) {
+                console.warn('[Supabase ⚡] Re-init error:', e);
+            }
+
+            const srcEl = document.getElementById('sb-current-source');
+            if (srcEl) {
+                srcEl.textContent = mode === 'hybrid' ? '⚡ Supabase (Fast)' : '📊 Google Sheets';
+                srcEl.style.color = mode === 'hybrid' ? '#7c3aed' : '#475569';
+            }
+
+            sbLog(`✅ บันทึกการตั้งค่าสำเร็จ — โหมด: ${mode === 'hybrid' ? 'Fast-Hybrid' : 'Google Sheets Only'}`);
+            showToast('✅ บันทึกการตั้งค่า Supabase สำเร็จ', 'success');
+        }
+
+        async function testSupabaseConnection() {
+            const btn = document.getElementById('sb-test-btn');
+            const dot  = document.getElementById('sb-status-dot');
+            const text = document.getElementById('sb-status-text');
+            const badge = document.getElementById('sb-status-badge');
+            const pingEl = document.getElementById('sb-ping-ms');
+            const lastEl = document.getElementById('sb-last-tested');
+
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังทดสอบ...'; }
+            if (dot)  dot.className  = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+            if (text) text.textContent = 'กำลังตรวจสอบ...';
+
+            const url = (document.getElementById('sb-config-url')?.value || '').trim() || SUPABASE_CONFIG.url;
+            const key = (document.getElementById('sb-config-key')?.value || '').trim() || SUPABASE_CONFIG.anonKey;
+
+            sbLog(`🔍 ทดสอบเชื่อมต่อ → ${url}`);
+
+            const t0 = performance.now();
+            try {
+                const endpoint = `${url}/rest/v1/employees?select=emp_id&limit=1`;
+                const res = await fetch(endpoint, {
+                    headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+                });
+                const ms = Math.round(performance.now() - t0);
+
+                if (res.ok || res.status === 406) {
+                    // 200 = success, 406 = no rows but connected
+                    if (dot)  { dot.className = 'w-2 h-2 rounded-full bg-emerald-500'; }
+                    if (text) { text.textContent = `เชื่อมต่อสำเร็จ`; }
+                    if (badge) { badge.className = badge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-emerald-50 text-emerald-700 border-emerald-200'; }
+                    if (pingEl) pingEl.textContent = `${ms} ms`;
+                    if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
+                    sbLog(`✅ เชื่อมต่อสำเร็จ — ตอบสนองใน ${ms}ms (HTTP ${res.status})`, '#34d399');
+                    showToast(`⚡ Supabase เชื่อมต่อสำเร็จ (${ms}ms)`, 'success');
+                } else {
+                    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+                }
+            } catch (err) {
+                const ms = Math.round(performance.now() - t0);
+                if (dot)  { dot.className = 'w-2 h-2 rounded-full bg-rose-500'; }
+                if (text) { text.textContent = 'เชื่อมต่อไม่ได้'; }
+                if (badge) { badge.className = badge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-rose-50 text-rose-700 border-rose-200'; }
+                if (pingEl) pingEl.textContent = `-`;
+                if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
+                sbLog(`❌ เชื่อมต่อไม่สำเร็จ — ${err.message}`, '#f87171');
+                showToast('❌ Supabase เชื่อมต่อไม่ได้ ตรวจสอบ URL / Key อีกครั้ง', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> ทดสอบการเชื่อมต่อ'; }
+            }
+        }
+
+        async function triggerSupabaseMigration() {
+            const btn = document.getElementById('sb-sync-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังซิงค์...'; }
+
+            sbLog('🔄 เริ่มต้นซิงค์ข้อมูล Google Sheets → Supabase...');
+            showToast('🔄 กำลังซิงค์ข้อมูลไปยัง Supabase...', 'info');
+
+            try {
+                // เรียก google.script.run ถ้าอยู่บน GAS Environment
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    google.script.run
+                        .withSuccessHandler((result) => {
+                            sbLog(`✅ ซิงค์สำเร็จ: ${JSON.stringify(result?.data || result)}`, '#34d399');
+                            showToast('✅ ซิงค์ข้อมูลไป Supabase สำเร็จแล้ว!', 'success');
+                            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
+                        })
+                        .withFailureHandler((err) => {
+                            sbLog(`❌ ซิงค์ล้มเหลว: ${err.message || err}`, '#f87171');
+                            showToast('❌ ซิงค์ล้มเหลว ตรวจสอบ Apps Script Log', 'error');
+                            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
+                        })
+                        .migrateAllDataToSupabase();
+                } else {
+                    // ถ้าเปิดในเบราว์เซอร์ปกติ ใช้ fetch ไปยัง GAS API
+                    sbLog('📡 ส่งคำสั่งซิงค์ผ่าน API...');
+                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId}`, { timeout: 120000 });
+                    if (res && res.status === 'success') {
+                        sbLog(`✅ ซิงค์สำเร็จ`, '#34d399');
+                        showToast('✅ ซิงค์ข้อมูลไป Supabase สำเร็จ!', 'success');
+                    } else {
+                        sbLog(`⚠️ ซิงค์อาจไม่ครบถ้วน — ตรวจสอบ Apps Script Log`, '#fbbf24');
+                        showToast('⚠️ ซิงค์เสร็จสิ้น (อาจไม่ครบถ้วน)', 'warning');
+                    }
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
+                }
+            } catch (err) {
+                sbLog(`❌ Error: ${err.message}`, '#f87171');
+                showToast('❌ เกิดข้อผิดพลาดในการซิงค์', 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
+            }
+        }
+
+        // โหลดค่าตั้งต้น Supabase Panel เมื่อเข้าหน้า Settings
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(initSupabasePanelUI, 500);
+        });
+
 </script>
 </body>
 
