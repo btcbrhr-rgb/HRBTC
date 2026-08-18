@@ -4008,32 +4008,76 @@
 
                 <!-- SECTION 7: ตั้งค่าระบบ -->
                 <section id="admin-sec-settings" class="admin-sec hidden space-y-6">
-                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
-                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-900">ตั้งค่าการเชื่อมต่อ Google Sheets / Firebase</h3>
-                                <p class="text-xs text-slate-500">กดปุ่มด้านล่างเพื่อเปิดหน้าตั้งค่าการเชื่อมต่อ API และ Firebase</p>
+                    <!-- 📊 GOOGLE SHEETS & APPS SCRIPT INTEGRATION PANEL -->
+                    <div class="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-5 shadow-sm space-y-4">
+                        <!-- Header -->
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200">
+                                    <i class="fa-solid fa-file-excel text-white text-base"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-900">Google Sheets & Apps Script Integration</h3>
+                                    <p class="text-[11px] text-slate-500">Live Backup ฐานข้อมูลหลัก · ตั้งค่า Web App URL · ทดสอบ Ping · ตรวจสอบสถานะ</p>
+                                </div>
                             </div>
-                            <button id="open-config-btn" onclick="toggleConfigModal()"
-                                class="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-all">
-                                <i class="fa-solid fa-plug"></i>
-                                เปิดการตั้งค่าการเชื่อมต่อ
+                            <!-- Live status badge -->
+                            <div id="gas-status-badge" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200 self-start sm:self-auto">
+                                <span id="gas-status-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                                <span id="gas-status-text">ยังไม่ได้ตรวจสอบ</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat Row -->
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">สถานะการทำงาน</p>
+                                <p id="gas-current-status" class="text-sm font-extrabold text-emerald-700 mt-1">Live Backup</p>
+                            </div>
+                            <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Ping ล่าสุด</p>
+                                <p id="gas-ping-ms" class="text-sm font-extrabold text-emerald-600 mt-1">-</p>
+                            </div>
+                            <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+                                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">ทดสอบล่าสุด</p>
+                                <p id="gas-last-tested" class="text-sm font-extrabold text-slate-700 mt-1">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Config Inputs -->
+                        <div class="space-y-3">
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Google Apps Script Web App URL</label>
+                                <div class="relative">
+                                    <input id="gas-config-url" type="url"
+                                        placeholder="https://script.google.com/macros/s/.../exec"
+                                        class="w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2 pr-10 text-xs font-mono focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:outline-none transition">
+                                    <button onclick="copyGasUrlToClipboard()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 text-sm" title="คัดลอก URL">
+                                        <i class="fa-solid fa-copy"></i>
+                                    </button>
+                                </div>
+                                <p class="text-[10px] text-slate-400 leading-normal">URL ที่ได้จากการ Deploy เป็น Web App (สิทธิ์เข้าถึง: Anyone)</p>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button onclick="testGoogleSheetsConnection()" id="gas-test-btn"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-200 transition-all">
+                                <i class="fa-solid fa-satellite-dish"></i> ทดสอบการเชื่อมต่อ (Ping)
+                            </button>
+                            <button onclick="saveGasConfigDirect()"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-lg shadow-teal-200 transition-all">
+                                <i class="fa-solid fa-floppy-disk"></i> บันทึก URL
+                            </button>
+                            <button onclick="toggleConfigModal()"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all">
+                                <i class="fa-solid fa-sliders"></i> ตั้งค่า Firebase / ขั้นสูง
                             </button>
                         </div>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                            <div class="rounded-xl border border-slate-200 bg-white p-3">
-                                <div class="text-[10px] uppercase tracking-widest text-slate-500">Google Apps Script URL</div>
-                                <div id="system-config-api-url" class="mt-2 text-xs text-slate-700 truncate">ยังไม่ได้ตั้งค่า</div>
-                            </div>
-                            <div class="rounded-xl border border-slate-200 bg-white p-3">
-                                <div class="text-[10px] uppercase tracking-widest text-slate-500">Firebase Status</div>
-                                <div id="system-config-firebase-status" class="mt-2 text-xs text-slate-700">ยังไม่พร้อม</div>
-                            </div>
-                            <div class="rounded-xl border border-slate-200 bg-white p-3">
-                                <div class="text-[10px] uppercase tracking-widest text-slate-500">Last Saved</div>
-                                <div id="system-config-last-saved" class="mt-2 text-xs text-slate-700">-</div>
-                            </div>
-                        </div>
+
+                        <!-- Result / Log area -->
+                        <div id="gas-result-log" class="hidden bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl p-3 space-y-0.5 max-h-28 overflow-y-auto leading-relaxed"></div>
                     </div>
 
                     <!-- ⚡ SUPABASE INTEGRATION PANEL -->
@@ -5130,6 +5174,49 @@ let SERVER_API_URL;
 async function fetchAdminEmployeeList() {
     if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) return;
     if (!currentEmployeeId) return;
+
+    // ⚡ 1. Fast-Load via Supabase (< 50ms)
+    if (supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient.from('employees').select('*');
+            if (!error && Array.isArray(data) && data.length > 0) {
+                adminEmployeesList = data.map(r => ({
+                    "รหัสพนักงาน": r.emp_id,
+                    "ชื่อ-นามสกุล": r.name,
+                    "ตำแหน่ง": r.position,
+                    "สถานะ": r.status,
+                    "วันหยุดประจําสัปดาห์": r.day_off,
+                    "ชื่อบริษัท": r.company,
+                    "วันที่เริ่มงาน": r.start_date,
+                    "เบอร์โทรศัพท์": r.phone,
+                    "ที่อยู่": r.address,
+                    "เลขบัตรประชาชน": r.id_card,
+                    "วันเดือนปีเกิด": r.birth_date,
+                    "ธนาคาร": r.bank,
+                    "สาขาธนาคาร": r.bank_branch,
+                    "หมายเลขบัญชี": r.bank_account,
+                    "ลิ้งภาพโปรไฟล์": r.avatar_url,
+                    "ฐานเงินเดือน": r.base_salary,
+                    "ตัวหารค่าแรง": r.wage_divisor,
+                    "ชั่วโมงทำงานต่อวัน": r.work_hours_per_day,
+                    "ตัวคูณโอที": r.ot_rate,
+                    "สิทธิ์การใช้งาน": r.role,
+                    "LineUserId": r.line_user_id
+                }));
+                adminEmployeesMap.clear();
+                adminEmployeesList.forEach(emp => {
+                    const id = (emp["รหัสพนักงาน"] || '').toString().trim();
+                    if (id) adminEmployeesMap.set(id, emp);
+                });
+                console.log(`[fetchAdminEmployeeList ⚡ Supabase] ✓ ${adminEmployeesList.length} employees loaded`);
+                return;
+            }
+        } catch (sbErr) {
+            console.warn('[fetchAdminEmployeeList Supabase Error]', sbErr);
+        }
+    }
+
+    // 2. Fallback to Google Sheets
     try {
         const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`);
         if (res.status === 'success' && Array.isArray(res.data)) {
@@ -10072,6 +10159,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     descEl.textContent = "กำหนดเวลาเข้างาน-ออกงาน เวลาสาย ค่าเวลา และตั้งค่าพารามิเตอร์หลักขององค์กร";
                     loadAdminSettings();
                     renderSystemConfigSummary();
+                    if (typeof initGasPanelUI === 'function') initGasPanelUI();
+                    if (typeof initSupabasePanelUI === 'function') initSupabasePanelUI();
                     // หากยังไม่มี Firebase config ครบ ให้เปิด modal ให้อัตโนมัติเพื่อให้ผู้ดูแลใส่ค่า
                     // แต่ต้องแน่ใจว่าเป็นผู้ดูแลระบบจริงเท่านั้น (isAdminMode หรือสิทธิ์ผู้ดูแล)
                     try {
@@ -10480,6 +10569,69 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     });
                 };
 
+                // ⚡ 1. Fast-Load via Supabase (< 80ms)
+                if (supabaseClient) {
+                    try {
+                        const [lRes, cRes, aRes] = await Promise.all([
+                            supabaseClient.from('leave_requests').select('*').in('status', ['รออนุมัติ', 'รอตรวจสอบ', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ']),
+                            supabaseClient.from('time_corrections').select('*').in('status', ['รออนุมัติ', 'รอตรวจสอบ']),
+                            supabaseClient.from('advance_requests').select('*').in('status', ['รออนุมัติ', 'รอตรวจสอบ'])
+                        ]);
+
+                        if (!lRes.error && !cRes.error && !aRes.error) {
+                            renderLeave({
+                                status: 'success',
+                                data: (lRes.data || []).map(l => ({
+                                    "เลขที่เอกสาร": l.doc_id,
+                                    "รหัสพนักงาน": l.emp_id,
+                                    "ประเภทการลา": l.leave_type,
+                                    "ระยะเวลา": l.duration,
+                                    "วันที่เริ่ม": l.start_date,
+                                    "วันที่สิ้นสุด": l.end_date,
+                                    "จำนวนวัน": l.days_count,
+                                    "เหตุผล": l.reason,
+                                    "สถานะ": l.status,
+                                    "อนุมัติโดย": l.approved_by,
+                                    "หมายเหตุ": l.notes,
+                                    "ลายมือชื่อ": l.signature_url,
+                                    "เอกสารแนบ": l.attachments
+                                }))
+                            });
+                            renderCorrections({
+                                status: 'success',
+                                data: (cRes.data || []).map(c => ({
+                                    "รหัสพนักงาน": c.emp_id,
+                                    "วันที่": c.date,
+                                    "เวลาเข้าใหม่": c.new_time_in,
+                                    "เวลาออกใหม่": c.new_time_out,
+                                    "เหตุผล": c.reason,
+                                    "สถานะ": c.status,
+                                    "โครงการ": c.project,
+                                    "อนุมัติโดย": c.approved_by,
+                                    "หมายเหตุ": c.notes
+                                }))
+                            });
+                            renderAdvance({
+                                status: 'success',
+                                data: (aRes.data || []).map(a => ({
+                                    "รหัสพนักงาน": a.emp_id,
+                                    "จำนวนเงิน": a.amount,
+                                    "วันที่เบิก": a.request_date,
+                                    "รอบจ่าย": a.pay_cycle,
+                                    "สถานะ": a.status,
+                                    "ช่องทางรับเงิน": a.payout_channel,
+                                    "หมายเหตุ": a.notes
+                                }))
+                            });
+                            console.log('[loadAdminApprovals ⚡ Supabase] ✓ Loaded pending approvals instantly');
+                            return;
+                        }
+                    } catch (sbErr) {
+                        console.warn('[loadAdminApprovals Supabase Error]', sbErr);
+                    }
+                }
+
+                // 2. Fallback to Google Sheets
                 try {
                     const [leaveRes, corrRes, advRes] = await Promise.all([
                         fetchWithTimeout(leaveUrl).catch(err => ({ status: 'error', message: err.message })),
@@ -16742,6 +16894,128 @@ function renderSummaryMatrix() {
         }
     
         // ══════════════════════════════════════════════════════════════
+        // 📊 GOOGLE SHEETS & APPS SCRIPT INTEGRATION PANEL — UI Controls & Logic
+        // ══════════════════════════════════════════════════════════════
+
+        function gasLog(msg, color) {
+            const log = document.getElementById('gas-result-log');
+            if (!log) return;
+            log.classList.remove('hidden');
+            const ts = new Date().toLocaleTimeString('th-TH');
+            const span = document.createElement('div');
+            span.style.color = color || '#34d399';
+            span.textContent = `[${ts}] ${msg}`;
+            log.appendChild(span);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function initGasPanelUI() {
+            const urlEl = document.getElementById('gas-config-url');
+            const currentUrl = localStorage.getItem('hr_api_url') || (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
+            if (urlEl && currentUrl) {
+                urlEl.value = currentUrl;
+            }
+
+            const statusBadge = document.getElementById('gas-status-badge');
+            const statusDot   = document.getElementById('gas-status-dot');
+            const statusText  = document.getElementById('gas-status-text');
+
+            if (currentUrl) {
+                if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+                if (statusText) statusText.textContent = 'พร้อมใช้งาน (Live Backup)';
+                if (statusBadge) statusBadge.className = statusBadge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-emerald-50 text-emerald-700 border-emerald-200';
+            }
+        }
+
+        function copyGasUrlToClipboard() {
+            const input = document.getElementById('gas-config-url');
+            if (!input || !input.value) {
+                showToast('⚠️ ยังไม่มี URL ให้คัดลอก', 'warning');
+                return;
+            }
+            navigator.clipboard.writeText(input.value).then(() => {
+                showToast('📋 คัดลอก Google Apps Script URL เรียบร้อยแล้ว', 'success');
+            }).catch(err => {
+                showToast('❌ คัดลอกไม่สำเร็จ', 'error');
+            });
+        }
+
+        async function saveGasConfigDirect() {
+            const url = (document.getElementById('gas-config-url')?.value || '').trim();
+            if (!url) {
+                showToast('⚠️ กรุณากรอก Google Apps Script Web App URL', 'warning');
+                return;
+            }
+            if (!isValidAppsScriptUrl(url)) {
+                showToast('⚠️ URL ต้องเป็น Google Apps Script ที่ลงท้ายด้วย /exec', 'warning');
+                return;
+            }
+
+            localStorage.setItem('hr_api_url', url);
+            SERVER_API_URL = url;
+
+            const modalInput = document.getElementById('config-api-url');
+            if (modalInput) modalInput.value = url;
+
+            gasLog(`💾 บันทึก URL เรียบร้อย: ${url}`);
+            showToast('✅ บันทึก Google Apps Script URL สำเร็จ', 'success');
+            testGoogleSheetsConnection();
+        }
+
+        async function testGoogleSheetsConnection() {
+            const btn = document.getElementById('gas-test-btn');
+            const dot = document.getElementById('gas-status-dot');
+            const text = document.getElementById('gas-status-text');
+            const badge = document.getElementById('gas-status-badge');
+            const pingEl = document.getElementById('gas-ping-ms');
+            const lastEl = document.getElementById('gas-last-tested');
+
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังทดสอบ...'; }
+            if (dot) dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+            if (text) text.textContent = 'กำลังตรวจสอบ...';
+
+            const url = (document.getElementById('gas-config-url')?.value || '').trim() || (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
+            if (!url) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> ทดสอบการเชื่อมต่อ (Ping)'; }
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+                if (text) text.textContent = 'ยังไม่ได้ระบุ URL';
+                gasLog('❌ ยังไม่ได้ระบุ URL ในการทดสอบ', '#f87171');
+                showToast('⚠️ กรุณาระบุ Web App URL ก่อนทดสอบ', 'warning');
+                return;
+            }
+
+            gasLog(`🔍 ส่งคำสั่ง Ping (Health Check) → ${url}`);
+            const t0 = performance.now();
+            try {
+                const res = await fetchWithTimeout(`${url}?action=health`, { timeout: 15000 });
+                const ms = Math.round(performance.now() - t0);
+
+                if (res && res.status === 'success') {
+                    if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+                    if (text) text.textContent = 'เชื่อมต่อสำเร็จ';
+                    if (badge) badge.className = badge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-emerald-50 text-emerald-700 border-emerald-200';
+                    if (pingEl) pingEl.textContent = `${ms} ms`;
+                    if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
+                    gasLog(`✅ เชื่อมต่อ Google Apps Script สำเร็จ — ตอบสนองใน ${ms}ms`, '#34d399');
+                    showToast(`⚡ Google Sheets ตอบสนอง (${ms}ms)`, 'success');
+                } else {
+                    throw new Error(res?.message || 'การตอบสนองไม่ถูกต้อง');
+                }
+            } catch (err) {
+                const ms = Math.round(performance.now() - t0);
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+                if (text) text.textContent = 'เชื่อมต่อไม่ได้';
+                if (badge) badge.className = badge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-rose-50 text-rose-700 border-rose-200';
+                if (pingEl) pingEl.textContent = `-`;
+                if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
+                gasLog(`❌ เชื่อมต่อ Google Sheets ไม่สำเร็จ: ${err.message}`, '#f87171');
+                showToast('❌ เชื่อมต่อ Google Apps Script ไม่สำเร็จ ตรวจสอบ URL อีกครั้ง', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> ทดสอบการเชื่อมต่อ (Ping)'; }
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
         // ⚡ SUPABASE INTEGRATION PANEL — UI Controls & Logic
         // ══════════════════════════════════════════════════════════════
 
@@ -16931,9 +17205,12 @@ function renderSummaryMatrix() {
             }
         }
 
-        // โหลดค่าตั้งต้น Supabase Panel เมื่อเข้าหน้า Settings
+        // โหลดค่าตั้งต้น Google Sheets & Supabase Panel เมื่อเข้าหน้า Settings
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(initSupabasePanelUI, 500);
+            setTimeout(() => {
+                if (typeof initGasPanelUI === 'function') initGasPanelUI();
+                if (typeof initSupabasePanelUI === 'function') initSupabasePanelUI();
+            }, 500);
         });
 
 </script>
