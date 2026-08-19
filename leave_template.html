@@ -1,486 +1,426 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="h-full bg-slate-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ใบคำขอลาหยุดงาน - Leave Request Form (Production Template)</title>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>ใบคำขอลาหยุดงาน - Leave Request Form (HR Standard)</title>
+    
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts (Sarabun) for Thai formal document style -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    fontFamily: {
+                        sarabun: ['Sarabun', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts: Sarabun (Formal Thai Document Font) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght=0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     
-    <!-- html2pdf.js for Client-side PDF Generation on both Mobile & Desktop -->
+    <!-- html2pdf.js Bundle for PDF Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
         body {
             font-family: 'Sarabun', sans-serif;
-            background-color: #f8fafc;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
-        /* Specific rules to force exact single A4 layout on printing across all devices & scale factors */
+
+        /* Standard Exact A4 Document Print Formatting */
         @media print {
             @page {
-                size: 210mm 297mm portrait;
-                margin: 6mm 8mm 6mm 8mm; /* Fixed A4 margins */
+                size: A4 portrait;
+                margin: 8mm 10mm 8mm 10mm;
             }
             html, body {
-                width: 194mm !important;
-                height: 285mm !important;
                 background-color: #ffffff !important;
-                font-size: 10.5px !important;
-                line-height: 1.25 !important;
-                padding: 0 !important;
+                width: 190mm !important;
+                height: 280mm !important;
                 margin: 0 auto !important;
+                padding: 0 !important;
+                font-size: 11px !important;
+                line-height: 1.3 !important;
                 overflow: hidden !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
             }
             .no-print {
                 display: none !important;
             }
-            .print-shadow-none {
+            .printable-content {
                 box-shadow: none !important;
                 border: none !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                max-width: 100% !important;
                 width: 100% !important;
+                max-width: 100% !important;
+                min-height: 275mm !important;
             }
-            /* Ensure inputs look clean when printed */
             input[type="text"], input[type="date"], input[type="number"], textarea, select {
-                border-bottom: 1px dotted #64748b !important;
+                border-bottom: 1px dotted #475569 !important;
                 border-top: none !important;
                 border-left: none !important;
                 border-right: none !important;
                 background: transparent !important;
-                padding: 0 !important;
-                height: auto !important;
-                font-size: inherit !important;
-                color: #0f172a !important;
+                box-shadow: none !important;
+                padding: 0 2px !important;
+                outline: none !important;
             }
-            /* Exact fit printable container */
-            .printable-content {
-                transform: none !important;
-                display: flex !important;
-                flex-direction: column !important;
-                min-height: 283mm !important;
-                max-height: 285mm !important;
-                width: 194mm !important;
-                box-sizing: border-box !important;
+            .print-border-bold {
+                border-color: #0f172a !important;
             }
             .page-bottom-blocks {
                 margin-top: auto !important;
             }
         }
 
-        /* Prevent any form edits in the printable template itself */
+        /* Readonly / Formal Presentation Look */
         .printable-content input,
         .printable-content textarea,
         .printable-content select {
-            pointer-events: none !important;
-            user-select: none !important;
-            cursor: default !important;
-        }
-        .printable-content input[type="checkbox"] {
-            cursor: default !important;
-        }
-        .leave-type-checkbox {
-            accent-color: #0f172a;
-            border-color: #334155;
-        }
-        .leave-type-checkbox:checked {
-            border-color: #0f172a;
+            transition: all 0.2s ease;
         }
 
-        /* PDF specific styles to override before render
-           Mirror key @media print rules so html2pdf output matches browser Print */
-        .pdf-render {
-            display: flex;
-            flex-direction: column;
-            min-height: 285mm;
-            width: 194mm;
-            max-width: 194mm;
+        .custom-checkbox {
+            accent-color: #0f172a;
+        }
+
+        /* PDF Render Layout Constraints */
+        .pdf-render-mode {
+            width: 190mm !important;
+            min-height: 275mm !important;
+            padding: 0 !important;
             margin: 0 auto !important;
-            background-color: #ffffff;
-            font-size: 10.5px;
-            line-height: 1.25;
-            padding: 0 !important;
-            margin: 0 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            box-shadow: none !important;
-            page-break-inside: avoid !important;
-            box-sizing: border-box;
+            background: #ffffff !important;
+            font-size: 11px !important;
         }
-        .pdf-render .printable-content {
-            display: flex;
-            flex-direction: column;
-            min-height: 285mm;
-            width: 100%;
-            max-width: 100%;
-            transform: none !important;
-            transform-origin: top center !important;
-            padding: 0 !important;
-            box-shadow: none !important;
-            page-break-inside: avoid !important;
-        }
-        .pdf-render .page-bottom-blocks {
-            margin-top: auto;
-        }
-        .pdf-render .flex.items-center.space-x-3 {
-            align-items: center !important;
-        }
-        .pdf-render .flex.items-center.space-x-3 > div {
-            min-width: 0 !important;
-        }
-        .pdf-render .flex.items-center.space-x-3 h1,
-        .pdf-render .flex.items-center.space-x-3 p {
-            margin: 0;
-            white-space: normal !important;
-            word-break: break-word !important;
-        }
-        .pdf-render input, .pdf-render textarea {
-            border-bottom: 1px dotted #94a3b8 !important;
-            background-color: transparent !important;
-            height: auto !important;
-        }
-        .pdf-render img {
-            max-width: 100% !important;
-            height: auto !important;
-            object-fit: contain !important;
-        }
-        .page-break {
-            page-break-after: always;
-        }
+
         #loading-overlay {
-            position: fixed;
-            inset: 0;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            background: rgba(15, 23, 42, 0.72);
-            z-index: 9999;
-            color: #f8fafc;
-            padding: 20px;
-            text-align: center;
-        }
-        #loading-overlay .loader-box {
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-            padding: 18px 24px;
-            border-radius: 16px;
-            background: rgba(15, 23, 42, 0.92);
-            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-        }
-        #loading-overlay .loader-ring {
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,0.24);
-            border-top-color: #ffffff;
-            border-radius: 50%;
-            animation: spin 0.95s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+            backdrop-filter: blur(4px);
         }
     </style>
 </head>
-<body class="py-6 px-4 sm:px-6">
-<div id="loading-overlay" class="no-print">
-    <div class="loader-box">
-        <div class="loader-ring"></div>
-        <div class="text-sm font-semibold">กำลังโหลดข้อมูล...</div>
-    </div>
-</div>
+<body class="py-6 px-2 sm:px-4 flex flex-col min-h-screen">
 
-    <!-- Main Container - Sized optimally for A4 (794px approximate width at standard DPI) -->
-    <div id="capture-target" class="printable-content max-w-[820px] mx-auto bg-white p-5 md:p-6 rounded-xl shadow-sm border border-slate-200 print-shadow-none">
-        
-        <!-- Header Section -->
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800 pb-2.5 mb-3">
-            <div class="flex items-center space-x-3">
-                <!-- Decorative SVG Logo Holder -->
-                <div class="h-9 w-9 bg-slate-100 rounded-lg flex items-center justify-center border border-slate-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 00-2 2z" />
-                    </svg>
-                </div>
-                <div>
-                    <h1 class="text-lg md:text-xl font-bold text-slate-800 tracking-tight">ใบคำขอลาหยุดงาน</h1>
-                    <p class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">LEAVE REQUEST FORM</p>
-                </div>
-            </div>
-            <!-- Header Meta Info including Document Number -->
-            <div class="mt-2 sm:mt-0 grid grid-cols-2 gap-x-2 w-full sm:w-auto text-[10px] md:text-xs">
-                <div>
-                    <label class="block text-[9px] font-bold text-slate-500 uppercase">เลขที่เอกสาร / Doc No.</label>
-                    <input type="text" id="doc_no" data-bind="metadata.doc_no" placeholder="LV-YYYYXXXX" class="w-full sm:w-24 border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-slate-800 font-semibold">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-bold text-slate-500 uppercase">วันที่ / Date</label>
-                    <input type="date" id="doc_date" data-bind="metadata.doc_date" class="w-full sm:w-28 border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-slate-800 font-medium">
-                </div>
-            </div>
-        </div>
-
-        <!-- Meta Info -->
-        <div class="grid grid-cols-1 gap-x-4 gap-y-1 mb-3 text-xs">
-            <div>
-                <label class="block font-bold text-slate-700">เรียน / Attention To:</label>
-                <input type="text" id="attention_to" value="ผู้บริหาร และฝ่ายบุคคล" readonly class="mt-0.5 w-full border-b border-slate-300 bg-slate-50 text-slate-700 font-medium py-0.5 cursor-default">
-            </div>
-        </div>
-
-        <!-- Section 1: Employee Info -->
-        <div class="mb-3">
-            <h2 class="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded mb-1.5 border-l-4 border-slate-700 uppercase tracking-wide">1. ข้อมูลผู้ขอลา (Employee Information)</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1.5 text-xs">
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">ชื่อ-นามสกุล / Employee Name</label>
-                    <input type="text" id="emp_name" data-bind="employee.name" placeholder="ระบุชื่อ-นามสกุล" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">รหัสพนักงาน / Employee ID</label>
-                    <input type="text" id="emp_id" data-bind="employee.id" placeholder="รหัสพนักงาน" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">ตำแหน่ง / Position</label>
-                    <input type="text" id="emp_position" data-bind="employee.position" placeholder="ระบุตำแหน่ง" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">แผนก-ฝ่าย / Department</label>
-                    <input type="text" id="emp_dept" data-bind="employee.department" placeholder="ระบุแผนก/ฝ่าย" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-            </div>
-        </div>
-
-        <!-- Section 2: Type of Leave -->
-        <div class="mb-3">
-            <h2 class="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded mb-1.5 border-l-4 border-slate-700 uppercase tracking-wide">2. ประเภทการลาที่ต้องการขออนุมัติ (Type of Leave Request)</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
-                <label class="flex items-start space-x-2 cursor-pointer">
-                    <input type="checkbox" id="check_sick" name="leave_type" value="sick" class="leave-type-checkbox mt-0.5 h-4 w-4 rounded focus:ring-indigo-500">
-                    <div>
-                        <span class="font-medium text-slate-700">ลาป่วย (Sick Leave)</span>
-                    </div>
-                </label>
-                
-                <label class="flex items-start space-x-2 cursor-pointer">
-                    <input type="checkbox" id="check_personal" name="leave_type" value="personal" class="leave-type-checkbox mt-0.5 h-4 w-4 rounded focus:ring-indigo-500">
-                    <div>
-                        <span class="font-medium text-slate-700">ลากิจส่วนตัว (Personal Leave)</span>
-                    </div>
-                </label>
-                
-                <label class="flex items-start space-x-2 cursor-pointer">
-                    <input type="checkbox" id="check_annual" name="leave_type" value="annual" class="leave-type-checkbox mt-0.5 h-4 w-4 rounded focus:ring-indigo-500">
-                    <div>
-                        <span class="font-medium text-slate-700">ลาพักร้อนประจำปี (Annual Leave)</span>
-                    </div>
-                </label>
-                
-                <label class="flex items-start space-x-2 cursor-pointer">
-                    <input type="checkbox" id="check_maternity" name="leave_type" value="maternity" class="leave-type-checkbox mt-0.5 h-4 w-4 rounded focus:ring-indigo-500">
-                    <div>
-                        <span class="font-medium text-slate-700">ลาคลอด / ลาดูแลภรรยา (Maternity/Paternity)</span>
-                    </div>
-                </label>
-
-                <label class="flex items-start space-x-2 cursor-pointer">
-                    <input type="checkbox" id="check_religious" name="leave_type" value="religious" class="leave-type-checkbox mt-0.5 h-4 w-4 rounded focus:ring-indigo-500">
-                    <div>
-                        <span class="font-medium text-slate-700">ลาอุปสมบท / พิธีทางศาสนา (Religious)</span>
-                    </div>
-                </label>
-
-                <label class="flex items-start space-x-2 cursor-pointer">
-                    <input type="checkbox" id="check_other" name="leave_type" value="other" class="leave-type-checkbox mt-0.5 h-4 w-4 rounded focus:ring-indigo-500">
-                    <div class="flex items-center">
-                        <span class="font-medium text-slate-700 shrink-0">อื่นๆ / Other</span>
-                        <input type="text" id="other_leave_desc" placeholder="โปรดระบุสาเหตุ..." class="ml-1 w-28 border-b border-slate-300 focus:border-indigo-500 focus:outline-none text-[10px] py-0">
-                    </div>
-                </label>
-            </div>
-        </div>
-
-        <!-- Section 3: Period and Handover -->
-        <div class="mb-3">
-            <h2 class="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded mb-1.5 border-l-4 border-slate-700 uppercase tracking-wide">3. ระยะเวลาการลาและผู้รับมอบหมายงาน (Period & Handover)</h2>
-            
-            <!-- Dates and Total Days Row (Only Dates, No Time) -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs mb-1.5">
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">เริ่มหยุดงานตั้งแต่วันที่ / From Date</label>
-                    <input type="date" id="start_date" data-bind="start_date" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">ถึงวันที่ / To Date</label>
-                    <input type="date" id="end_date" data-bind="end_date" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">รวมระยะเวลาที่ลา / Total</label>
-                    <div class="flex items-center space-x-1 mt-0.5">
-                        <input type="number" id="total_days" data-bind="total_days" placeholder="0" class="w-16 text-center border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                        <span class="text-slate-600 text-[10px] font-medium">วัน (Days)</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Reason and Emergency Contact merged together side-by-side -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs mb-1.5">
-                <div class="sm:col-span-2">
-                    <label class="block text-[9px] font-semibold text-slate-500">เหตุผลความจำเป็นในการขอลาครั้งนี้ / Reason for Leave</label>
-                    <input type="text" id="leave_reason" data-bind="leave_reason" placeholder="ระบุเหตุผลและรายละเอียดความจำเป็นในการลา..." class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-                <div>
-                    <label class="block text-[9px] font-semibold text-slate-500">เบอร์โทรติดต่อ / Emergency Phone</label>
-                    <input type="text" id="contact_no" data-bind="contact_no" placeholder="เบอร์โทรศัพท์ที่ติดต่อได้" class="mt-0.5 w-full border-b border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5">
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Section 4: Leave Records (For HR / Populated dynamically or manually) -->
-        <div class="mb-3">
-            <h2 class="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded mb-1.5 border-l-4 border-slate-700 uppercase tracking-wide">4. สถิติการลาสะสมในปีนี้ (Leave Record - สำหรับเจ้าหน้าที่บุคคลกรอก)</h2>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-md">
-                    <thead class="bg-slate-50">
-                        <tr class="text-[9px] uppercase text-slate-500 tracking-wider">
-                            <th scope="col" class="px-2 py-0.5 text-left font-bold">ประเภทการลา (Leave Type)</th>
-                            <th scope="col" class="px-2 py-0.5 text-center font-bold">สิทธิ์ทั้งหมด (วัน)</th>
-                            <th scope="col" class="px-2 py-0.5 text-center font-bold">ใช้ไปแล้ว (วัน)</th>
-                            <th scope="col" class="px-2 py-0.5 text-center font-bold">ครั้งนี้ (วัน)</th>
-                            <th scope="col" class="px-2 py-0.5 text-center font-bold">คงเหลือ (วัน)</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-slate-200 text-[10px]">
-                        <tr>
-                            <td class="px-2 py-0.5 font-medium text-slate-700">ลาป่วย (Sick Leave)</td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="sick_entitled" data-bind="leave_records.sick.entitled" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="sick_used" data-bind="leave_records.sick.used" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="sick_current" data-bind="leave_records.sick.current" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="sick_remaining" data-bind="leave_records.sick.remaining" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                        </tr>
-                        <tr>
-                            <td class="px-2 py-0.5 font-medium text-slate-700">ลากิจส่วนตัว (Personal Leave)</td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="personal_entitled" data-bind="leave_records.personal.entitled" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="personal_used" data-bind="leave_records.personal.used" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="personal_current" data-bind="leave_records.personal.current" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="personal_remaining" data-bind="leave_records.personal.remaining" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                        </tr>
-                        <tr>
-                            <td class="px-2 py-0.5 font-medium text-slate-700">ลาพักร้อนประจำปี (Annual Leave)</td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="annual_entitled" data-bind="leave_records.annual.entitled" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="annual_used" data-bind="leave_records.annual.used" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="annual_current" data-bind="leave_records.annual.current" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                            <td class="px-2 py-0.5 text-center"><input type="text" id="annual_remaining" data-bind="leave_records.annual.remaining" class="w-8 text-center border-b border-slate-200 focus:outline-none py-0 text-[10px]"></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div id="leave_warning" class="mt-2 text-xs text-red-800 whitespace-nowrap overflow-x-auto"></div>
-        </div>
-
-        <div class="page-bottom-blocks">
-        <!-- Important Notes and Leave Regulations Section -->
-        <div class="mb-3 border border-indigo-100 rounded-md bg-indigo-50/30 p-2">
-            <h3 class="text-[10px] font-bold text-indigo-900 flex items-center mb-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1 text-indigo-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    <!-- Control Toolbar (Hidden in Print View) -->
+    <header class="no-print max-w-5xl mx-auto w-full mb-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center space-x-2">
+            <div class="p-2 bg-slate-800 text-white rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                หมายเหตุสำคัญและระเบียบการลา (Important Regulations)
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[9px] text-slate-600 leading-normal">
-                <div>
-                    <strong class="text-slate-800">1. ลาป่วย:</strong> พนักงานต้องแนบใบรับรองแพทย์ประกอบการลาป่วยทุกครั้งที่หยุดงาน โดยลาป่วยได้ตามจริงและรับค่าจ้างไม่เกิน 30 วันทำงาน/ปี
-                </div>
-                <div>
-                    <strong class="text-slate-800">2. ลากิจธุระอันจำเป็น:</strong> พนักงานมีสิทธิ์ลาเพื่อกิจธุระอันจำเป็นได้ปีละไม่น้อยกว่า 3 วันทำงาน โดยได้รับค่าจ้างตามกฎหมาย
-                </div>
-                <div>
-                    <strong class="text-slate-800">3. การลาล่วงหน้า:</strong> การลากิจและลาพักร้อนต้องยื่นใบลาและได้รับอนุมัติจากหัวหน้างานล่วงหน้าอย่างน้อย 2 วัน
-                </div>
-                <div>
-                    <strong class="text-slate-800">4. ระเบียบปฏิบัติ:</strong> การลาที่ไม่มีใบรับรองแพทย์ (กรณีลาป่วย) หรือไม่ได้รับอนุมัติล่วงหน้า (กรณีลากิจ/พักร้อน) บริษัทฯ จะถือว่าเป็นการละทิ้งหน้าที่และไม่จ่ายค่าจ้างในวันที่หยุดนั้น
-                </div>
+            </div>
+            <div>
+                <h2 class="text-sm font-bold text-slate-800">ระบบแบบฟอร์มใบลางานอิเล็กทรอนิกส์</h2>
+                <p class="text-[11px] text-slate-500">Standardized Leave Request Form System</p>
             </div>
         </div>
 
-        <!-- Section 5: Signature Blocks (2 Blocks - Employee & Approver) -->
-        <div class="border-t border-slate-300 pt-2">
-            <h2 class="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded mb-2 border-l-4 border-slate-700 uppercase tracking-wide">5. การรับรองและการพิจารณาอนุมัติ (Signatures & Approval)</h2>
-            <div class="grid grid-cols-2 gap-4 max-w-[620px] mx-auto text-center">
-                <!-- Employee Signature -->
-                <div class="flex flex-col justify-between min-h-[6rem] border border-slate-200 p-1.5 rounded-md bg-slate-50/10">
-                    <p class="text-[8px] font-bold text-slate-500 uppercase tracking-wider">ผู้เสนอคำขอลา / Employee</p>
-                    <div class="my-0.5">
-                        <div class="border-b border-dashed border-slate-300 w-4/5 mx-auto py-0.5">
-                            <span id="emp_signature" data-bind="metadata.employee_signature" class="block text-[10px] text-slate-700"></span>
+        <div class="flex items-center flex-wrap gap-2">
+            <button onclick="fillSampleData()" type="button" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                ใส่ข้อมูลตัวอย่าง
+            </button>
+            <button onclick="prepareAndPrint()" type="button" class="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition shadow-sm flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                พิมพ์ใบลา (Print)
+            </button>
+            <button onclick="generatePDF()" type="button" class="px-3 py-1.5 text-xs font-semibold text-white bg-brand-700 hover:bg-brand-800 rounded-lg transition shadow-sm flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                ดาวน์โหลด PDF
+            </button>
+        </div>
+    </header>
+
+    <!-- Global Loading Overlay -->
+    <div id="loading-overlay" class="no-print fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center">
+        <div class="bg-white rounded-2xl p-5 shadow-2xl flex items-center space-x-3 border border-slate-100">
+            <div class="w-6 h-6 border-3 border-brand-700 border-t-transparent rounded-full animate-spin"></div>
+            <span id="loading-text" class="text-xs font-bold text-slate-700">กำลังประมวลผลข้อมูล...</span>
+        </div>
+    </div>
+
+    <!-- MAIN PRINTABLE A4 FORM CONTAINER -->
+    <main id="capture-target" class="printable-content max-w-5xl w-full mx-auto bg-white p-6 md:p-8 rounded-xl shadow-md border border-slate-200 flex flex-col justify-between my-auto">
+        
+        <div>
+            <!-- Header Section with ISO / HR Document Metadata -->
+            <div class="border-b-2 border-slate-800 pb-3 mb-3">
+                <div class="flex flex-row justify-between items-start gap-2">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-11 w-11 bg-slate-800 text-white rounded-lg flex items-center justify-center font-bold text-lg tracking-wider shrink-0">
+                            HR
                         </div>
-                        <span class="text-[8px] text-slate-400 block mt-0.5">(ลงลายมือชื่อพนักงาน)</span>
+                        <div>
+                            <h1 class="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">ใบคำขอลาหยุดงาน</h1>
+                            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">LEAVE REQUEST FORM</p>
+                        </div>
                     </div>
-                    <p class="text-[8px] text-slate-500 font-medium">วันที่ / Date: <span id="emp_submission_date" data-bind="metadata.doc_date">...../...../.....</span></p>
+
+                    <!-- ISO Document Control Table Box -->
+                    <div class="text-[9px] border border-slate-300 rounded p-1.5 bg-slate-50/50 min-w-[170px] space-y-0.5 text-right">
+                        <div><span class="font-semibold text-slate-500">รหัสเอกสาร (Doc Code):</span> <span class="font-bold text-slate-800">HR-FR-002</span></div>
+                        <div><span class="font-semibold text-slate-500">แก้ไขครั้งที่ (Rev.):</span> <span class="font-bold text-slate-800">03</span></div>
+                        <div><span class="font-semibold text-slate-500">วันที่บังคับใช้:</span> <span class="font-bold text-slate-800">01/01/2026</span></div>
+                    </div>
                 </div>
 
-                <!-- Approver Signature -->
-                <div class="flex flex-col justify-between min-h-[6rem] border border-slate-200 p-1.5 rounded-md bg-slate-50/10">
-                    <p class="text-[8px] font-bold text-slate-500 uppercase tracking-wider">ผู้อนุมัติ / Authorized Approver</p>
-                    <div class="flex justify-around my-0.5 text-[8px] text-slate-600 font-medium">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="h-2.5 w-2.5 rounded text-indigo-600 border-slate-300 mr-0.5">อนุมัติ
-                        </label>
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="h-2.5 w-2.5 rounded text-red-600 border-slate-300 mr-0.5">ไม่อนุมัติ
-                        </label>
+                <!-- Document ID & Date Input Bar -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-2 border-t border-slate-200 text-xs">
+                    <div>
+                        <label class="block text-[9px] font-bold text-slate-500 uppercase">เลขที่เอกสาร / Doc No.</label>
+                        <input type="text" id="doc_no" data-bind="metadata.doc_no" placeholder="LV-2026XXXX" class="w-full border-b border-slate-300 font-bold text-slate-800 py-0.5 focus:outline-none focus:border-slate-800">
                     </div>
-                    <div class="my-0.5">
-                        <div class="border-b border-dashed border-slate-300 w-4/5 mx-auto py-0.5"></div>
-                        <span class="text-[8px] text-slate-400 block mt-0.5">(ลงลายมือชื่อผู้อนุมัติ)</span>
+                    <div>
+                        <label class="block text-[9px] font-bold text-slate-500 uppercase">วันที่ยื่นคำขอ / Date</label>
+                        <input type="date" id="doc_date" data-bind="metadata.doc_date" class="w-full border-b border-slate-300 font-medium text-slate-800 py-0.5 focus:outline-none focus:border-slate-800">
                     </div>
-                    <p class="text-[8px] text-slate-500 font-medium">วันที่ / Date: ...../...../.....</p>
+                    <div class="col-span-2">
+                        <label class="block text-[9px] font-bold text-slate-500 uppercase">เรียน / Attention To</label>
+                        <input type="text" id="attention_to" value="ผู้บังคับบัญชา และฝ่ายทรัพยากรบุคคล (HR)" readonly class="w-full border-b border-slate-200 bg-transparent text-slate-700 font-semibold py-0.5 cursor-default focus:outline-none">
+                    </div>
                 </div>
             </div>
+
+            <!-- Section 1: Employee Details -->
+            <section class="mb-3">
+                <h2 class="text-[11px] font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded border-l-4 border-slate-800 uppercase tracking-wide mb-2 flex items-center justify-between">
+                    <span>1. ข้อมูลผู้ขอลา (Employee Information)</span>
+                </h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-2 text-xs">
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">ชื่อ-นามสกุล / Employee Name</label>
+                        <input type="text" id="emp_name" data-bind="employee.name" placeholder="ระบุชื่อ-นามสกุล" class="w-full border-b border-slate-300 py-0.5 font-semibold text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">รหัสพนักงาน / Employee ID</label>
+                        <input type="text" id="emp_id" data-bind="employee.id" placeholder="EMP-XXXX" class="w-full border-b border-slate-300 py-0.5 font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">ตำแหน่ง / Position</label>
+                        <input type="text" id="emp_position" data-bind="employee.position" placeholder="ระบุตำแหน่ง" class="w-full border-b border-slate-300 py-0.5 font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">ฝ่าย-แผนก / Department</label>
+                        <input type="text" id="emp_dept" data-bind="employee.department" placeholder="ระบุแผนก/ฝ่าย" class="w-full border-b border-slate-300 py-0.5 font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Leave Type Selection -->
+            <section class="mb-3">
+                <h2 class="text-[11px] font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded border-l-4 border-slate-800 uppercase tracking-wide mb-2">
+                    2. ประเภทการลาที่ขออนุมัติ (Type of Leave)
+                </h2>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1.5 text-xs">
+                    <label class="flex items-center space-x-2 cursor-pointer p-1 rounded hover:bg-slate-50">
+                        <input type="checkbox" id="check_sick" name="leave_type" value="sick" class="custom-checkbox h-3.5 w-3.5 text-slate-800 rounded">
+                        <span class="font-medium text-slate-800">ลาป่วย (Sick Leave)</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer p-1 rounded hover:bg-slate-50">
+                        <input type="checkbox" id="check_personal" name="leave_type" value="personal" class="custom-checkbox h-3.5 w-3.5 text-slate-800 rounded">
+                        <span class="font-medium text-slate-800">ลากิจส่วนตัว (Personal Leave)</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer p-1 rounded hover:bg-slate-50">
+                        <input type="checkbox" id="check_annual" name="leave_type" value="annual" class="custom-checkbox h-3.5 w-3.5 text-slate-800 rounded">
+                        <span class="font-medium text-slate-800">ลาพักร้อน (Annual Leave)</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer p-1 rounded hover:bg-slate-50">
+                        <input type="checkbox" id="check_maternity" name="leave_type" value="maternity" class="custom-checkbox h-3.5 w-3.5 text-slate-800 rounded">
+                        <span class="font-medium text-slate-800">ลาคลอด / ลาดูแลภรรยา</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer p-1 rounded hover:bg-slate-50">
+                        <input type="checkbox" id="check_religious" name="leave_type" value="religious" class="custom-checkbox h-3.5 w-3.5 text-slate-800 rounded">
+                        <span class="font-medium text-slate-800">ลาอุปสมบท / พิธีทางศาสนา</span>
+                    </label>
+                    <label class="flex items-center space-x-1.5 p-1 rounded hover:bg-slate-50">
+                        <input type="checkbox" id="check_other" name="leave_type" value="other" class="custom-checkbox h-3.5 w-3.5 text-slate-800 rounded shrink-0">
+                        <span class="font-medium text-slate-800 shrink-0">อื่นๆ:</span>
+                        <input type="text" id="other_leave_desc" placeholder="ระบุเหตุผลเพิ่มเติม..." class="border-b border-slate-300 py-0 text-[11px] w-full focus:outline-none">
+                    </label>
+                </div>
+            </section>
+
+            <!-- Section 3: Period, Reason & Handover -->
+            <section class="mb-3">
+                <h2 class="text-[11px] font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded border-l-4 border-slate-800 uppercase tracking-wide mb-2">
+                    3. ระยะเวลาการลาและข้อมูลติดต่อ (Leave Duration & Handover)
+                </h2>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs mb-2">
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">ตั้งแต่วันที่ / Start Date</label>
+                        <input type="date" id="start_date" data-bind="start_date" onchange="calculateLeaveDays()" class="w-full border-b border-slate-300 py-0.5 font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">ถึงวันที่ / End Date</label>
+                        <input type="date" id="end_date" data-bind="end_date" onchange="calculateLeaveDays()" class="w-full border-b border-slate-300 py-0.5 font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">จำนวนวันลาทั้งสิ้น / Total Duration</label>
+                        <div class="flex items-center space-x-1">
+                            <input type="number" id="total_days" data-bind="total_days" step="0.5" min="0" placeholder="0" class="w-20 border-b border-slate-300 py-0.5 text-center font-bold text-slate-900 focus:outline-none focus:border-slate-800">
+                            <span class="text-slate-600 font-medium">วัน (Days)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
+                    <div class="sm:col-span-2">
+                        <label class="block text-[9px] font-medium text-slate-500">เหตุผลความจำเป็นในการขอลา / Reason for Leave</label>
+                        <input type="text" id="leave_reason" data-bind="leave_reason" placeholder="ระบุเหตุผลอย่างชัดเจน..." class="w-full border-b border-slate-300 py-0.5 font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-medium text-slate-500">เบอร์โทรศัพท์ติดต่อฉุกเฉิน / Emergency Contact</label>
+                        <input type="text" id="contact_no" data-bind="contact_no" placeholder="08X-XXX-XXXX" class="w-full border-b border-slate-300 py-0.5 font-medium text-slate-800 focus:outline-none focus:border-slate-800">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Leave Cumulative Statistics (HR Section) -->
+            <section class="mb-3">
+                <h2 class="text-[11px] font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded border-l-4 border-slate-800 uppercase tracking-wide mb-2 flex items-center justify-between">
+                    <span>4. สถิติการลาประจำปี (Leave Entitlement Record - สำหรับฝ่ายบุคคล)</span>
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse border border-slate-300 text-left text-xs">
+                        <thead>
+                            <tr class="bg-slate-100 text-[9px] font-bold uppercase text-slate-700 tracking-wider">
+                                <th class="border border-slate-300 px-2 py-1">ประเภทการลา (Leave Type)</th>
+                                <th class="border border-slate-300 px-2 py-1 text-center w-24">สิทธิ์ทั้งหมด (วัน)</th>
+                                <th class="border border-slate-300 px-2 py-1 text-center w-24">ใช้ไปแล้ว (วัน)</th>
+                                <th class="border border-slate-300 px-2 py-1 text-center w-24">ครั้งนี้ (วัน)</th>
+                                <th class="border border-slate-300 px-2 py-1 text-center w-24">คงเหลือ (วัน)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 text-[10px]">
+                            <tr>
+                                <td class="border border-slate-300 px-2 py-0.5 font-medium text-slate-800">ลาป่วย (Sick Leave)</td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="sick_entitled" data-bind="leave_records.sick.entitled" value="30" class="w-full text-center focus:outline-none bg-transparent"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="sick_used" data-bind="leave_records.sick.used" value="0" class="w-full text-center focus:outline-none bg-transparent"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="sick_current" data-bind="leave_records.sick.current" value="0" class="w-full text-center focus:outline-none bg-transparent font-semibold text-slate-900"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="sick_remaining" data-bind="leave_records.sick.remaining" value="30" class="w-full text-center focus:outline-none bg-transparent font-bold"></td>
+                            </tr>
+                            <tr>
+                                <td class="border border-slate-300 px-2 py-0.5 font-medium text-slate-800">ลากิจส่วนตัว (Personal Leave)</td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="personal_entitled" data-bind="leave_records.personal.entitled" value="6" class="w-full text-center focus:outline-none bg-transparent"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="personal_used" data-bind="leave_records.personal.used" value="0" class="w-full text-center focus:outline-none bg-transparent"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="personal_current" data-bind="leave_records.personal.current" value="0" class="w-full text-center focus:outline-none bg-transparent font-semibold text-slate-900"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="personal_remaining" data-bind="leave_records.personal.remaining" value="6" class="w-full text-center focus:outline-none bg-transparent font-bold"></td>
+                            </tr>
+                            <tr>
+                                <td class="border border-slate-300 px-2 py-0.5 font-medium text-slate-800">ลาพักร้อนประจำปี (Annual Leave)</td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="annual_entitled" data-bind="leave_records.annual.entitled" value="6" class="w-full text-center focus:outline-none bg-transparent"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="annual_used" data-bind="leave_records.annual.used" value="0" class="w-full text-center focus:outline-none bg-transparent"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="annual_current" data-bind="leave_records.annual.current" value="0" class="w-full text-center focus:outline-none bg-transparent font-semibold text-slate-900"></td>
+                                <td class="border border-slate-300 px-1 py-0.5 text-center"><input type="text" id="annual_remaining" data-bind="leave_records.annual.remaining" value="6" class="w-full text-center focus:outline-none bg-transparent font-bold"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="leave_warning" class="mt-1.5 text-[10px] text-red-600 font-bold empty:hidden"></div>
+            </section>
         </div>
 
+        <div class="page-bottom-blocks mt-2">
+            <!-- Section 5: Regulations & Terms Notice -->
+            <div class="mb-3 border border-slate-200 rounded p-2 bg-slate-50 text-[9px] text-slate-600 leading-tight space-y-1">
+                <div class="font-bold text-slate-800 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    เงื่อนไขและข้อปฏิบัติตามระเบียบบริษัทฯ (Regulations & Rules)
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5">
+                    <div>1. <strong>ลาป่วย:</strong> กรณีป่วยตั้งแต่ 3 วันทำงานขึ้นไป ต้องมีใบรับรองแพทย์แผนปัจจุบันชั้นหนึ่งประกอบ</div>
+                    <div>2. <strong>ลากิจ/ลาพักร้อน:</strong> ต้องยื่นใบลาล่วงหน้าอย่างน้อย 3 วัน และได้รับอนุมัติก่อนหยุดงาน</div>
+                    <div>3. <strong>การส่งมอบงาน:</strong> ผู้ขอลาต้องเคลียร์งานค้างชำระและมอบหมายงานแก่ผู้รับมอบงานให้เรียบร้อย</div>
+                    <div>4. <strong>กรณีฉุกเฉิน:</strong> แจ้งผู้บังคับบัญชาทันที และยื่นใบลาพร้อมหลักฐานในวันแรกที่กลับมาทำงาน</div>
+                </div>
+            </div>
+
+            <!-- Section 6: Approval Workflow & Signatures -->
+            <section class="border-t border-slate-300 pt-3">
+                <h2 class="text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2.5 text-center">
+                    การอนุมัติและลงนามบันทึก (Signatures & Approval Workflow)
+                </h2>
+
+                <div class="grid grid-cols-2 gap-4 text-center text-xs w-full">
+                    
+                    <!-- 1. Applicant Signature Block -->
+                    <div class="border border-slate-200 rounded-lg p-3.5 bg-slate-50/50 flex flex-col justify-between min-h-[130px] w-full">
+                        <p class="text-[10px] font-bold text-slate-700 uppercase">1. ผู้ขออนุมัติลา (Applicant)</p>
+                        
+                        <div class="my-2 flex-grow flex items-center justify-center">
+                            <div id="emp_signature" data-bind="metadata.employee_signature" class="w-full text-center">
+                                <span class="text-[10px] text-slate-400 italic">( ลายมือชื่อพนักงาน )</span>
+                            </div>
+                        </div>
+
+                        <div class="w-full px-2">
+                            <div class="border-b border-dashed border-slate-400 w-full mx-auto mb-1.5"></div>
+                            <p class="text-[9.5px] text-slate-600">วันที่ / Date: <span id="emp_submission_date" data-bind="metadata.doc_date">...../...../.....</span></p>
+                        </div>
+                    </div>
+
+                    <!-- 2. Supervisor Approval Block -->
+                    <div class="border border-slate-200 rounded-lg p-3.5 bg-slate-50/50 flex flex-col justify-between min-h-[130px] w-full">
+                        <p class="text-[10px] font-bold text-slate-700 uppercase">2. ผู้บังคับบัญชา (Supervisor)</p>
+                        
+                        <div class="flex justify-center space-x-6 text-[10px] font-semibold my-1.5">
+                            <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+                                <input type="radio" name="sup_appr" class="custom-checkbox h-3.5 w-3.5"> <span>อนุมัติ</span>
+                            </label>
+                            <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+                                <input type="radio" name="sup_appr" class="custom-checkbox h-3.5 w-3.5"> <span>ไม่อนุมัติ</span>
+                            </label>
+                        </div>
+
+                        <div class="my-1.5 w-full px-2">
+                            <div class="border-b border-dashed border-slate-400 w-full mx-auto"></div>
+                            <span class="text-[8.5px] text-slate-400 block mt-0.5">( ลงนามผู้บังคับบัญชา )</span>
+                        </div>
+
+                        <p class="text-[9.5px] text-slate-600">วันที่ / Date: ...../...../.....</p>
+                    </div>
+
+                </div>
+            </section>
         </div>
-    </div>
 
-    <!-- Print & Control Buttons (Hidden inside standard print out) -->
-    <div class="no-print max-w-[820px] mx-auto mt-4 flex flex-col sm:flex-row justify-end gap-2 px-2">
-        <!-- Direct System Print -->
-        <button onclick="prepareAndPrint()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg text-xs shadow-sm transition flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            พิมพ์ใบลางาน A4 (Print)
-        </button>
-        <!-- Custom Mobile-friendly PDF Generation -->
-        <button onclick="generatePDF()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-xs shadow-sm transition flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            ดาวน์โหลด PDF (Download PDF)
-        </button>
-    </div>
+    </main>
 
-    <!-- Beautiful floating Toast Notifications for user feedback -->
+    <!-- Toast Notification Container -->
     <div id="toast-container" class="no-print fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
 
     <script>
         /**
-         * 1. PRODUCTION DATA BINDING ENGINE
-         * 
-         * This function loops through all DOM elements that have a `data-bind` attribute
-         * and dynamically updates their value based on a structured JSON payload.
-         * 
-         * This mirrors standard binding protocols used in modern software development.
+         * 1. CORE DATA BINDING ENGINE & LOGIC
          */
         function bindDatabaseData(data) {
             if (!data) return;
@@ -492,10 +432,9 @@
                 const value = getValueByPath(data, path);
                 const isSignatureField = path && path.toLowerCase().includes('signature');
 
-                if (value !== undefined) {
+                if (value !== undefined && value !== null) {
                     if (isSignatureField && element.tagName !== 'INPUT' && element.tagName !== 'TEXTAREA' && element.tagName !== 'SELECT') {
-                        const signature = getSignatureDisplay(value);
-                        renderSignatureField(element, signature);
+                        renderSignatureField(element, getSignatureDisplay(value));
                     } else if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
                         element.value = value;
                     } else {
@@ -504,87 +443,107 @@
                 }
             });
 
-            // Post-bind adjustments: map leave type checkboxes and make template read-only
+            // Adjust leave type checkboxes based on string/payload match
             try {
-                const leaveTypeRaw = data && (data._leaveType || data.type || data['ประเภทการลา'] || data['type']);
-                const lc = leaveTypeRaw ? String(leaveTypeRaw).toLowerCase() : '';
+                const leaveTypeRaw = data._leaveType || data.type || (data.metadata && data.metadata.leaveType) || '';
+                const lc = String(leaveTypeRaw).toLowerCase();
 
-                // Reset and disable known leave-type checkboxes
+                // Uncheck all
                 ['check_sick','check_personal','check_annual','check_maternity','check_religious','check_other'].forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) {
-                        try { el.checked = false; } catch (e) {}
-                        try { el.disabled = true; } catch (e) {}
-                        el.classList.add('opacity-80');
-                    }
+                    if (el) el.checked = false;
                 });
 
-                if (lc) {
-                    if (lc.indexOf('sick') !== -1 || lc.indexOf('ป่วย') !== -1) { const e = document.getElementById('check_sick'); if (e) e.checked = true; }
-                    if (lc.indexOf('personal') !== -1 || lc.indexOf('ลากิจ') !== -1) { const e = document.getElementById('check_personal'); if (e) e.checked = true; }
-                    if (lc.indexOf('annual') !== -1 || lc.indexOf('พักร้อน') !== -1) { const e = document.getElementById('check_annual'); if (e) e.checked = true; }
-                    if (lc.indexOf('matern') !== -1 || lc.indexOf('คลอด') !== -1) { const e = document.getElementById('check_maternity'); if (e) e.checked = true; }
-                    if (lc.indexOf('relig') !== -1 || lc.indexOf('อุปสมบท') !== -1) { const e = document.getElementById('check_religious'); if (e) e.checked = true; }
-                    if (lc.indexOf('other') !== -1 || lc.indexOf('อื่น') !== -1) { const e = document.getElementById('check_other'); if (e) e.checked = true; }
-                }
+                if (lc.includes('sick') || lc.includes('ป่วย')) setChecked('check_sick');
+                else if (lc.includes('personal') || lc.includes('กิจ')) setChecked('check_personal');
+                else if (lc.includes('annual') || lc.includes('พักร้อน')) setChecked('check_annual');
+                else if (lc.includes('maternity') || lc.includes('คลอด')) setChecked('check_maternity');
+                else if (lc.includes('religious') || lc.includes('อุปสมบท')) setChecked('check_religious');
+                else if (lc) setChecked('check_other');
 
-                // Show other description when provided
-                const otherDesc = data && (data.other_reason || data.other || data['เหตุผลเพิ่มเติม'] || data['other_reason'] || data['อื่นๆ'] || '');
-                if (otherDesc) {
-                    const od = document.getElementById('other_leave_desc');
-                    if (od) {
-                        if (od.tagName === 'INPUT' || od.tagName === 'TEXTAREA') od.value = otherDesc;
-                        else od.textContent = otherDesc;
-                    }
+                if (data.other_reason || data.other_desc) {
+                    const otherInput = document.getElementById('other_leave_desc');
+                    if (otherInput) otherInput.value = data.other_reason || data.other_desc;
                 }
-
-                // Disable editing for all form controls (but keep print/pdf buttons active in .no-print)
-                document.querySelectorAll('input,textarea,select').forEach(el => {
-                    if (el.closest && el.closest('.no-print')) return;
-                    try { el.disabled = true; } catch (e) {}
-                    try { el.readOnly = true; } catch (e) {}
-                    el.classList.add('opacity-80');
-                });
 
                 updateLeaveWarning(data);
             } catch (err) {
-                console.error('post-bind adjustments failed', err);
+                console.error('Data post-binding adjustment failed:', err);
             }
         }
 
-        // Helper function to resolve dot-notation paths (e.g., 'employee.name') within JSON
+        function setChecked(id) {
+            const el = document.getElementById(id);
+            if (el) el.checked = true;
+        }
+
         function getValueByPath(object, path) {
-            return path.split('.').reduce((acc, part) => acc && acc[part], object);
+            return path.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, object);
         }
 
-        function normalizeDriveUrl(url) {
-            if (!url || typeof url !== 'string') return url;
-            const trimmed = url.trim();
-            let fileId = null;
-            let match = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-            if (match) fileId = match[1];
-            if (!fileId) {
-                match = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-                if (match) fileId = match[1];
+        /**
+         * Calculate leave duration days automatically from date inputs
+         */
+        function calculateLeaveDays() {
+            const startInput = document.getElementById('start_date');
+            const endInput = document.getElementById('end_date');
+            const totalInput = document.getElementById('total_days');
+
+            if (startInput && endInput && startInput.value && endInput.value) {
+                const start = new Date(startInput.value);
+                const end = new Date(endInput.value);
+
+                if (!isNaN(start) && !isNaN(end) && end >= start) {
+                    const diffTime = Math.abs(end - start);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    totalInput.value = diffDays;
+                    
+                    // Update HR table current column for selected type
+                    updateCurrentLeaveTable(diffDays);
+                } else if (end < start) {
+                    showToast("วันที่สิ้นสุดต้องไม่ก่อนหน้าวันที่เริ่ม", "error");
+                    totalInput.value = 0;
+                }
             }
-            if (!fileId) {
-                match = trimmed.match(/\/uc\?export=view&id=([a-zA-Z0-9_-]+)/i);
-                if (match) fileId = match[1];
-            }
-            if (!fileId) {
-                match = trimmed.match(/\/uc\?export=download&id=([a-zA-Z0-9_-]+)/i);
-                if (match) fileId = match[1];
-            }
-            if (fileId) {
-                return `https://lh3.googleusercontent.com/u/0/d/${fileId}`;
-            }
-            return trimmed;
         }
 
+        function updateCurrentLeaveTable(days) {
+            const leaveTypes = [
+                { checkId: 'check_sick', targetId: 'sick_current', entId: 'sick_entitled', usedId: 'sick_used', remId: 'sick_remaining' },
+                { checkId: 'check_personal', targetId: 'personal_current', entId: 'personal_entitled', usedId: 'personal_used', remId: 'personal_remaining' },
+                { checkId: 'check_annual', targetId: 'annual_current', entId: 'annual_entitled', usedId: 'annual_used', remId: 'annual_remaining' }
+            ];
+
+            leaveTypes.forEach(item => {
+                const chk = document.getElementById(item.checkId);
+                if (chk && chk.checked) {
+                    const curInput = document.getElementById(item.targetId);
+                    const entInput = document.getElementById(item.entId);
+                    const usedInput = document.getElementById(item.usedId);
+                    const remInput = document.getElementById(item.remId);
+
+                    if (curInput) curInput.value = days;
+                    if (entInput && usedInput && remInput) {
+                        const ent = parseFloat(entInput.value) || 0;
+                        const used = parseFloat(usedInput.value) || 0;
+                        const rem = ent - (used + days);
+                        remInput.value = rem;
+
+                        if (rem < 0) {
+                            showToast(`คำเตือน: สิทธิ์การลาเกินกำหนด (${Math.abs(rem)} วัน)`, 'error');
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Signature Rendering Helper Functions
+         */
         function renderSignatureField(element, signature) {
             element.innerHTML = '';
             if (!signature) {
-                element.textContent = '';
+                element.innerHTML = '<span class="text-[10px] text-slate-400 italic">( ลายมือชื่อพนักงาน )</span>';
                 return;
             }
 
@@ -595,194 +554,31 @@
                 const img = document.createElement('img');
                 img.src = signature.src;
                 img.alt = 'Signature';
-                img.className = 'mx-auto max-h-14 object-contain';
-                img.style.maxWidth = '100%';
-                let triedThumbnail = false;
+                img.className = 'max-h-12 object-contain mx-auto';
                 img.onerror = function() {
-                    if (!triedThumbnail && /drive\.google\.com\/uc\?export=view&id=([^&]+)/i.test(signature.src)) {
-                        triedThumbnail = true;
-                        const idMatch = signature.src.match(/drive\.google\.com\/uc\?export=view&id=([^&]+)/i);
-                        if (idMatch && idMatch[1]) {
-                            img.src = `https://drive.google.com/thumbnail?authuser=0&sz=w640&id=${idMatch[1]}`;
-                            return;
-                        }
-                    }
-
-                    if (!triedThumbnail && /drive\.google\.com\/file\/d\/([^\/\?&]+)/i.test(signature.src)) {
-                        triedThumbnail = true;
-                        const idMatch = signature.src.match(/drive\.google\.com\/file\/d\/([^\/\?&]+)/i);
-                        if (idMatch && idMatch[1]) {
-                            img.src = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
-                            return;
-                        }
-                    }
-
-                    wrapper.innerHTML = '';
-                    const fallback = document.createElement('span');
-                    fallback.textContent = '[ไม่สามารถโหลดภาพลายเซ็นได้]';
-                    fallback.className = 'text-[9px] text-rose-600';
-                    const link = document.createElement('a');
-                    link.href = signature.src;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.textContent = 'เปิดลิงก์ลายเซ็น';
-                    link.className = 'block text-[9px] text-slate-600 underline mt-1';
-                    wrapper.appendChild(fallback);
-                    wrapper.appendChild(link);
+                    wrapper.innerHTML = `<span class="text-[10px] font-semibold text-slate-700">${signature.text || 'ลงนามแล้ว'}</span>`;
                 };
 
                 wrapper.appendChild(img);
                 element.appendChild(wrapper);
-                return;
+            } else {
+                element.innerHTML = `<span class="text-[11px] font-bold text-slate-800">${signature.text}</span>`;
             }
-
-            element.textContent = signature.text || String(signature) || '';
         }
 
         function getSignatureDisplay(value) {
-            if (value === undefined || value === null) return null;
-
-            let parsedValue = null;
-            if (typeof value === 'object') {
-                parsedValue = value;
-            } else {
-                const str = String(value).trim();
-                if (!str) return null;
-
-                try {
-                    parsedValue = JSON.parse(str);
-                } catch (err) {
-                    parsedValue = null;
-                }
-
-                if (!parsedValue) {
-                    const dataImageMatch = str.match(/^(data:image\/(png|jpeg|jpg|gif);base64,)/i);
-                    if (dataImageMatch) {
-                        return { type: 'image', src: str };
-                    }
-
-                    // Try to extract Google Drive file ID from various URL formats
-                    let driveId = null;
-                    const driveFileMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/file\/d\/([^\/\?\#&]+)/i);
-                    if (driveFileMatch) {
-                        driveId = driveFileMatch[1];
-                    } else {
-                        const driveOpenMatch = str.match(/(?:https?:\/\/)?(?:drive|docs)\.google\.com\/open\?id=([^&]+)/i);
-                        if (driveOpenMatch) {
-                            driveId = driveOpenMatch[1];
-                        } else {
-                            const driveUcMatch = str.match(/(?:https?:\/\/)?(?:docs|drive)\.google\.com\/uc\?(?:[^#]*&)?id=([^&]+)/i);
-                            if (driveUcMatch) {
-                                driveId = driveUcMatch[1];
-                            }
-                        }
-                    }
-
-                    if (driveId) {
-                        return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveId}` };
-                    }
-
-                    const driveUcMatch2 = str.match(/(?:https?:\/\/)?drive\.google\.com\/uc\?export=view&id=([^&]+)/i);
-                    if (driveUcMatch2) {
-                        return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${driveUcMatch2[1]}` };
-                    }
-
-                    if (/\.(png|jpe?g|gif|svg)(?:[?#].*)?$/i.test(str)) {
-                        return { type: 'image', src: str };
-                    }
-
-                    return { type: 'text', text: str };
+            if (!value) return null;
+            const str = String(value).trim();
+            if (str.startsWith('data:image/') || str.match(/\.(png|jpg|jpeg|gif|svg)/i)) {
+                return { type: 'image', src: str };
+            }
+            if (str.includes('drive.google.com')) {
+                const match = str.match(/id=([a-zA-Z0-9_-]+)/) || str.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (match) {
+                    return { type: 'image', src: `https://lh3.googleusercontent.com/u/0/d/${match[1]}` };
                 }
             }
-
-            if (parsedValue) {
-                const url = parsedValue.url || parsedValue.imageUrl || parsedValue.avatarUrl || parsedValue.thumbnailLink || parsedValue.src;
-                const fileId = parsedValue.fileId || parsedValue.file_id || parsedValue.id;
-                if (url && typeof url === 'string' && url.trim()) {
-                    const normalizedUrl = normalizeDriveUrl(url.trim());
-                    return { type: 'image', src: normalizedUrl };
-                }
-                if (fileId && typeof fileId === 'string' && fileId.trim()) {
-                    return { type: 'image', src: `https://drive.google.com/uc?export=view&id=${fileId.trim()}` };
-                }
-            }
-
-            return { type: 'text', text: String(value) };
-        }
-
-        function waitForImages(container, timeout = 2500) {
-            return new Promise(resolve => {
-                if (!container) return resolve();
-                const images = Array.from(container.querySelectorAll('img'));
-                if (!images.length) return resolve();
-                let remaining = images.length;
-                const checkDone = () => {
-                    remaining -= 1;
-                    if (remaining <= 0) resolve();
-                };
-
-                images.forEach(img => {
-                    if (img.complete && img.naturalWidth !== 0) {
-                        checkDone();
-                    } else {
-                        img.addEventListener('load', checkDone, { once: true });
-                        img.addEventListener('error', checkDone, { once: true });
-                    }
-                });
-
-                setTimeout(resolve, timeout);
-            });
-        }
-
-        function normalizeDateForInput(rawDate) {
-            if (!rawDate && rawDate !== 0) return '';
-            if (rawDate instanceof Date) {
-                return rawDate.toISOString().slice(0, 10);
-            }
-            const value = rawDate.toString().trim();
-            if (!value) return '';
-            const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-            if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
-            const dmy = value.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-            if (dmy) {
-                const d = dmy[1].padStart(2, '0');
-                const m = dmy[2].padStart(2, '0');
-                const y = dmy[3];
-                return `${y}-${m}-${d}`;
-            }
-            const ymd = value.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-            if (ymd) {
-                const y = ymd[1];
-                const m = ymd[2].padStart(2, '0');
-                const d = ymd[3].padStart(2, '0');
-                return `${y}-${m}-${d}`;
-            }
-            const parsed = Date.parse(value);
-            if (!isNaN(parsed)) {
-                return new Date(parsed).toISOString().slice(0, 10);
-            }
-            return '';
-        }
-
-        // If you serve this HTML outside Apps Script, set your web app URL here:
-        const GAS_WEB_APP_URL = '';
-
-        function parseLeaveNumber(value) {
-            if (value === undefined || value === null) return 0;
-            const num = parseFloat(String(value).replace(/[^0-9.-]/g, '').trim());
-            return Number.isFinite(num) ? num : 0;
-        }
-
-        function getLeaveTypeLabel(typeKey) {
-            switch ((typeKey || '').toString().toLowerCase()) {
-                case 'sick': return 'ลาป่วย';
-                case 'personal': return 'ลากิจส่วนตัว';
-                case 'annual': return 'ลาพักร้อนประจำปี';
-                case 'maternity': return 'ลาคลอด/ลาดูแลภรรยา';
-                case 'religious': return 'ลาอุปสมบท/พิธีทางศาสนา';
-                case 'other': return 'ลาอื่นๆ';
-                default: return typeKey || 'ประเภทการลา';
-            }
+            return { type: 'text', text: str };
         }
 
         function updateLeaveWarning(data) {
@@ -790,480 +586,110 @@
             if (!warningContainer) return;
             warningContainer.innerHTML = '';
 
-            if (!data || !data.leave_records || typeof data.leave_records !== 'object') return;
-
-            const exceeded = [];
-            Object.entries(data.leave_records).forEach(([key, record]) => {
-                if (!record || typeof record !== 'object') return;
-                const entitled = parseLeaveNumber(record.entitled);
-                const used = parseLeaveNumber(record.used);
-                const current = parseLeaveNumber(record.current);
-                const over = used + current - entitled;
-                if (over > 0) {
-                    exceeded.push(`${getLeaveTypeLabel(key)} เกินสิทธิ์ ${over} วัน`);
-                }
-            });
-
-            if (exceeded.length > 0) {
-                warningContainer.innerHTML = `แจ้งเตือน: พบการใช้งานสิทธิ์เกิน ${exceeded.join(' , ')}; หากมีการลาอีกครั้งถัดไปจะไม่ได้รับค่าจ้างสำหรับวันเกินสิทธิ์`;
+            if (data && data.warning_msg) {
+                warningContainer.innerHTML = `⚠️ หมายเหตุ: ${data.warning_msg}`;
             }
         }
 
         /**
-         * 2. REAL-WORLD API INTEGRATION TEMPLATE (Ready for developers)
-         * 
-         * To connect this HTML template to a real database:
-         * A developer would simply change the 'GAS_WEB_APP_URL' above or use google.script.run.
+         * Printable Utility & Export Functions
          */
-        async function loadDataFromServer(options = {}) {
-            const params = new URLSearchParams(window.location.search);
-            const docId = options.docId || params.get('docId') || params.get('documentId') || params.get('id') || null;
-            const empId = options.empId || params.get('empId') || params.get('employeeId') || null;
-            const openedFromIndex = params.get('openedFromIndex') === '1' || (typeof window !== 'undefined' && window.__OPENED_FROM_GAS__);
-            const apiUrlFromQuery = params.get('apiUrl');
-            const forceServer = options.forceServer === true;
-
-            function decodeUriRecursive(value) {
-                if (!value || typeof value !== 'string') return value;
-                let decoded = value;
-                try {
-                    while (decoded !== decodeURIComponent(decoded)) {
-                        decoded = decodeURIComponent(decoded);
-                    }
-                } catch (err) {
-                    // stop if the string is not valid encoded URI component
-                }
-                return decoded;
-            }
-
-            const apiUrlFromQueryClean = apiUrlFromQuery ? decodeUriRecursive(apiUrlFromQuery) : null;
-            const injectedGASUrl = (typeof window !== 'undefined' && window.__GAS_WEB_APP_URL__) ? window.__GAS_WEB_APP_URL__ : '';
-
-            if (!docId && !empId) {
-                showToast('ไม่พบตัวระบุข้อมูลเพื่อเรียกใช้งานข้อมูลจริง', 'info');
-                return Promise.resolve(null);
-            }
-
-            if (!openedFromIndex) {
-                showToast('ต้องเปิดจากหน้า index.html เท่านั้น', 'error');
-                return Promise.resolve(null);
-            }
-
-            // Check localStorage first to load instantly without server request
-            if (!forceServer && docId) {
-                const localData = localStorage.getItem('print_leave_data_' + docId);
-                if (localData) {
-                    try {
-                        const parsed = JSON.parse(localData);
-                        if (parsed) {
-                            const payload = mapLeaveRecordPayload(parsed);
-                            bindDatabaseData(payload);
-
-                            // Only return early if the cached payload already includes leave balance info
-                            const hasLeaveSummary = payload.leave_records && Object.values(payload.leave_records).some(rec => {
-                                return rec && (rec.entitled !== '' || rec.used !== '' || rec.current !== '' || rec.remaining !== '');
-                            });
-                            if (hasLeaveSummary) {
-                                return Promise.resolve(payload);
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error parsing local storage leave data', e);
-                    }
-                }
-            }
-
-            showLoading();
-
-            // Helper: map employee sheet row object (Thai headers) to template shape
-            function mapEmployeePayload(empRaw) {
-                if (!empRaw) return {};
-                const e = {};
-                e.employee = {
-                    name: empRaw['ชื่อ-นามสกุล'] || empRaw['ชื่อ'] || empRaw['Name'] || empRaw['ชื่อเต็ม'] || '',
-                    id: empRaw['รหัสพนักงาน'] || empRaw['Employee ID'] || empRaw['empId'] || '',
-                    position: empRaw['ตำแหน่ง'] || empRaw['Position'] || '',
-                    department: empRaw['แผนก'] || empRaw['แผนก-ฝ่าย'] || empRaw['Department'] || ''
-                };
-                e.contact_no = empRaw['เบอร์โทรศัพท์'] || empRaw['เบอร์โทร'] || empRaw['โทรศัพท์'] || empRaw['Phone'] || empRaw['mobile'] || empRaw['Mobile'] || '';
-                e.metadata = { written_at: empRaw['ชื่อบริษัท'] || '' };
-                return e;
-            }
-
-            // Helper: map leave record to template shape
-            function mapLeaveRecordPayload(rec) {
-                if (!rec) return {};
-                const out = {};
-                // Common mappings - try multiple header variants
-                out.metadata = {
-                    doc_no: rec['เลขที่เอกสาร'] || rec['เลขที่'] || rec['doc_no'] || rec['document_no'] || rec['docId'] || rec['documentId'] || '',
-                    written_at: rec['เขียนที่'] || rec['written_at'] || rec['attention_to'] || '',
-                    doc_date: normalizeDateForInput(rec['วันที่ส่ง'] || rec['วันที่'] || rec['date'] || rec['วันที่อนุมัติ'] || ''),
-                    employee_signature: rec['ลายมือชื่อ'] || rec['ลายเซ็น'] || rec['ลายเซ็นต์'] || rec['signature'] || rec['signature_url'] || rec['signatureUrl'] || rec['employee_signature'] || rec['employee_signature_url'] || rec['sign'] || ''
-                };
-                out.employee = {
-                    name: rec['ชื่อ-นามสกุล'] || rec['ชื่อพนักงาน'] || rec['employeeName'] || '',
-                    id: rec['รหัสพนักงาน'] || rec['empId'] || rec['employeeId'] || '' ,
-                    position: rec['ตำแหน่ง'] || '',
-                    department: rec['แผนก'] || rec['department'] || ''
-                };
-                // Period / reason
-                if (rec['วันที่เริ่ม'] || rec['จากวันที่'] || rec['เริ่มวันที่'] || rec['start']) out.start_date = normalizeDateForInput(rec['วันที่เริ่ม'] || rec['จากวันที่'] || rec['เริ่มวันที่'] || rec['start'] || '');
-                if (rec['วันที่สิ้นสุด'] || rec['ถึงวันที่'] || rec['end']) out.end_date = normalizeDateForInput(rec['วันที่สิ้นสุด'] || rec['ถึงวันที่'] || rec['end'] || '');
-                if (rec['จำนวนวัน'] || rec['days'] || rec['รวมระยะเวลา']) out.total_days = rec['จำนวนวัน'] || rec['days'] || rec['รวมระยะเวลา'];
-                if (rec['เหตุผล'] || rec['reason']) out.leave_reason = rec['เหตุผล'] || rec['reason'];
-                if (rec['เบอร์โทร'] || rec['contact_no']) out.contact_no = rec['เบอร์โทร'] || rec['contact_no'];
-                // Hand-over
-                if (rec['ผู้รับมอบงาน'] || rec['handover'] || rec['handover_name']) out.handover_name = rec['ผู้รับมอบงาน'] || rec['handover'] || rec['handover_name'];
-
-                // Build leave_records minimal if available
-                if (rec.leave_records && typeof rec.leave_records === 'object') {
-                    out.leave_records = rec.leave_records;
-                } else {
-                    out.leave_records = {
-                        sick: { entitled: '', used: '', current: '', remaining: '' },
-                        personal: { entitled: '', used: '', current: '', remaining: '' },
-                        annual: { entitled: '', used: '', current: '', remaining: '' }
-                    };
-                }
-
-                // Check leave type to toggle checkboxes (set via element checked later)
-                out._leaveType = rec['ประเภทการลา'] || rec['type'] || '';
-
-                return out;
-            }
-
-            const runViaGoogleScript = typeof google !== 'undefined' && google && google.script && google.script.run;
-            const apiUrlFromStorage = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem) ? window.localStorage.getItem('hr_api_url') : null;
-            const webAppApiUrl = GAS_WEB_APP_URL ? GAS_WEB_APP_URL.trim() : (injectedGASUrl ? injectedGASUrl.trim() : (apiUrlFromQueryClean ? apiUrlFromQueryClean.trim() : (apiUrlFromStorage ? apiUrlFromStorage.trim() : null)));
-
-            if (runViaGoogleScript) {
-                const promise = new Promise((resolve) => {
-                    if (docId) {
-                        google.script.run.withSuccessHandler(function(res) {
-                            if (res && res.status === 'success') {
-                                const payload = mapLeaveRecordPayload(res.data);
-                                const empIdFromRec = payload.employee && payload.employee.id;
-                                if (empIdFromRec) {
-                                    google.script.run.withSuccessHandler(function(empRes) {
-                                        if (empRes && empRes.status === 'success') {
-                                            const empPayload = mapEmployeePayload(empRes.data);
-                                            payload.employee = empPayload.employee || payload.employee;
-                                            if (empPayload.contact_no) payload.contact_no = empPayload.contact_no;
-                                            payload.metadata = payload.metadata || {};
-                                            if (empPayload.metadata && empPayload.metadata.written_at) {
-                                                payload.metadata.written_at = empPayload.metadata.written_at;
-                                            }
-                                        }
-                                        bindDatabaseData(payload);
-                                        resolve(payload);
-                                    }).getEmployeeData(empIdFromRec);
-                                } else {
-                                    bindDatabaseData(payload);
-                                    resolve(payload);
-                                }
-                            } else {
-                                showToast('ไม่พบเอกสารการลา', 'error');
-                                resolve(null);
-                            }
-                        }).getLeaveRecord(docId);
-                    } else if (empId) {
-                        google.script.run.withSuccessHandler(function(empRes) {
-                            if (empRes && empRes.status === 'success') {
-                                const payload = mapEmployeePayload(empRes.data);
-                                bindDatabaseData(payload);
-                                resolve(payload);
-                            } else {
-                                showToast('ไม่พบข้อมูลพนักงาน', 'error');
-                                resolve(null);
-                            }
-                        }).getEmployeeData(empId);
-                    } else {
-                        showToast('ไม่พบตัวระบุข้อมูลในการดึงฐานข้อมูล', 'info');
-                        resolve(null);
-                    }
-                });
-                return promise.finally(hideLoading);
-            }
-
-            if (!webAppApiUrl) {
-                hideLoading();
-                showToast('ไม่สามารถเชื่อมต่อ API ได้: ไม่พบ GAS_WEB_APP_URL, google.script.run หรือ hr_api_url', 'error');
-                return Promise.resolve(null);
-            }
-
-            if (docId || empId) {
-                const params = new URLSearchParams();
-                if (docId) {
-                    params.set('action', 'getLeaveRecord');
-                    params.set('docId', docId);
-                } else {
-                    params.set('action', 'getEmployee');
-                    params.set('empId', empId);
-                }
-
-                const fetchJson = async (url) => {
-                    const response = await fetch(url, { method: 'GET' });
-                    const text = await response.text();
-                    try {
-                        return JSON.parse(text);
-                    } catch (err) {
-                        console.error('API response was not JSON', text);
-                        throw new Error('API response ไม่ใช่ JSON');
-                    }
-                };
-
-                if (docId) {
-                    return fetchJson(`${webAppApiUrl}?${params.toString()}`)
-                        .then(async res => {
-                            if (!res || res.status !== 'success') {
-                                showToast('ไม่สามารถดึงข้อมูลจริงจาก API ได้', 'error');
-                                return null;
-                            }
-                            const payload = mapLeaveRecordPayload(res.data);
-                            const empIdFromRec = payload.employee && payload.employee.id;
-                            if (empIdFromRec) {
-                                const empRes = await fetchJson(`${webAppApiUrl}?action=getEmployee&empId=${encodeURIComponent(empIdFromRec)}`);
-                                if (empRes && empRes.status === 'success') {
-                                    const empPayload = mapEmployeePayload(empRes.data);
-                                    payload.employee = empPayload.employee || payload.employee;
-                                    if (empPayload.contact_no) payload.contact_no = empPayload.contact_no;
-                                    payload.metadata = payload.metadata || {};
-                                    if (empPayload.metadata && empPayload.metadata.written_at) {
-                                        payload.metadata.written_at = empPayload.metadata.written_at;
-                                    }
-                                }
-                            }
-                            bindDatabaseData(payload);
-                            return payload;
-                        }).catch(error => {
-                            console.error('API fetch error', error);
-                            showToast('ไม่สามารถเชื่อมต่อ API ได้', 'error');
-                            return null;
-                        }).finally(hideLoading);
-                }
-
-                return fetchJson(`${webAppApiUrl}?${params.toString()}`)
-                    .then(res => {
-                        if (!res || res.status !== 'success') {
-                            showToast('ไม่สามารถดึงข้อมูลจริงจาก API ได้', 'error');
-                            return null;
-                        }
-                        const payload = mapEmployeePayload(res.data);
-                        bindDatabaseData(payload);
-                        return payload;
-                    }).catch(error => {
-                        console.error('API fetch error', error);
-                        showToast('ไม่สามารถเชื่อมต่อ API ได้', 'error');
-                        return null;
-                    }).finally(hideLoading);
-            }
-
-            showToast('กำลังรอการเชื่อมต่อฐานข้อมูล...', 'info');
-            return Promise.resolve(null);
-        }
-
-        // Prepare data from server then trigger browser print
         async function prepareAndPrint() {
-            try {
-                // Since data is already loaded on DOMContentLoaded, we just wait for images if any and print
-                await waitForImages(document.getElementById('capture-target'), 800);
-            } catch (err) {
-                console.error(err);
-            }
-            setTimeout(() => window.print(), 200);
+            showLoading("กำลังเตรียมพร้อมสำหรับการพิมพ์...");
+            setTimeout(() => {
+                hideLoading();
+                window.print();
+            }, 400);
         }
 
-        // Auto-run when the template is rendered/loaded in the user's browser
-        document.addEventListener("DOMContentLoaded", () => {
-            const today = new Date().toISOString().split('T')[0];
-            const dateInput = document.getElementById("doc_date");
-            if (dateInput && !dateInput.value) {
-                dateInput.value = today;
-            }
+        function generatePDF() {
+            const element = document.getElementById('capture-target');
+            showLoading("กำลังสร้างไฟล์ PDF...");
 
-            // ── กรณี 1: Code.gs inject ข้อมูลมาผ่าน window.__LEAVE_DATA__ ──
-            if (window.__LEAVE_DATA__ && window.__OPENED_FROM_GAS__) {
-                const d = window.__LEAVE_DATA__;
-                if (d.empName && d.leaveType && d.start) {
-                    const payload = {
-                        employee: { name: d.empName },
-                        start_date: d.start,
-                        end_date: d.end || d.start,
-                        total_days: d.days || '',
-                        leave_reason: d.reason || '',
-                        _leaveType: d.leaveType,
-                        metadata: {
-                            doc_no: d.docId || '',
-                            doc_date: today,
-                            employee_signature: d.signature || ''
-                        }
-                    };
-                    bindDatabaseData(payload);
+            const opt = {
+                margin:       [6, 8, 6, 8],
+                filename:     `Leave_Request_${document.getElementById('doc_no').value || 'Form'}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
 
-                    if (d.autoPrint) {
-                        waitForImages(document.getElementById('capture-target'), 1200)
-                            .then(() => window.print());
-                    }
-                    return; // ถ้ามีข้อมูลครบก็เสร็จ
-                }
-
-                if (d.docId) {
-                    loadDataFromServer({ docId: d.docId, forceServer: true })
-                        .then(payload => {
-                            if (payload && d.autoPrint) {
-                                waitForImages(document.getElementById('capture-target'), 1200)
-                                    .then(() => window.print());
-                            }
-                        });
-                    return;
-                }
-            }
-
-            // ── กรณี 2: เปิดจาก index.html ปกติ (URL params) ──
-            const params = new URLSearchParams(window.location.search);
-            const openedFromIndex = params.get('openedFromIndex') === '1';
-
-            if (!openedFromIndex) {
-                const message = document.createElement('div');
-                message.className = 'max-w-2xl mx-auto mt-8 p-6 bg-red-50 border border-red-200 rounded-lg text-center text-slate-800';
-                message.innerHTML = `
-                    <h2 class="text-lg font-bold mb-3">ห้ามเปิดไฟล์โดยตรง</h2>
-                    <p class="text-sm mb-4">ใบลานี้ต้องเปิดจากหน้า <strong>index.html</strong> เท่านั้น โดยใช้ปุ่ม <strong>พิมพ์ใบลา</strong> จากรายการคำขอ</p>
-                    <a href="index.html" class="inline-block px-4 py-2 rounded bg-slate-800 text-white text-xs">กลับสู่หน้าหลัก</a>
-                `;
-                const target = document.getElementById('capture-target');
-                if (target) target.style.display = 'none';
-                const controls = document.querySelector('.no-print');
-                if (controls) controls.style.display = 'none';
-                document.body.insertBefore(message, document.body.firstChild);
-                showToast('ต้องเปิดจากหน้า index.html เท่านั้น', 'error');
-                return;
-            }
-
-            // ตรวจว่าส่งข้อมูลมาครบผ่าน URL params (กรณี index.html)
-            const empName   = params.get('empName');
-            const leaveType = params.get('leaveType');
-            const startDate = params.get('start');
-            const endDate   = params.get('end');
-            const days      = params.get('days');
-            const reason    = params.get('reason');
-            const signature = params.get('signature');
-            const docId     = params.get('docId');
-            const autoPrint = params.get('autoPrint') === '1';
-
-            if (empName && leaveType && startDate) {
-                const payload = {
-                    employee: { name: empName },
-                    start_date: startDate,
-                    end_date: endDate || startDate,
-                    total_days: days || '',
-                    leave_reason: reason || '',
-                    _leaveType: leaveType,
-                    metadata: {
-                        doc_no: docId || '',
-                        doc_date: today,
-                        employee_signature: signature || ''
-                    }
-                };
-                bindDatabaseData(payload);
-
-                if (autoPrint) {
-                    waitForImages(document.getElementById('capture-target'), 1200)
-                        .then(() => window.print());
-                }
-            } else if (docId) {
-                // fallback: มีแค่ docId → โหลดจาก server ตามปกติ
-                loadDataFromServer();
-            }
-        });
-
-
-        /**
-         * 4. CUSTOM TOAST NOTIFICATION SYSTEM
-         */
-        function showLoading(message = 'กำลังโหลดข้อมูล...') {
-            const overlay = document.getElementById('loading-overlay');
-            if (!overlay) return;
-            overlay.querySelector('.loader-box div:last-child').textContent = message;
-            overlay.style.display = 'flex';
+            html2pdf().set(opt).from(element).save().then(() => {
+                hideLoading();
+                showToast("ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว", "success");
+            }).catch(err => {
+                hideLoading();
+                console.error("PDF generation failed:", err);
+                showToast("ไม่สามารถสร้าง PDF ได้ กำลังเปิดหน้าพิมพ์แทน...", "error");
+                window.print();
+            });
         }
 
-        function hideLoading() {
-            const overlay = document.getElementById('loading-overlay');
-            if (!overlay) return;
-            overlay.style.display = 'none';
+        function fillSampleData() {
+            const sample = {
+                metadata: {
+                    doc_no: "LV-20260801",
+                    doc_date: new Date().toISOString().split('T')[0],
+                    employee_signature: "สมชาย ใจดี"
+                },
+                employee: {
+                    name: "นายสมชาย ใจดี",
+                    id: "EMP-0842",
+                    position: "Senior Software Engineer",
+                    department: "Technology & Innovation"
+                },
+                _leaveType: "annual",
+                start_date: new Date().toISOString().split('T')[0],
+                end_date: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+                total_days: "3",
+                leave_reason: "พักผ่อนประจำปีกับครอบครัว",
+                contact_no: "081-234-5678",
+                leave_records: {
+                    sick: { entitled: "30", used: "2", current: "0", remaining: "28" },
+                    personal: { entitled: "6", used: "1", current: "0", remaining: "5" },
+                    annual: { entitled: "10", used: "3", current: "3", remaining: "4" }
+                }
+            };
+            bindDatabaseData(sample);
+            showToast("โหลดข้อมูลตัวอย่างเรียบร้อยแล้ว", "success");
         }
 
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            toast.className = `flex items-center space-x-2 px-4 py-2.5 rounded-lg text-xs font-semibold shadow-lg transition duration-300 transform translate-y-2 opacity-0`;
-            
-            if (type === 'success') {
-                toast.classList.add('bg-emerald-50', 'text-emerald-800', 'border', 'border-emerald-200');
-                toast.innerHTML = `
-                    <svg class="h-4 w-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                    <span>${message}</span>
-                `;
-            } else if (type === 'info') {
-                toast.classList.add('bg-blue-50', 'text-blue-800', 'border', 'border-blue-200');
-                toast.innerHTML = `
-                    <svg class="h-4 w-4 text-blue-500 animate-spin shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18"/></svg>
-                    <span>${message}</span>
-                `;
-            } else {
-                toast.classList.add('bg-red-50', 'text-red-800', 'border', 'border-red-200');
-                toast.innerHTML = `
-                    <svg class="h-4 w-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    <span>${message}</span>
-                `;
-            }
-
+            toast.className = `flex items-center space-x-2 px-4 py-2.5 rounded-lg text-xs font-semibold shadow-lg transition transform translate-y-2 opacity-0 text-white ${
+                type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-slate-800'
+            }`;
+            toast.innerHTML = `<span>${message}</span>`;
             container.appendChild(toast);
-            
-            setTimeout(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            }, 10);
 
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
             setTimeout(() => {
                 toast.classList.add('translate-y-2', 'opacity-0');
-                setTimeout(() => {
-                    toast.remove();
-                }, 300);
+                setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
 
-        /**
-         * 5. MOBILE-FRIENDLY PDF RENDER ENGINE
-         */
-        function copyFormValues(source, target) {
-            const sourceElements = source.querySelectorAll('input,textarea,select');
-            const targetElements = target.querySelectorAll('input,textarea,select');
-            sourceElements.forEach((sourceEl, index) => {
-                const targetEl = targetElements[index];
-                if (!targetEl) return;
-
-                if (sourceEl instanceof HTMLTextAreaElement) {
-                    targetEl.value = sourceEl.value;
-                } else if (sourceEl instanceof HTMLInputElement) {
-                    if (sourceEl.type === 'checkbox' || sourceEl.type === 'radio') {
-                        targetEl.checked = sourceEl.checked;
-                    }
-                    targetEl.value = sourceEl.value;
-                } else if (sourceEl instanceof HTMLSelectElement) {
-                    targetEl.value = sourceEl.value;
-                }
-            });
+        function showLoading(msg = "กำลังโหลด...") {
+            const overlay = document.getElementById('loading-overlay');
+            const txt = document.getElementById('loading-text');
+            if (txt) txt.textContent = msg;
+            if (overlay) overlay.classList.remove('hidden'), overlay.classList.add('flex');
         }
 
-        async function generatePDF() {
-            showToast("กำลังเปิดหน้าต่างบันทึก PDF...", "info");
-            // Native print dialog handles 100% exact pixel-perfect A4 PDF rendering
-            setTimeout(() => {
-                window.print();
-            }, 300);
+        function hideLoading() {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.classList.add('hidden'), overlay.classList.remove('flex');
         }
+
+        // Auto-initialize Default Date on Load
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById("doc_date");
+            if (dateInput && !dateInput.value) {
+                dateInput.value = today;
+            }
+        });
     </script>
 </body>
 </html>
