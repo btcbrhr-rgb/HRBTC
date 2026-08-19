@@ -6573,11 +6573,33 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return false;
                 });
                 hideLoginContainer();
+
+                // 🌐 อ่าน URL params อีกครั้งหลัง PIN login สำเร็จ
+                const postPinParams = new URLSearchParams(window.location.search);
+                const postPinTab = postPinParams.get('tab');
+                const postPinModal = postPinParams.get('openModal');
+
+                let postPinTarget = 'home';
+                if (postPinTab === 'history' || postPinTab === 'calendar') postPinTarget = 'calendar';
+                else if (postPinTab === 'clock' || postPinTab === 'attendance') postPinTarget = 'attendance';
+                else if (postPinTab === 'leave') postPinTarget = 'leave';
+                else if (postPinTab === 'advance') postPinTarget = 'advance';
+                else if (postPinTab === 'payslip') postPinTarget = 'payslip';
+                else if (postPinTab === 'profile') postPinTarget = 'profile';
+                else if (postPinTab === 'announcements') postPinTarget = 'announcements';
+                else if (postPinModal === 'correction') postPinTarget = 'calendar';
+                else if (postPinModal === 'advance') postPinTarget = 'advance';
+                else if (postPinModal === 'payslip') postPinTarget = 'payslip';
+                else if (postPinModal === 'profile' || postPinModal === 'salaryCert') postPinTarget = 'profile';
+
                 const proceedAdminUser = isAdminLoginAccount(currentEmployeeId);
-                if (proceedLoadSuccess && proceedAdminUser) {
+                if (proceedLoadSuccess && proceedAdminUser && !postPinTab && !postPinModal) {
                     enterAdminMode();
                 } else {
-                    navigateTo("home");
+                    navigateTo(postPinTarget);
+                    if (postPinModal === 'correction' && typeof openCorrectionModal === 'function') {
+                        setTimeout(() => openCorrectionModal(), 350);
+                    }
                 }
                 if (!proceedLoadSuccess) {
                     showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
