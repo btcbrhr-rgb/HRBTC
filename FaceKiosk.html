@@ -527,18 +527,27 @@
       configModal.style.display = "none";
     }
 
-    // ตรวจสอบ PIN 6 หลักในการเข้าตั้งค่าโครงการ (ความปลอดภัย)
-    function verifyAdminPin() {
+    // ตรวจสอบ PIN 6 หลักในการเข้าตั้งค่าโครงการ (ความปลอดภัย) — ตรวจสอบผ่าน Server
+    async function verifyAdminPin() {
       const pin = adminPinInput.value;
-      if (pin === "123456" || pin === "999999") { // ตัวอย่างรหัส PIN ล็อกเครื่องชั่วคราว หรือใช้ของบริษัท
-        secPasswordCheck.style.display = "none";
-        secProjectLock.style.display = "block";
-        // ดึงรายชื่อโครงการใส่ select
-        if (projectSelect.options.length > 0) {
-          projectSelect.value = lockedProject || projectSelect.options[0].value;
+      if (!pin || pin.length < 4) {
+        alert("กรุณาระบุ PIN อย่างน้อย 4 หลัก");
+        return;
+      }
+      try {
+        const res = await callBackend('verifyKioskPin', { pin: pin });
+        if (res.status === 'success' && res.valid) {
+          secPasswordCheck.style.display = "none";
+          secProjectLock.style.display = "block";
+          // ดึงรายชื่อโครงการใส่ select
+          if (projectSelect.options.length > 0) {
+            projectSelect.value = lockedProject || projectSelect.options[0].value;
+          }
+        } else {
+          alert(res.message || "รหัส PIN ไม่ถูกต้อง!");
         }
-      } else {
-        alert("รหัส PIN ไม่ถูกต้อง!");
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการตรวจสอบ PIN: " + err.message);
       }
     }
 
@@ -845,17 +854,26 @@
       isProcessingMatch = true; // หยุดการทำงานของสแกนหน้า
     }
 
-    // ปลดล็อกหน้าจอ Kiosk ด้วย PIN
-    function unlockKioskScreen() {
+    // ปลดล็อกหน้าจอ Kiosk ด้วย PIN — ตรวจสอบผ่าน Server
+    async function unlockKioskScreen() {
       const pin = lockoutPinInput.value;
-      if (pin === "123456" || pin === "999999") { // ใช้รหัสผ่านตัวเดียวกับการตั้งค่า
-        lockoutScreen.style.display = "none";
-        isFullscreenLocked = false;
-        isProcessingMatch = false; // ปลดล็อกสแกนหน้าต่อ
-        document.getElementById('btn-fullscreen-lock').textContent = "🔒 เปิดโหมดเต็มหน้าจอป้องกันการออก";
-        document.getElementById('btn-fullscreen-lock').style.background = "var(--primary)";
-      } else {
-        alert("รหัสผ่านไม่ถูกต้อง! ไม่สามารถปลดล็อกหน้าจอได้");
+      if (!pin || pin.length < 4) {
+        alert("กรุณาระบุ PIN อย่างน้อย 4 หลัก");
+        return;
+      }
+      try {
+        const res = await callBackend('verifyKioskPin', { pin: pin });
+        if (res.status === 'success' && res.valid) {
+          lockoutScreen.style.display = "none";
+          isFullscreenLocked = false;
+          isProcessingMatch = false; // ปลดล็อกสแกนหน้าต่อ
+          document.getElementById('btn-fullscreen-lock').textContent = "🔒 เปิดโหมดเต็มหน้าจอป้องกันการออก";
+          document.getElementById('btn-fullscreen-lock').style.background = "var(--primary)";
+        } else {
+          alert(res.message || "รหัสผ่านไม่ถูกต้อง! ไม่สามารถปลดล็อกหน้าจอได้");
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการตรวจสอบ PIN: " + err.message);
       }
     }
 
