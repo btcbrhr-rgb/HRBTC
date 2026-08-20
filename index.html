@@ -6888,9 +6888,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     advanceRequestsList = d.advanceRequests || [];
                     displayAdvanceHistory();
                     payslipsList = d.payslips || [];
-                    // 🔄 Fallback: ถ้า Supabase ไม่มีสลิป หรือข้อมูลไม่ครบ ให้ดึงจาก Google Sheets
-                    const payslipIncomplete = payslipsList.length > 0 && payslipsList.every(p => !p["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] && !p["\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E19\u0E31\u0E15\u0E34"]);
-                    if (payslipsList.length === 0 || payslipIncomplete) {
+                    // 🔄 Fallback: ถ้า Supabase ไม่มีสลิป หรือข้อมูลไม่ครบ (ไม่มี URL/ยอด) ให้ดึงจาก Google Sheets
+                    const hasBadPayslipData = payslipsList.length === 0 || payslipsList.some(p => {
+                        const url = p["\u0E23\u0E2D\u0E14\u0E2A\u0E25\u0E34\u0E1B"] || p["URL \u0E2A\u0E25\u0E34\u0E1B"] || p["slip_url"] || '';
+                        const amt = parseFloat(p["\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E19\u0E31\u0E15\u0E34"]) || 0;
+                        return !url && amt === 0;
+                    });
+                    if (hasBadPayslipData) {
                         try {
                             const slipFallback = await fetchWithTimeout(
                                 `${SERVER_API_URL}?action=getPayslips&empId=${encodeURIComponent(trimmedEmpId)}`
@@ -9693,7 +9697,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             </div>
                         </div>
                         <div class="text-right flex-shrink-0 ml-3">
-                            <p class="text-sm font-bold text-emerald-600 tabular-nums">${Number(net).toLocaleString('th-TH', {minimumFractionDigits: 0})}</p>
+                            <p class="text-sm font-bold ${net > 0 ? 'text-emerald-600' : 'text-slate-400'} tabular-nums">${net > 0 ? Number(net).toLocaleString('th-TH', {minimumFractionDigits: 0}) : '-'}</p>
                             <div class="mt-1 inline-flex items-center gap-1 text-[10px] ${mc.text} ${mc.bg} px-2 py-0.5 rounded-full font-medium">
                                 <i class="fa-solid fa-eye text-[8px]"></i>
                                 <span>ดูสลิป</span>
@@ -9723,7 +9727,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     <div class="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl p-4 text-center text-white shadow-lg shadow-emerald-200 mt-4">
                         <p class="text-xs opacity-80">ยอดเงินสุทธิที่ได้รับ</p>
-                        <p class="text-2xl font-bold mt-1 tracking-wide">${Number(net).toLocaleString('th-TH')} บาท</p>
+                        <p class="text-2xl font-bold mt-1 tracking-wide">${net > 0 ? Number(net).toLocaleString('th-TH') + ' บาท' : 'ไม่มีข้อมูล'}</p>
                         <p class="text-[10px] opacity-60 mt-1">บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด</p>
                     </div>
 
@@ -9768,7 +9772,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     </div>
                 `;
                 // Get slip URL
-                window._currentSlipUrl = slip["URL สลิป"] || slip["slip_url"] || slip["url"] || "";
+                window._currentSlipUrl = slip["URL สลิป"] || slip["slip_url"] || slip["url"] || slip["ดูเอกสาร"] || slip["file_url"] || "";
                 const openBtn = document.getElementById("payslip-open-btn");
                 if (openBtn) {
                     openBtn.style.display = window._currentSlipUrl ? "flex" : "none";
