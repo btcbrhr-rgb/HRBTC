@@ -9635,11 +9635,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ดึงรอบเงินเดือนจากชื่อไฟล์ถ้า period ว่าง
 
                 // เรียงจากใหม่ไปเก่า
-                const sorted = [...payslipsList].sort((a, b) => {
-                    const da = new Date(a["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || a["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || 0);
-                    const db = new Date(b["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || b["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || 0);
-                    return db - da;
-                });
+                function _payslipSortKey(slip) {
+                    // พยายามดึง year*100+month จาก format ต่างๆ
+                    const period = slip["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || '';
+                    // "01/2569" or "01_2569"
+                    let m = period.match(/(\d{1,2})[\/\-_](\d{4})/);
+                    if (m) return parseInt(m[2]) * 100 + parseInt(m[1]);
+                    // "2569-01"
+                    m = period.match(/(\d{4})-(\d{1,2})/);
+                    if (m) return parseInt(m[1]) * 100 + parseInt(m[2]);
+                    // Try date string
+                    const d = new Date(slip["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || period);
+                    if (!isNaN(d.getTime())) return d.getFullYear() * 100 + (d.getMonth() + 1);
+                    return 0;
+                }
+                const sorted = [...payslipsList].sort((a, b) => _payslipSortKey(b) - _payslipSortKey(a));
 
                 sorted.forEach((slip, idx) => {
                     const cycle = _extractPayslipPeriod(slip) || "\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01";
@@ -9710,34 +9720,34 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     <div class="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl p-4 text-center text-white shadow-lg shadow-emerald-200 mt-4">
                         <p class="text-xs opacity-80">ยอดเงินสุทธิที่ได้รับ</p>
-                        <p class="text-2xl font-bold mt-1 tracking-wide">${Number(net).toLocaleString('th-TH')} \u0E1A\u0E32\u0E17</p>
-                        <p class="text-[10px] opacity-60 mt-1">\u0E1A\u0E23\u0E34\u0E2A\u0E15\u0E39\u0E49 \u0E1A\u0E23\u0E34\u0E2A\u0E15\u0E39\u0E49 \u0E21\u0E39\u0E14\u0E21\u0E31\u0E48\u0E27 \u0E08\u0E30\u0E43\u0E2B\u0E49\u0E21\u0E32</p>
+                        <p class="text-2xl font-bold mt-1 tracking-wide">${Number(net).toLocaleString('th-TH')} บาท</p>
+                        <p class="text-[10px] opacity-60 mt-1">บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด</p>
                     </div>
 
                     <div class="mt-4 bg-slate-50 rounded-xl p-3.5 space-y-0">
                         <div class="flex justify-between items-center py-2 border-b border-slate-200/60">
                             <span class="text-xs text-slate-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-user text-[10px]"></i> \u0E23\u0E2B\u0E21\u0E32\u0E0E\u0E1E\u0E23\u0E01\u0E15\u0E49\u0E2D\u0E07</span>
+                                <i class="fa-solid fa-user text-[10px]"></i> รหัสพนักงาน</span>
                             <span class="text-xs font-semibold text-slate-700">${currentEmployeeId}${empName ? ' - ' + empName : ''}</span>
                         </div>
                         <div class="flex justify-between items-center py-2 border-b border-slate-200/60">
                             <span class="text-xs text-slate-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-calendar text-[10px]"></i> \u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30</span>
+                                <i class="fa-solid fa-calendar text-[10px]"></i> รอบเงินเดือน</span>
                             <span class="text-xs font-semibold text-slate-700">${formattedCycle}</span>
                         </div>
                         <div class="flex justify-between items-center py-2 border-b border-slate-200/60">
                             <span class="text-xs text-slate-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-building-columns text-[10px]"></i> \u0E1A\u0E23\u0E34\u0E2A\u0E15\u0E39\u0E49 \u0E21\u0E39\u0E14\u0E21\u0E31\u0E48\u0E27</span>
+                                <i class="fa-solid fa-building-columns text-[10px]"></i> ธนาคาร บัญชี</span>
                             <span class="text-xs font-semibold text-slate-700">${employeeData["\u0E17\u0E32\u0E14\u0E27\u0E32\u0E19"] || '-'} ${employeeData["\u0E22\u0E49\u0E32\u0E07\u0E1A\u0E32\u0E19\u0E17\u0E33"] || ''}</span>
                         </div>
                         <div class="flex justify-between items-center py-2 border-b border-slate-200/60">
                             <span class="text-xs text-slate-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-file-lines text-[10px]"></i> \u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C</span>
-                            <span class="text-xs font-semibold text-slate-700 truncate max-w-[180px]">${slip["\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C"] || '-'}]</span>
+                                <i class="fa-solid fa-file-lines text-[10px]"></i> ชื่อไฟล์</span>
+                            <span class="text-xs font-semibold text-slate-700 truncate max-w-[180px]">${slip["ชื่อไฟล์"] || '-'}</span>
                         </div>
                         ${date ? `<div class="flex justify-between items-center py-2">
                             <span class="text-xs text-slate-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-clock text-[10px]"></i> \u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33</span>
+                                <i class="fa-solid fa-clock text-[10px]"></i> วันที่บันทึก</span>
                             <span class="text-xs font-semibold text-slate-700">${formatThaiDate(date)}</span>
                         </div>` : ''}
                     </div>
@@ -9748,14 +9758,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 <i class="fa-solid fa-circle-check text-emerald-600 text-xs"></i>
                             </div>
                             <div>
-                                <p class="text-xs font-semibold text-emerald-700">\u0E2A\u0E15\u0E30\u0E40\u0E25\u0E34 \u0E22\u0E2D\u0E14\u0E44\u0E21\u0E48\u0E22\u0E31\u0E07\u0E2A\u0E4C</p>
-                                <p class="text-[10px] text-emerald-500">\u0E15\u0E23\u0E32\u0E23\u0E2D\u0E32\u0E23\u0E1C\u0E39\u0E49 \u0E41\u0E23\u0E44\u0E22\u0E49 \u0E44\u0E14\u0E49\u0E23\u0E2B\u0E31\u0E2A</p>
+                                <p class="text-xs font-semibold text-emerald-700">สลิป ยอดไม่มีหัก</p>
+                                <p class="text-[10px] text-emerald-500">ตรวจสอบ แล้ว ได้รับ</p>
                             </div>
                         </div>
                     </div>
                 `;
                 // Get slip URL
-                window._currentSlipUrl = slip["\u0E23\u0E2D\u0E14\u0E2A\u0E25\u0E34\u0E1B"] || slip["\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C"] || "";
+                window._currentSlipUrl = slip["URL สลิป"] || slip["ชื่อไฟล์"] || "";
                 const openBtn = document.getElementById("payslip-open-btn");
                 if (openBtn) {
                     openBtn.style.display = window._currentSlipUrl ? "flex" : "none";
