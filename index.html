@@ -9535,21 +9535,40 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function formatPayslipCycle(cycleStr) {
                 if (!cycleStr || cycleStr === "N/A") return cycleStr;
 
-                // Handle formats like "2569-01" or "2569-01-01"
-                let year, month;
-                const parts = cycleStr.split("-");
-                if (parts.length >= 2) {
-                    year = parseInt(parts[0]);
-                    month = parseInt(parts[1]);
-                } else {
-                    // If it's not in expected format, just return it
-                    return cycleStr;
-                }
-
                 const thaiMonths = [
                     "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
                     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
                 ];
+
+                let year, month;
+
+                // Format 1: "2569-01" or "2569-01-01"
+                const parts = cycleStr.split("-");
+                if (parts.length >= 2) {
+                    year = parseInt(parts[0]);
+                    month = parseInt(parts[1]);
+                }
+
+                // Format 2: "Sun Jan 01 2569 00:00:00 GMT+0700" (raw Date toString)
+                if (!month || isNaN(month)) {
+                    const d = new Date(cycleStr);
+                    if (!isNaN(d.getTime())) {
+                        // ปีพุทธ = ปีคริสต์ + 543
+                        year = d.getFullYear() + 543;
+                        month = d.getMonth() + 1; // 0-indexed
+                    }
+                }
+
+                // Format 3: "กันยายน 2569" (already formatted)
+                if (!month || isNaN(month)) {
+                    for (let i = 0; i < thaiMonths.length; i++) {
+                        if (cycleStr.includes(thaiMonths[i])) {
+                            const yMatch = cycleStr.match(/(\d{4})/);
+                            return cycleStr; // already in Thai format
+                        }
+                    }
+                    return cycleStr;
+                }
 
                 if (month >= 1 && month <= 12 && year) {
                     return `${thaiMonths[month - 1]} ${year}`;
