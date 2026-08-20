@@ -1148,7 +1148,7 @@
                     <div>
                         <h1 class="text-xs text-blue-100 font-light flex items-center gap-1">
                             <span id="portal-name">Buriram Thongchai Portal</span>
-                            <span id="connection-status-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <span id="connection-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 hidden"></span>
                         </h1>
                         <!-- แสดงชื่อ-สกุล (รหัสพนักงาน) ตามเงื่อนไขหน้าอื่นๆ ยกเว้นหน้าแรก -->
                         <p id="header-emp-info" class="text-sm font-semibold truncate max-w-[200px]">ยินดีต้อนรับ</p>
@@ -6366,6 +6366,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function logout() {
                 isLoggedIn = false;
                 isAdminMode = false;
+                // ซ่อน connection dot เมื่อ logout
+                const dot = document.getElementById("connection-status-dot");
+                if (dot) dot.classList.add("hidden");
                 sessionStorage.removeItem("is_logged_in");
                 localStorage.removeItem("is_logged_in");
                 localStorage.removeItem("hr_emp_id");
@@ -6855,7 +6858,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return false;
                 }
 
-                showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
+                if (typeof isAdminMode !== 'undefined' && isAdminMode) showToast("🔄 กำลังซิงค์ข้อมูลจากเซิร์ฟเวอร์...", "info");
                 document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
 
                 const currentCycle = getCurrentCycleRange();
@@ -6907,7 +6910,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     document.getElementById("connection-status-dot").className = "w-2 h-2 rounded-full bg-emerald-400";
                     const elapsed = sbResponse._elapsed || Math.round(performance.now() - t0);
                     console.log(`[loadAllData ⚡ Supabase] ✓ ${elapsed}ms`);
-                    showToast(`⚡ โหลดข้อมูลผ่าน Supabase สำเร็จ (${elapsed}ms)`, "success");
+                    if (typeof isAdminMode !== 'undefined' && isAdminMode) showToast(`⚡ โหลดข้อมูลผ่าน Supabase สำเร็จ (${elapsed}ms)`, "success");
                     displayMonthlyReminders();
                     displayAnnouncements();
 
@@ -9551,11 +9554,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 let year, month;
 
-                // Format 1: "2569-01" or "2569-01-01" or "2026-06-01T..."
-                const parts = cycleStr.split("-");
-                if (parts.length >= 2) {
-                    year = parseInt(parts[0]);
-                    month = parseInt(parts[1]);
+                // Format 1a: "01/2569" (month/year)
+                const slashParts = cycleStr.split("/");
+                if (slashParts.length === 2) {
+                    month = parseInt(slashParts[0]);
+                    year = parseInt(slashParts[1]);
+                }
+
+                // Format 1b: "2569-01" or "2569-01-01" or "2026-06-01T..."
+                if (!month || isNaN(month)) {
+                    const parts = cycleStr.split("-");
+                    if (parts.length >= 2) {
+                        year = parseInt(parts[0]);
+                        month = parseInt(parts[1]);
+                    }
                 }
 
                 // Format 2: raw Date toString like "Sun Jun 01 2026 10:38:21 GMT+0700"
@@ -9592,6 +9604,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             // --- ส่วนสลิปเงินเดือน (Payslip Portal) ---
+            function _extractPayslipPeriod(slip) {
+                const p = slip["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"];
+                if (p && p !== '-' && p !== 'N/A' && p !== '\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01') return p;
+                const fn = slip["\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C"] || '';
+                // Payslip_102003_01_2569 -> 01/2569
+                const m = fn.match(/Payslip_\d+_([\d]+)_([\d]+)/i);
+                if (m) return m[1] + '/' + m[2];
+                return '';
+            }
+
             function displayPayslipList() {
                 const container = document.getElementById("payslip-records-list");
                 const countBadge = document.getElementById("payslip-count-badge");
@@ -9610,6 +9632,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return;
                 }
 
+                // ดึงรอบเงินเดือนจากชื่อไฟล์ถ้า period ว่าง
+
                 // เรียงจากใหม่ไปเก่า
                 const sorted = [...payslipsList].sort((a, b) => {
                     const da = new Date(a["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || a["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || 0);
@@ -9618,7 +9642,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 });
 
                 sorted.forEach((slip, idx) => {
-                    const cycle = slip["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || "N/A";
+                    const cycle = _extractPayslipPeriod(slip) || "\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01";
                     const formattedCycle = formatPayslipCycle(cycle);
                     const net = slip["\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E19\u0E31\u0E15\u0E34"] || 0;
                     const date = slip["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || "";
@@ -9669,7 +9693,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function openPayslipModal(slip) {
                 const content = document.getElementById("payslip-detail-content");
-                const cycle = slip["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || "N/A";
+                const cycle = _extractPayslipPeriod(slip) || "\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01";
                 const formattedCycle = formatPayslipCycle(cycle);
                 const net = slip["\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E19\u0E31\u0E15\u0E34"] || 0;
                 const date = slip["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || "";
@@ -10277,6 +10301,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 isAdminMode = true;
+                // แสดง connection dot เฉพาะโหมด Admin
+                const dot = document.getElementById("connection-status-dot");
+                if (dot) dot.classList.remove("hidden");
                 const appContainer = document.getElementById("app");
                 const adminContainer = document.getElementById("admin-app");
 
