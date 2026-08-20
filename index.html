@@ -6818,15 +6818,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }));
 
                     const projects = (projRes.data || []).map(p => (p.name || '').toString().trim()).filter(Boolean);
-                    // ✅ PRIMARY: แปลง Supabase data → Thai keys สำหรับ display
+                    // ✅ PRIMARY: แปลง Supabase data → Thai+English keys สำหรับ display
                     const payslips = (slipRes.data || []).map(s => ({
-                        "รหัสพนักงาน": s.emp_id,
-                        "รอบเงินเดือน": s.period,
-                        "ชื่อไฟล์": s.file_name,
-                        "ID ไฟล์": s.file_id,
-                        "URL สลิป": s.slip_url || '',
-                        "ยอดสุทธิ": s.net_amount || 0,
-                        "วันที่บันทึก": s.recorded_at || ''
+                        "\u0E23\u0E2B\u0E21\u0E32\u0E0E\u0E1E\u0E23\u0E01\u0E15\u0E49\u0E2D\u0E07": s.emp_id, "emp_id": s.emp_id,
+                        "\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30": s.period, "period": s.period,
+                        "\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C": s.file_name, "file_name": s.file_name,
+                        "ID \u0E44\u0E1F\u0E25\u0E4C": s.file_id, "file_id": s.file_id,
+                        "\u0E23\u0E2D\u0E14\u0E2A\u0E25\u0E34\u0E1B": s.slip_url || '', "slip_url": s.slip_url || '',
+                        "\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E17\u0E34": s.net_amount || 0, "net_amount": s.net_amount || 0,
+                        "\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33": s.recorded_at || '', "recorded_at": s.recorded_at || ''
                     }));
 
                     const elapsed = Math.round(performance.now() - t0);
@@ -6890,6 +6890,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     displayAdvanceHistory();
                     // ✅ PRIMARY: ข้อมูลจาก Supabase
                     payslipsList = d.payslips || [];
+                    console.log('[Supabase payslips]', payslipsList.length, 'records', payslipsList[0] ? payslipsList[0] : '(empty)');
                     displayPayslipList();
                     calculateAndDisplayStats();
                     if (typeof renderCalendarDaysFromLocal === 'function') {
@@ -9595,11 +9596,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // --- ส่วนสลิปเงินเดือน (Payslip Portal) ---
             function _extractPayslipPeriod(slip) {
-                const p = slip["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"];
-                if (p && p !== '-' && p !== 'N/A' && p !== '\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01') return p;
-                const fn = slip["\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C"] || '';
-                // Payslip_102003_01_2569 -> 01/2569
-                const m = fn.match(/Payslip_\d+_([\d]+)_([\d]+)/i);
+                // ลองหลาย key เพราะ Supabase ใช้ "รอบเงินเดือน" และ Google Sheets ใช้ header เดียวกัน
+                const p = slip['\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30'] || slip['period'] || '';
+                if (p && p !== '-' && p !== 'N/A') return p;
+                // Fallback: ดึงจากชื่อไฟล์ Payslip_102003_01_2569 -> 01/2569
+                const fn = slip['\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C'] || slip['file_name'] || '';
+                const m = fn.match(/Payslip_\d+_(\d{1,2})_(\d{4})/i);
                 if (m) return m[1] + '/' + m[2];
                 return '';
             }
@@ -9626,8 +9628,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // เรียงจากใหม่ไปเก่า
                 function _payslipSortKey(slip) {
-                    const period = slip["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || '';
-                    const fn = slip["\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C"] || '';
+                    const period = slip['\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30'] || slip['period'] || '';
+                    const fn = slip['\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C'] || slip['file_name'] || '';
                     // "01/2569" or "01_2569"
                     let m = period.match(/(\d{1,2})[\/\-_](\d{4})/);
                     if (m) return parseInt(m[2]) * 100 + parseInt(m[1]);
@@ -9646,9 +9648,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 sorted.forEach((slip, idx) => {
                     const cycle = _extractPayslipPeriod(slip) || "\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01";
                     const formattedCycle = formatPayslipCycle(cycle);
-                    const net = slip["\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E19\u0E31\u0E15\u0E34"] || 0;
-                    const date = slip["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || "";
-                    const fileName = slip["\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C"] || "";
+                    const net = slip['\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E17\u0E34'] || slip['net_amount'] || 0;
+                    const date = slip['\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33'] || slip['recorded_at'] || '';
+                    const fileName = slip['\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C'] || slip['file_name'] || '';
 
                     // Extract month number for color coding
                     const monthColors = [
@@ -9697,8 +9699,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const content = document.getElementById("payslip-detail-content");
                 const cycle = _extractPayslipPeriod(slip) || "\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01";
                 const formattedCycle = formatPayslipCycle(cycle);
-                const net = slip["\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E19\u0E31\u0E15\u0E34"] || 0;
-                const date = slip["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || "";
+                const net = slip['\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E17\u0E34'] || slip['net_amount'] || 0;
+                const date = slip['\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33'] || slip['recorded_at'] || '';
                 const empName = (typeof employeeData === 'object' && employeeData) ? (employeeData["\u0E0A\u0E37\u0E48\u0E2D-\u0E19\u0E32\u0E21\u0E2A\u0E38\u0E01"] || '') : '';
 
                 content.innerHTML = `
@@ -9757,7 +9759,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     </div>
                 `;
                 // Get slip URL
-                window._currentSlipUrl = slip["\u0E23\u0E2D\u0E14\u0E2A\u0E25\u0E34\u0E1B"] || slip["URL \u0E2A\u0E25\u0E34\u0E1B"] || slip["slip_url"] || slip["url"] || slip["\u0E14\u0E39\u0E23\u0E2D\u0E01\u0E32\u0E23"] || slip["file_url"] || "";
+                window._currentSlipUrl = slip['\u0E23\u0E2D\u0E14\u0E2A\u0E25\u0E34\u0E1B'] || slip['\u0E23\u0E2D\u0E14\u0E2A\u0E25\u0E34\u0E1B'] || slip['slip_url'] || slip['url'] || slip['file_url'] || '';
                 const openBtn = document.getElementById("payslip-open-btn");
                 if (openBtn) {
                     openBtn.style.display = window._currentSlipUrl ? "flex" : "none";
