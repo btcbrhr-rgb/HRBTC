@@ -6090,10 +6090,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         initializeProjectCostPage();
                     }
                     showLoginLoading();
-                    const autoLoadSuccess = await loadAllData().catch(err => {
+                    let autoLoadSuccess = await loadAllData().catch(err => {
                         console.warn('[Auto-login loadAllData]', err);
                         return false;
                     });
+                    // 🔄 Auto-retry ครั้งเดียวถ้าโหลดไม่สำเร็จ (network glitch)
+                    if (!autoLoadSuccess) {
+                        console.warn('[Auto-login] Retry loadAllData in 2s...');
+                        await new Promise(r => setTimeout(r, 2000));
+                        autoLoadSuccess = await loadAllData().catch(err => {
+                            console.warn('[Auto-login loadAllData retry]', err);
+                            return false;
+                        });
+                    }
                     hideLoginContainer();
                     const autoAdminUser = isAdminLoginAccount(currentEmployeeId);
                     if (autoLoadSuccess && autoAdminUser && !urlTab && !urlModal) {
@@ -6302,10 +6311,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     const isAdminUser = isAdminLoginAccount(currentEmployeeId);
 
-                    const loadSuccess = await loadAllData().catch(err => {
+                    let loadSuccess = await loadAllData().catch(err => {
                         console.warn('[handleLogin loadAllData]', err);
                         return false;
                     });
+                    // 🔄 Auto-retry ครั้งเดียวถ้าโหลดไม่สำเร็จ (network glitch)
+                    if (!loadSuccess) {
+                        console.warn('[handleLogin] Retry loadAllData in 2s...');
+                        await new Promise(r => setTimeout(r, 2000));
+                        loadSuccess = await loadAllData().catch(err => {
+                            console.warn('[handleLogin loadAllData retry]', err);
+                            return false;
+                        });
+                    }
 
                     if (loadSuccess) {
                         // ซ่อนหน้าจอ login และ overlay เมื่อโหลดข้อมูลสำเร็จ
@@ -6568,10 +6586,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
                 document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
                 showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
-                const proceedLoadSuccess = await loadAllData().catch(err => {
+                let proceedLoadSuccess = await loadAllData().catch(err => {
                     console.warn('[proceedToMainApp loadAllData]', err);
                     return false;
                 });
+                // 🔄 Auto-retry ครั้งเดียวถ้าโหลดไม่สำเร็จ (network glitch)
+                if (!proceedLoadSuccess) {
+                    console.warn('[proceedToMainApp] Retry loadAllData in 2s...');
+                    await new Promise(r => setTimeout(r, 2000));
+                    proceedLoadSuccess = await loadAllData().catch(err => {
+                        console.warn('[proceedToMainApp loadAllData retry]', err);
+                        return false;
+                    });
+                }
                 hideLoginContainer();
 
                 // 🌐 อ่าน URL params อีกครั้งหลัง PIN login สำเร็จ
@@ -9921,6 +9948,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     targetSection.classList.remove("hidden");
                 }
 
+                if (target === "home") {
+                    // ✅ Refresh home page data every time (activities, stats, announcements)
+                    updateEmployeeProfileUI();
+                    displayActivitiesList();
+                    calculateAndDisplayStats();
+                    displayMonthlyReminders();
+                    displayAnnouncements();
+                }
+
                 if (target === "calendar") {
                     loadCalendarRecords();
                 }
@@ -9929,6 +9965,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     updateAttendanceStatus();
                     // เปิดกล้องอัตโนมัติทันทีเมื่อเปิดเข้าเมนูลงเวลา โดยไม่ต้องรอให้ผู้ใช้งานกดปุ่มใดๆ ก่อน
                     setTimeout(initCamera, 100);
+                }
+
+                if (target === "leave") {
+                    displayLeaveHistory();
+                }
+
+                if (target === "advance") {
+                    displayAdvanceHistory();
+                }
+
+                if (target === "payslip") {
+                    displayPayslipList();
                 }
 
                 if (target === "announcements") {
