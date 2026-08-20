@@ -6888,8 +6888,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     advanceRequestsList = d.advanceRequests || [];
                     displayAdvanceHistory();
                     payslipsList = d.payslips || [];
-                    // 🔄 Fallback: ถ้า Supabase ไม่มีสลิป ให้ดึงจาก Google Sheets
-                    if (payslipsList.length === 0) {
+                    // 🔄 Fallback: ถ้า Supabase ไม่มีสลิป หรือข้อมูลไม่ครบ ให้ดึงจาก Google Sheets
+                    const payslipIncomplete = payslipsList.length > 0 && payslipsList.every(p => !p["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] && !p["\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E19\u0E31\u0E15\u0E34"]);
+                    if (payslipsList.length === 0 || payslipIncomplete) {
                         try {
                             const slipFallback = await fetchWithTimeout(
                                 `${SERVER_API_URL}?action=getPayslips&empId=${encodeURIComponent(trimmedEmpId)}`
@@ -9636,17 +9637,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // เรียงจากใหม่ไปเก่า
                 function _payslipSortKey(slip) {
-                    // พยายามดึง year*100+month จาก format ต่างๆ
                     const period = slip["\u0E23\u0E2D\u0E14\u0E40\u0E23\u0E37\u0E2D\u0E44\u0E14\u0E30"] || '';
+                    const fn = slip["\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C"] || '';
                     // "01/2569" or "01_2569"
                     let m = period.match(/(\d{1,2})[\/\-_](\d{4})/);
                     if (m) return parseInt(m[2]) * 100 + parseInt(m[1]);
                     // "2569-01"
                     m = period.match(/(\d{4})-(\d{1,2})/);
                     if (m) return parseInt(m[1]) * 100 + parseInt(m[2]);
-                    // Try date string
-                    const d = new Date(slip["\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33"] || period);
-                    if (!isNaN(d.getTime())) return d.getFullYear() * 100 + (d.getMonth() + 1);
+                    // Fallback: extract from file name Payslip_102003_01_2569
+                    if (fn) {
+                        m = fn.match(/_(\d{1,2})_(\d{4})/i);
+                        if (m) return parseInt(m[2]) * 100 + parseInt(m[1]);
+                    }
                     return 0;
                 }
                 const sorted = [...payslipsList].sort((a, b) => _payslipSortKey(b) - _payslipSortKey(a));
@@ -9737,8 +9740,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         </div>
                         <div class="flex justify-between items-center py-2 border-b border-slate-200/60">
                             <span class="text-xs text-slate-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-building-columns text-[10px]"></i> ธนาคาร บัญชี</span>
-                            <span class="text-xs font-semibold text-slate-700">${employeeData["\u0E17\u0E32\u0E14\u0E27\u0E32\u0E19"] || '-'} ${employeeData["\u0E22\u0E49\u0E32\u0E07\u0E1A\u0E32\u0E19\u0E17\u0E33"] || ''}</span>
+                                <i class="fa-solid fa-building-columns text-[10px]"></i> ธนาคาร / บัญชี</span>
+                            <span class="text-xs font-semibold text-slate-700">${(typeof employeeData === 'object' && employeeData) ? ((employeeData["ธนาคาร"] || '') + ' ' + (employeeData["หมายเลขบัญชี"] || '')).trim() || '-' : '-'}</span>
                         </div>
                         <div class="flex justify-between items-center py-2 border-b border-slate-200/60">
                             <span class="text-xs text-slate-400 flex items-center gap-1.5">
@@ -9765,7 +9768,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     </div>
                 `;
                 // Get slip URL
-                window._currentSlipUrl = slip["URL สลิป"] || slip["ชื่อไฟล์"] || "";
+                window._currentSlipUrl = slip["URL สลิป"] || slip["slip_url"] || slip["url"] || "";
                 const openBtn = document.getElementById("payslip-open-btn");
                 if (openBtn) {
                     openBtn.style.display = window._currentSlipUrl ? "flex" : "none";
