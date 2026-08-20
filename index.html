@@ -6811,8 +6811,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         "รอบเงินเดือน": s.period,
                         "ชื่อไฟล์": s.file_name,
                         "ID ไฟล์": s.file_id,
-                        "URL สลิป": s.slip_url,
-                        "ยอดสุทธิ": s.net_amount
+                        "URL สลิป": s.view_link || s.download_link || '',
+                        "ยอดสุทธิ": s.net_amount || 0,
+                        "วันที่บันทึก": s.uploaded_at || ''
                     }));
 
                     const elapsed = Math.round(performance.now() - t0);
@@ -6875,6 +6876,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     advanceRequestsList = d.advanceRequests || [];
                     displayAdvanceHistory();
                     payslipsList = d.payslips || [];
+                    // 🔄 Fallback: ถ้า Supabase ไม่มีสลิป ให้ดึงจาก Google Sheets
+                    if (payslipsList.length === 0) {
+                        try {
+                            const slipFallback = await fetchWithTimeout(
+                                `${SERVER_API_URL}?action=getPayslips&empId=${encodeURIComponent(trimmedEmpId)}`
+                            );
+                            if (slipFallback && slipFallback.status === 'success' && Array.isArray(slipFallback.data) && slipFallback.data.length > 0) {
+                                payslipsList = slipFallback.data;
+                                console.log('[loadAllData] Payslip fallback from Google Sheets:', payslipsList.length, 'records');
+                            }
+                        } catch (slipErr) {
+                            console.warn('[loadAllData] Payslip fallback error:', slipErr);
+                        }
+                    }
                     displayPayslipList();
                     calculateAndDisplayStats();
                     if (typeof renderCalendarDaysFromLocal === 'function') {
