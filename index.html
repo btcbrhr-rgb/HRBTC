@@ -18792,11 +18792,13 @@ ${slip.textSample}
                 let failCount = 0;
                 const syncResults = [];
 
+                let singleTableNotAvailable = false;
                 async function syncSingleTable(tableName, displayName, retries) {
                     for (let attempt = 1; attempt <= retries; attempt++) {
                         try {
                             const t0 = performance.now();
                             let res = null;
+                            if (singleTableNotAvailable) throw new Error('skip-single');
                             if (typeof google !== 'undefined' && google.script && google.script.run) {
                                 res = await new Promise((resolve, reject) => {
                                     google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateSingleTable(tableName);
@@ -18828,12 +18830,19 @@ ${slip.textSample}
                                 }
                             }
                         } catch (e) {
+                            const errMsg = e.message || String(e);
+                            // ถ้า migrateSingleTable ไม่มี (Code.gs เก่า) → mark แล้วใช้ migrateAllDataToSupabase
+                            if (errMsg.indexOf('params') !== -1 || errMsg.indexOf('is not defined') !== -1 || errMsg.indexOf('skip-single') !== -1) {
+                                singleTableNotAvailable = true;
+                                sbLog(`  ⚠️ migrateSingleTable ไม่พร้อมใช้งาน (Code.gs ยังไม่ update) — ใช้ migrateAllData แทน`, '#fbbf24');
+                                return { status: 'error', table: tableName, message: 'singleTableNotAvailable' };
+                            }
                             if (attempt < retries) {
                                 sbLog(`  ⚠️ ${displayName}: Error (attempt ${attempt}/${retries}) — ลองใหม่...`, '#fbbf24');
                                 await new Promise(r => setTimeout(r, 2000 * attempt));
                             } else {
-                                sbLog(`  ❌ ${displayName}: ${e.message || e}`, '#f87171');
-                                return { status: 'error', table: tableName, message: e.message };
+                                sbLog(`  ❌ ${displayName}: ${errMsg}`, '#f87171');
+                                return { status: 'error', table: tableName, message: errMsg };
                             }
                         }
                     }
@@ -18854,6 +18863,43 @@ ${slip.textSample}
                         successCount++;
                     } else if (result.status === 'error') {
                         totalFailed++;
+                    }
+                    // ถ้า migrateSingleTable ไม่ทำงาน → ใช้ migrateAllDataToSupabase สำหรับทุกตารางที่เหลือ
+                    if (singleTableNotAvailable && i === 0) {
+                        sbLog(`\n🔄 Fallback: ใช้ migrateAllDataToSupabase สำหรับทั้งหมด...`, '#fbbf24');
+                        showToast('🔄 Fallback: ใช้ migrateAllData สำหรับทุกตาราง...', 'info');
+                        try {
+                            let fallbackRes = null;
+                            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                                fallbackRes = await new Promise((resolve, reject) => {
+                                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateAllDataToSupabase();
+                                });
+                            } else {
+                                fallbackRes = await fetchWithTimeout(
+                                    `${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId || 'admin'}`,
+                                    { timeout: 600000 }
+                                );
+                            }
+                            if (fallbackRes && fallbackRes.progress) {
+                                sbLog(`\n📊 Fallback ผลลัพธ์:`, '#60a5fa');
+                                fallbackRes.progress.forEach(p => {
+                                    const pIcon = TABLE_NAMES[p.table] || p.table;
+                                    if (p.status === 'success') {
+                                        sbLog(`  ✅ ${pIcon}: ${p.count}/${p.total} (${p.ms}ms)`, '#34d399');
+                                        totalSynced += (p.count || 0);
+                                        successCount++;
+                                    } else if (p.status === 'skip') {
+                                        sbLog(`  ⏭️ ${pIcon}: ${p.message || 'ข้าม'}`, '#94a3b8');
+                                    } else {
+                                        sbLog(`  ❌ ${pIcon}: ${p.message || 'ผิดพลาด'}`, '#f87171');
+                                        totalFailed++;
+                                    }
+                                });
+                            }
+                        } catch(e) {
+                            sbLog(`❌ Fallback error: ${e.message}`, '#f87171');
+                        }
+                        break; // ออกจากลูป因为 using fallback
                     }
                 }
                 const totalMs = Math.round(performance.now() - startTime);
