@@ -18707,20 +18707,30 @@ ${slip.textSample}
             // Step 0: ตรวจ UNIQUE constraints ก่อนซิงค์
             try {
                 sbLog('🔧 ตรวจ UNIQUE constraints...');
-                const diagRes = await fetchWithTimeout('?action=diagnoseConstraints', { timeout: 30000 });
-                if (diagRes.status === 'success' && diagRes.report) {
+                let diagRes = null;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    diagRes = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).diagnoseSupabaseConstraints();
+                    });
+                } else {
+                    diagRes = await fetchWithTimeout('?action=diagnoseConstraints', { timeout: 30000 });
+                }
+                if (diagRes && diagRes.status === 'success' && diagRes.report) {
                     diagRes.report.forEach(function(r) {
                         if (r.exists) {
                             sbLog('  ✅ ' + r.table + ': constraint มีแล้ว');
-                        } else if (r.action === 'created') {
+                        } else if (r.created) {
                             sbLog('  🔧 ' + r.table + ': สร้าง constraint สำเร็จ');
                         } else {
                             sbLog('  ❌ ' + r.table + ': constraint สร้างไม่สำเร็จ — ' + (r.message || ''));
                         }
                     });
+                } else {
+                    sbLog('⚠️ diagnose result: ' + JSON.stringify(diagRes || {}).substring(0, 300));
                 }
             } catch(e) {
-                sbLog('⚠️ ตรวจ constraints ล้มเหลว: ' + e.message);
+                sbLog('⚠️ ตรวจ constraints ล้มเหลว: ' + e.message, '#fbbf24');
+                console.error('[DIAG] Constraints check failed:', e);
             }
 
             const TABLE_NAMES = {
@@ -18759,8 +18769,15 @@ ${slip.textSample}
 
             // ตรวจจำนวนแถวจริงใน Supabase ก่อน sync
             try {
-                const sbCountRes = await fetchWithTimeout('?action=diagnoseRowCounts', { timeout: 30000 });
-                if (sbCountRes.status === 'success' && sbCountRes.counts) {
+                let sbCountRes = null;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    sbCountRes = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).diagnoseSupabaseRowCounts();
+                    });
+                } else {
+                    sbCountRes = await fetchWithTimeout('?action=diagnoseRowCounts', { timeout: 30000 });
+                }
+                if (sbCountRes && sbCountRes.status === 'success' && sbCountRes.counts) {
                     sbLog('📊 ข้อมูลใน Supabase (ปัจจุบัน):', '#a78bfa');
                     for (const [tbl, cnt] of Object.entries(sbCountRes.counts)) {
                         const icon = TABLE_NAMES[tbl] || tbl;
