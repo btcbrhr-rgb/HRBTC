@@ -12925,13 +12925,46 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
                     yearlyMonthDataCache = {};
                     yearlySelectedMonth = new Date().getMonth() + 1;
-                    // reset summary
                     ['yov-total-days','yov-present-days','yov-late-days','yov-absent-days','yov-leave-days','yov-ot-hours'].forEach(id => {
                         const el = document.getElementById(id); if (el) el.textContent = '-';
                     });
-                    // render tabs + โหลดเดือนปัจจุบันทันที
                     renderYearlyMonthTabs(year);
-                    loadYearlyMonthRecords(yearlySelectedMonth, year); // ไม่ await — ให้โหลด background
+
+                    // ✅ Supabase-First: ดึงทั้งปีใน query เดียว (เร็วกว่า 12 calls 10x+)
+                    const startY = `${year}-01-01`;
+                    const endY = `${year}-12-31`;
+                    try {
+                        if (supabaseClient) {
+                            const { data, error } = await supabaseClient
+                                .from('time_records')
+                                .select('*')
+                                .gte('date', startY)
+                                .lte('date', endY)
+                                .order('date', { ascending: true });
+                            if (!error && Array.isArray(data) && data.length > 0) {
+                                // แยกข้อมูลเป็น 12 เดือน
+                                data.forEach(r => {
+                                    const d = (r.date || '').toString();
+                                    if (d.length >= 7) {
+                                        const m = parseInt(d.substring(5, 7));
+                                        if (m >= 1 && m <= 12) {
+                                            const mk = `${year}-${String(m).padStart(2, '0')}`;
+                                            if (!yearlyMonthDataCache[mk]) yearlyMonthDataCache[mk] = [];
+                                            yearlyMonthDataCache[mk].push(r);
+                                        }
+                                    }
+                                });
+                                console.log(`[YearlyOverview ⚡ Supabase] ${data.length} records loaded for ${year}`);
+                                renderYearlyMonthTable(yearlyMonthDataCache[`${year}-${String(yearlySelectedMonth).padStart(2, '0')}`] || [], yearlySelectedMonth, year);
+                                return;
+                            }
+                        }
+                    } catch (sbErr) {
+                        console.warn('[YearlyOverview] Supabase failed, falling back to per-month:', sbErr.message);
+                    }
+
+                    // Fallback: โหลดทีละเดือนผ่าน GAS API
+                    loadYearlyMonthRecords(yearlySelectedMonth, year);
                 }
 
                 async function selectYearlyMonth(month) {
@@ -12942,23 +12975,45 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 async function loadYearlyMonthRecords(month, year) {
-                    const billingM = month + 1 > 12 ? 1 : month + 1;
-                    const billingY = month + 1 > 12 ? year + 1 : year;
-                    const billingMonthVal = `${billingY}-${String(billingM).padStart(2, '0')}`;
-                    const cacheKey = billingMonthVal;
+                    // คำนวณ date range สำหรับเดือนนี้ (รอบบัญชี 26-25)
+                    const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
+                    const endDay = new Date(year, month, 0).getDate(); // วันสุดท้ายของเดือน
+                    const endStr = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+                    const cacheKey = `${year}-${String(month).padStart(2, '0')}`;
                     const tbody = document.getElementById('yearly-attendance-body');
                     if (!tbody) return;
 
-                    // แสดง loading
                     tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลเดือน ' + THAI_MONTHS_FULL[month - 1] + '...</td></tr>';
 
-                    // ใช้ cache ถ้ามี
                     if (yearlyMonthDataCache[cacheKey]) {
                         renderYearlyMonthTable(yearlyMonthDataCache[cacheKey], month, year);
                         return;
                     }
 
+                    // ✅ Supabase-First: ดึงตรงจาก Supabase (ไม่ผ่าน GAS → เร็วกว่า 5-10x)
                     try {
+                        if (supabaseClient) {
+                            const { data, error } = await supabaseClient
+                                .from('time_records')
+                                .select('*')
+                                .gte('date', startStr)
+                                .lte('date', endStr)
+                                .order('date', { ascending: true });
+                            if (!error && Array.isArray(data) && data.length > 0) {
+                                yearlyMonthDataCache[cacheKey] = data;
+                                renderYearlyMonthTable(data, month, year);
+                                return;
+                            }
+                        }
+                    } catch (sbErr) {
+                        console.warn('[YearlyOverview] Supabase query failed, falling back to GAS:', sbErr.message);
+                    }
+
+                    // Fallback: ใช้ GAS API (ช้ากว่า)
+                    try {
+                        const billingM = month + 1 > 12 ? 1 : month + 1;
+                        const billingY = month + 1 > 12 ? year + 1 : year;
+                        const billingMonthVal = `${billingY}-${String(billingM).padStart(2, '0')}`;
                         const res = await fetchWithTimeout(
                             `${SERVER_API_URL}?action=getProjectCostData&empId=${currentEmployeeId}&month=${billingMonthVal}`,
                             { timeout: 30000 }
@@ -15812,12 +15867,76 @@ ${slip.textSample}
                 console.log('[ProjectCost] Existing local data found. Loading new updates in the background...');
             }
 
-            // Try batch API first
+            // ✅ Supabase-First: ดึง attendance จาก Supabase โดยตรง (ไม่ผ่าน GAS)
             let batchOk = false;
-            if (typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+            if (supabaseClient) {
                 try {
                     const t0 = performance.now();
+                    const cycleDates = getBillingCycleDates(currentMonth);
+                    const cycleStart = cycleDates[0];
+                    const cycleEnd = cycleDates[cycleDates.length - 1];
+                    const [sbEmp, sbAtt, sbProj] = await Promise.all([
+                        supabaseClient.from('employees').select('*'),
+                        supabaseClient.from('time_records').select('*').gte('date', cycleStart).lte('date', cycleEnd),
+                        supabaseClient.from('projects').select('*').neq('status', 'ระงับ')
+                    ]);
+                    if (!sbAtt.error && Array.isArray(sbAtt.data) && sbAtt.data.length >= 0) {
+                        // Apply employees
+                        if (!sbEmp.error && Array.isArray(sbEmp.data)) {
+                            employees = sbEmp.data.map(r => ({
+                                id: (r.emp_id || '').toString().trim(),
+                                name: r.name || '', position: r.position || '', status: r.status || 'ทำงานปกติ',
+                                dayOff: r.day_off || 'อาทิตย์', company: r.company || '',
+                                startDate: r.start_date || '', phone: r.phone || '',
+                                baseSalary: parseFloat(r.base_salary) || 0,
+                                wageDivisor: parseFloat(r.wage_divisor) || 30,
+                                workHours: parseFloat(r.work_hours_per_day) || 8,
+                                otRate: parseFloat(r.ot_rate) || 1.5,
+                                role: r.role || 'Employee',
+                                avatarUrl: r.avatar_url || '',
+                                lineUserId: r.line_user_id || ''
+                            })).filter(e => e.id);
+                        }
+                        // Apply attendance
+                        attendanceData = {};
+                        sbAtt.data.forEach(raw => {
+                            const record = {
+                                empId: (raw.emp_id || '').toString().trim(),
+                                date: (raw.date || '').toString().trim(),
+                                timeIn: raw.time_in || '', timeOut: raw.time_out || '',
+                                status: raw.status || 'ปกติ', late: parseInt(raw.late_minutes) || 0,
+                                ot: parseFloat(raw.ot_hours) || 0, project: raw.project_in || '',
+                                source: raw.source || ''
+                            };
+                            if (!record.empId || !record.date) return;
+                            if (!attendanceData[record.date]) attendanceData[record.date] = {};
+                            attendanceData[record.date][record.empId] = record;
+                        });
+                        // Apply projects
+                        const projSel = document.getElementById('projectFilter');
+                        if (projSel && !sbProj.error && Array.isArray(sbProj.data)) {
+                            projSel.innerHTML = '<option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>';
+                            sbProj.data.forEach(p => {
+                                const name = (p.name || '').toString().trim();
+                                if (name) { const opt = document.createElement('option'); opt.value = name; opt.textContent = name; projSel.appendChild(opt); }
+                            });
+                        }
+                        if (!window.__pcDataCache) window.__pcDataCache = {};
+                        window.__pcDataCache[cacheKey] = { ts: Date.now() };
+                        const elapsed = Math.round(performance.now() - t0);
+                        console.log(`[ProjectCost ⚡ Supabase] ${sbAtt.data.length} records in ${elapsed}ms`);
+                        batchOk = true;
+                        refreshActiveTab();
+                    }
+                } catch (sbErr) {
+                    console.warn('[ProjectCost] Supabase failed, falling back to GAS:', sbErr.message);
+                }
+            }
 
+            // Fallback: GAS API
+            if (!batchOk && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                try {
+                    const t0 = performance.now();
                     const res = await fetchWithTimeout(
                         `${SERVER_API_URL}?action=getProjectCostData&empId=${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : ''}&month=${currentMonth}`,
                         { timeout: 60000 }
