@@ -12900,52 +12900,44 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 }
 
-                function getYearlyMonthTabsHtml(year) {
+                function renderYearlyMonthTabs(year) {
                     const now = new Date();
                     const thisMonth = now.getMonth() + 1;
                     const thisYear = now.getFullYear();
-                    let html = '';
+                    const tabsEl = document.getElementById('yearly-month-tabs');
+                    if (!tabsEl) return;
+                    tabsEl.innerHTML = '';
                     for (let m = 1; m <= 12; m++) {
                         const isCurrent = (m === thisMonth && year == thisYear);
-                        const isActive = (m === (yearlySelectedMonth || thisMonth));
-                        const badge = isCurrent ? ' <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>' : '';
-                        html += `<button onclick="selectYearlyMonth(${m})" data-month="${m}"
-                            class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap
-                            ${isActive ? 'bg-brand-deep text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
-                            ${THAI_MONTHS_SHORT[m - 1]}${badge}
-                        </button>`;
+                        const isActive = (m === yearlySelectedMonth);
+                        const badge = isCurrent ? ' <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>' : '';
+                        const btn = document.createElement('button');
+                        btn.dataset.month = m;
+                        btn.innerHTML = THAI_MONTHS_SHORT[m - 1] + badge;
+                        btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${isActive ? 'bg-brand-deep text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+                        btn.onclick = () => selectYearlyMonth(m);
+                        tabsEl.appendChild(btn);
                     }
-                    return html;
                 }
 
                 async function loadYearlyAttendanceOverview() {
                     initYearSelector();
                     const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
                     yearlyMonthDataCache = {};
-                    yearlySelectedMonth = yearlySelectedMonth || (new Date().getMonth() + 1);
-
-                    // แสดง tabs
-                    const tabsEl = document.getElementById('yearly-month-tabs');
-                    if (tabsEl) tabsEl.innerHTML = getYearlyMonthTabsHtml(year);
-
-                    // โหลดข้อมูลเดือนแรกทันที
-                    await loadYearlyMonthRecords(yearlySelectedMonth, year);
+                    yearlySelectedMonth = new Date().getMonth() + 1;
+                    // reset summary
+                    ['yov-total-days','yov-present-days','yov-late-days','yov-absent-days','yov-leave-days','yov-ot-hours'].forEach(id => {
+                        const el = document.getElementById(id); if (el) el.textContent = '-';
+                    });
+                    // render tabs + โหลดเดือนปัจจุบันทันที
+                    renderYearlyMonthTabs(year);
+                    loadYearlyMonthRecords(yearlySelectedMonth, year); // ไม่ await — ให้โหลด background
                 }
 
                 async function selectYearlyMonth(month) {
                     yearlySelectedMonth = month;
                     const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
-
-                    // อัปเดต tab active
-                    document.querySelectorAll('#yearly-month-tabs button').forEach(btn => {
-                        const m = parseInt(btn.dataset.month);
-                        if (m === month) {
-                            btn.className = btn.className.replace('bg-slate-100 text-slate-600 hover:bg-slate-200', 'bg-brand-deep text-white shadow-md');
-                        } else {
-                            btn.className = btn.className.replace('bg-brand-deep text-white shadow-md', 'bg-slate-100 text-slate-600 hover:bg-slate-200');
-                        }
-                    });
-
+                    renderYearlyMonthTabs(year);
                     await loadYearlyMonthRecords(month, year);
                 }
 
