@@ -5765,6 +5765,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 row.remove();
                 decreaseApprovalBadgeCount(type);
 
+                // Update adminPendingCounts so stat cards reflect the removal
+                if (adminPendingCounts[type]) {
+                    adminPendingCounts[type].total = Math.max(0, (adminPendingCounts[type].total || 1) - 1);
+                }
+                updateApprovalStatCards();
+
                 const placeholderMap = {
                     leave: { id: "admin-leave-table-body", colspan: 10, message: "ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้" },
                     correction: { id: "admin-correction-table-body", colspan: 9, message: "ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ" },
@@ -11899,6 +11905,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                             // Now close modal (only after every item finished)
                             closeDecisionModal();
+
+                            // Update stat cards to reflect the reduced pending count
+                            updateApprovalStatCards();
 
                             // No full table refresh here — we already dropped
                             // the approved rows one by one inside the loop via
