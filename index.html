@@ -18655,24 +18655,30 @@ ${slip.textSample}
             const btn = document.getElementById('sb-sync-btn');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังซิงค์...'; }
 
-            sbLog('🔄 เริ่มต้นซิงค์ข้อมูล Google Sheets → Supabase...');
-            showToast('🔄 กำลังซิงค์ข้อมูลไปยัง Supabase...', 'info');
+            const TABLE_ICONS = {
+                employees: '👥', time_records: '⏰', leave_requests: '📋', time_corrections: '✏️',
+                projects: '🏗️', payslips: '💰', announcements: '📢', holidays: '🏖️',
+                advance_requests: '💳', system_settings: '⚙️', line_chat_state: '💬',
+                line_groups: '👥', line_followers: '👤', face_database: '📸'
+            };
+            const TABLE_NAMES = {
+                employees: 'พนักงาน', time_records: 'เวลางาน', leave_requests: 'คำขอลา',
+                time_corrections: 'แก้ไขเวลา', projects: 'โครงการ', payslips: 'สลิปเงินเดือน',
+                announcements: 'ข่าวสาร', holidays: 'วันหยุด', advance_requests: 'เบิกเงินกลางเดือน',
+                system_settings: 'ตั้งค่าระบบ', line_chat_state: 'LINE Chat', line_groups: 'LINE Groups',
+                line_followers: 'LINE Followers', face_database: 'Face Database'
+            };
 
             const onSyncComplete = async (success) => {
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
-                // ตรวจสอบ Supabase ใหม่หลังซิงค์เสร็จ
                 if (success) {
                     supabaseIsEmpty = false;
-                    // ลบ banner ถ้ามี
                     const banner = document.getElementById('supabase-sync-banner');
                     if (banner) banner.remove();
-                    // ซ่อน Sync Required Alert ใน Settings
                     const alertEl = document.getElementById('sb-sync-required-alert');
                     if (alertEl) alertEl.classList.add('hidden');
-                    // อัปเดตแหล่งข้อมูลปัจจุบัน
                     const srcEl = document.getElementById('sb-current-source');
                     if (srcEl) { srcEl.textContent = '⚡ Supabase (หลัก)'; srcEl.style.color = '#7c3aed'; }
-                    // อัปเดต Status Badge
                     const badge = document.getElementById('sb-status-badge');
                     const dot = document.getElementById('sb-status-dot');
                     const statusText = document.getElementById('sb-status-text');
@@ -18681,123 +18687,113 @@ ${slip.textSample}
                         dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
                         statusText.textContent = 'เชื่อมต่อสำเร็จ';
                     }
-
-                    // ⚡ AUTO-RELOAD: โหลดข้อมูลจาก Supabase ใหม่ทั้งหมด
+                    // Reload data from Supabase
                     sbLog('🔄 กำลังโหลดข้อมูลจาก Supabase ใหม่...', '#93c5fd');
                     showToast('🔄 กำลังโหลดข้อมูลจาก Supabase...', 'info');
                     const reloadT0 = performance.now();
                     try {
                         if (isLoggedIn && currentEmployeeId) {
-                            const reloadSuccess = await loadAllData().catch(err => {
-                                console.warn('[onSyncComplete] loadAllData error:', err);
-                                return false;
-                            });
+                            const reloadSuccess = await loadAllData().catch(() => false);
                             const reloadMs = Math.round(performance.now() - reloadT0);
                             if (reloadSuccess) {
-                                sbLog(`✅ โหลดข้อมูลจาก Supabase สำเร็จ (${reloadMs}ms)`, '#34d399');
-                                showToast(`✅ ซิงค์ & โหลดข้อมูลเสร็จสิ้น (${reloadMs}ms)`, 'success');
-                                // นำทางกลับหน้า Home/Admin ถ้าผู้ใช้อยู่ที่ Settings
+                                sbLog(`✅ โหลดข้อมูลสำเร็จ (${reloadMs}ms)`, '#34d399');
+                                showToast(`✅ ซิงค์ & โหลดเสร็จ (${reloadMs}ms)`, 'success');
                                 if (typeof activePage !== 'undefined' && activePage === 'settings') {
-                                    if (typeof isAdminMode !== 'undefined' && isAdminMode) {
-                                        enterAdminMode();
-                                    } else {
-                                        navigateTo('home');
-                                    }
+                                    if (typeof isAdminMode !== 'undefined' && isAdminMode) enterAdminMode();
+                                    else navigateTo('home');
                                 }
                             } else {
-                                sbLog('⚠️ โหลดข้อมูลสำเร็จบางส่วน — ลอง refresh หน้าเว็บ', '#fbbf24');
                                 showToast('⚠️ ซิงค์สำเร็จ แต่โหลดข้อมูลไม่สมบูรณ์', 'warning');
                             }
                         } else {
-                            sbLog('✅ ซิงค์สำเร็จ — เข้าสู่ระบบใหม่เพื่อโหลดข้อมูล', '#34d399');
                             showToast('✅ ซิงค์สำเร็จ กรุณาเข้าสู่ระบบใหม่', 'success');
                         }
-                    } catch (reloadErr) {
-                        console.warn('[onSyncComplete] Auto-reload failed:', reloadErr);
-                        sbLog('⚠️ ซิงค์สำเร็จแต่ reload ล้มเหลว — กรุณา refresh หน้า', '#fbbf24');
-                        showToast('⚠️ ซิงค์สำเร็จ — กรุณา refresh หน้าเว็บ', 'warning');
+                    } catch (e) {
+                        showToast('⚠️ ซิงค์สำเร็จ — กรุณา refresh หน้า', 'warning');
                     }
                 }
             };
 
+            // ═══ ซิงค์ทีละตาราง — ไม่มี timeout ═══
+            sbLog('🔄 เริ่มซิงค์ข้อมูลทีละตาราง Google Sheets → Supabase...', '#60a5fa');
+            showToast('🔄 เริ่มซิงค์ข้อมูล (ทีละตาราง)...', 'info');
+
             try {
-                // เรียก google.script.run ถ้าอยู่บน GAS Environment
+                // 1) ดึงรายการตารางจาก backend
+                let tableList = null;
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    google.script.run
-                        .withSuccessHandler((result) => {
-                            // แสดง progress แต่ละตาราง
-                            const progress = result?.progress || [];
-                            const data = result?.data || {};
-                            if (progress.length > 0) {
-                                sbLog(`\n📊 สรุปผลการซิงค์ (${result?.totalMs || '-'}ms):`, '#60a5fa');
-                                const tableNames = {
-                                    employees: '👥 พนักงาน', time_records: '⏰ เวลางาน',
-                                    leave_requests: '📋 คำขอลา', time_corrections: '✏️ แก้ไขเวลา',
-                                    projects: '🏗️ โครงการ', payslips: '💰 สลิปเงินเดือน',
-                                    announcements: '📢 ข่าวสาร', holidays: '🏖️ วันหยุด',
-                                    advance_requests: '💳 เบิกเงินกลางเดือน', system_settings: '⚙️ ตั้งค่าระบบ',
-                                    line_chat_state: '💬 LINE Chat State', line_groups: '👥 LINE Groups',
-                                    line_followers: '👤 LINE Followers', face_database: '📸 Face Database'
-                                };
-                                progress.forEach(p => {
-                                    const icon = tableNames[p.table] || p.table;
-                                    if (p.status === 'success') {
-                                        sbLog(`  ✅ ${icon}: ${p.count}/${p.total} รายการ (${p.ms}ms)`, '#34d399');
-                                    } else if (p.status === 'skip') {
-                                        sbLog(`  ⏭️ ${icon}: ${p.message || 'ข้าม'}`, '#94a3b8');
-                                    } else {
-                                        sbLog(`  ❌ ${icon}: ${p.message || 'ผิดพลาด'}`, '#f87171');
-                                    }
-                                });
-                                const okCount = progress.filter(p => p.status === 'success').length;
-                                const totalItems = progress.filter(p => p.status === 'success').reduce((s, p) => s + (p.count || 0), 0);
-                                sbLog(`\n✅ สำเร็จ ${okCount}/${progress.length} ตาราง — ${totalItems} รายการ`, '#34d399');
-                            } else {
-                                sbLog(`✅ ซิงค์สำเร็จ: ${JSON.stringify(data)}`, '#34d399');
-                            }
-                            showToast('✅ ซิงค์ข้อมูลทั้งหมดไป Supabase สำเร็จแล้ว!', 'success');
-                            onSyncComplete(true);
-                        })
-                        .withFailureHandler((err) => {
-                            sbLog(`❌ ซิงค์ล้มเหลว: ${err.message || err}`, '#f87171');
-                            showToast('❌ ซิงค์ล้มเหลว ตรวจสอบ Apps Script Log', 'error');
-                            onSyncComplete(false);
-                        })
-                        .migrateAllDataToSupabase();
+                    tableList = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getMigrationTableList();
+                    });
                 } else {
-                    // ถ้าเปิดในเบราว์เซอร์ปกติ ใช้ fetch ไปยัง GAS API
-                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId || 'admin'}`, { timeout: 300000 });
-                    if (res && res.status === 'success') {
-                        const progress = res?.progress || [];
-                        const d = res?.data || {};
-                        if (progress.length > 0) {
-                            sbLog(`📊 สรุปผล (${res?.totalMs || '-'}ms):`, '#60a5fa');
-                            const tableNames = {
-                                employees: '👥 พนักงาน', time_records: '⏰ เวลางาน',
-                                leave_requests: '📋 คำขอลา', time_corrections: '✏️ แก้ไขเวลา',
-                                projects: '🏗️ โครงการ', payslips: '💰 สลิปเงินเดือน',
-                                announcements: '📢 ข่าวสาร', holidays: '🏖️ วันหยุด',
-                                advance_requests: '💳 เบิกเงินกลางเดือน', system_settings: '⚙️ ตั้งค่าระบบ',
-                                line_chat_state: '💬 LINE Chat State', line_groups: '👥 LINE Groups',
-                                line_followers: '👤 LINE Followers', face_database: '📸 Face Database'
-                            };
-                            progress.forEach(p => {
-                                const icon = tableNames[p.table] || p.table;
-                                if (p.status === 'success') sbLog(`  ✅ ${icon}: ${p.count}/${p.total} (${p.ms}ms)`, '#34d399');
-                                else if (p.status === 'skip') sbLog(`  ⏭️ ${icon}: ข้าม`, '#94a3b8');
-                                else sbLog(`  ❌ ${icon}: ${p.message}`, '#f87171');
+                    const tlRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getTableList`, { timeout: 30000 });
+                    tableList = tlRes?.tables || null;
+                }
+                if (!tableList || !tableList.length) {
+                    sbLog('❌ ไม่สามารถดึงรายการตารางได้', '#f87171');
+                    await onSyncComplete(false);
+                    return;
+                }
+
+                sbLog(`📋 ตารางทั้งหมด ${tableList.length} ตาราง — เริ่มซิงค์ทีละตาราง`, '#60a5fa');
+                const syncT0 = performance.now();
+                let totalSynced = 0, successTables = 0, skipTables = 0, errorTables = 0;
+
+                // 2) วนลูปซิงค์ทีละตาราง
+                for (let i = 0; i < tableList.length; i++) {
+                    const tableName = tableList[i];
+                    const icon = TABLE_ICONS[tableName] || '📊';
+                    const name = TABLE_NAMES[tableName] || tableName;
+                    const progress = `[${i+1}/${tableList.length}]`;
+                    sbLog(`${progress} ${icon} กำลังซิงค์ ${name}...`, '#93c5fd');
+
+                    let result = null;
+                    try {
+                        if (typeof google !== 'undefined' && google.script && google.script.run) {
+                            result = await new Promise((resolve, reject) => {
+                                google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateSingleTable(tableName);
                             });
                         } else {
-                            const timeCount = d.time_records?.count || 0;
-                            sbLog(`✅ ซิงค์สำเร็จ — เวลางาน ${timeCount} รายการ`, '#34d399');
+                            result = await fetchWithTimeout(
+                                `${SERVER_API_URL}?action=migrateTable&table=${tableName}&empId=${currentEmployeeId || 'admin'}`,
+                                { timeout: 600000 } // 10 min per table — ปลอดภัยมาก
+                            );
                         }
-                        showToast('✅ ซิงค์ข้อมูลทั้งหมดไป Supabase สำเร็จ!', 'success');
-                        await onSyncComplete(true);
-                    } else {
-                        sbLog(`⚠️ ${res?.message || 'ซิงค์อาจไม่ครบถ้วน — ตรวจสอบ Apps Script Log'}`, '#fbbf24');
-                        showToast('⚠️ ซิงค์เสร็จสิ้น', 'warning');
-                        await onSyncComplete(false);
+                    } catch (e) {
+                        result = { status: 'error', message: e.message || 'network error' };
                     }
+
+                    if (result && result.status === 'success') {
+                        const count = result.count || 0;
+                        const total = result.total || 0;
+                        const ms = result.ms || 0;
+                        totalSynced += count;
+                        successTables++;
+                        const note = count < total ? ` (⚠️ ${total - count} แถวพลาด)` : '';
+                        sbLog(`  ✅ ${icon} ${name}: ${count}/${total} รายการ (${ms}ms)${note}`, '#34d399');
+                    } else if (result && result.status === 'skip') {
+                        skipTables++;
+                        sbLog(`  ⏭️ ${icon} ${name}: ${result.message || 'ข้าม'}`, '#94a3b8');
+                    } else {
+                        errorTables++;
+                        sbLog(`  ❌ ${icon} ${name}: ${result?.message || 'ผิดพลาด'}`, '#f87171');
+                    }
+                }
+
+                // 3) สรุปผล
+                const totalMs = Math.round(performance.now() - syncT0);
+                sbLog(`\n📊 สรุปผล (${totalMs}ms):`, '#60a5fa');
+                sbLog(`  ✅ สำเร็จ: ${successTables} ตาราง`, '#34d399');
+                if (skipTables > 0) sbLog(`  ⏭️ ข้าม: ${skipTables} ตาราง`, '#94a3b8');
+                if (errorTables > 0) sbLog(`  ❌ ผิดพลาด: ${errorTables} ตาราง`, '#f87171');
+                sbLog(`  📦 รวม: ${totalSynced} รายการ`, '#60a5fa');
+
+                if (errorTables === 0) {
+                    showToast(`✅ ซิงค์สำเร็จ ${successTables} ตาราง (${totalSynced} รายการ)`, 'success');
+                    await onSyncComplete(true);
+                } else {
+                    showToast(`⚠️ ซิงค์เสร็จ: ${successTables} สำเร็จ, ${errorTables} ผิดพลาด`, 'warning');
+                    await onSyncComplete(successTables > 0);
                 }
             } catch (err) {
                 sbLog(`❌ Error: ${err.message}`, '#f87171');
