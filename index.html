@@ -18704,34 +18704,8 @@ ${slip.textSample}
             sbLog('🔄 เริ่มซิงค์ข้อมูล Google Sheets → Supabase...', '#60a5fa');
             showToast('🔄 กำลังซิงค์ข้อมูล...', 'info');
 
-            // Step 0: ตรวจ UNIQUE constraints ก่อนซิงค์
-            try {
-                sbLog('🔧 ตรวจ UNIQUE constraints...');
-                let diagRes = null;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    diagRes = await new Promise((resolve, reject) => {
-                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).diagnoseSupabaseConstraints();
-                    });
-                } else {
-                    diagRes = await fetchWithTimeout('?action=diagnoseConstraints', { timeout: 30000 });
-                }
-                if (diagRes && diagRes.status === 'success' && diagRes.report) {
-                    diagRes.report.forEach(function(r) {
-                        if (r.exists) {
-                            sbLog('  ✅ ' + r.table + ': constraint มีแล้ว');
-                        } else if (r.created) {
-                            sbLog('  🔧 ' + r.table + ': สร้าง constraint สำเร็จ');
-                        } else {
-                            sbLog('  ❌ ' + r.table + ': constraint สร้างไม่สำเร็จ — ' + (r.message || ''));
-                        }
-                    });
-                } else {
-                    sbLog('⚠️ diagnose result: ' + JSON.stringify(diagRes || {}).substring(0, 300));
-                }
-            } catch(e) {
-                sbLog('⚠️ ตรวจ constraints ล้มเหลว: ' + e.message, '#fbbf24');
-                console.error('[DIAG] Constraints check failed:', e);
-            }
+            // Step 0: syncSchema + UNIQUE constraints จะถูกสร้างอัตโนมัติภายใน migrateAllDataToSupabase()
+            sbLog('🔧 UNIQUE constraints + schema sync อัตโนมัติ (ภายในซิงค์)...');
 
             const TABLE_NAMES = {
                 employees: '👥 พนักงาน', time_records: '⏰ เวลางาน',
@@ -18767,22 +18741,22 @@ ${slip.textSample}
                 sbLog(`⚠️ ไม่สามารถตรวจข้อมูล Sheets ได้: ${e.message}`, '#fbbf24');
             }
 
-            // ตรวจจำนวนแถวจริงใน Supabase ก่อน sync
+            // ตรวจจำนวนแถวจริงใน Supabase (ใช้ REST API ตรง — ไม่ผ่าน GAS)
             try {
-                let sbCountRes = null;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    sbCountRes = await new Promise((resolve, reject) => {
-                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).diagnoseSupabaseRowCounts();
-                    });
-                } else {
-                    sbCountRes = await fetchWithTimeout('?action=diagnoseRowCounts', { timeout: 30000 });
-                }
-                if (sbCountRes && sbCountRes.status === 'success' && sbCountRes.counts) {
+                const sbUrl = (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.url) ? SUPABASE_CONFIG.url : (localStorage.getItem('sb_config_url') || '');
+                const sbKey = (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.anonKey) ? SUPABASE_CONFIG.anonKey : (localStorage.getItem('sb_config_anon_key') || '');
+                if (sbUrl && sbKey) {
                     sbLog('📊 ข้อมูลใน Supabase (ปัจจุบัน):', '#a78bfa');
-                    for (const [tbl, cnt] of Object.entries(sbCountRes.counts)) {
-                        const icon = TABLE_NAMES[tbl] || tbl;
-                        const num = typeof cnt === 'number' ? cnt : 0;
-                        sbLog(`  ${icon}: ${num} แถว`, num > 0 ? '#a78bfa' : '#94a3b8');
+                    for (const [tbl, icon] of Object.entries(TABLE_NAMES)) {
+                        try {
+                            const r = await fetch(`${sbUrl}/rest/v1/${tbl}?select=*&limit=1`, {
+                                headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}`, 'Prefer': 'count=exact' }
+                            });
+                            const cr = r.headers.get('content-range') || '';
+                            const match = cr.match(/\/(\d+)/);
+                            const num = match ? parseInt(match[1]) : 0;
+                            sbLog(`  ${icon}: ${num} แถว`, num > 0 ? '#a78bfa' : '#94a3b8');
+                        } catch(e2) { /* skip */ }
                     }
                 }
             } catch(e) {
