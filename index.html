@@ -18763,82 +18763,115 @@ ${slip.textSample}
                 sbLog(`⚠️ ไม่สามารถตรวจ Supabase ได้: ${e.message}`, '#fbbf24');
             }
 
-            async function callMigration() {
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    return await new Promise((resolve, reject) => {
-                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateAllDataToSupabase();
-                    });
-                } else {
-                    return await fetchWithTimeout(
-                        `${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId || 'admin'}`,
-                        { timeout: 600000 }
-                    );
-                }
-            }
-
             try {
-                const maxRounds = 20; // ป้องกัน infinite loop (20 rounds × 6min = 2 ชม.)
-                let round = 0;
-                let totalSyncedAll = 0;
-                let failedTables = [...ALL_TABLES];
-
-                while (failedTables.length > 0 && round < maxRounds) {
-                    round++;
-                    sbLog(`\n🔄 Round ${round} — ซิงค์ ${failedTables.length} ตารางที่ยังไม่สำเร็จ...`, '#60a5fa');
-                    showToast(`🔄 Round ${round}: ซิงค์ ${failedTables.length} ตาราง...`, 'info');
-
-                    let result = null;
-                    try {
-                        result = await callMigration();
-                    } catch (e) {
-                        console.error('[migrateSync] Round', round, 'error:', e);
-                        sbLog(`❌ Round ${round} Error: ${e.message || e}`, '#f87171');
-                        break;
-                    }
-
-                    // วิเคราะห์ progress
-                    const progress = result?.progress || [];
-                    if (progress.length > 0) {
-                        sbLog(`📊 Round ${round} ผลลัพธ์ (${result?.totalMs || '-'}ms):`, '#60a5fa');
-                        progress.forEach(p => {
-                            const icon = TABLE_NAMES[p.table] || p.table;
-                            if (p.status === 'success') {
-                                sbLog(`  ✅ ${icon}: ${p.count}/${p.total} (${p.ms}ms)`, '#34d399');
-                            } else if (p.status === 'skip') {
-                                sbLog(`  ⏭️ ${icon}: ${p.message || 'ข้าม'}`, '#94a3b8');
-                            } else {
-                                sbLog(`  ❌ ${icon}: ${p.message || 'ผิดพลาด'}`, '#f87171');
-                            }
+                // ═══ Step 0: syncSchema + UNIQUE constraints ═══
+                sbLog('🔧 กำลัง sync schema + UNIQUE constraints...', '#a78bfa');
+                try {
+                    let schemaRes = null;
+                    if (typeof google !== 'undefined' && google.script && google.script.run) {
+                        schemaRes = await new Promise((resolve, reject) => {
+                            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).syncSupabaseSchema();
                         });
+                    } else {
+                        schemaRes = await fetchWithTimeout(`${SERVER_API_URL}?action=syncSupabaseSchema&empId=${currentEmployeeId || 'admin'}`, { timeout: 60000 });
                     }
+                    if (schemaRes && schemaRes.status === 'success') {
+                        sbLog('  ✅ Schema sync สำเร็จ', '#34d399');
+                    } else {
+                        sbLog('  ⚠️ Schema sync: ' + JSON.stringify(schemaRes || {}).substring(0, 200), '#fbbf24');
+                    }
+                } catch(e) {
+                    sbLog('  ⚠️ Schema sync error: ' + e.message, '#fbbf24');
+                }
 
-                    // อัปเดต failedTables
-                    failedTables = [];
-                    progress.forEach(p => {
-                        if (p.status === 'error') {
-                            failedTables.push(p.table);
-                        } else {
-                            if (p.status === 'success') totalSyncedAll += (p.count || 0);
+                // ═══ ซิงค์ทีละตาราง — เห็น progress จริง ═══
+                const MAX_RETRIES_PER_TABLE = 3;
+                let totalSynced = 0;
+                let totalFailed = 0;
+                let successCount = 0;
+                let failCount = 0;
+                const syncResults = [];
+
+                async function syncSingleTable(tableName, displayName, retries) {
+                    for (let attempt = 1; attempt <= retries; attempt++) {
+                        try {
+                            const t0 = performance.now();
+                            let res = null;
+                            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                                res = await new Promise((resolve, reject) => {
+                                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateSingleTable(tableName);
+                                });
+                            } else {
+                                res = await fetchWithTimeout(
+                                    `${SERVER_API_URL}?action=migrateTable&table=${tableName}&empId=${currentEmployeeId || 'admin'}`,
+                                    { timeout: 600000 }
+                                );
+                            }
+                            const ms = Math.round(performance.now() - t0);
+                            if (res && res.status === 'success') {
+                                const count = res.count || 0;
+                                const total = res.total || count;
+                                if (res.message && res.message.indexOf('ชีตว่าง') !== -1) {
+                                    sbLog(`  ⏭️ ${displayName}: ชีตว่าง (ข้าม)`, '#94a3b8');
+                                    return { status: 'skip', table: tableName };
+                                }
+                                sbLog(`  ✅ ${displayName}: ${count}/${total} แถว (${ms}ms)`, '#34d399');
+                                return { status: 'success', table: tableName, count: count, total: total, ms: ms };
+                            } else {
+                                const errMsg = res?.message || res?.error || 'ไม่ทราบสาเหตุ';
+                                if (attempt < retries) {
+                                    sbLog(`  ⚠️ ${displayName}: ล้มเหลว (attempt ${attempt}/${retries}) — ลองใหม่...`, '#fbbf24');
+                                    await new Promise(r => setTimeout(r, 2000 * attempt));
+                                } else {
+                                    sbLog(`  ❌ ${displayName}: ${errMsg}`, '#f87171');
+                                    return { status: 'error', table: tableName, message: errMsg };
+                                }
+                            }
+                        } catch (e) {
+                            if (attempt < retries) {
+                                sbLog(`  ⚠️ ${displayName}: Error (attempt ${attempt}/${retries}) — ลองใหม่...`, '#fbbf24');
+                                await new Promise(r => setTimeout(r, 2000 * attempt));
+                            } else {
+                                sbLog(`  ❌ ${displayName}: ${e.message || e}`, '#f87171');
+                                return { status: 'error', table: tableName, message: e.message };
+                            }
                         }
-                    });
+                    }
+                    return { status: 'error', table: tableName, message: 'max retries' };
+                }
 
-                    if (failedTables.length > 0) {
-                        sbLog(`⚠️ Round ${round}: ${failedTables.length} ตารางยังล้มเหลว — ลอง Round ${round + 1}...`, '#fbbf24');
-                        showToast(`⚠️ Round ${round}: ${failedTables.length} ตารางล้มเหลว — ลองใหม่...`, 'warning');
-                        // รอ 3 วินาทีก่อนรอบถัดไป
-                        await new Promise(r => setTimeout(r, 3000));
+                const startTime = performance.now();
+                for (let i = 0; i < ALL_TABLES.length; i++) {
+                    const tbl = ALL_TABLES[i];
+                    const icon = TABLE_NAMES[tbl];
+                    const num = `${i + 1}/${ALL_TABLES.length}`;
+                    sbLog(`[${num}] ${icon} กำลังซิงค์...`, '#60a5fa');
+                    showToast(`🔄 [${num}] ${icon}...`, 'info');
+                    const result = await syncSingleTable(tbl, `${icon} (${num})`, MAX_RETRIES_PER_TABLE);
+                    syncResults.push(result);
+                    if (result.status === 'success') {
+                        totalSynced += result.count || 0;
+                        successCount++;
+                    } else if (result.status === 'error') {
+                        totalFailed++;
                     }
                 }
+                const totalMs = Math.round(performance.now() - startTime);
 
                 // สรุปผล
                 sbLog(`\n═══════════════════════════════════`, '#60a5fa');
-                if (failedTables.length === 0) {
-                    sbLog(`✅ ซิงค์ครบทุกตารางใน ${round} rounds! (${totalSyncedAll} รายการ)`, '#34d399');
-                    showToast(`✅ ซิงค์ครบทุกตาราง (${round} rounds, ${totalSyncedAll} รายการ)`, 'success');
+                sbLog(`📊 สรุปผล (${totalMs}ms):`, '#60a5fa');
+                sbLog(`  ✅ สำเร็จ: ${successCount} ตาราง`, '#34d399');
+                if (totalFailed > 0) sbLog(`  ❌ ผิดพลาด: ${totalFailed} ตาราง`, '#f87171');
+                sbLog(`  📦 รวม: ${totalSynced} รายการ`, '#60a5fa');
+                if (totalFailed === 0) {
+                    sbLog(`✅ ซิงค์ครบทุกตาราง!`, '#34d399');
+                    showToast(`✅ ซิงค์สำเร็จ ${successCount} ตาราง (${totalSynced} รายการ)`, 'success');
                     await onSyncComplete(true);
                 } else {
-                    sbLog(`❌ ยังล้มเหลว ${failedTables.length} ตาราง: ${failedTables.join(', ')}`, '#f87171');
-                    showToast(`❌ ซิงค์ไม่ครบ ${failedTables.length} ตาราง`, 'error');
+                    const failedNames = syncResults.filter(r => r.status === 'error').map(r => r.table);
+                    sbLog(`❌ ยังล้มเหลว ${totalFailed} ตาราง: ${failedNames.join(', ')}`, '#f87171');
+                    showToast(`❌ ซิงค์ไม่ครบ ${totalFailed} ตาราง`, 'error');
                     await onSyncComplete(false);
                 }
             } catch (err) {
