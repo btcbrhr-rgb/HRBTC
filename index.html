@@ -10500,6 +10500,51 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return (empId || "").toString().trim().toLowerCase() === 'admin';
             }
 
+            // 🔒 ตรวจสอบว่าผู้ใช้มีสิทธิ์เข้าถึงเมนู admin นี้หรือไม่
+            function hasAdminMenuPermission(menuId) {
+                const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+                // Administrator เข้าถึงได้ทุกเมนู
+                if (isAdminRole(role)) return true;
+                // admin:home,calendar format — ตรวจ sub-permissions
+                if (role.toLowerCase().startsWith('admin:')) {
+                    const sub = role.split(":")[1];
+                    if (sub) {
+                        const allowed = sub.split(",").map(s => s.trim().toLowerCase());
+                        return allowed.includes(menuId.toLowerCase());
+                    }
+                }
+                return false;
+            }
+
+            // 🔒 ซ่อน/แสดงเมนู admin ตามสิทธิ์
+            function filterAdminMenusByPermission(role) {
+                // Administrator เห็นทุกเมนู — แสดงทั้งหมด
+                if (isAdminRole(role)) {
+                    document.querySelectorAll('[id^="admin-menu-"]').forEach(el => el.closest('.space-y-1')?.querySelector('button') && (el.style.display = ''));
+                    return;
+                }
+                // แผนที่เมนู id → sub-permission key
+                const menuPermMap = {
+                    'dashboard': 'dashboard', 'import-time': 'import', 'import-payslip': 'payslip',
+                    'project-cost': 'calendar', 'scan-devices': 'scan',
+                    'approve-leave': 'leave', 'approve-correction': 'correction', 'approve-advance': 'advance',
+                    'announcements': 'announcement', 'employees': 'employees', 'settings': 'settings'
+                };
+                // ดึง sub-permissions จาก role string
+                let allowed = [];
+                if (role.toLowerCase().startsWith('admin:')) {
+                    const sub = role.split(":")[1];
+                    if (sub) allowed = sub.split(",").map(s => s.trim().toLowerCase());
+                }
+                // แสดง/ซ่อนเมนู
+                Object.entries(menuPermMap).forEach(([menuId, permKey]) => {
+                    const btn = document.getElementById(`admin-menu-${menuId}`);
+                    if (!btn) return;
+                    const hasPermission = allowed.length === 0 || allowed.includes(permKey);
+                    btn.style.display = hasPermission ? '' : 'none';
+                });
+            }
+
             function enterAdminMode() {
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
                 const hasAdminPermission = isAdminRole(role) || isAdminLoginAccount(currentEmployeeId);
@@ -10572,9 +10617,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // ซ่อนตัวเลือกเดือนเมื่อเข้าโหมดแอดมิน
                     if (switcher) switcher.classList.add("hidden");
 
-                    // อัปเดตข้อมูลผู้ใช้ในแถบเมนูแอดมิน
-                    document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
-                    document.getElementById("admin-profile-role").textContent = role || "Administrator";
+                // อัปเดตข้อมูลผู้ใช้ในแถบเมนูแอดมิน
+                document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
+                document.getElementById("admin-profile-role").textContent = role || "Administrator";
+
+                // 🔒 ซ่อนเมนูที่ไม่มีสิทธิ์ (เฉพาะ admin ที่ไม่ใช่ Administrator)
+                filterAdminMenusByPermission(role);
 
                     // ปิด Drawer บนมือถือไว้ก่อนเป็นค่าเริ่มต้น
                     toggleAdminMobileSidebar(false);
@@ -10597,6 +10645,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // สลับแท็บการทำงานในหน้าจอผู้ดูแลระบบ
             function switchAdminTab(tabId) {
+                // 🔒 ตรวจสอบสิทธิ์เมนูย่อย (เฉพาะ admin ที่ไม่ใช่ Administrator)
+                if (!hasAdminMenuPermission(tabId)) {
+                    showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงเมนูนี้", "warning");
+                    return;
+                }
                 adminActiveTab = tabId;
 
                 // ซ่อน Drawer เมนูบนมือถือเมื่อเลือกแท็บ
@@ -11906,14 +11959,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             // Now close modal (only after every item finished)
                             closeDecisionModal();
 
-                            // Update stat cards to reflect the reduced pending count
-                            updateApprovalStatCards();
-
-                            // No full table refresh here — we already dropped
-                            // the approved rows one by one inside the loop via
-                            // removeApprovalPendingRow(), so the pending list is
-                            // already in sync. loadAllData() would be a heavy
-                            // re-fetch of every dataset and is unnecessary.
+                            // Always reload pending list from Supabase to stay in sync
+                            // (removeApprovalPendingRow may fail for duplicate rows or key mismatches)
+                            loadAdminApprovals();
                         } catch (err) {
                             if (noteEl) noteEl.disabled = false;
                             if (approverSel) approverSel.disabled = false;
@@ -11971,6 +12019,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 if (!removeApprovalPendingRow(type, rowKey)) {
                                     loadAdminApprovals();
                                 }
+                                updateApprovalStatCards();
                                 if (type === 'correction') {
                                     await loadAllData();
                                 }
