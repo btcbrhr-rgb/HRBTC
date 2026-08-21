@@ -6347,13 +6347,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 isPWAApp = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
                 localStorage.setItem("isPWAApp", isPWAApp ? "true" : "false");
 
-                // ⚡ ตรวจสอบ Supabase ว่างเปล่า (เร็ว < 100ms) — แสดงการแจ้งเตือนถ้าต้องซิงค์
-                checkSupabaseIsEmpty().then(isEmpty => {
-                    if (isEmpty) {
-                        // แสดง banner หลัง login page โหลดเสร็จ
-                        setTimeout(() => showSupabaseSyncBanner(), 600);
-                    }
-                });
+                // ⚡ ตรวจสอบ Supabase ว่างเปล่า (เร็ว < 100ms) — เก็บค่าไว้ก่อน ไม่แสดง Banner ที่หน้า Login
+                checkSupabaseIsEmpty();
 
                 // 🌐 อ่าน URL Query Parameters สำหรับ Deep Linking จาก LINE Flex Message
                 const urlParams = new URLSearchParams(window.location.search);
@@ -6423,6 +6418,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const autoAdminUser = isAdminLoginAccount(currentEmployeeId);
                     if (autoLoadSuccess && autoAdminUser && !urlTab && !urlModal) {
                         enterAdminMode();
+                        // ⚡ แจ้ง Admin ถ้า Supabase ว่างเปล่า (auto-login path)
+                        if (supabaseIsEmpty) {
+                            setTimeout(() => {
+                                showToast('⚠️ Supabase ว่างเปล่า — ไปที่เมนูตั้งค่าเพื่อซิงค์ข้อมูล', 'warning');
+                                showSupabaseSyncBanner();
+                            }, 1200);
+                        }
                     } else {
                         navigateTo(targetPage);
                         // ถ้ามีคำขอเปิด Modal หรือแบบฟอร์มพิเศษ
