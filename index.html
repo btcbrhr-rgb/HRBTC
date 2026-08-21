@@ -2695,15 +2695,15 @@
                         </div>
                     </div>
 
-                    <!-- ตารางสรุปเวลา 12 เดือน -->
+                    <!-- ตารางสรุปเวลา 12 เดือน (Tabbed View) -->
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
                                 <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
                                     <i class="fa-solid fa-calendar-days text-brand-teal"></i>
-                                    รายละเอียดตารางเวลา 12 เดือน
+                                    ตารางเวลางาน 12 เดือน
                                 </h3>
-                                <p class="text-xs text-slate-500 mt-1">สรุปข้อมูลการลงเวลาเข้างานของพนักงานรายเดือน ตลอดทั้งปี</p>
+                                <p class="text-xs text-slate-500 mt-1">ดูและแก้ไขข้อมูลการลงเวลาเข้างานรายเดือน ตลอดทั้งปี</p>
                             </div>
                             <div class="flex items-center gap-2">
                                 <label class="text-xs font-bold text-slate-500">ปี:</label>
@@ -2743,11 +2743,36 @@
                                 <p class="text-xl font-bold text-brand-deep mt-1" id="yov-ot-hours">-</p>
                             </div>
                         </div>
-                        <!-- 12 Months Grid -->
-                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" id="yearly-overview-months">
-                            <div class="col-span-full py-8 text-center text-slate-400 text-xs italic">
-                                <i class="fa-solid fa-spinner fa-spin text-lg mb-2 block"></i>
-                                กำลังโหลดข้อมูล...
+                        <!-- 12 Month Tabs -->
+                        <div class="flex gap-1 overflow-x-auto pb-1 scrollbar-thin" id="yearly-month-tabs"></div>
+                        <!-- Table for selected month -->
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                            <div class="hr-table-search-bar">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" placeholder="ค้นหารหัสพนักงาน, ชื่อ, สถานะ..." oninput="hrTableFilter('yearly-attendance-body', this.value, 'yearly-attendance-count')" aria-label="ค้นหาข้อมูลเวลางาน">
+                                <span class="row-count" id="yearly-attendance-count"></span>
+                            </div>
+                            <div class="hr-table-wrap overflow-x-auto">
+                                <table class="hr-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="!text-center">รหัสพนักงาน</th>
+                                            <th>วันที่</th>
+                                            <th class="!text-center">เวลาเข้า</th>
+                                            <th class="!text-center">เวลาออก</th>
+                                            <th class="!text-center">สถานะ</th>
+                                            <th class="!text-center">สาย (นาที)</th>
+                                            <th class="!text-center">OT (ชม.)</th>
+                                            <th class="!text-center">โครงการ</th>
+                                            <th class="!text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="yearly-attendance-body">
+                                        <tr class="tbl-empty-row">
+                                            <td colspan="9">เลือกเดือนเพื่อแสดงข้อมูล</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -12856,9 +12881,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     updateTxtImportButtonsState();
                 }
 
-                // ═══ ตารางสรุปเวลา 12 เดือน ═══
+                // ═══ ตารางเวลางาน 12 เดือน (Tabbed + Editable) ═══
                 const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
                 const THAI_MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+                let yearlyMonthDataCache = {}; // { 'YYYY-MM': [records] }
+                let yearlySelectedMonth = null;
 
                 function initYearSelector() {
                     const sel = document.getElementById('yearly-overview-year');
@@ -12873,72 +12900,106 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 }
 
+                function getYearlyMonthTabsHtml(year) {
+                    const now = new Date();
+                    const thisMonth = now.getMonth() + 1;
+                    const thisYear = now.getFullYear();
+                    let html = '';
+                    for (let m = 1; m <= 12; m++) {
+                        const isCurrent = (m === thisMonth && year == thisYear);
+                        const isActive = (m === (yearlySelectedMonth || thisMonth));
+                        const badge = isCurrent ? ' <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>' : '';
+                        html += `<button onclick="selectYearlyMonth(${m})" data-month="${m}"
+                            class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap
+                            ${isActive ? 'bg-brand-deep text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                            ${THAI_MONTHS_SHORT[m - 1]}${badge}
+                        </button>`;
+                    }
+                    return html;
+                }
+
                 async function loadYearlyAttendanceOverview() {
                     initYearSelector();
                     const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
-                    const grid = document.getElementById('yearly-overview-months');
-                    if (!grid) return;
+                    yearlyMonthDataCache = {};
+                    yearlySelectedMonth = yearlySelectedMonth || (new Date().getMonth() + 1);
 
-                    grid.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400 text-xs italic"><i class="fa-solid fa-spinner fa-spin text-lg mb-2 block"></i>กำลังโหลดข้อมูล...</div>';
+                    // แสดง tabs
+                    const tabsEl = document.getElementById('yearly-month-tabs');
+                    if (tabsEl) tabsEl.innerHTML = getYearlyMonthTabsHtml(year);
 
-                    // สร้าง billing month values สำหรับ 12 เดือน (รอบบัญชี 26-25)
-                    const monthData = [];
-                    for (let m = 1; m <= 12; m++) {
-                        // billing month = เดือนถัดไป (26 ม.ค. - 25 ก.พ. = billing Feb)
-                        const billingM = m + 1 > 12 ? 1 : m + 1;
-                        const billingY = m + 1 > 12 ? year + 1 : year;
-                        const billingMonthVal = `${billingY}-${String(billingM).padStart(2, '0')}`;
-                        monthData.push({ month: m, billingMonth: billingMonthVal, year });
-                    }
+                    // โหลดข้อมูลเดือนแรกทันที
+                    await loadYearlyMonthRecords(yearlySelectedMonth, year);
+                }
 
-                    // โหลดข้อมูลทีละเดือนแบบ parallel (batch 4 ครั้ง)
-                    const allMonthStats = [];
-                    const batchSize = 4;
-                    for (let b = 0; b < monthData.length; b += batchSize) {
-                        const batch = monthData.slice(b, b + batchSize);
-                        const promises = batch.map(async (md) => {
-                            try {
-                                const res = await fetchWithTimeout(
-                                    `${SERVER_API_URL}?action=getProjectCostData&empId=${currentEmployeeId}&month=${md.billingMonth}`,
-                                    { timeout: 30000 }
-                                );
-                                if (res && res.status === 'success' && res.data && Array.isArray(res.data.attendance)) {
-                                    return { month: md.month, records: res.data.attendance };
-                                }
-                            } catch (e) {
-                                console.warn(`[YearlyOverview] Failed to load month ${md.month}:`, e.message);
-                            }
-                            return { month: md.month, records: [] };
-                        });
-                        const results = await Promise.all(promises);
-                        allMonthStats.push(...results);
-                    }
+                async function selectYearlyMonth(month) {
+                    yearlySelectedMonth = month;
+                    const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
 
-                    // คำนวณสถิติแต่ละเดือน
-                    let totalDays = 0, totalPresent = 0, totalLate = 0, totalAbsent = 0, totalLeave = 0, totalOT = 0;
-                    const monthStats = allMonthStats.map(ms => {
-                        const recs = ms.records || [];
-                        let present = 0, late = 0, absent = 0, leave = 0, ot = 0, workDays = 0;
-                        recs.forEach(r => {
-                            const status = (r['สถานะสรุป'] || r['status'] || '').toString().trim();
-                            const timeIn = r['เวลาเข้า'] || r['time_in'] || '';
-                            const timeOut = r['เวลาออก'] || r['time_out'] || '';
-                            const lateMin = parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0;
-                            const otHrs = parseFloat(r['ชั่วโมง OT'] || r['ot_hours'] || 0) || 0;
-
-                            workDays++;
-                            if (status === 'ย' || status === 'นข') return; // วันหยุด
-                            if (status === 'A' || status === 'B-' || status === 'H-' || status === 'S-') { absent++; return; }
-                            if (status.includes('ลา') || status === 'B+' || status === 'H+' || status === 'S+' || status === 'SM+' || status === 'A½' || status === 'P½') { leave++; return; }
-                            if (timeIn && timeOut) { present++; if (lateMin > 0) late++; ot += otHrs; }
-                            else if (timeIn && !timeOut) { present++; } // MO
-                            else if (!timeIn && timeOut) { present++; } // MI
-                        });
-                        totalDays += workDays; totalPresent += present; totalLate += late; totalAbsent += absent; totalLeave += leave; totalOT += ot;
-                        return { month: ms.month, workDays, present, late, absent, leave, ot: Math.round(ot * 10) / 10, totalRecords: recs.length };
+                    // อัปเดต tab active
+                    document.querySelectorAll('#yearly-month-tabs button').forEach(btn => {
+                        const m = parseInt(btn.dataset.month);
+                        if (m === month) {
+                            btn.className = btn.className.replace('bg-slate-100 text-slate-600 hover:bg-slate-200', 'bg-brand-deep text-white shadow-md');
+                        } else {
+                            btn.className = btn.className.replace('bg-brand-deep text-white shadow-md', 'bg-slate-100 text-slate-600 hover:bg-slate-200');
+                        }
                     });
 
-                    // อัปเดต Summary Row
+                    await loadYearlyMonthRecords(month, year);
+                }
+
+                async function loadYearlyMonthRecords(month, year) {
+                    const billingM = month + 1 > 12 ? 1 : month + 1;
+                    const billingY = month + 1 > 12 ? year + 1 : year;
+                    const billingMonthVal = `${billingY}-${String(billingM).padStart(2, '0')}`;
+                    const cacheKey = billingMonthVal;
+                    const tbody = document.getElementById('yearly-attendance-body');
+                    if (!tbody) return;
+
+                    // แสดง loading
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลเดือน ' + THAI_MONTHS_FULL[month - 1] + '...</td></tr>';
+
+                    // ใช้ cache ถ้ามี
+                    if (yearlyMonthDataCache[cacheKey]) {
+                        renderYearlyMonthTable(yearlyMonthDataCache[cacheKey], month, year);
+                        return;
+                    }
+
+                    try {
+                        const res = await fetchWithTimeout(
+                            `${SERVER_API_URL}?action=getProjectCostData&empId=${currentEmployeeId}&month=${billingMonthVal}`,
+                            { timeout: 30000 }
+                        );
+                        if (res && res.status === 'success' && res.data && Array.isArray(res.data.attendance)) {
+                            yearlyMonthDataCache[cacheKey] = res.data.attendance;
+                            renderYearlyMonthTable(res.data.attendance, month, year);
+                        } else {
+                            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลเวลางานเดือนนี้</td></tr>';
+                        }
+                    } catch (e) {
+                        console.warn('[YearlyOverview] Load failed:', e.message);
+                        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-rose-400 italic">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+                    }
+                }
+
+                function renderYearlyMonthTable(records, month, year) {
+                    const tbody = document.getElementById('yearly-attendance-body');
+                    if (!tbody) return;
+
+                    // อัปเดต summary
+                    let totalDays = 0, totalPresent = 0, totalLate = 0, totalAbsent = 0, totalLeave = 0, totalOT = 0;
+                    records.forEach(r => {
+                        const status = (r['สถานะสรุป'] || r['status'] || '').toString().trim();
+                        const timeIn = r['เวลาเข้า'] || r['time_in'] || '';
+                        const lateMin = parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0;
+                        const otHrs = parseFloat(r['ชั่วโมง OT'] || r['ot_hours'] || 0) || 0;
+                        totalDays++;
+                        if (status === 'ย' || status === 'นข') return;
+                        if (['A','B-','H-','S-'].includes(status)) { totalAbsent++; return; }
+                        if (status.includes('ลา') || ['B+','H+','S+','SM+','A\u00BD','P\u00BD'].includes(status)) { totalLeave++; return; }
+                        if (timeIn) { totalPresent++; if (lateMin > 0) totalLate++; totalOT += otHrs; }
+                    });
                     document.getElementById('yov-total-days').textContent = totalDays || '-';
                     document.getElementById('yov-present-days').textContent = totalPresent || '-';
                     document.getElementById('yov-late-days').textContent = totalLate || '-';
@@ -12946,58 +13007,173 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     document.getElementById('yov-leave-days').textContent = totalLeave || '-';
                     document.getElementById('yov-ot-hours').textContent = totalOT > 0 ? totalOT.toFixed(1) : '-';
 
-                    // สร้าง Month Cards
-                    grid.innerHTML = '';
-                    monthStats.forEach(ms => {
-                        const pct = ms.workDays > 0 ? Math.round((ms.present / ms.workDays) * 100) : 0;
-                        const pctColor = pct >= 90 ? 'text-emerald-600' : pct >= 70 ? 'text-amber-600' : 'text-rose-600';
-                        const barColor = pct >= 90 ? 'bg-emerald-500' : pct >= 70 ? 'bg-amber-500' : 'bg-rose-500';
+                    if (!records || records.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลเวลางานเดือนนี้</td></tr>';
+                        return;
+                    }
 
-                        const card = document.createElement('div');
-                        card.className = 'bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md hover:border-brand-teal/30 transition-all cursor-default';
-                        card.innerHTML = `
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-8 h-8 rounded-lg bg-brand-sky flex items-center justify-center">
-                                        <span class="text-xs font-bold text-brand-deep">${ms.month}</span>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs font-bold text-slate-800">${THAI_MONTHS_SHORT[ms.month - 1]}</p>
-                                        <p class="text-[10px] text-slate-400">${THAI_MONTHS_FULL[ms.month - 1]} ${year}</p>
-                                    </div>
-                                </div>
-                                <span class="text-lg font-bold ${pctColor}">${pct}%</span>
-                            </div>
-                            <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
-                                <div class="h-full ${barColor} rounded-full transition-all" style="width:${pct}%"></div>
-                            </div>
-                            <div class="grid grid-cols-3 gap-1.5 text-center">
-                                <div class="bg-blue-50 rounded-lg py-1.5 px-1">
-                                    <p class="text-[10px] text-blue-500 font-bold">เข้างาน</p>
-                                    <p class="text-sm font-bold text-blue-700">${ms.present}</p>
-                                </div>
-                                <div class="bg-amber-50 rounded-lg py-1.5 px-1">
-                                    <p class="text-[10px] text-amber-500 font-bold">สาย</p>
-                                    <p class="text-sm font-bold text-amber-700">${ms.late}</p>
-                                </div>
-                                <div class="bg-rose-50 rounded-lg py-1.5 px-1">
-                                    <p class="text-[10px] text-rose-500 font-bold">ขาด</p>
-                                    <p class="text-sm font-bold text-rose-700">${ms.absent}</p>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-1.5 text-center mt-1.5">
-                                <div class="bg-violet-50 rounded-lg py-1.5 px-1">
-                                    <p class="text-[10px] text-violet-500 font-bold">ลา</p>
-                                    <p class="text-sm font-bold text-violet-700">${ms.leave}</p>
-                                </div>
-                                <div class="bg-brand-sky rounded-lg py-1.5 px-1">
-                                    <p class="text-[10px] text-brand-deep font-bold">OT</p>
-                                    <p class="text-sm font-bold text-brand-deep">${ms.ot} ชม.</p>
-                                </div>
-                            </div>
-                        `;
-                        grid.appendChild(card);
+                    // สร้างตาราง
+                    let html = '';
+                    records.forEach((r, idx) => {
+                        const empId = (r['รหัสพนักงาน'] || r.empId || '').toString().trim();
+                        const date = (r['วันที่'] || r.date || '').toString().trim();
+                        const timeIn = (r['เวลาเข้า'] || r.time_in || '').toString().trim();
+                        const timeOut = (r['เวลาออก'] || r.time_out || '').toString().trim();
+                        const status = (r['สถานะสรุป'] || r.status || '').toString().trim();
+                        const late = (r['นาทีสาย'] || r.late_minutes || 0);
+                        const ot = (r['ชั่วโมง OT'] || r.ot_hours || 0);
+                        const project = (r['โครงการ (เข้า)'] || r.project_in || '').toString().trim();
+
+                        // Status badge color
+                        let statusBadge = '';
+                        if (status === 'W' || status === 'ปกติ') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">ปกติ</span>';
+                        else if (status === 'L' || status === 'สาย') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">สาย</span>';
+                        else if (status === 'A' || status === 'ขาด') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">ขาด</span>';
+                        else if (status === 'MI') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700">MI</span>';
+                        else if (status === 'MO') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700">MO</span>';
+                        else if (status === 'ย' || status === 'นข') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">หยุด</span>';
+                        else statusBadge = `<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">${escapeHtml(status)}</span>`;
+
+                        html += `<tr id="yearly-row-${idx}" class="group">
+                            <td class="text-center font-bold text-brand-deep">${escapeHtml(empId)}</td>
+                            <td>${escapeHtml(date)}</td>
+                            <td class="text-center">
+                                <input type="text" value="${escapeHtml(timeIn)}" 
+                                    class="yearly-edit-field w-20 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
+                                    data-field="timeIn" data-idx="${idx}" placeholder="HH:MM">
+                            </td>
+                            <td class="text-center">
+                                <input type="text" value="${escapeHtml(timeOut)}"
+                                    class="yearly-edit-field w-20 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
+                                    data-field="timeOut" data-idx="${idx}" placeholder="HH:MM">
+                            </td>
+                            <td class="text-center">
+                                <select class="yearly-edit-field text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
+                                    data-field="status" data-idx="${idx}">
+                                    <option value="W" ${status==='W'||status==='ปกติ'?'selected':''}>W - ปกติ</option>
+                                    <option value="L" ${status==='L'||status==='สาย'?'selected':''}>L - สาย</option>
+                                    <option value="A" ${status==='A'||status==='ขาด'?'selected':''}>A - ขาด</option>
+                                    <option value="MI" ${status==='MI'?'selected':''}>MI - ลืมเข้า</option>
+                                    <option value="MO" ${status==='MO'?'selected':''}>MO - ลืมออก</option>
+                                    <option value="B+" ${status==='B+'?'selected':''}>B+ - ลากิจ</option>
+                                    <option value="H+" ${status==='H+'?'selected':''}>H+ - ลาพักร้อน</option>
+                                    <option value="S+" ${status==='S+'?'selected':''}>S+ - ลาป่วย</option>
+                                    <option value="SM+" ${status==='SM+'?'selected':''}>SM+ - ลาป่วย+ใบรับรอง</option>
+                                    <option value="A\u00BD" ${status==='A\u00BD'?'selected':''}>A\u00BD - ลาครึ่งเช้า</option>
+                                    <option value="P\u00BD" ${status==='P\u00BD'?'selected':''}>P\u00BD - ลาครึ่งบ่าย</option>
+                                    <option value="ย" ${status==='ย'?'selected':''}>ย - วันหยุด</option>
+                                    <option value="นข" ${status==='นข'?'selected':''}>นข - วันหยุดนักขัตฤกษ์</option>
+                                </select>
+                            </td>
+                            <td class="text-center">
+                                <input type="number" value="${late}" min="0"
+                                    class="yearly-edit-field w-16 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
+                                    data-field="late" data-idx="${idx}">
+                            </td>
+                            <td class="text-center">
+                                <input type="number" value="${ot}" min="0" step="0.5"
+                                    class="yearly-edit-field w-16 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
+                                    data-field="ot" data-idx="${idx}">
+                            </td>
+                            <td class="text-center text-xs">${escapeHtml(project)}</td>
+                            <td class="text-center">
+                                <button onclick="saveYearlyRecord(${idx}, '${escapeHtml(empId)}', '${escapeHtml(date)}')" 
+                                    class="px-2.5 py-1 bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">
+                                    <i class="fa-solid fa-check mr-1"></i>บันทึก
+                                </button>
+                            </td>
+                        </tr>`;
                     });
+                    tbody.innerHTML = html;
+                }
+
+                async function saveYearlyRecord(idx, empId, date) {
+                    const billingM = yearlySelectedMonth + 1 > 12 ? 1 : yearlySelectedMonth + 1;
+                    const billingY = yearlySelectedMonth + 1 > 12 ? (parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear()) + 1) : parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
+                    const billingMonthVal = `${billingY}-${String(billingM).padStart(2, '0')}`;
+                    const cacheKey = billingMonthVal;
+                    const records = yearlyMonthDataCache[cacheKey];
+                    if (!records || !records[idx]) return;
+
+                    const row = document.getElementById(`yearly-row-${idx}`);
+                    if (!row) return;
+                    const inputs = row.querySelectorAll('.yearly-edit-field');
+                    const updates = {};
+                    inputs.forEach(inp => { updates[inp.dataset.field] = inp.value; });
+
+                    // อัปเดต cache ทันที (optimistic)
+                    const rec = records[idx];
+                    if (updates.timeIn !== undefined) rec['เวลาเข้า'] = updates.timeIn;
+                    if (updates.timeOut !== undefined) rec['เวลาออก'] = updates.timeOut;
+                    if (updates.status !== undefined) rec['สถานะสรุป'] = updates.status;
+                    if (updates.late !== undefined) rec['นาทีสาย'] = parseInt(updates.late) || 0;
+                    if (updates.ot !== undefined) rec['ชั่วโมง OT'] = parseFloat(updates.ot) || 0;
+
+                    // แสดง loading บนปุ่ม
+                    const btn = row.querySelector('button');
+                    if (btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>บันทึก...'; btn.disabled = true; }
+
+                    try {
+                        // ใช้ reapplyTimeCorrection (admin direct edit) หรือ submitTimeCorrection
+                        const timeInNew = updates.timeIn || rec['เวลาเข้า'] || '08:00:00';
+                        const timeOutNew = updates.timeOut || rec['เวลาออก'] || '17:00:00';
+                        const reason = `Admin แก้ไขข้อมูลเวลางาน (เดือน ${THAI_MONTHS_SHORT[yearlySelectedMonth - 1]})`;
+
+                        // ส่งคำขอแก้ไขเวลา (auto-approve โดย admin)
+                        const submitRes = await fetchWithTimeout(SERVER_API_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'submitTimeCorrection',
+                                empId: empId,
+                                date: date,
+                                timeInNew: timeInNew,
+                                timeOutNew: timeOutNew,
+                                project: rec['โครงการ (เข้า)'] || rec['project_in'] || '',
+                                reason: reason
+                            })
+                        });
+
+                        if (submitRes && submitRes.status === 'success') {
+                            // Auto-approve
+                            const approveRes = await fetchWithTimeout(SERVER_API_URL, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    action: 'approveTimeCorrection',
+                                    empId: empId,
+                                    date: date,
+                                    status: 'อนุมัติแล้ว',
+                                    approvedBy: currentEmployeeId || 'Admin',
+                                    note: reason
+                                })
+                            });
+                            if (approveRes && approveRes.status === 'success') {
+                                showToast(`บันทึกข้อมูล ${empId} วันที่ ${date} สำเร็จ`, 'success');
+                            } else {
+                                showToast(`บันทึกคำขอแก้ไขสำเร็จ แต่การอนุมัติล้มเหลว`, 'warning');
+                            }
+                        } else {
+                            showToast(submitRes?.message || 'เกิดข้อผิดพลาดในการบันทึก', 'error');
+                        }
+
+                        // แสดงปุ่มสำเร็จชั่วคราว
+                        if (btn) {
+                            btn.innerHTML = '<i class="fa-solid fa-check-double mr-1"></i>บันทึกแล้ว';
+                            btn.disabled = false;
+                            btn.classList.remove('bg-brand-deep', 'hover:bg-brand-teal');
+                            btn.classList.add('bg-emerald-500');
+                            setTimeout(() => {
+                                btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>บันทึก';
+                                btn.classList.remove('bg-emerald-500');
+                                btn.classList.add('bg-brand-deep', 'hover:bg-brand-teal');
+                            }, 2000);
+                        }
+                    } catch (e) {
+                        console.error('[YearlyOverview] Save failed:', e);
+                        showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+                        if (btn) { btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i>บันทึก'; btn.disabled = false; }
+                    }
                 }
 
                 async function processTxtImport(dryRun = true) {
