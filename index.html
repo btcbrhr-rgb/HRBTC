@@ -18714,8 +18714,37 @@ ${slip.textSample}
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
                     google.script.run
                         .withSuccessHandler((result) => {
-                            sbLog(`✅ ซิงค์สำเร็จ: ${JSON.stringify(result?.data || result)}`, '#34d399');
-                            showToast('✅ ซิงค์ข้อมูลไป Supabase สำเร็จแล้ว!', 'success');
+                            // แสดง progress แต่ละตาราง
+                            const progress = result?.progress || [];
+                            const data = result?.data || {};
+                            if (progress.length > 0) {
+                                sbLog(`\n📊 สรุปผลการซิงค์ (${result?.totalMs || '-'}ms):`, '#60a5fa');
+                                const tableNames = {
+                                    employees: '👥 พนักงาน', time_records: '⏰ เวลางาน',
+                                    leave_requests: '📋 คำขอลา', time_corrections: '✏️ แก้ไขเวลา',
+                                    projects: '🏗️ โครงการ', payslips: '💰 สลิปเงินเดือน',
+                                    announcements: '📢 ข่าวสาร', holidays: '🏖️ วันหยุด',
+                                    advance_requests: '💳 เบิกเงินกลางเดือน', system_settings: '⚙️ ตั้งค่าระบบ',
+                                    line_chat_state: '💬 LINE Chat State', line_groups: '👥 LINE Groups',
+                                    line_followers: '👤 LINE Followers', face_database: '📸 Face Database'
+                                };
+                                progress.forEach(p => {
+                                    const icon = tableNames[p.table] || p.table;
+                                    if (p.status === 'success') {
+                                        sbLog(`  ✅ ${icon}: ${p.count}/${p.total} รายการ (${p.ms}ms)`, '#34d399');
+                                    } else if (p.status === 'skip') {
+                                        sbLog(`  ⏭️ ${icon}: ${p.message || 'ข้าม'}`, '#94a3b8');
+                                    } else {
+                                        sbLog(`  ❌ ${icon}: ${p.message || 'ผิดพลาด'}`, '#f87171');
+                                    }
+                                });
+                                const okCount = progress.filter(p => p.status === 'success').length;
+                                const totalItems = progress.filter(p => p.status === 'success').reduce((s, p) => s + (p.count || 0), 0);
+                                sbLog(`\n✅ สำเร็จ ${okCount}/${progress.length} ตาราง — ${totalItems} รายการ`, '#34d399');
+                            } else {
+                                sbLog(`✅ ซิงค์สำเร็จ: ${JSON.stringify(data)}`, '#34d399');
+                            }
+                            showToast('✅ ซิงค์ข้อมูลทั้งหมดไป Supabase สำเร็จแล้ว!', 'success');
                             onSyncComplete(true);
                         })
                         .withFailureHandler((err) => {
@@ -18728,10 +18757,30 @@ ${slip.textSample}
                     // ถ้าเปิดในเบราว์เซอร์ปกติ ใช้ fetch ไปยัง GAS API
                     const res = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId || 'admin'}`, { timeout: 180000 });
                     if (res && res.status === 'success') {
-                        const d = res.data || {};
-                        const timeCount = d.time_records?.count || 0;
-                        sbLog(`✅ ซิงค์สำเร็จ — เวลางาน ${timeCount} รายการ, พนักงาน & โครงการครบถ้วน`, '#34d399');
-                        showToast('✅ ซิงค์ข้อมูลไป Supabase สำเร็จ!', 'success');
+                        const progress = res?.progress || [];
+                        const d = res?.data || {};
+                        if (progress.length > 0) {
+                            sbLog(`📊 สรุปผล (${res?.totalMs || '-'}ms):`, '#60a5fa');
+                            const tableNames = {
+                                employees: '👥 พนักงาน', time_records: '⏰ เวลางาน',
+                                leave_requests: '📋 คำขอลา', time_corrections: '✏️ แก้ไขเวลา',
+                                projects: '🏗️ โครงการ', payslips: '💰 สลิปเงินเดือน',
+                                announcements: '📢 ข่าวสาร', holidays: '🏖️ วันหยุด',
+                                advance_requests: '💳 เบิกเงินกลางเดือน', system_settings: '⚙️ ตั้งค่าระบบ',
+                                line_chat_state: '💬 LINE Chat State', line_groups: '👥 LINE Groups',
+                                line_followers: '👤 LINE Followers', face_database: '📸 Face Database'
+                            };
+                            progress.forEach(p => {
+                                const icon = tableNames[p.table] || p.table;
+                                if (p.status === 'success') sbLog(`  ✅ ${icon}: ${p.count}/${p.total} (${p.ms}ms)`, '#34d399');
+                                else if (p.status === 'skip') sbLog(`  ⏭️ ${icon}: ข้าม`, '#94a3b8');
+                                else sbLog(`  ❌ ${icon}: ${p.message}`, '#f87171');
+                            });
+                        } else {
+                            const timeCount = d.time_records?.count || 0;
+                            sbLog(`✅ ซิงค์สำเร็จ — เวลางาน ${timeCount} รายการ`, '#34d399');
+                        }
+                        showToast('✅ ซิงค์ข้อมูลทั้งหมดไป Supabase สำเร็จ!', 'success');
                         await onSyncComplete(true);
                     } else {
                         sbLog(`⚠️ ${res?.message || 'ซิงค์อาจไม่ครบถ้วน — ตรวจสอบ Apps Script Log'}`, '#fbbf24');
