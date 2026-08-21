@@ -18715,6 +18715,29 @@ ${slip.textSample}
             };
             const ALL_TABLES = Object.keys(TABLE_NAMES);
 
+            // ตรวจจำนวนแถวจริงใน Google Sheets ก่อนซิงค์
+            sbLog('📋 ตรวจสอบข้อมูลใน Google Sheets...', '#60a5fa');
+            try {
+                let sheetInfo = null;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    sheetInfo = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).checkSheetsDataCount();
+                    });
+                } else {
+                    sheetInfo = await fetchWithTimeout(`${SERVER_API_URL}?action=checkSheetsData`, { timeout: 30000 });
+                }
+                if (sheetInfo && sheetInfo.data) {
+                    sbLog('📊 ข้อมูลใน Google Sheets:', '#60a5fa');
+                    for (const [key, info] of Object.entries(sheetInfo.data)) {
+                        const icon = TABLE_NAMES[key] || key;
+                        const status = info.dataRows > 0 ? `✅ ${info.dataRows} แถว` : '❌ ว่าง';
+                        sbLog(`  ${icon}: ${status}`, info.dataRows > 0 ? '#34d399' : '#94a3b8');
+                    }
+                }
+            } catch (e) {
+                sbLog(`⚠️ ไม่สามารถตรวจข้อมูล Sheets ได้: ${e.message}`, '#fbbf24');
+            }
+
             async function callMigration() {
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
                     return await new Promise((resolve, reject) => {
