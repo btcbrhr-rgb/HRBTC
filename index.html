@@ -2695,8 +2695,64 @@
                         </div>
                     </div>
 
-                    <!-- Preview Table -->
+                    <!-- ตารางสรุปเวลา 12 เดือน -->
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="fa-solid fa-calendar-days text-brand-teal"></i>
+                                    รายละเอียดตารางเวลา 12 เดือน
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">สรุปข้อมูลการลงเวลาเข้างานของพนักงานรายเดือน ตลอดทั้งปี</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs font-bold text-slate-500">ปี:</label>
+                                <select id="yearly-overview-year" onchange="loadYearlyAttendanceOverview()"
+                                    class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-brand-teal focus:outline-none">
+                                </select>
+                                <button onclick="loadYearlyAttendanceOverview()"
+                                    class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5">
+                                    <i class="fa-solid fa-rotate"></i> รีเฟรช
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Summary Row -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5" id="yearly-overview-summary">
+                            <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-emerald-600 uppercase">วันทำงานทั้งปี</p>
+                                <p class="text-xl font-bold text-emerald-700 mt-1" id="yov-total-days">-</p>
+                            </div>
+                            <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-blue-600 uppercase">เข้างานปกติ</p>
+                                <p class="text-xl font-bold text-blue-700 mt-1" id="yov-present-days">-</p>
+                            </div>
+                            <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-amber-600 uppercase">มาสาย</p>
+                                <p class="text-xl font-bold text-amber-700 mt-1" id="yov-late-days">-</p>
+                            </div>
+                            <div class="bg-rose-50 border border-rose-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-rose-600 uppercase">ขาดงาน</p>
+                                <p class="text-xl font-bold text-rose-700 mt-1" id="yov-absent-days">-</p>
+                            </div>
+                            <div class="bg-violet-50 border border-violet-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-violet-600 uppercase">ลา (วัน)</p>
+                                <p class="text-xl font-bold text-violet-700 mt-1" id="yov-leave-days">-</p>
+                            </div>
+                            <div class="bg-brand-sky border border-brand-sky2 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-brand-deep uppercase">ชั่วโมง OT</p>
+                                <p class="text-xl font-bold text-brand-deep mt-1" id="yov-ot-hours">-</p>
+                            </div>
+                        </div>
+                        <!-- 12 Months Grid -->
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" id="yearly-overview-months">
+                            <div class="col-span-full py-8 text-center text-slate-400 text-xs italic">
+                                <i class="fa-solid fa-spinner fa-spin text-lg mb-2 block"></i>
+                                กำลังโหลดข้อมูล...
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Preview Table (เดิม - ซ่อนไว้ ใช้ตอน dry-run import) -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 hidden" id="txt-preview-section">
                         <h3 class="text-sm font-bold text-slate-800">รายละเอียดตารางเวลาที่เตรียมบันทึก</h3>
                         <div class="w-full">
                             <div id="txt-preview-table-container">
@@ -10430,6 +10486,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } else if (tabId === 'import-time') {
                     titleEl.textContent = "นำเข้าเวลางานใหม่ (.txt)";
                     descEl.textContent = "นำเข้าประวัติการสแกนนิ้วล่าสุดของพนักงานในรูปแบบไฟล์ .txt เพื่อประมวลผลสรุปวันเข้างาน/OT อัตโนมัติ";
+                    if (typeof loadYearlyAttendanceOverview === 'function') {
+                        loadYearlyAttendanceOverview();
+                    }
                 } else if (tabId === 'import-payslip') {
                     titleEl.textContent = "นำเข้าสลิปเงินเดือน (.pdf)";
                     descEl.textContent = "นำเข้าสลิปเงินเดือนพนักงานโดยอัปโหลดไฟล์ PDF รวมแถว เพื่อให้ระบบจำแนกและอัปโหลดเข้าคลังไฟล์รายบุคคล";
@@ -12797,6 +12856,150 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     updateTxtImportButtonsState();
                 }
 
+                // ═══ ตารางสรุปเวลา 12 เดือน ═══
+                const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+                const THAI_MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+                function initYearSelector() {
+                    const sel = document.getElementById('yearly-overview-year');
+                    if (!sel) return;
+                    const thisYear = new Date().getFullYear();
+                    sel.innerHTML = '';
+                    for (let y = thisYear; y >= thisYear - 5; y--) {
+                        const opt = document.createElement('option');
+                        opt.value = y; opt.textContent = y;
+                        if (y === thisYear) opt.selected = true;
+                        sel.appendChild(opt);
+                    }
+                }
+
+                async function loadYearlyAttendanceOverview() {
+                    initYearSelector();
+                    const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
+                    const grid = document.getElementById('yearly-overview-months');
+                    if (!grid) return;
+
+                    grid.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400 text-xs italic"><i class="fa-solid fa-spinner fa-spin text-lg mb-2 block"></i>กำลังโหลดข้อมูล...</div>';
+
+                    // สร้าง billing month values สำหรับ 12 เดือน (รอบบัญชี 26-25)
+                    const monthData = [];
+                    for (let m = 1; m <= 12; m++) {
+                        // billing month = เดือนถัดไป (26 ม.ค. - 25 ก.พ. = billing Feb)
+                        const billingM = m + 1 > 12 ? 1 : m + 1;
+                        const billingY = m + 1 > 12 ? year + 1 : year;
+                        const billingMonthVal = `${billingY}-${String(billingM).padStart(2, '0')}`;
+                        monthData.push({ month: m, billingMonth: billingMonthVal, year });
+                    }
+
+                    // โหลดข้อมูลทีละเดือนแบบ parallel (batch 4 ครั้ง)
+                    const allMonthStats = [];
+                    const batchSize = 4;
+                    for (let b = 0; b < monthData.length; b += batchSize) {
+                        const batch = monthData.slice(b, b + batchSize);
+                        const promises = batch.map(async (md) => {
+                            try {
+                                const res = await fetchWithTimeout(
+                                    `${SERVER_API_URL}?action=getProjectCostData&empId=${currentEmployeeId}&month=${md.billingMonth}`,
+                                    { timeout: 30000 }
+                                );
+                                if (res && res.status === 'success' && res.data && Array.isArray(res.data.attendance)) {
+                                    return { month: md.month, records: res.data.attendance };
+                                }
+                            } catch (e) {
+                                console.warn(`[YearlyOverview] Failed to load month ${md.month}:`, e.message);
+                            }
+                            return { month: md.month, records: [] };
+                        });
+                        const results = await Promise.all(promises);
+                        allMonthStats.push(...results);
+                    }
+
+                    // คำนวณสถิติแต่ละเดือน
+                    let totalDays = 0, totalPresent = 0, totalLate = 0, totalAbsent = 0, totalLeave = 0, totalOT = 0;
+                    const monthStats = allMonthStats.map(ms => {
+                        const recs = ms.records || [];
+                        let present = 0, late = 0, absent = 0, leave = 0, ot = 0, workDays = 0;
+                        recs.forEach(r => {
+                            const status = (r['สถานะสรุป'] || r['status'] || '').toString().trim();
+                            const timeIn = r['เวลาเข้า'] || r['time_in'] || '';
+                            const timeOut = r['เวลาออก'] || r['time_out'] || '';
+                            const lateMin = parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0;
+                            const otHrs = parseFloat(r['ชั่วโมง OT'] || r['ot_hours'] || 0) || 0;
+
+                            workDays++;
+                            if (status === 'ย' || status === 'นข') return; // วันหยุด
+                            if (status === 'A' || status === 'B-' || status === 'H-' || status === 'S-') { absent++; return; }
+                            if (status.includes('ลา') || status === 'B+' || status === 'H+' || status === 'S+' || status === 'SM+' || status === 'A½' || status === 'P½') { leave++; return; }
+                            if (timeIn && timeOut) { present++; if (lateMin > 0) late++; ot += otHrs; }
+                            else if (timeIn && !timeOut) { present++; } // MO
+                            else if (!timeIn && timeOut) { present++; } // MI
+                        });
+                        totalDays += workDays; totalPresent += present; totalLate += late; totalAbsent += absent; totalLeave += leave; totalOT += ot;
+                        return { month: ms.month, workDays, present, late, absent, leave, ot: Math.round(ot * 10) / 10, totalRecords: recs.length };
+                    });
+
+                    // อัปเดต Summary Row
+                    document.getElementById('yov-total-days').textContent = totalDays || '-';
+                    document.getElementById('yov-present-days').textContent = totalPresent || '-';
+                    document.getElementById('yov-late-days').textContent = totalLate || '-';
+                    document.getElementById('yov-absent-days').textContent = totalAbsent || '-';
+                    document.getElementById('yov-leave-days').textContent = totalLeave || '-';
+                    document.getElementById('yov-ot-hours').textContent = totalOT > 0 ? totalOT.toFixed(1) : '-';
+
+                    // สร้าง Month Cards
+                    grid.innerHTML = '';
+                    monthStats.forEach(ms => {
+                        const pct = ms.workDays > 0 ? Math.round((ms.present / ms.workDays) * 100) : 0;
+                        const pctColor = pct >= 90 ? 'text-emerald-600' : pct >= 70 ? 'text-amber-600' : 'text-rose-600';
+                        const barColor = pct >= 90 ? 'bg-emerald-500' : pct >= 70 ? 'bg-amber-500' : 'bg-rose-500';
+
+                        const card = document.createElement('div');
+                        card.className = 'bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md hover:border-brand-teal/30 transition-all cursor-default';
+                        card.innerHTML = `
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-lg bg-brand-sky flex items-center justify-center">
+                                        <span class="text-xs font-bold text-brand-deep">${ms.month}</span>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-800">${THAI_MONTHS_SHORT[ms.month - 1]}</p>
+                                        <p class="text-[10px] text-slate-400">${THAI_MONTHS_FULL[ms.month - 1]} ${year}</p>
+                                    </div>
+                                </div>
+                                <span class="text-lg font-bold ${pctColor}">${pct}%</span>
+                            </div>
+                            <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
+                                <div class="h-full ${barColor} rounded-full transition-all" style="width:${pct}%"></div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1.5 text-center">
+                                <div class="bg-blue-50 rounded-lg py-1.5 px-1">
+                                    <p class="text-[10px] text-blue-500 font-bold">เข้างาน</p>
+                                    <p class="text-sm font-bold text-blue-700">${ms.present}</p>
+                                </div>
+                                <div class="bg-amber-50 rounded-lg py-1.5 px-1">
+                                    <p class="text-[10px] text-amber-500 font-bold">สาย</p>
+                                    <p class="text-sm font-bold text-amber-700">${ms.late}</p>
+                                </div>
+                                <div class="bg-rose-50 rounded-lg py-1.5 px-1">
+                                    <p class="text-[10px] text-rose-500 font-bold">ขาด</p>
+                                    <p class="text-sm font-bold text-rose-700">${ms.absent}</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5 text-center mt-1.5">
+                                <div class="bg-violet-50 rounded-lg py-1.5 px-1">
+                                    <p class="text-[10px] text-violet-500 font-bold">ลา</p>
+                                    <p class="text-sm font-bold text-violet-700">${ms.leave}</p>
+                                </div>
+                                <div class="bg-brand-sky rounded-lg py-1.5 px-1">
+                                    <p class="text-[10px] text-brand-deep font-bold">OT</p>
+                                    <p class="text-sm font-bold text-brand-deep">${ms.ot} ชม.</p>
+                                </div>
+                            </div>
+                        `;
+                        grid.appendChild(card);
+                    });
+                }
+
                 async function processTxtImport(dryRun = true) {
                     if (!selectedTxtFileContent) {
                         alert("⚠️ กรุณาเลือกไฟล์ .txt ก่อนทำรายการ");
@@ -13102,6 +13305,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     duplicates: duplicates
                                 };
                             });
+
+                            // แสดง preview section เมื่อมีข้อมูล dry-run
+                            const previewSection = document.getElementById('txt-preview-section');
+                            if (previewSection) previewSection.classList.remove('hidden');
 
                             if (window.txtPreviewTabulator) {
                                 window.txtPreviewTabulator.setData(tableData);
