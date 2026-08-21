@@ -18704,6 +18704,25 @@ ${slip.textSample}
             sbLog('🔄 เริ่มซิงค์ข้อมูล Google Sheets → Supabase...', '#60a5fa');
             showToast('🔄 กำลังซิงค์ข้อมูล...', 'info');
 
+            // Step 0: ตรวจ UNIQUE constraints ก่อนซิงค์
+            try {
+                sbLog('🔧 ตรวจ UNIQUE constraints...');
+                const diagRes = await fetchWithTimeout('?action=diagnoseConstraints', { timeout: 30000 });
+                if (diagRes.status === 'success' && diagRes.report) {
+                    diagRes.report.forEach(function(r) {
+                        if (r.exists) {
+                            sbLog('  ✅ ' + r.table + ': constraint มีแล้ว');
+                        } else if (r.action === 'created') {
+                            sbLog('  🔧 ' + r.table + ': สร้าง constraint สำเร็จ');
+                        } else {
+                            sbLog('  ❌ ' + r.table + ': constraint สร้างไม่สำเร็จ — ' + (r.message || ''));
+                        }
+                    });
+                }
+            } catch(e) {
+                sbLog('⚠️ ตรวจ constraints ล้มเหลว: ' + e.message);
+            }
+
             const TABLE_NAMES = {
                 employees: '👥 พนักงาน', time_records: '⏰ เวลางาน',
                 leave_requests: '📋 คำขอลา', time_corrections: '✏️ แก้ไขเวลา',
@@ -18736,6 +18755,21 @@ ${slip.textSample}
                 }
             } catch (e) {
                 sbLog(`⚠️ ไม่สามารถตรวจข้อมูล Sheets ได้: ${e.message}`, '#fbbf24');
+            }
+
+            // ตรวจจำนวนแถวจริงใน Supabase ก่อน sync
+            try {
+                const sbCountRes = await fetchWithTimeout('?action=diagnoseRowCounts', { timeout: 30000 });
+                if (sbCountRes.status === 'success' && sbCountRes.counts) {
+                    sbLog('📊 ข้อมูลใน Supabase (ปัจจุบัน):', '#a78bfa');
+                    for (const [tbl, cnt] of Object.entries(sbCountRes.counts)) {
+                        const icon = TABLE_NAMES[tbl] || tbl;
+                        const num = typeof cnt === 'number' ? cnt : 0;
+                        sbLog(`  ${icon}: ${num} แถว`, num > 0 ? '#a78bfa' : '#94a3b8');
+                    }
+                }
+            } catch(e) {
+                sbLog(`⚠️ ไม่สามารถตรวจ Supabase ได้: ${e.message}`, '#fbbf24');
             }
 
             async function callMigration() {
