@@ -18719,21 +18719,13 @@ ${slip.textSample}
             showToast('🔄 เริ่มซิงค์ข้อมูล (ทีละตาราง)...', 'info');
 
             try {
-                // 1) ดึงรายการตารางจาก backend
-                let tableList = null;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    tableList = await new Promise((resolve, reject) => {
-                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getMigrationTableList();
-                    });
-                } else {
-                    const tlRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getTableList`, { timeout: 30000 });
-                    tableList = tlRes?.tables || null;
-                }
-                if (!tableList || !tableList.length) {
-                    sbLog('❌ ไม่สามารถดึงรายการตารางได้', '#f87171');
-                    await onSyncComplete(false);
-                    return;
-                }
+                // 1) รายการตารางทั้ง 14 (hardcode ไม่ต้องพึ่ง backend)
+                const tableList = [
+                    'employees', 'time_records', 'leave_requests', 'time_corrections',
+                    'projects', 'payslips', 'announcements', 'holidays',
+                    'advance_requests', 'system_settings', 'line_chat_state',
+                    'line_groups', 'line_followers', 'face_database'
+                ];
 
                 sbLog(`📋 ตารางทั้งหมด ${tableList.length} ตาราง — เริ่มซิงค์ทีละตาราง`, '#60a5fa');
                 const syncT0 = performance.now();
