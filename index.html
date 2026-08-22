@@ -11490,6 +11490,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const textPayload = parsedHolidayPreview.map(h => `${h.date}\t${h.title}`).join('\n');
                     const primaryType = parsedHolidayPreview[0]?.type || 'นักขัตฤกษ์';
 
+                    // ⚡ 1. บันทึกขึ้น Supabase ทันทีถ้ามีการเชื่อมต่อ
+                    if (supabaseClient) {
+                        try {
+                            const sbPayload = parsedHolidayPreview.map(h => {
+                                const yr = (h.date || '').substring(0, 4);
+                                const yrBE = yr ? String(parseInt(yr) + 543) : '';
+                                return {
+                                    date: h.date,
+                                    title: h.title,
+                                    year: yrBE,
+                                    holiday_type: h.type || primaryType,
+                                    created_by: currentEmployeeId || 'Admin'
+                                };
+                            });
+                            await supabaseClient.from('holidays').upsert(sbPayload, { onConflict: 'date' });
+                        } catch (supErr) {
+                            console.warn('[confirmImportHolidayBatch Supabase error]', supErr);
+                        }
+                    }
+
+                    // 🔄 2. ส่งข้อมูลไปยังเซิร์ฟเวอร์ (GAS) เพื่อซิงค์ลง Google Sheets
                     const res = await fetch(SERVER_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -11497,6 +11518,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             action: 'importHolidaysFromText',
                             empId: currentEmployeeId,
                             adminId: currentEmployeeId,
+                            holidays: parsedHolidayPreview,
                             textData: textPayload,
                             type: primaryType
                         })
