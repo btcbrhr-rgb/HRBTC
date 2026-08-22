@@ -7115,7 +7115,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId),
                             supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId),
                             supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId),
-                            supabaseClient.from('announcements').select('*').order('date', { ascending: false }).limit(10)
+                            supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10)
                         ]);
 
                         if (!tRes.error && Array.isArray(tRes.data)) {
@@ -7192,11 +7192,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         if (!annRes.error && Array.isArray(annRes.data)) {
                             setStoredAnnouncements(annRes.data.map(a => ({
-                                docId: a.doc_id,
+                                docId: a.doc_id || a.id,
                                 title: a.title,
-                                message: a.message,
-                                date: a.date,
-                                author: a.author
+                                message: a.content || a.message || '',
+                                date: a.posted_at || (a.created_at ? a.created_at.slice(0, 10) : '') || a.date || '',
+                                author: a.posted_by || a.author || ''
                             })));
                         }
 
@@ -7276,6 +7276,28 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function fetchAnnouncements() {
+                if (supabaseClient) {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('announcements')
+                            .select('*')
+                            .order('created_at', { ascending: false })
+                            .limit(20);
+                        if (!error && Array.isArray(data)) {
+                            const mapped = data.map(a => ({
+                                docId: a.doc_id || a.id,
+                                title: a.title,
+                                message: a.content || a.message || '',
+                                date: a.posted_at || (a.created_at ? a.created_at.slice(0, 10) : '') || a.date || '',
+                                author: a.posted_by || a.author || ''
+                            }));
+                            setStoredAnnouncements(mapped);
+                            return mapped;
+                        }
+                    } catch (supErr) {
+                        console.warn('[fetchAnnouncements Supabase error]', supErr);
+                    }
+                }
                 try {
                     const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAnnouncements&empId=${encodeURIComponent(currentEmployeeId || 'ADMIN')}`, { timeout: 10000 });
                     if (res && res.status === 'success' && Array.isArray(res.data)) {
