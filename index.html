@@ -13342,14 +13342,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // สร้างตาราง
                     let html = '';
                     records.forEach((r, idx) => {
-                        const empId = (r['รหัสพนักงาน'] || r.empId || '').toString().trim();
-                        const date = (r['วันที่'] || r.date || '').toString().trim();
-                        const timeIn = (r['เวลาเข้า'] || r.time_in || '').toString().trim();
-                        const timeOut = (r['เวลาออก'] || r.time_out || '').toString().trim();
-                        const status = (r['สถานะสรุป'] || r.status || '').toString().trim();
-                        const late = (r['นาทีสาย'] || r.late_minutes || 0);
-                        const ot = (r['ชั่วโมง OT'] || r.ot_hours || 0);
-                        const project = (r['โครงการ (เข้า)'] || r.project_in || '').toString().trim();
+                        const empId = (r.emp_id || r['รหัสพนักงาน'] || r.empId || '').toString().trim();
+                        const date = (r.date || r['วันที่'] || '').toString().trim();
+                        const timeIn = (r.time_in || r['เวลาเข้า'] || r.timeIn || '').toString().trim();
+                        const timeOut = (r.time_out || r['เวลาออก'] || r.timeOut || '').toString().trim();
+                        const status = (r.status || r['สถานะสรุป'] || r['สถานะ'] || '').toString().trim();
+                        const late = (r.late_minutes != null ? r.late_minutes : (r['นาทีสาย'] || r.lateMinutes || 0));
+                        const ot = (r.ot_hours != null ? r.ot_hours : (r['ชั่วโมง OT'] || r.otHours || 0));
+                        const project = (r.project_in || r.project || r['โครงการ (เข้า)'] || r['โครงการ'] || '').toString().trim();
+                        const isEdited = (r.is_edited === true || r.is_edited === 'true' || r.is_edited === 1 || r['แก้ไข'] === true || r['is_edited'] === true);
 
                         // Status badge color
                         let statusBadge = '';
@@ -13361,9 +13362,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         else if (status === 'ย' || status === 'นข') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">หยุด</span>';
                         else statusBadge = `<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">${escapeHtml(status)}</span>`;
 
-                        html += `<tr id="yearly-row-${idx}" class="group">
-                            <td class="text-center font-bold text-brand-deep">${escapeHtml(empId)}</td>
-                            <td>${escapeHtml(date)}</td>
+                        html += `<tr id="yearly-row-${idx}" class="group hover:bg-slate-50/80 transition-colors">
+                            <td class="text-center font-bold text-brand-deep">${escapeHtml(empId || '-')}</td>
+                            <td>
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                    <span class="font-medium">${escapeHtml(date)}</span>
+                                    ${isEdited ? '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 border border-violet-200 shadow-sm" title="รายการนี้ได้รับอนุมัติขอแก้ไขเวลาแล้ว"><i class="fa-solid fa-pen-to-square text-[8px]"></i> แก้ไขแล้ว</span>' : ''}
+                                </div>
+                            </td>
                             <td class="text-center">
                                 <input type="text" value="${escapeHtml(timeIn)}" 
                                     class="yearly-edit-field w-20 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
