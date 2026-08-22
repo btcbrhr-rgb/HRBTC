@@ -18594,9 +18594,14 @@ ${slip.textSample}
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
                     config = await new Promise((resolve, reject) => {
                         google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getSupabaseConfig();
-                    }).then(res => (res && res.status === 'success') ? res.config : { url: '', anonKey: '', mode: 'hybrid' });
+                    }).then(res => (res && res.status === 'success') ? res.config : (res || { url: '', anonKey: '', mode: 'hybrid' }));
                 } else if (SERVER_API_URL) {
-                    config = await fetchWithTimeout(`${SERVER_API_URL}?action=getSupabaseConfig`, { timeout: 10000 }).then(r => r.config || {});
+                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSupabaseConfig`, { timeout: 10000 });
+                    if (res && res.config) {
+                        config = res.config;
+                    } else if (res && res.url) {
+                        config = res;
+                    }
                 }
             } catch (e) {
                 console.warn('[Supabase] Failed to load config from server:', e);
