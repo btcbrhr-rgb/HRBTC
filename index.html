@@ -3177,7 +3177,7 @@
                             </div>
                             <div class="flex items-center gap-2">
                                 <label for="yearly-payslip-year" class="text-xs font-bold text-slate-600">ปี พ.ศ.:</label>
-                                <select id="yearly-payslip-year" onchange="loadYearlyPayslipOverview()" class="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-teal"></select>
+                                <select id="yearly-payslip-year" onchange="onYearlyPayslipYearChange()" class="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-teal"></select>
                                 <button onclick="loadYearlyPayslipOverview()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all">
                                     <i class="fa-solid fa-rotate-right mr-1"></i>รีเฟรช
                                 </button>
@@ -14518,6 +14518,21 @@ ${slip.textSample}
                     }
                     if (!str) return null;
 
+                    // 0. Match JS Date string format เช่น "Sat Jul 01 2560 00:00:00 GMT+0700 (เวลาอินโดจีน)"
+                    //    หรือ "Sat Aug 03 2024 00:00:00 GMT+0700"
+                    const JS_MONTH_MAP = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+                    let jsm = str.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(\d{4})\b/);
+                    if (jsm) {
+                        let month = JS_MONTH_MAP[jsm[1]];
+                        let year = parseInt(jsm[2], 10);
+                        if (year >= 2400) {
+                            // พ.ศ. อยู่แล้ว (เช่น 2560, 2568)
+                        } else {
+                            year += 543; // แปลง ค.ศ. → พ.ศ.
+                        }
+                        return { month, year };
+                    }
+
                     // 1. Match MM/YYYY หรือ M/YYYY (เช่น 08/2568, 8/2568, 08/2025)
                     let m = str.match(/\b(\d{1,2})[\/\-](\d{4})\b/);
                     if (m) {
@@ -14621,7 +14636,7 @@ ${slip.textSample}
                     }
                 }
 
-                async function loadYearlyPayslipOverview() {
+                async function loadYearlyPayslipOverview(isManualChange) {
                     const tbody = document.getElementById('yearly-payslip-body');
                     if (tbody) {
                         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลสลิปเงินเดือนทั้งหมดจากฐานข้อมูล...</td></tr>';
@@ -14688,33 +14703,34 @@ ${slip.textSample}
                         }
                     });
 
-                    // 3. กำหนดปีและเดือนที่แอคทีฟ (เลือกปีที่มีข้อมูลจริงเป็นหลัก)
+                    // 3. กำหนดปีและเดือนที่แอคทีฟ (ใช้ปีปัจจุบันเสมอ)
                     const thisYearThai = new Date().getFullYear() + 543;
                     const thisMonth = new Date().getMonth() + 1;
-                    const currentSelectedYear = parseInt(document.getElementById('yearly-payslip-year')?.value || 0);
 
-                    // ⚡ ถ้าปีที่เลือกค้างไว้ไม่มีข้อมูลจริง ให้ขยับไปปีล่าสุดที่มีข้อมูลจริง
-                    const activeYear = (foundYears.has(currentSelectedYear) ? currentSelectedYear : null) || latestYearWithData || thisYearThai;
+                    // ปีที่แอคทีฟ: ถ้าผู้ใช้เปลี่ยน Dropdown เอง → ใช้ปีที่เลือก, มิฉะนั้น → ใช้ปีปัจจุบันเสมอ
+                    const userSelectedYear = parseInt(document.getElementById('yearly-payslip-year')?.value || 0);
+                    const activeYear = (isManualChange && userSelectedYear) ? userSelectedYear : thisYearThai;
+
                     initPayslipYearSelector(Array.from(foundYears), activeYear);
 
-                    // เลือกเดือน: ให้เลือกเดือนล่าสุดที่มีข้อมูลจริงของปีนั้น หรือเดือนที่มีสลิปมากที่สุด
-                    let targetMonth = null;
-                    for (let m = 12; m >= 1; m--) {
-                        const testKey = `${activeYear}-${String(m).padStart(2, '0')}`;
-                        if (yearlyPayslipDataCache[testKey] && yearlyPayslipDataCache[testKey].length > 0) {
-                            targetMonth = m;
-                            break;
-                        }
-                    }
-                    yearlyPayslipSelectedMonth = targetMonth || thisMonth;
+                    // เลือกเดือน: ใช้เดือนปัจจุบันเสมอ
+                    yearlyPayslipSelectedMonth = thisMonth;
 
                     renderYearlyPayslipMonthTabs(activeYear);
 
                     // 4. เรนเดอร์ตารางเดือนที่เลือกทันที
                     const activeKey = `${activeYear}-${String(yearlyPayslipSelectedMonth).padStart(2, '0')}`;
                     const records = yearlyPayslipDataCache[activeKey] || [];
+                    console.log(`[loadYearlyPayslipOverview] Keys in cache:`, Object.keys(yearlyPayslipDataCache));
                     console.log(`[loadYearlyPayslipOverview] Rendering ${records.length} records for ${activeKey}`);
                     renderYearlyPayslipTable(records, yearlyPayslipSelectedMonth, activeYear);
+                }
+
+                function onYearlyPayslipYearChange() {
+                    const selYear = parseInt(document.getElementById('yearly-payslip-year')?.value || 0);
+                    if (selYear) {
+                        loadYearlyPayslipOverview(true);
+                    }
                 }
 
                 function selectYearlyPayslipMonth(month) {
