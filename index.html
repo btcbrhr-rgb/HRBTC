@@ -18905,34 +18905,79 @@ ${slip.textSample}
                 }
 
                 if (singleTableWorks) {
-                    // ═══ Mode A: sync ทีละตาราง (progress จริง) ═══
+                    // ═══ Mode A: sync ทีละตาราง ด้วย offset/batch — แสดง % จริง ═══
+                    const BATCH_SIZE = 1000; // แถวต่อ 1 call (ปรับได้)
+
                     for (let i = 0; i < ALL_TABLES.length; i++) {
                         const tbl = ALL_TABLES[i];
                         const tblName = TABLE_NAMES[tbl];
                         sbLog(`\n[${i+1}/${ALL_TABLES.length}] ${tblName} กำลังซิงค์...`, '#60a5fa');
-                        try {
-                            let tblRes = null;
-                            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                                tblRes = await new Promise((resolve, reject) => {
-                                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateSingleTable(tbl);
-                                });
-                            } else {
-                                tblRes = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateSingleTable&table=${tbl}&empId=${currentEmployeeId || 'admin'}`, { timeout: 600000 });
-                            }
-                            if (tblRes && tblRes.status === 'success') {
-                                sbLog(`  ✅ ${tblName}: ${tblRes.count}/${tblRes.total} แถว (${tblRes.ms}ms)`, '#34d399');
+
+                        let offset      = 0;
+                        let tableTotal  = 0;
+                        let tableSynced = 0;
+                        let tableOk     = true;
+                        let batchNum    = 0;
+
+                        // วน loop จนกว่าจะ hasMore = false
+                        while (true) {
+                            batchNum++;
+                            try {
+                                let tblRes = null;
+                                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                                    tblRes = await new Promise((resolve, reject) => {
+                                        google.script.run
+                                            .withSuccessHandler(resolve)
+                                            .withFailureHandler(reject)
+                                            .migrateSingleTable(tbl, offset, BATCH_SIZE);
+                                    });
+                                } else {
+                                    tblRes = await fetchWithTimeout(
+                                        `${SERVER_API_URL}?action=migrateSingleTable&table=${tbl}&offset=${offset}&limit=${BATCH_SIZE}&empId=${currentEmployeeId || 'admin'}`,
+                                        { timeout: 600000 }
+                                    );
+                                }
+
+                                if (!tblRes) { tableOk = false; sbLog(`  ❌ ${tblName}: ไม่ได้รับผลลัพธ์ (batch ${batchNum})`, '#f87171'); break; }
+
+                                if (tblRes.status === 'skip') {
+                                    sbLog(`  ⏭️ ${tblName}: ${tblRes.message || 'ข้าม'}`, '#94a3b8');
+                                    break;
+                                }
+
+                                if (tblRes.status === 'error') {
+                                    sbLog(`  ❌ ${tblName}: ${tblRes.message || 'ผิดพลาด'} (batch ${batchNum})`, '#f87171');
+                                    tableOk = false;
+                                    break;
+                                }
+
+                                // success — อัปเดต progress
+                                tableTotal   = tblRes.total  || tableTotal;
+                                tableSynced  = tblRes.synced || (offset + (tblRes.count || 0));
                                 totalSynced += (tblRes.count || 0);
-                                successCount++;
-                            } else if (tblRes && tblRes.status === 'skip') {
-                                sbLog(`  ⏭️ ${tblName}: ${tblRes.message || 'ข้าม'}`, '#94a3b8');
-                            } else {
-                                sbLog(`  ❌ ${tblName}: ${tblRes ? tblRes.message : 'ไม่ทราบสาเหตุ'}`, '#f87171');
-                                failCount++;
+
+                                const pct = tableTotal > 0 ? Math.round(tableSynced / tableTotal * 100) : 100;
+                                if (tblRes.hasMore) {
+                                    // ยังมีข้อมูลเหลือ — แสดง progress แล้วไปต่อ
+                                    sbLog(`  ⏳ ${tblName}: ${tableSynced}/${tableTotal} แถว (${pct}%) — ต่อไป...`, '#fbbf24');
+                                    offset = tblRes.nextOffset || (offset + BATCH_SIZE);
+                                } else {
+                                    // เสร็จสมบูรณ์
+                                    sbLog(`  ✅ ${tblName}: ${tableSynced}/${tableTotal} แถว (${pct}%) รวม ${tblRes.ms}ms`, '#34d399');
+                                    successCount++;
+                                    break;
+                                }
+
+                            } catch (batchErr) {
+                                sbLog(`  ⚠️ ${tblName}: timeout batch ${batchNum} (offset=${offset}) — ลองใหม่...`, '#fbbf24');
+                                // ไม่รีเซ็ต offset → retry batch เดิม
+                                await new Promise(r => setTimeout(r, 2000));
+                                // ถ้า retry เกิน 5 ครั้งต่อตาราง ให้ข้ามไปตารางถัดไป
+                                if (batchNum > 50) { tableOk = false; break; }
                             }
-                        } catch (tblErr) {
-                            sbLog(`  ❌ ${tblName}: ${tblErr.message || tblErr}`, '#f87171');
-                            failCount++;
                         }
+
+                        if (!tableOk) failCount++;
                     }
                 } else {
                     // ═══ Mode B: fallback migrateAllDataToSupabase (auto-retry) ═══
