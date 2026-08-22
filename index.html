@@ -14505,22 +14505,58 @@ ${slip.textSample}
                     }
                 }
 
-                // ═══ ตารางสลิปเงินเดือน 12 เดือน (Tabbed + Auto-Preload 0ms) ═══
+                // ═══ ตารางสลิปเงินเดือน 12 เดือน (Tabbed + Auto-Group & Universal Period Parser) ═══
                 let yearlyPayslipDataCache = {}; // { 'YYYY-MM': [payslips] }
                 let yearlyPayslipSelectedMonth = null;
+                let allPayslipsLoadedList = []; // แคชข้อมูลสลิปทั้งหมด
 
-                function initPayslipYearSelector() {
+                // 🧮 ตัวแยกและจัดรูปแบบรอบเงินเดือน (Universal Period Parser)
+                function parsePayslipPeriod(rawPeriod) {
+                    if (!rawPeriod) return null;
+                    const str = rawPeriod.toString().trim();
+                    // 1. Match MM/YYYY (เช่น 08/2568 หรือ 08/2025)
+                    let m = str.match(/^(\d{1,2})[\/\-](\d{4})$/);
+                    if (m) {
+                        let month = parseInt(m[1], 10);
+                        let year = parseInt(m[2], 10);
+                        if (year < 2400) year += 543; // แปลง ค.ศ. เป็น พ.ศ.
+                        return { month, year };
+                    }
+                    // 2. Match YYYY-MM หรือ YYYY/MM (เช่น 2568-08 หรือ 2025-08)
+                    m = str.match(/^(\d{4})[\/\-](\d{1,2})/);
+                    if (m) {
+                        let year = parseInt(m[1], 10);
+                        let month = parseInt(m[2], 10);
+                        if (year < 2400) year += 543; // แปลง ค.ศ. เป็น พ.ศ.
+                        return { month, year };
+                    }
+                    // 3. Match วันที่เต็ม (เช่น 31/08/2568 หรือ 2025-08-31)
+                    m = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+                    if (m) {
+                        let month = parseInt(m[2], 10);
+                        let year = parseInt(m[3], 10);
+                        if (year < 2400) year += 543;
+                        return { month, year };
+                    }
+                    return null;
+                }
+
+                function initPayslipYearSelector(availableYears, activeYear) {
                     const sel = document.getElementById('yearly-payslip-year');
                     if (!sel) return;
-                    const thisYear = new Date().getFullYear();
-                    const thisYearThai = thisYear + 543;
+                    const thisYearThai = new Date().getFullYear() + 543;
+                    const yearsSet = new Set(availableYears || []);
+                    yearsSet.add(thisYearThai);
+                    yearsSet.add(thisYearThai - 1);
+                    const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
+
                     sel.innerHTML = '';
-                    for (let y = thisYearThai; y >= thisYearThai - 5; y--) {
+                    sortedYears.forEach(y => {
                         const opt = document.createElement('option');
                         opt.value = y; opt.textContent = y;
-                        if (y === thisYearThai) opt.selected = true;
+                        if (y === activeYear) opt.selected = true;
                         sel.appendChild(opt);
-                    }
+                    });
                 }
 
                 function renderYearlyPayslipMonthTabs(buddhistYear) {
@@ -14531,9 +14567,15 @@ ${slip.textSample}
                     if (!tabsEl) return;
                     tabsEl.innerHTML = '';
                     for (let m = 1; m <= 12; m++) {
+                        const mKey = `${buddhistYear}-${String(m).padStart(2, '0')}`;
+                        const hasData = yearlyPayslipDataCache[mKey] && yearlyPayslipDataCache[mKey].length > 0;
                         const isCurrent = (m === thisMonth && buddhistYear == thisYearThai);
                         const isActive = (m === yearlyPayslipSelectedMonth);
-                        const badge = isCurrent ? ' <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>' : '';
+                        
+                        let badge = '';
+                        if (hasData) badge = ` <span class="text-[9px] px-1 py-0.2 rounded-full ${isActive ? 'bg-white/30 text-white' : 'bg-emerald-100 text-emerald-700 font-bold'}">(${yearlyPayslipDataCache[mKey].length})</span>`;
+                        else if (isCurrent) badge = ' <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>';
+
                         const btn = document.createElement('button');
                         btn.dataset.month = m;
                         btn.innerHTML = THAI_MONTHS_SHORT[m - 1] + badge;
@@ -14544,123 +14586,90 @@ ${slip.textSample}
                 }
 
                 async function loadYearlyPayslipOverview() {
-                    initPayslipYearSelector();
-                    const buddhistYear = parseInt(document.getElementById('yearly-payslip-year')?.value || (new Date().getFullYear() + 543));
-                    yearlyPayslipDataCache = {};
-                    yearlyPayslipSelectedMonth = new Date().getMonth() + 1;
-                    ['yps-total-count','yps-total-amount','yps-uploaded-count','yps-avg-amount'].forEach(id => {
-                        const el = document.getElementById(id); if (el) el.textContent = '-';
-                    });
-                    renderYearlyPayslipMonthTabs(buddhistYear);
-
-                    // 1. ⚡ โหลดและแสดงข้อมูลสลิปของเดือนปัจจุบันทันทีอัตโนมัติ (Fast Initial Render)
-                    await loadYearlyPayslipRecords(yearlyPayslipSelectedMonth, buddhistYear);
-
-                    // 2. 🚀 พรีโหลดข้อมูลอีก 11 เดือนที่เหลือในเบื้องหลังทันที (Instant 0ms Switching)
-                    preloadAllYearlyPayslips(buddhistYear);
-                }
-
-                // ── Background Preloader: ดึงสลิปครบ 12 เดือนไว้ใน Cache ล่วงหน้า ──
-                async function preloadAllYearlyPayslips(buddhistYear) {
-                    if (!supabaseClient) return;
-                    try {
-                        const promises = [];
-                        for (let m = 1; m <= 12; m++) {
-                            const mStr = String(m).padStart(2, '0');
-                            const cacheKey = `${buddhistYear}-${mStr}`;
-                            if (yearlyPayslipDataCache[cacheKey]) continue;
-
-                            const periodVariants = [
-                                `${mStr}/${buddhistYear}`,
-                                `${mStr}/${buddhistYear - 543}`,
-                                `${buddhistYear - 543}-${mStr}`
-                            ];
-
-                            promises.push(
-                                supabaseClient
-                                    .from('payslips')
-                                    .select('*')
-                                    .or(periodVariants.map(p => `period.eq.${p}`).join(','))
-                                    .order('created_at', { ascending: false })
-                                    .then(({ data, error }) => {
-                                        if (!error && Array.isArray(data)) {
-                                            yearlyPayslipDataCache[cacheKey] = data;
-                                        }
-                                    }).catch(() => {})
-                            );
-                        }
-                        await Promise.all(promises);
-                        console.log(`[YearlyPayslip ⚡ Background Preload] All 12 months preloaded for ${buddhistYear}`);
-                    } catch (e) {
-                        console.warn('[YearlyPayslip Preload Error]', e);
-                    }
-                }
-
-                async function selectYearlyPayslipMonth(month) {
-                    yearlyPayslipSelectedMonth = month;
-                    const buddhistYear = parseInt(document.getElementById('yearly-payslip-year')?.value || (new Date().getFullYear() + 543));
-                    renderYearlyPayslipMonthTabs(buddhistYear);
-                    const mStr = String(month).padStart(2, '0');
-                    const cacheKey = `${buddhistYear}-${mStr}`;
-
-                    // ⚡ Instant View: ถ้ามีใน Cache อยู่แล้ว เรนเดอร์ขึ้นตารางทันที 0ms ไม่ต้องรอโหลด
-                    if (yearlyPayslipDataCache[cacheKey]) {
-                        renderYearlyPayslipTable(yearlyPayslipDataCache[cacheKey], month, buddhistYear);
-                        return;
-                    }
-                    await loadYearlyPayslipRecords(month, buddhistYear);
-                }
-
-                async function loadYearlyPayslipRecords(month, buddhistYear) {
-                    const mStr = String(month).padStart(2, '0');
-                    const cacheKey = `${buddhistYear}-${mStr}`;
                     const tbody = document.getElementById('yearly-payslip-body');
-                    if (!tbody) return;
-
-                    if (yearlyPayslipDataCache[cacheKey]) {
-                        renderYearlyPayslipTable(yearlyPayslipDataCache[cacheKey], month, buddhistYear);
-                        return;
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลสลิปเงินเดือนทั้งหมดจากฐานข้อมูล...</td></tr>';
                     }
 
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลสลิปเดือน ' + THAI_MONTHS_FULL[month - 1] + '...</td></tr>';
-
-                    const periodVariants = [
-                        `${mStr}/${buddhistYear}`,
-                        `${mStr}/${buddhistYear - 543}`,
-                        `${buddhistYear - 543}-${mStr}`
-                    ];
-
-                    // ✅ Supabase-First
+                    // 1. ⚡ โหลดข้อมูลสลิปเงินเดือนทั้งหมด (Supabase-First + Fallback)
+                    let allPayslips = [];
                     try {
                         if (supabaseClient) {
                             const { data, error } = await supabaseClient
                                 .from('payslips')
                                 .select('*')
-                                .or(periodVariants.map(p => `period.eq.${p}`).join(','))
                                 .order('created_at', { ascending: false });
-                            if (!error && Array.isArray(data)) {
-                                yearlyPayslipDataCache[cacheKey] = data;
-                                renderYearlyPayslipTable(data, month, buddhistYear);
-                                return;
+                            if (!error && Array.isArray(data) && data.length > 0) {
+                                allPayslips = data;
                             }
                         }
                     } catch (sbErr) {
-                        console.warn('[YearlyPayslip] Supabase query failed:', sbErr);
+                        console.warn('[YearlyPayslip] Supabase load error:', sbErr);
                     }
 
-                    // Fallback: ใช้ GAS API
-                    try {
-                        const periodParam = `${mStr}/${buddhistYear}`;
-                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getPayslips&empId=${currentEmployeeId}&period=${encodeURIComponent(periodParam)}`);
-                        if (res && res.status === 'success' && Array.isArray(res.data)) {
-                            yearlyPayslipDataCache[cacheKey] = res.data;
-                            renderYearlyPayslipTable(res.data, month, buddhistYear);
-                        } else {
-                            renderYearlyPayslipTable([], month, buddhistYear);
+                    if (allPayslips.length === 0) {
+                        try {
+                            const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getPayslips&empId=*ALL*`);
+                            if (res && res.status === 'success' && Array.isArray(res.data)) {
+                                allPayslips = res.data;
+                            }
+                        } catch (gasErr) {
+                            console.warn('[YearlyPayslip] GAS load error:', gasErr);
                         }
-                    } catch (e) {
-                        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลสลิปเงินเดือนเดือนนี้</td></tr>';
                     }
+
+                    allPayslipsLoadedList = allPayslips;
+
+                    // 2. 🗂️ จัดกลุ่มข้อมูลสลิปตาม Year-Month ลงใน Cache
+                    yearlyPayslipDataCache = {};
+                    const foundYears = new Set();
+                    let latestYearWithData = null;
+                    let latestMonthWithData = null;
+
+                    allPayslips.forEach(r => {
+                        const rawPeriod = r.period || r['รอบเงินเดือน'] || r.month || '';
+                        const parsed = parsePayslipPeriod(rawPeriod);
+                        if (parsed) {
+                            foundYears.add(parsed.year);
+                            const key = `${parsed.year}-${String(parsed.month).padStart(2, '0')}`;
+                            if (!yearlyPayslipDataCache[key]) yearlyPayslipDataCache[key] = [];
+                            yearlyPayslipDataCache[key].push(r);
+
+                            if (!latestYearWithData || parsed.year > latestYearWithData || (parsed.year === latestYearWithData && parsed.month > latestMonthWithData)) {
+                                latestYearWithData = parsed.year;
+                                latestMonthWithData = parsed.month;
+                            }
+                        }
+                    });
+
+                    // 3. กำหนดปีและเดือนที่แอคทีฟ
+                    const thisYearThai = new Date().getFullYear() + 543;
+                    const thisMonth = new Date().getMonth() + 1;
+                    const currentSelectedYear = parseInt(document.getElementById('yearly-payslip-year')?.value || 0);
+
+                    const activeYear = currentSelectedYear || latestYearWithData || thisYearThai;
+                    initPayslipYearSelector(Array.from(foundYears), activeYear);
+
+                    // เลือกเดือน: ถ้าปีที่เลือกมีข้อมูลเดือน ให้เลือกเดือนที่มีข้อมูลล่าสุด มิฉะนั้นเลือกเดือนปัจจุบัน
+                    if (yearlySelectedMonth == null || currentSelectedYear !== activeYear) {
+                        yearlyPayslipSelectedMonth = (activeYear === latestYearWithData && latestMonthWithData) ? latestMonthWithData : thisMonth;
+                    }
+
+                    renderYearlyPayslipMonthTabs(activeYear);
+
+                    // 4. เรนเดอร์ตารางเดือนที่เลือกทันที
+                    const activeKey = `${activeYear}-${String(yearlyPayslipSelectedMonth).padStart(2, '0')}`;
+                    const records = yearlyPayslipDataCache[activeKey] || [];
+                    renderYearlyPayslipTable(records, yearlyPayslipSelectedMonth, activeYear);
+                }
+
+                function selectYearlyPayslipMonth(month) {
+                    yearlyPayslipSelectedMonth = month;
+                    const buddhistYear = parseInt(document.getElementById('yearly-payslip-year')?.value || (new Date().getFullYear() + 543));
+                    renderYearlyPayslipMonthTabs(buddhistYear);
+                    const cacheKey = `${buddhistYear}-${String(month).padStart(2, '0')}`;
+                    const records = yearlyPayslipDataCache[cacheKey] || [];
+                    renderYearlyPayslipTable(records, month, buddhistYear);
                 }
 
                 function renderYearlyPayslipTable(records, month, buddhistYear) {
