@@ -7112,7 +7112,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             /**
              * 🔄 โหลดข้อมูลทั้งหมดสำหรับ Employee Dashboard & App
-             * ดึงข้อมูล: projects, employee, timeRecords, timeCorrections, leaveRequests, advanceRequests, payslips
+             * ดึงข้อมูล: projects, employee, timeRecords, timeCorrections, leaveRequests, advanceRequests, payslips, announcements
              */
             async function loadAllData() {
                 if (!currentEmployeeId) {
@@ -7126,7 +7126,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const pEnd = currentCycle.end;
 
                     const url = `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(currentEmployeeId)}&periodStart=${encodeURIComponent(pStart)}&periodEnd=${encodeURIComponent(pEnd)}`;
-                    const res = await fetchWithTimeout(url, { timeout: 15000 });
+                    
+                    const [res] = await Promise.all([
+                        fetchWithTimeout(url, { timeout: 15000 }).catch(err => {
+                            console.warn('[loadAllData fetchWithTimeout]', err);
+                            return null;
+                        }),
+                        fetchAnnouncements().catch(() => [])
+                    ]);
 
                     if (res && res.status === 'success' && res.data) {
                         const d = res.data;
@@ -7137,32 +7144,133 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (Array.isArray(d.leaveRequests)) leaveRequestsList = d.leaveRequests;
                         if (Array.isArray(d.advanceRequests)) advanceRequestsList = d.advanceRequests;
                         if (Array.isArray(d.payslips)) payslipsList = d.payslips;
-
-                        // Render and sync all views
-                        if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI();
-                        if (typeof displayAnnouncements === 'function') displayAnnouncements();
-                        if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders();
-                        if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal();
-                        if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus();
-                        if (typeof applyRolePermissions === 'function') applyRolePermissions();
-                        if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards();
-
-                        return true;
-                    } else {
-                        console.warn('[loadAllData] Server returned non-success, rendering with local data', res);
-                        if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI();
-                        if (typeof displayAnnouncements === 'function') displayAnnouncements();
-                        if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders();
-                        if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal();
-                        return true;
+                        if (Array.isArray(d.announcements)) setStoredAnnouncements(d.announcements);
                     }
+
+                    // Render and sync all views safely
+                    try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) { console.warn(e); }
+                    try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) { console.warn(e); }
+                    try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                    try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) { console.warn(e); }
+                    try { if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus(); } catch (e) { console.warn(e); }
+                    try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch (e) { console.warn(e); }
+                    try { if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards(); } catch (e) { console.warn(e); }
+
+                    return true;
                 } catch (err) {
                     console.error('[loadAllData] Error:', err);
-                    if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI();
-                    if (typeof displayAnnouncements === 'function') displayAnnouncements();
-                    if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders();
-                    if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal();
+                    try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) {}
+                    try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) {}
+                    try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) {}
+                    try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) {}
                     return true;
+                }
+            }
+
+            // ─── Announcement Storage & Functions ──────────────────────
+            let announcementsList = [];
+
+            function getStoredAnnouncements() {
+                if (Array.isArray(announcementsList) && announcementsList.length > 0) {
+                    return announcementsList;
+                }
+                try {
+                    const cached = sessionStorage.getItem('hrbtc_announcements');
+                    if (cached) {
+                        announcementsList = JSON.parse(cached);
+                        return Array.isArray(announcementsList) ? announcementsList : [];
+                    }
+                } catch (e) {}
+                return [];
+            }
+
+            function setStoredAnnouncements(list) {
+                announcementsList = Array.isArray(list) ? list : [];
+                try {
+                    sessionStorage.setItem('hrbtc_announcements', JSON.stringify(announcementsList));
+                } catch (e) {}
+            }
+
+            async function fetchAnnouncements() {
+                try {
+                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAnnouncements&empId=${encodeURIComponent(currentEmployeeId || 'ADMIN')}`, { timeout: 10000 });
+                    if (res && res.status === 'success' && Array.isArray(res.data)) {
+                        setStoredAnnouncements(res.data);
+                        return res.data;
+                    }
+                } catch (err) {
+                    console.warn('[fetchAnnouncements]', err);
+                }
+                return getStoredAnnouncements();
+            }
+
+            async function loadAdminAnnouncements() {
+                const container = document.getElementById("admin-announcements-list");
+                if (container) {
+                    container.innerHTML = '<div class="py-6 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin text-brand-teal mr-1"></i> กำลังโหลดประกาศ...</div>';
+                }
+                const list = await fetchAnnouncements();
+                if (!container) return;
+
+                if (!list || list.length === 0) {
+                    container.innerHTML = '<div class="py-6 text-center text-slate-400 italic">ยังไม่มีประกาศในระบบ</div>';
+                    return;
+                }
+
+                container.innerHTML = list.map(item => `
+                    <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="flex items-center gap-2 text-sm font-semibold text-slate-800"><i class="fa-solid fa-bullhorn text-brand-teal"></i>${escapeHtml(item.title || '')}</p>
+                            <span class="text-[10px] text-slate-500">${formatThaiDate(item.date || '')}</span>
+                        </div>
+                        <p class="text-xs text-slate-600 mt-2 whitespace-pre-line">${escapeHtml(item.message || '')}</p>
+                    </div>
+                `).join('');
+            }
+
+            async function saveAdminAnnouncement() {
+                const titleInput = document.getElementById("admin-announcement-title");
+                const dateInput = document.getElementById("admin-announcement-date");
+                const messageInput = document.getElementById("admin-announcement-message");
+
+                const title = (titleInput?.value || "").trim();
+                const date = (dateInput?.value || "").trim();
+                const message = (messageInput?.value || "").trim();
+
+                if (!title || !message) {
+                    showToast("⚠️ กรุณาระบุหัวข้อและข้อความประกาศ", "warning");
+                    return;
+                }
+
+                try {
+                    const res = await fetch(SERVER_API_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({
+                            action: "postAnnouncement",
+                            empId: currentEmployeeId,
+                            adminId: currentEmployeeId,
+                            title: title,
+                            date: date || new Date().toISOString().slice(0, 10),
+                            message: message,
+                            author: (employeeData && employeeData["ชื่อ-นามสกุล"]) ? employeeData["ชื่อ-นามสกุล"] : currentEmployeeId,
+                            authorEmpId: currentEmployeeId
+                        })
+                    });
+                    const json = await res.json();
+                    if (json.status === "success") {
+                        showToast("✅ " + json.message, "success");
+                        if (titleInput) titleInput.value = "";
+                        if (messageInput) messageInput.value = "";
+                        await fetchAnnouncements();
+                        loadAdminAnnouncements();
+                        displayAnnouncements();
+                    } else {
+                        showToast("❌ " + (json.message || "บันทึกประกาศไม่สำเร็จ"), "error");
+                    }
+                } catch (err) {
+                    console.error("[saveAdminAnnouncement] Error:", err);
+                    showToast("❌ เกิดข้อผิดพลาดในการบันทึกประกาศ", "error");
                 }
             }
             
