@@ -5963,6 +5963,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (isEmpty) {
                         console.warn('[Supabase] ⚠️ Database is EMPTY — ต้องซิงค์ข้อมูลจาก Google Sheets');
                     } else {
+                        setSupabaseLocked(true);
                         console.log(`[Supabase] ✓ Database has ${count} employees`);
                     }
                     return isEmpty;
@@ -18375,21 +18376,66 @@ ${slip.textSample}
             log.scrollTop = log.scrollHeight;
         }
 
-        function initGasPanelUI() {
-            const urlEl = document.getElementById('gas-config-url');
-            const currentUrl = (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
-            if (urlEl && currentUrl) {
-                urlEl.value = currentUrl;
+        /* GAS Config lock/edit helpers */
+        function setGasLocked(locked) {
+            var field = document.getElementById('gas-config-field');
+            var lockedEl = document.getElementById('gas-config-locked');
+            var maskedEl = document.getElementById('gas-config-masked-url');
+            var editBtn = document.getElementById('gas-edit-btn');
+            var cancelBtn = document.getElementById('gas-cancel-btn');
+            var saveBtn = document.getElementById('gas-save-btn');
+            if (locked) {
+                if (field) field.classList.add('hidden');
+                if (lockedEl) lockedEl.classList.remove('hidden');
+                if (editBtn) editBtn.classList.remove('hidden');
+                if (cancelBtn) cancelBtn.classList.add('hidden');
+                if (saveBtn) saveBtn.classList.add('hidden');
+                var url = (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
+                if (maskedEl && url) maskedEl.textContent = url.replace(/\/macros\/s\/[^/]+/, '/macros/s/****');
+            } else {
+                if (field) field.classList.remove('hidden');
+                if (lockedEl) lockedEl.classList.add('hidden');
+                if (editBtn) editBtn.classList.add('hidden');
+                if (cancelBtn) cancelBtn.classList.remove('hidden');
+                if (saveBtn) saveBtn.classList.remove('hidden');
             }
+        }
+        function enterGasEditMode() { setGasLocked(false); }
+        function cancelGasEdit() {
+            var urlEl = document.getElementById('gas-config-url');
+            if (urlEl) urlEl.value = (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
+            setGasLocked(true);
+        }
 
-            const statusBadge = document.getElementById('gas-status-badge');
-            const statusDot   = document.getElementById('gas-status-dot');
-            const statusText  = document.getElementById('gas-status-text');
+        async function initGasPanelUI() {
+            // 1. Load GAS URL from server (PropertiesService)
+            try {
+                var config = null;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    config = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getGasConfig();
+                    }).then(r => (r && r.status === 'success') ? r.config : null);
+                } else if (SERVER_API_URL) {
+                    config = await fetchWithTimeout(SERVER_API_URL + '?action=getGasConfig', { timeout: 8000 }).then(r => r && r.config ? r.config : null);
+                }
+                if (config && config.url) {
+                    SERVER_API_URL = config.url;
+                }
+            } catch (e) { console.warn('[GAS] load config error:', e); }
 
-            if (currentUrl) {
-                if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-                if (statusText) statusText.textContent = 'พร้อมใช้งาน (Live Backup)';
-                if (statusBadge) statusBadge.className = statusBadge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-emerald-50 text-emerald-700 border-emerald-200';
+            var urlEl = document.getElementById('gas-config-url');
+            if (urlEl) urlEl.value = SERVER_API_URL || '';
+            var dot = document.getElementById('gas-status-dot');
+            var text = document.getElementById('gas-status-text');
+            var badge = document.getElementById('gas-status-badge');
+            if (SERVER_API_URL) {
+                setGasLocked(true);
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+                if (text) text.textContent = 'Live Backup';
+                if (badge) badge.className = badge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-emerald-50 text-emerald-700 border-emerald-200';
+                testGoogleSheetsConnection();
+            } else {
+                setGasLocked(false);
             }
         }
 
@@ -18407,20 +18453,22 @@ ${slip.textSample}
         }
 
         async function saveGasConfigDirect() {
-            const url = (document.getElementById('gas-config-url')?.value || '').trim();
-            if (!url) {
-                showToast('⚠️ กรุณากรอก Google Apps Script Web App URL', 'warning');
-                return;
-            }
-            if (!isValidAppsScriptUrl(url)) {
-                showToast('⚠️ URL ต้องเป็น Google Apps Script ที่ลงท้ายด้วย /exec', 'warning');
-                return;
-            }
-
+            var url = (document.getElementById('gas-config-url')?.value || '').trim();
+            if (!url) { showToast('Please enter URL', 'warning'); return; }
+            if (!isValidAppsScriptUrl(url)) { showToast('URL must end with /exec', 'warning'); return; }
+            // Save to server (PropertiesService)
+            try {
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).saveGasConfigToServer(url);
+                    });
+                } else if (SERVER_API_URL) {
+                    await fetchWithTimeout(SERVER_API_URL + '?action=saveGasConfigToServer&url=' + encodeURIComponent(url), { timeout: 8000 });
+                }
+            } catch (e) { console.warn('[GAS] save config error:', e); }
             SERVER_API_URL = url;
-
-            gasLog(`💾 บันทึก URL เรียบร้อย: ${url}`);
-            showToast('✅ บันทึก Google Apps Script URL สำเร็จ', 'success');
+            showToast('Google Apps Script URL saved', 'success');
+            setGasLocked(true);
             testGoogleSheetsConnection();
         }
 
@@ -18495,6 +18543,38 @@ ${slip.textSample}
             log.scrollTop = log.scrollHeight;
         }
 
+        /* Supabase Config lock/edit helpers */
+        function setSupabaseLocked(locked) {
+            var fields = document.getElementById('sb-config-fields');
+            var lockedEl = document.getElementById('sb-config-locked');
+            var maskedEl = document.getElementById('sb-config-masked-url');
+            var editBtn = document.getElementById('sb-edit-btn');
+            var cancelBtn = document.getElementById('sb-cancel-btn');
+            var saveBtn = document.getElementById('sb-save-btn');
+            if (locked) {
+                if (fields) fields.classList.add('hidden');
+                if (lockedEl) lockedEl.classList.remove('hidden');
+                if (editBtn) editBtn.classList.remove('hidden');
+                if (cancelBtn) cancelBtn.classList.add('hidden');
+                if (saveBtn) saveBtn.classList.add('hidden');
+                if (maskedEl && SUPABASE_CONFIG.url) maskedEl.textContent = SUPABASE_CONFIG.url.replace(/\.supabase\.co.*/, '.supabase.co');
+            } else {
+                if (fields) fields.classList.remove('hidden');
+                if (lockedEl) lockedEl.classList.add('hidden');
+                if (editBtn) editBtn.classList.add('hidden');
+                if (cancelBtn) cancelBtn.classList.remove('hidden');
+                if (saveBtn) saveBtn.classList.remove('hidden');
+            }
+        }
+        function enterSupabaseEditMode() { setSupabaseLocked(false); }
+        function cancelSupabaseEdit() {
+            var urlEl = document.getElementById('sb-config-url');
+            var keyEl = document.getElementById('sb-config-key');
+            if (urlEl) urlEl.value = SUPABASE_CONFIG.url || '';
+            if (keyEl) keyEl.value = SUPABASE_CONFIG.anonKey || '';
+            setSupabaseLocked(true);
+        }
+
         async function initSupabasePanelUI() {
             const urlEl  = document.getElementById('sb-config-url');
             const keyEl  = document.getElementById('sb-config-key');
@@ -18542,9 +18622,11 @@ ${slip.textSample}
                 if (statusText) statusText.textContent = 'ยังไม่ได้ตั้งค่า';
                 if (badge) badge.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200';
                 console.log('[Supabase] No config saved yet — waiting for user setup');
+                setSupabaseLocked(false);
                 return;
             }
 
+            setSupabaseLocked(true);
             // 4. มี config → auto-test เชื่อมต่อ
             console.log(`[Supabase] ⚡ Config loaded from server → testing connection...`);
             if (statusText) statusText.textContent = 'กำลังตรวจสอบ...';
@@ -18660,6 +18742,7 @@ ${slip.textSample}
             sbLog('✅ บันทึกสำเร็จ — กำลังทดสอบเชื่อมต่อ...', '#34d399');
 
             // Auto-test ทันทีหลังบันทึก
+            setSupabaseLocked(true);
             await testSupabaseConnection();
         }
 
