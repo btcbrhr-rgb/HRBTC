@@ -4507,22 +4507,61 @@
 
                                 <!-- Import Section -->
                                 <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
-                                    <div class="flex items-center justify-between mb-3">
-                                        <div>
-                                            <h4 class="text-xs font-bold text-slate-700">นำเข้าวันหยุดจากไฟล์ CSV</h4>
-                                            <p class="text-[10px] text-slate-500 mt-0.5">คอลัมน์: date,title,year,holiday_type</p>
+                                    <div class="flex items-center gap-3 mb-3">
+                                        <button onclick="switchHolidayImportTab('text')" id="holiday-import-tab-text"
+                                            class="px-3 py-1.5 text-xs font-bold rounded-lg bg-brand-deep text-white">วางข้อความ/PDF</button>
+                                        <button onclick="switchHolidayImportTab('csv')" id="holiday-import-tab-csv"
+                                            class="px-3 py-1.5 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-200">นำเข้า CSV</button>
+                                    </div>
+
+                                    <!-- Tab: Text/PDF Import -->
+                                    <div id="holiday-import-panel-text">
+                                        <div class="mb-2">
+                                            <p class="text-[10px] text-slate-500">วางข้อความวันหยุดจาก PDF หรือเว็บไซต์ แล้วกด "วิเคราะห์" เพื่อดูตัวอย่างก่อนนำเข้า</p>
+                                            <p class="text-[10px] text-slate-400 mt-0.5">รองรับ: "13 มกราคม 2568 - วันเด็ก" หรือ "13 ม.ค. 68 วันเด็ก" หรือตาราง</p>
                                         </div>
-                                        <a href="templates/holidays_template_2568-2569.csv" download
-                                            class="text-[10px] text-brand-teal hover:text-brand-deep font-semibold">
-                                            <i class="fa-solid fa-download mr-1"></i>ดาวน์โหลด template</a>
+                                        <textarea id="holiday-import-text" rows="6" placeholder="วันจันทร์ที่ 1 มกราคม 2568 - วันขึ้นปีใหม่&#10;วันจันทร์ที่ 13 มกราคม 2568 - วันเด็กแห่งชาติ&#10;วันอังคารที่ 12 กุมภาพันธ์ 2568 - วันมาฆบูชา&#10;..."
+                                            class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-brand-teal focus:outline-none resize-y" aria-label="วางข้อความวันหยุด"></textarea>
+                                        <div class="flex items-center gap-2 mt-2">
+                                            <label class="text-[10px] font-semibold text-slate-500">ประเภท:</label>
+                                            <select id="holiday-import-text-type" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-brand-teal focus:outline-none">
+                                                <option value="นักขัตฤกษ์">วันหยุดนักขัตฤกษ์</option>
+                                                <option value="เพิ่มเติม">วันหยุดเพิ่มเติม</option>
+                                                <option value="ส่วนราชการปิด">ส่วนราชการปิด</option>
+                                            </select>
+                                            <button onclick="previewHolidayText()" id="holiday-btn-preview"
+                                                class="bg-slate-600 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all">
+                                                <i class="fa-solid fa-magnifying-glass mr-1"></i>วิเคราะห์</button>
+                                            <button onclick="confirmImportHolidayText()" id="holiday-btn-confirm-import" disabled
+                                                class="bg-brand-deep hover:bg-brand-teal disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all">
+                                                <i class="fa-solid fa-check mr-1"></i>ยืนยันนำเข้า</button>
+                                        </div>
+                                        <div id="holiday-import-preview" class="mt-3 hidden">
+                                            <div class="flex items-center justify-between mb-1">
+                                                <span class="text-xs font-bold text-slate-700">ตัวอย่างที่พบ:</span>
+                                                <span id="holiday-preview-count" class="text-[10px] bg-brand-sky text-brand-deep px-2 py-0.5 rounded-full font-bold">0 วัน</span>
+                                            </div>
+                                            <div id="holiday-preview-list" class="max-h-40 overflow-y-auto space-y-1"></div>
+                                        </div>
                                     </div>
-                                    <div class="flex items-center gap-2">
-                                        <input type="file" id="holiday-import-file" accept=".csv" title="เลือกไฟล์ CSV"
-                                            class="text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-deep file:text-white hover:file:bg-brand-teal file:cursor-pointer" />
-                                        <button onclick="importHolidaysFromCSV()"
-                                            class="bg-brand-teal hover:bg-brand-deep text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-all">
-                                            <i class="fa-solid fa-file-import mr-1"></i>นำเข้า</button>
+
+                                    <!-- Tab: CSV Import -->
+                                    <div id="holiday-import-panel-csv" class="hidden">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <p class="text-[10px] text-slate-500">คอลัมน์: date,title,year,holiday_type</p>
+                                            <a href="templates/holidays_template_2568-2569.csv" download
+                                                class="text-[10px] text-brand-teal hover:text-brand-deep font-semibold">
+                                                <i class="fa-solid fa-download mr-1"></i>ดาวน์โหลด template</a>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <input type="file" id="holiday-import-file" accept=".csv" title="เลือกไฟล์ CSV"
+                                                class="text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-deep file:text-white hover:file:bg-brand-teal file:cursor-pointer" />
+                                            <button onclick="importHolidaysFromCSV()"
+                                                class="bg-brand-teal hover:bg-brand-deep text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-all">
+                                                <i class="fa-solid fa-file-import mr-1"></i>นำเข้า</button>
+                                        </div>
                                     </div>
+
                                     <div id="holiday-import-result" class="mt-2 text-xs hidden"></div>
                                 </div>
                             </div>
@@ -7751,6 +7790,120 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            // ─── Holiday Import Tab Switching ──────────────────────────
+            function switchHolidayImportTab(tab) {
+                const tabs = ['text', 'csv'];
+                tabs.forEach(t => {
+                    const panel = document.getElementById(`holiday-import-panel-${t}`);
+                    const btn = document.getElementById(`holiday-import-tab-${t}`);
+                    if (panel) panel.classList.toggle('hidden', t !== tab);
+                    if (btn) {
+                        btn.className = t === tab
+                            ? 'px-3 py-1.5 text-xs font-bold rounded-lg bg-brand-deep text-white'
+                            : 'px-3 py-1.5 text-xs font-bold rounded-lg text-slate-500 hover:bg-slate-200';
+                    }
+                });
+            }
+
+            let parsedHolidayPreview = [];
+
+            /** วิเคราะห์ข้อความวันหยุด (preview) */
+            async function previewHolidayText() {
+                const textData = document.getElementById('holiday-import-text')?.value || '';
+                if (!textData.trim()) {
+                    showToast('⚠️ กรุณาวางข้อความวันหยุดก่อน', 'warning');
+                    return;
+                }
+
+                const previewDiv = document.getElementById('holiday-import-preview');
+                const listDiv = document.getElementById('holiday-preview-list');
+                const countSpan = document.getElementById('holiday-preview-count');
+                const btnConfirm = document.getElementById('holiday-btn-confirm-import');
+
+                try {
+                    const res = await fetch(SERVER_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'importHolidaysFromText',
+                            empId: currentEmployeeId,
+                            adminId: currentEmployeeId,
+                            textData: textData,
+                            previewOnly: true
+                        })
+                    });
+                    const json = await res.json();
+
+                    if (json.status === 'success' && json.data && json.data.holidays) {
+                        parsedHolidayPreview = json.data.holidays;
+                        countSpan.textContent = `${json.data.count} วัน`;
+                        listDiv.innerHTML = json.data.holidays.map(h => {
+                            const typeBadge = '<span class="text-[10px] text-slate-400">นักขัตฤกษ์</span>';
+                            return `<div class="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-slate-100">
+                                <span class="text-xs font-mono text-brand-teal font-bold">${escapeHtml(h.date)}</span>
+                                <span class="text-xs text-slate-700">${escapeHtml(h.title)}</span>
+                            </div>`;
+                        }).join('');
+                        previewDiv.classList.remove('hidden');
+                        btnConfirm.disabled = false;
+                    } else {
+                        showToast('❌ ' + (json.message || 'ไม่พบรายการวันหยุด'), 'error');
+                        parsedHolidayPreview = [];
+                        btnConfirm.disabled = true;
+                    }
+                } catch (err) {
+                    console.error('[previewHolidayText] Error:', err);
+                    showToast('❌ เกิดข้อผิดพลาด', 'error');
+                }
+            }
+
+            /** ยืนยันนำเข้าวันหยุดจากข้อความ */
+            async function confirmImportHolidayText() {
+                if (parsedHolidayPreview.length === 0) {
+                    showToast('⚠️ ไม่มีรายการวันหยุดให้นำเข้า', 'warning');
+                    return;
+                }
+n                const textData = document.getElementById('holiday-import-text')?.value || '';
+                const type = document.getElementById('holiday-import-text-type')?.value || 'นักขัตฤกษ์';
+                const resultDiv = document.getElementById('holiday-import-result');
+
+                resultDiv.className = 'mt-2 text-xs';
+                resultDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังนำเข้า...';
+                resultDiv.classList.remove('hidden');
+
+                try {
+                    const res = await fetch(SERVER_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'importHolidaysFromText',
+                            empId: currentEmployeeId,
+                            adminId: currentEmployeeId,
+                            textData: textData,
+                            type: type
+                        })
+                    });
+                    const json = await res.json();
+
+                    if (json.status === 'success') {
+                        resultDiv.innerHTML = `<span class="text-green-600 font-semibold">✅ ${escapeHtml(json.message)}</span>`;
+                        resultDiv.className = 'mt-2 text-xs bg-green-50 border border-green-200 rounded-lg p-2';
+                        document.getElementById('holiday-import-text').value = '';
+                        document.getElementById('holiday-import-preview').classList.add('hidden');
+                        document.getElementById('holiday-btn-confirm-import').disabled = true;
+                        parsedHolidayPreview = [];
+                        loadAdminHolidays();
+                    } else {
+                        resultDiv.innerHTML = `<span class="text-red-500 font-semibold">❌ ${escapeHtml(json.message)}</span>`;
+                        resultDiv.className = 'mt-2 text-xs bg-red-50 border border-red-200 rounded-lg p-2';
+                    }
+                } catch (err) {
+                    console.error('[confirmImportHolidayText] Error:', err);
+                    resultDiv.innerHTML = '<span class="text-red-500 font-semibold">❌ เกิดข้อผิดพลาด</span>';
+                    resultDiv.className = 'mt-2 text-xs bg-red-50 border border-red-200 rounded-lg p-2';
+                }
+            }
+
             /** นำเข้าวันหยุดจากไฟล์ CSV */
             async function importHolidaysFromCSV() {
                 const fileInput = document.getElementById('holiday-import-file');
@@ -8383,6 +8536,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         'editHoliday':           ['getHolidays', 'getDashboardData'],
                         'deleteHoliday':         ['getHolidays', 'getDashboardData'],
                         'importHolidays':        ['getHolidays', 'getDashboardData'],
+                        'importHolidaysFromText': ['getHolidays', 'getDashboardData'],
                         'uploadPayslipFile':     ['getPayslips', 'getDashboardData'],
                         'updateEmployeeProfile': ['getEmployee', 'getEmployeeData', 'getDashboardData'],
                         'importTimeRecords':     ['getTimeRecords', 'getDashboardData']
