@@ -14631,10 +14631,12 @@ ${slip.textSample}
                     let allPayslips = [];
                     try {
                         if (supabaseClient) {
+                            console.log('[loadYearlyPayslipOverview] ⚡ Fetching all payslips from Supabase...');
                             const { data, error } = await supabaseClient
                                 .from('payslips')
                                 .select('*')
-                                .order('created_at', { ascending: false });
+                                .limit(5000);
+                            console.log('[loadYearlyPayslipOverview] Supabase response:', { count: data?.length, error, sample: data?.[0] });
                             if (!error && Array.isArray(data) && data.length > 0) {
                                 allPayslips = data;
                             }
@@ -14646,6 +14648,7 @@ ${slip.textSample}
                     if (allPayslips.length === 0) {
                         try {
                             const gasUrl = `${SERVER_API_URL}?action=getPayslips&empId=*ALL*&adminId=${encodeURIComponent(currentEmployeeId || '')}`;
+                            console.log('[loadYearlyPayslipOverview] 🟡 Fallback to GAS API:', gasUrl);
                             const res = await fetchWithTimeout(gasUrl);
                             if (res && res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
                                 allPayslips = res.data;
@@ -14661,6 +14664,7 @@ ${slip.textSample}
                     }
 
                     allPayslipsLoadedList = allPayslips;
+                    console.log(`[loadYearlyPayslipOverview] Total payslips loaded: ${allPayslips.length}`);
 
                     // 2. 🗂️ จัดกลุ่มข้อมูลสลิปตาม Year-Month ลงใน Cache
                     yearlyPayslipDataCache = {};
