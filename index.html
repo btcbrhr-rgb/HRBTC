@@ -3124,27 +3124,34 @@
                         </div>
                     </div>
 
-                    <!-- Preview pdf pages table -->
-                    <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-                        <h3 class="text-sm font-bold text-slate-800">ตารางข้อมูลสลิปรายบุคคลที่สกัดออก
-                            (กรุณาแก้ไขข้อผิดพลาดก่อนบันทึก)</h3>
+                    <!-- ─── กล่องพรีวิวเฉพาะตอนที่อัปโหลด/วิเคราะห์ไฟล์ PDF ใหม่ ─── -->
+                    <div id="pdf-parsed-preview-container" class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 hidden">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-file-pdf text-rose-500"></i>
+                                รายการสลิปที่สกัดออกจากไฟล์ (ตรวจสอบความถูกต้องก่อนบันทึก)
+                            </h3>
+                            <button onclick="document.getElementById('pdf-parsed-preview-container').classList.add('hidden')" class="text-xs text-slate-400 hover:text-slate-600">
+                                <i class="fa-solid fa-xmark"></i> ซ่อน
+                            </button>
+                        </div>
                         <div class="hr-table-search-bar" id="pdf-preview-search-bar">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
                             <input type="text" placeholder="ค้นหารหัสพนักงาน, ชื่อ, รอบเงินเดือน..." oninput="hrTableFilter('pdf-preview-table-body', this.value, 'pdf-preview-count')" aria-label="ค้นหาสลิปเงินเดือน">
                             <span class="row-count" id="pdf-preview-count"></span>
                         </div>
-                        <div class="hr-table-wrap overflow-x-auto">
-                            <table class="hr-table" style="min-width:900px">
-                                <thead>
+                        <div class="hr-table-wrap overflow-x-auto overflow-y-auto max-h-[400px] custom-scrollbar border border-slate-200 rounded-xl">
+                            <table class="hr-table border-separate border-spacing-0" style="min-width:900px">
+                                <thead class="sticky top-0 z-10 bg-slate-100 shadow-sm">
                                     <tr>
-                                        <th style="width:48px">หน้า</th>
-                                        <th style="width:130px">รหัสพนักงาน</th>
-                                        <th style="width:150px">ชื่อ-นามสกุล</th>
-                                        <th style="width:100px">รอบเงินเดือน</th>
-                                        <th style="width:110px">ยอดโอนสุทธิ</th>
-                                        <th>ข้อมูลที่สกัดออก</th>
-                                        <th style="width:80px;text-align:center">ดู PDF</th>
-                                        <th>สถานะ</th>
+                                        <th style="width:48px" class="bg-slate-100 border-b border-slate-200">หน้า</th>
+                                        <th style="width:130px" class="bg-slate-100 border-b border-slate-200">รหัสพนักงาน</th>
+                                        <th style="width:150px" class="bg-slate-100 border-b border-slate-200">ชื่อ-นามสกุล</th>
+                                        <th style="width:100px" class="bg-slate-100 border-b border-slate-200">รอบเงินเดือน</th>
+                                        <th style="width:110px" class="bg-slate-100 border-b border-slate-200">ยอดโอนสุทธิ</th>
+                                        <th class="bg-slate-100 border-b border-slate-200">ข้อมูลที่สกัดออก</th>
+                                        <th style="width:80px;text-align:center" class="bg-slate-100 border-b border-slate-200">ดู PDF</th>
+                                        <th class="bg-slate-100 border-b border-slate-200">สถานะ</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pdf-preview-table-body">
@@ -3155,7 +3162,80 @@
                             </table>
                         </div>
                     </div>
-                </section>
+
+                    <!-- ─── ตารางสรุปสลิปเงินเดือน 12 เดือน (Tabbed View เหมือนเวลางาน) ─── -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm" id="yearly-payslip-overview-section">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold text-sm">
+                                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-800">ตารางสลิปเงินเดือน 12 เดือน</h3>
+                                    <p class="text-xs text-slate-500">ดูและตรวจสอบสลิปเงินเดือนของพนักงานแยกตามแต่ละเดือนในระบบ</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label for="yearly-payslip-year" class="text-xs font-bold text-slate-600">ปี พ.ศ.:</label>
+                                <select id="yearly-payslip-year" onchange="loadYearlyPayslipOverview()" class="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-teal"></select>
+                                <button onclick="loadYearlyPayslipOverview()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all">
+                                    <i class="fa-solid fa-rotate-right mr-1"></i>รีเฟรช
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Summary Cards -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5" id="yearly-payslip-summary">
+                            <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-emerald-600 uppercase">สลิปทั้งหมดในเดือนนี้</p>
+                                <p class="text-xl font-bold text-emerald-700 mt-1" id="yps-total-count">-</p>
+                            </div>
+                            <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-blue-600 uppercase">ยอดเงินโอนรวม (บาท)</p>
+                                <p class="text-xl font-bold text-blue-700 mt-1" id="yps-total-amount">-</p>
+                            </div>
+                            <div class="bg-violet-50 border border-violet-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-violet-600 uppercase">อัปโหลดสลิปแล้ว</p>
+                                <p class="text-xl font-bold text-violet-700 mt-1" id="yps-uploaded-count">-</p>
+                            </div>
+                            <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center">
+                                <p class="text-[10px] font-bold text-amber-600 uppercase">เฉลี่ยต่อคน (บาท)</p>
+                                <p class="text-xl font-bold text-amber-700 mt-1" id="yps-avg-amount">-</p>
+                            </div>
+                        </div>
+
+                        <!-- 12 Month Tabs -->
+                        <div class="flex gap-1 overflow-x-auto pb-1 scrollbar-thin" id="yearly-payslip-month-tabs"></div>
+
+                        <!-- Table for selected month -->
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                            <div class="hr-table-search-bar">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" placeholder="ค้นหารหัสพนักงาน, ชื่อ, ยอดเงิน..." oninput="hrTableFilter('yearly-payslip-body', this.value, 'yearly-payslip-count')" aria-label="ค้นหาสลิปเงินเดือน">
+                                <span class="row-count" id="yearly-payslip-count"></span>
+                            </div>
+                            <div class="hr-table-wrap overflow-x-auto overflow-y-auto max-h-[560px] custom-scrollbar border-t border-slate-200">
+                                <table class="hr-table border-separate border-spacing-0">
+                                    <thead class="sticky top-0 z-10 bg-slate-100 shadow-sm">
+                                        <tr>
+                                            <th class="!text-center bg-slate-100 border-b border-slate-200" style="width:120px">รหัสพนักงาน</th>
+                                            <th class="bg-slate-100 border-b border-slate-200">ชื่อ-นามสกุล</th>
+                                            <th class="!text-center bg-slate-100 border-b border-slate-200">รอบเงินเดือน</th>
+                                            <th class="!text-right bg-slate-100 border-b border-slate-200">ยอดสุทธิ (บาท)</th>
+                                            <th class="!text-center bg-slate-100 border-b border-slate-200">วันที่บันทึก</th>
+                                            <th class="!text-center bg-slate-100 border-b border-slate-200">เอกสารสลิป</th>
+                                            <th class="!text-center bg-slate-100 border-b border-slate-200">สถานะ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="yearly-payslip-body">
+                                        <tr class="tbl-empty-row">
+                                            <td colspan="7">เลือกเดือนเพื่อแสดงข้อมูลสลิปเงินเดือน</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- SECTION 2.x: บันทึกเวลางานและต้นทุนโครงการ (Admin panel container for embedded view) -->
@@ -10759,6 +10839,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } else if (tabId === 'import-payslip') {
                     titleEl.textContent = "นำเข้าสลิปเงินเดือน (.pdf)";
                     descEl.textContent = "นำเข้าสลิปเงินเดือนพนักงานโดยอัปโหลดไฟล์ PDF รวมแถว เพื่อให้ระบบจำแนกและอัปโหลดเข้าคลังไฟล์รายบุคคล";
+                    if (typeof loadYearlyPayslipOverview === 'function') {
+                        loadYearlyPayslipOverview();
+                    }
                 } else if (tabId === 'scan-devices') {
                     titleEl.textContent = "จัดการเครื่องสแกนนิ้ว/สแกนหน้า";
                     descEl.textContent = "ดูสถานะเครื่องสแกนที่เชื่อมต่ออยู่ + ดาวน์โหลด Agent ไปติดตั้งที่คอมหน้างาน";
@@ -14198,6 +14281,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 function renderPdfPreviewTable() {
+                    const previewContainer = document.getElementById("pdf-parsed-preview-container");
+                    if (previewContainer) previewContainer.classList.remove("hidden");
                     const container = document.getElementById("pdf-preview-table-body");
                     container.innerHTML = "";
 
@@ -14412,6 +14497,240 @@ ${slip.textSample}
                     parsedPayslips = [];
                     document.getElementById("pdf-file-label").textContent = "เลือกไฟล์ .pdf ที่นี่";
                     document.getElementById("pdf-preview-table-body").innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 italic">การทำรายการอัปโหลดเสร็จสิ้น ข้อมูลถูกจัดส่งเข้าตารางคลาวด์แล้ว</td></tr>`;
+                    document.getElementById("pdf-parsed-preview-container")?.classList.add("hidden");
+
+                    // 🔄 รีเฟรชตารางสลิปเงินเดือน 12 เดือนทันที
+                    if (typeof loadYearlyPayslipOverview === 'function') {
+                        loadYearlyPayslipOverview();
+                    }
+                }
+
+                // ═══ ตารางสลิปเงินเดือน 12 เดือน (Tabbed + Auto-Preload 0ms) ═══
+                let yearlyPayslipDataCache = {}; // { 'YYYY-MM': [payslips] }
+                let yearlyPayslipSelectedMonth = null;
+
+                function initPayslipYearSelector() {
+                    const sel = document.getElementById('yearly-payslip-year');
+                    if (!sel) return;
+                    const thisYear = new Date().getFullYear();
+                    const thisYearThai = thisYear + 543;
+                    sel.innerHTML = '';
+                    for (let y = thisYearThai; y >= thisYearThai - 5; y--) {
+                        const opt = document.createElement('option');
+                        opt.value = y; opt.textContent = y;
+                        if (y === thisYearThai) opt.selected = true;
+                        sel.appendChild(opt);
+                    }
+                }
+
+                function renderYearlyPayslipMonthTabs(buddhistYear) {
+                    const now = new Date();
+                    const thisMonth = now.getMonth() + 1;
+                    const thisYearThai = now.getFullYear() + 543;
+                    const tabsEl = document.getElementById('yearly-payslip-month-tabs');
+                    if (!tabsEl) return;
+                    tabsEl.innerHTML = '';
+                    for (let m = 1; m <= 12; m++) {
+                        const isCurrent = (m === thisMonth && buddhistYear == thisYearThai);
+                        const isActive = (m === yearlyPayslipSelectedMonth);
+                        const badge = isCurrent ? ' <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block ml-1"></span>' : '';
+                        const btn = document.createElement('button');
+                        btn.dataset.month = m;
+                        btn.innerHTML = THAI_MONTHS_SHORT[m - 1] + badge;
+                        btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${isActive ? 'bg-amber-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+                        btn.onclick = () => selectYearlyPayslipMonth(m);
+                        tabsEl.appendChild(btn);
+                    }
+                }
+
+                async function loadYearlyPayslipOverview() {
+                    initPayslipYearSelector();
+                    const buddhistYear = parseInt(document.getElementById('yearly-payslip-year')?.value || (new Date().getFullYear() + 543));
+                    yearlyPayslipDataCache = {};
+                    yearlyPayslipSelectedMonth = new Date().getMonth() + 1;
+                    ['yps-total-count','yps-total-amount','yps-uploaded-count','yps-avg-amount'].forEach(id => {
+                        const el = document.getElementById(id); if (el) el.textContent = '-';
+                    });
+                    renderYearlyPayslipMonthTabs(buddhistYear);
+
+                    // 1. ⚡ โหลดและแสดงข้อมูลสลิปของเดือนปัจจุบันทันทีอัตโนมัติ (Fast Initial Render)
+                    await loadYearlyPayslipRecords(yearlyPayslipSelectedMonth, buddhistYear);
+
+                    // 2. 🚀 พรีโหลดข้อมูลอีก 11 เดือนที่เหลือในเบื้องหลังทันที (Instant 0ms Switching)
+                    preloadAllYearlyPayslips(buddhistYear);
+                }
+
+                // ── Background Preloader: ดึงสลิปครบ 12 เดือนไว้ใน Cache ล่วงหน้า ──
+                async function preloadAllYearlyPayslips(buddhistYear) {
+                    if (!supabaseClient) return;
+                    try {
+                        const promises = [];
+                        for (let m = 1; m <= 12; m++) {
+                            const mStr = String(m).padStart(2, '0');
+                            const cacheKey = `${buddhistYear}-${mStr}`;
+                            if (yearlyPayslipDataCache[cacheKey]) continue;
+
+                            const periodVariants = [
+                                `${mStr}/${buddhistYear}`,
+                                `${mStr}/${buddhistYear - 543}`,
+                                `${buddhistYear - 543}-${mStr}`
+                            ];
+
+                            promises.push(
+                                supabaseClient
+                                    .from('payslips')
+                                    .select('*')
+                                    .or(periodVariants.map(p => `period.eq.${p}`).join(','))
+                                    .order('created_at', { ascending: false })
+                                    .then(({ data, error }) => {
+                                        if (!error && Array.isArray(data)) {
+                                            yearlyPayslipDataCache[cacheKey] = data;
+                                        }
+                                    }).catch(() => {})
+                            );
+                        }
+                        await Promise.all(promises);
+                        console.log(`[YearlyPayslip ⚡ Background Preload] All 12 months preloaded for ${buddhistYear}`);
+                    } catch (e) {
+                        console.warn('[YearlyPayslip Preload Error]', e);
+                    }
+                }
+
+                async function selectYearlyPayslipMonth(month) {
+                    yearlyPayslipSelectedMonth = month;
+                    const buddhistYear = parseInt(document.getElementById('yearly-payslip-year')?.value || (new Date().getFullYear() + 543));
+                    renderYearlyPayslipMonthTabs(buddhistYear);
+                    const mStr = String(month).padStart(2, '0');
+                    const cacheKey = `${buddhistYear}-${mStr}`;
+
+                    // ⚡ Instant View: ถ้ามีใน Cache อยู่แล้ว เรนเดอร์ขึ้นตารางทันที 0ms ไม่ต้องรอโหลด
+                    if (yearlyPayslipDataCache[cacheKey]) {
+                        renderYearlyPayslipTable(yearlyPayslipDataCache[cacheKey], month, buddhistYear);
+                        return;
+                    }
+                    await loadYearlyPayslipRecords(month, buddhistYear);
+                }
+
+                async function loadYearlyPayslipRecords(month, buddhistYear) {
+                    const mStr = String(month).padStart(2, '0');
+                    const cacheKey = `${buddhistYear}-${mStr}`;
+                    const tbody = document.getElementById('yearly-payslip-body');
+                    if (!tbody) return;
+
+                    if (yearlyPayslipDataCache[cacheKey]) {
+                        renderYearlyPayslipTable(yearlyPayslipDataCache[cacheKey], month, buddhistYear);
+                        return;
+                    }
+
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลสลิปเดือน ' + THAI_MONTHS_FULL[month - 1] + '...</td></tr>';
+
+                    const periodVariants = [
+                        `${mStr}/${buddhistYear}`,
+                        `${mStr}/${buddhistYear - 543}`,
+                        `${buddhistYear - 543}-${mStr}`
+                    ];
+
+                    // ✅ Supabase-First
+                    try {
+                        if (supabaseClient) {
+                            const { data, error } = await supabaseClient
+                                .from('payslips')
+                                .select('*')
+                                .or(periodVariants.map(p => `period.eq.${p}`).join(','))
+                                .order('created_at', { ascending: false });
+                            if (!error && Array.isArray(data)) {
+                                yearlyPayslipDataCache[cacheKey] = data;
+                                renderYearlyPayslipTable(data, month, buddhistYear);
+                                return;
+                            }
+                        }
+                    } catch (sbErr) {
+                        console.warn('[YearlyPayslip] Supabase query failed:', sbErr);
+                    }
+
+                    // Fallback: ใช้ GAS API
+                    try {
+                        const periodParam = `${mStr}/${buddhistYear}`;
+                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getPayslips&empId=${currentEmployeeId}&period=${encodeURIComponent(periodParam)}`);
+                        if (res && res.status === 'success' && Array.isArray(res.data)) {
+                            yearlyPayslipDataCache[cacheKey] = res.data;
+                            renderYearlyPayslipTable(res.data, month, buddhistYear);
+                        } else {
+                            renderYearlyPayslipTable([], month, buddhistYear);
+                        }
+                    } catch (e) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลสลิปเงินเดือนเดือนนี้</td></tr>';
+                    }
+                }
+
+                function renderYearlyPayslipTable(records, month, buddhistYear) {
+                    const tbody = document.getElementById('yearly-payslip-body');
+                    if (!tbody) return;
+
+                    // Summary calculation
+                    let totalCount = records ? records.length : 0;
+                    let totalAmount = 0;
+                    let uploadedCount = 0;
+
+                    (records || []).forEach(r => {
+                        const amt = parseFloat(r.net_amount || r['ยอดสุทธิ'] || r.netAmount || 0) || 0;
+                        totalAmount += amt;
+                        if (r.file_id || r.slip_url || r['ไฟล์'] || r.file_name) uploadedCount++;
+                    });
+
+                    const avgAmount = totalCount > 0 ? (totalAmount / totalCount) : 0;
+
+                    const countEl = document.getElementById('yps-total-count');
+                    const amountEl = document.getElementById('yps-total-amount');
+                    const upEl = document.getElementById('yps-uploaded-count');
+                    const avgEl = document.getElementById('yps-avg-amount');
+
+                    if (countEl) countEl.textContent = totalCount ? `${totalCount} ฉบับ` : '-';
+                    if (amountEl) amountEl.textContent = totalAmount > 0 ? totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+                    if (upEl) upEl.textContent = uploadedCount ? `${uploadedCount} ฉบับ` : '-';
+                    if (avgEl) avgEl.textContent = avgAmount > 0 ? avgAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+
+                    if (!records || records.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลสลิปเงินเดือนสำหรับเดือน ' + THAI_MONTHS_FULL[month - 1] + ' ' + buddhistYear + '</td></tr>';
+                        return;
+                    }
+
+                    // Helper หาชื่อพนักงาน
+                    const getEmpName = (empId) => {
+                        if (!empId) return '-';
+                        const emp = (adminEmployeesList || []).find(e => (e['รหัสพนักงาน'] || e.emp_id || '').toString().trim().toUpperCase() === empId.toString().trim().toUpperCase());
+                        return emp ? (emp['ชื่อ-นามสกุล'] || emp.name || '-') : '-';
+                    };
+
+                    let html = '';
+                    records.forEach((r, idx) => {
+                        const empId = (r.emp_id || r['รหัสพนักงาน'] || r.empId || '').toString().trim();
+                        const empName = getEmpName(empId);
+                        const period = (r.period || r['รอบเงินเดือน'] || `${String(month).padStart(2, '0')}/${buddhistYear}`).toString().trim();
+                        const netAmt = parseFloat(r.net_amount || r['ยอดสุทธิ'] || r.netAmount || 0) || 0;
+                        const recordedAt = (r.recorded_at || r.created_at || r['วันที่บันทึก'] || '-').toString().split('T')[0];
+                        const slipUrl = r.slip_url || (r.file_id ? `https://drive.google.com/file/d/${r.file_id}/view` : '');
+                        const fileName = r.file_name || r['ชื่อไฟล์'] || 'Payslip.pdf';
+
+                        html += `<tr class="group hover:bg-slate-50/80 transition-colors">
+                            <td class="text-center font-bold text-amber-700">${escapeHtml(empId || '-')}</td>
+                            <td class="font-medium text-slate-700">${escapeHtml(empName)}</td>
+                            <td class="text-center text-xs font-semibold text-slate-600">${escapeHtml(period)}</td>
+                            <td class="text-right font-bold text-emerald-700">${netAmt > 0 ? netAmt.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</td>
+                            <td class="text-center text-xs text-slate-500">${escapeHtml(recordedAt)}</td>
+                            <td class="text-center">
+                                ${slipUrl ? `
+                                    <a href="${escapeHtml(slipUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200 transition-all shadow-sm">
+                                        <i class="fa-solid fa-file-pdf text-rose-500"></i> ดูสลิป PDF
+                                    </a>
+                                ` : `<span class="text-xs text-slate-400 italic">ไม่มีไฟล์</span>`}
+                            </td>
+                            <td class="text-center">
+                                <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">สำเร็จ</span>
+                            </td>
+                        </tr>`;
+                    });
+                    tbody.innerHTML = html;
                 }
 
                 function updatePdfButtonStates() {
