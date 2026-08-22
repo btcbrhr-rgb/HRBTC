@@ -13199,52 +13199,63 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     });
                     renderYearlyMonthTabs(year);
 
-                    // ✅ Supabase-First: ดึงทั้งปีใน query เดียว (เร็วกว่า 12 calls 10x+)
-                    const startY = `${year}-01-01`;
-                    const endY = `${year}-12-31`;
-                    try {
-                        if (supabaseClient) {
-                            const { data, error } = await supabaseClient
-                                .from('time_records')
-                                .select('*')
-                                .gte('date', startY)
-                                .lte('date', endY)
-                                .order('date', { ascending: true });
-                            if (!error && Array.isArray(data) && data.length > 0) {
-                                // แยกข้อมูลเป็น 12 เดือน
-                                data.forEach(r => {
-                                    const d = (r.date || '').toString();
-                                    if (d.length >= 7) {
-                                        const m = parseInt(d.substring(5, 7));
-                                        if (m >= 1 && m <= 12) {
-                                            const mk = `${year}-${String(m).padStart(2, '0')}`;
-                                            if (!yearlyMonthDataCache[mk]) yearlyMonthDataCache[mk] = [];
-                                            yearlyMonthDataCache[mk].push(r);
-                                        }
-                                    }
-                                });
-                                console.log(`[YearlyOverview ⚡ Supabase] ${data.length} records loaded for ${year}`);
-                                renderYearlyMonthTable(yearlyMonthDataCache[`${year}-${String(yearlySelectedMonth).padStart(2, '0')}`] || [], yearlySelectedMonth, year);
-                                return;
-                            }
-                        }
-                    } catch (sbErr) {
-                        console.warn('[YearlyOverview] Supabase failed, falling back to per-month:', sbErr.message);
-                    }
+                    // 1. ⚡ โหลดและแสดงข้อมูลของเดือนปัจจุบันทันทีอัตโนมัติ (Fast Initial Render)
+                    await loadYearlyMonthRecords(yearlySelectedMonth, year);
 
-                    // Fallback: โหลดทีละเดือนผ่าน GAS API
-                    loadYearlyMonthRecords(yearlySelectedMonth, year);
+                    // 2. 🚀 พรีโหลดข้อมูลอีก 11 เดือนที่เหลือในเบื้องหลังทันที (กดปุ๊บเห็นปั๊บไม่ต้องรอโหลด)
+                    preloadAllYearlyMonths(year);
+                }
+
+                // ── Background Preloader: ดึงข้อมูลครบ 12 เดือนไว้ใน Cache ล่วงหน้า ──
+                async function preloadAllYearlyMonths(year) {
+                    if (!supabaseClient) return;
+                    try {
+                        const promises = [];
+                        for (let m = 1; m <= 12; m++) {
+                            const cacheKey = `${year}-${String(m).padStart(2, '0')}`;
+                            if (yearlyMonthDataCache[cacheKey]) continue; // ถ้ามีข้อมูลแล้วข้าม
+
+                            const startStr = `${year}-${String(m).padStart(2, '0')}-01`;
+                            const endDay = new Date(year, m, 0).getDate();
+                            const endStr = `${year}-${String(m).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+                            promises.push(
+                                supabaseClient
+                                    .from('time_records')
+                                    .select('*')
+                                    .gte('date', startStr)
+                                    .lte('date', endStr)
+                                    .order('date', { ascending: true })
+                                    .then(({ data, error }) => {
+                                        if (!error && Array.isArray(data)) {
+                                            yearlyMonthDataCache[cacheKey] = data;
+                                        }
+                                    }).catch(() => {})
+                            );
+                        }
+                        await Promise.all(promises);
+                        console.log(`[YearlyOverview ⚡ Background Preload] All 12 months preloaded & cached for ${year}`);
+                    } catch (e) {
+                        console.warn('[YearlyOverview Preload Error]', e);
+                    }
                 }
 
                 async function selectYearlyMonth(month) {
                     yearlySelectedMonth = month;
                     const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
                     renderYearlyMonthTabs(year);
+                    const cacheKey = `${year}-${String(month).padStart(2, '0')}`;
+                    
+                    // ⚡ Instant View: ถ้ามีใน Cache อยู่แล้ว เรนเดอร์ขึ้นตารางทันที 0ms ไม่ต้องรอโหลด
+                    if (yearlyMonthDataCache[cacheKey]) {
+                        renderYearlyMonthTable(yearlyMonthDataCache[cacheKey], month, year);
+                        return;
+                    }
                     await loadYearlyMonthRecords(month, year);
                 }
 
                 async function loadYearlyMonthRecords(month, year) {
-                    // คำนวณ date range สำหรับเดือนนี้ (รอบบัญชี 26-25)
+                    // คำนวณ date range สำหรับเดือนนี้
                     const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
                     const endDay = new Date(year, month, 0).getDate(); // วันสุดท้ายของเดือน
                     const endStr = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
@@ -13252,12 +13263,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const tbody = document.getElementById('yearly-attendance-body');
                     if (!tbody) return;
 
-                    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลเดือน ' + THAI_MONTHS_FULL[month - 1] + '...</td></tr>';
-
                     if (yearlyMonthDataCache[cacheKey]) {
                         renderYearlyMonthTable(yearlyMonthDataCache[cacheKey], month, year);
                         return;
                     }
+
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลเดือน ' + THAI_MONTHS_FULL[month - 1] + '...</td></tr>';
 
                     // ✅ Supabase-First: ดึงตรงจาก Supabase (ไม่ผ่าน GAS → เร็วกว่า 5-10x)
                     try {
