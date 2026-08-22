@@ -7110,6 +7110,61 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            /**
+             * 🔄 โหลดข้อมูลทั้งหมดสำหรับ Employee Dashboard & App
+             * ดึงข้อมูล: projects, employee, timeRecords, timeCorrections, leaveRequests, advanceRequests, payslips
+             */
+            async function loadAllData() {
+                if (!currentEmployeeId) {
+                    console.warn('[loadAllData] missing currentEmployeeId');
+                    return false;
+                }
+
+                try {
+                    const currentCycle = getCurrentCycleRange();
+                    const pStart = currentCycle.start;
+                    const pEnd = currentCycle.end;
+
+                    const url = `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(currentEmployeeId)}&periodStart=${encodeURIComponent(pStart)}&periodEnd=${encodeURIComponent(pEnd)}`;
+                    const res = await fetchWithTimeout(url, { timeout: 15000 });
+
+                    if (res && res.status === 'success' && res.data) {
+                        const d = res.data;
+                        if (Array.isArray(d.projects)) projectsList = d.projects;
+                        if (d.employee) employeeData = d.employee;
+                        if (Array.isArray(d.timeRecords)) timeRecordsList = d.timeRecords;
+                        if (Array.isArray(d.timeCorrections)) timeCorrectionsList = d.timeCorrections;
+                        if (Array.isArray(d.leaveRequests)) leaveRequestsList = d.leaveRequests;
+                        if (Array.isArray(d.advanceRequests)) advanceRequestsList = d.advanceRequests;
+                        if (Array.isArray(d.payslips)) payslipsList = d.payslips;
+
+                        // Render and sync all views
+                        if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI();
+                        if (typeof displayAnnouncements === 'function') displayAnnouncements();
+                        if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders();
+                        if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal();
+                        if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus();
+                        if (typeof applyRolePermissions === 'function') applyRolePermissions();
+                        if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards();
+
+                        return true;
+                    } else {
+                        console.warn('[loadAllData] Server returned non-success, rendering with local data', res);
+                        if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI();
+                        if (typeof displayAnnouncements === 'function') displayAnnouncements();
+                        if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders();
+                        if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal();
+                        return true;
+                    }
+                } catch (err) {
+                    console.error('[loadAllData] Error:', err);
+                    if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI();
+                    if (typeof displayAnnouncements === 'function') displayAnnouncements();
+                    if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders();
+                    if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal();
+                    return true;
+                }
+            }
             
             function displayAnnouncements() {
                 const list = getStoredAnnouncements();
