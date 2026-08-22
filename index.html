@@ -18869,9 +18869,19 @@ ${slip.textSample}
                 } else {
                     // Fallback: ใช้ migrateAllDataToSupabase (ทีเดียว)
                     sbLog('\n🔄 Fallback: ใช้ migrateAllDataToSupabase (ทีเดียว)...', '#fbbf24');
-                    showToast('🔄 กำลังซิงค์ข้อมูลทั้งหมด...', 'info');
+                    sbLog('⏳ กำลังซิงค์ข้อมูลทั้งหมด... (รอจนกว่าจะเสร็จ ไม่จำกัดเวลา)', '#94a3b8');
+                    showToast('🔄 กำลังซิงค์ข้อมูลทั้งหมด... (รอจนกว่าจะเสร็จ)', 'info', 10000);
                     try {
                         let fallbackRes = null;
+                        // Progress timer: แสดงเวลาที่ผ่านไปทุก 10 วินาที
+                        let elapsedSec = 0;
+                        var progressTimer = setInterval(function() {
+                            elapsedSec += 10;
+                            const min = Math.floor(elapsedSec / 60);
+                            const sec = elapsedSec % 60;
+                            const timeStr = min > 0 ? `${min} น. ${sec} ว.` : `${sec} วิ`;
+                            sbLog(`  ⏳ กำลังซิงค์... (${timeStr} ผ่านไป)`, '#94a3b8');
+                        }, 10000);
                         if (typeof google !== 'undefined' && google.script && google.script.run) {
                             fallbackRes = await new Promise((resolve, reject) => {
                                 google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateAllDataToSupabase();
@@ -18879,6 +18889,7 @@ ${slip.textSample}
                         } else {
                             fallbackRes = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateToSupabase&empId=${currentEmployeeId || 'admin'}`, { timeout: 600000 });
                         }
+                        clearInterval(progressTimer);
                         if (fallbackRes && fallbackRes.progress) {
                             sbLog(`📊 ผลลัพธ์ (${fallbackRes.totalMs || '-'}ms):`, '#60a5fa');
                             fallbackRes.progress.forEach(p => {
@@ -18900,6 +18911,7 @@ ${slip.textSample}
                             totalFailed = ALL_TABLES.length;
                         }
                     } catch(e) {
+                        clearInterval(progressTimer);
                         sbLog(`❌ Fallback error: ${e.message}`, '#f87171');
                         totalFailed = ALL_TABLES.length;
                     }
