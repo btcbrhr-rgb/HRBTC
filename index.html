@@ -13155,6 +13155,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const THAI_MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
                 let yearlyMonthDataCache = {}; // { 'YYYY-MM': [records] }
                 let yearlySelectedMonth = null;
+                let approvedCorrectionSet = new Set(); // Set of 'EMPID|YYYY-MM-DD' for approved corrections
 
                 function initYearSelector() {
                     const sel = document.getElementById('yearly-overview-year');
@@ -13198,6 +13199,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const el = document.getElementById(id); if (el) el.textContent = '-';
                     });
                     renderYearlyMonthTabs(year);
+
+                    // 🔍 โหลดรายการคำขอแก้ไขเวลาที่อนุมัติแล้วมาเตรียมไว้สำหรับ Cross-check
+                    try {
+                        if (supabaseClient) {
+                            const { data: corrData } = await supabaseClient
+                                .from('time_corrections')
+                                .select('emp_id, date, status')
+                                .in('status', ['อนุมัติแล้ว', 'Approved', 'อนุมัติ']);
+                            if (corrData && Array.isArray(corrData)) {
+                                approvedCorrectionSet.clear();
+                                corrData.forEach(c => {
+                                    if (c.emp_id && c.date) {
+                                        approvedCorrectionSet.add(c.emp_id.toString().trim().toUpperCase() + '|' + c.date.toString().trim());
+                                    }
+                                });
+                            }
+                        }
+                    } catch (corrErr) {
+                        console.warn('[YearlyOverview] Failed to load approved corrections:', corrErr);
+                    }
 
                     // 1. ⚡ โหลดและแสดงข้อมูลของเดือนปัจจุบันทันทีอัตโนมัติ (Fast Initial Render)
                     await loadYearlyMonthRecords(yearlySelectedMonth, year);
@@ -13350,7 +13371,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const late = (r.late_minutes != null ? r.late_minutes : (r['นาทีสาย'] || r.lateMinutes || 0));
                         const ot = (r.ot_hours != null ? r.ot_hours : (r['ชั่วโมง OT'] || r.otHours || 0));
                         const project = (r.project_in || r.project || r['โครงการ (เข้า)'] || r['โครงการ'] || '').toString().trim();
-                        const isEdited = (r.is_edited === true || r.is_edited === 'true' || r.is_edited === 1 || r['แก้ไข'] === true || r['is_edited'] === true);
+                        const matchKey = (empId.toUpperCase() + '|' + date);
+                        const isEdited = (
+                            r.is_edited === true || r.is_edited === 'true' || r.is_edited === 1 || 
+                            r['แก้ไข'] === true || r['is_edited'] === true ||
+                            (approvedCorrectionSet && approvedCorrectionSet.has(matchKey)) ||
+                            String(r.source || '').includes('แก้ไข') ||
+                            String(r['ที่มา'] || '').includes('แก้ไข')
+                        );
 
                         // Status badge color
                         let statusBadge = '';
