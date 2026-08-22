@@ -14688,24 +14688,32 @@ ${slip.textSample}
                         }
                     });
 
-                    // 3. กำหนดปีและเดือนที่แอคทีฟ
+                    // 3. กำหนดปีและเดือนที่แอคทีฟ (เลือกปีที่มีข้อมูลจริงเป็นหลัก)
                     const thisYearThai = new Date().getFullYear() + 543;
                     const thisMonth = new Date().getMonth() + 1;
                     const currentSelectedYear = parseInt(document.getElementById('yearly-payslip-year')?.value || 0);
 
-                    const activeYear = currentSelectedYear || latestYearWithData || thisYearThai;
+                    // ⚡ ถ้าปีที่เลือกค้างไว้ไม่มีข้อมูลจริง ให้ขยับไปปีล่าสุดที่มีข้อมูลจริง
+                    const activeYear = (foundYears.has(currentSelectedYear) ? currentSelectedYear : null) || latestYearWithData || thisYearThai;
                     initPayslipYearSelector(Array.from(foundYears), activeYear);
 
-                    // เลือกเดือน: ถ้ายังไม่ได้เลือก หรือเปลี่ยนปี ให้เลือกเดือนที่มีข้อมูลล่าสุด หรือเดือนปัจจุบัน
-                    if (yearlyPayslipSelectedMonth == null || currentSelectedYear !== activeYear) {
-                        yearlyPayslipSelectedMonth = (activeYear === latestYearWithData && latestMonthWithData) ? latestMonthWithData : thisMonth;
+                    // เลือกเดือน: ให้เลือกเดือนล่าสุดที่มีข้อมูลจริงของปีนั้น หรือเดือนที่มีสลิปมากที่สุด
+                    let targetMonth = null;
+                    for (let m = 12; m >= 1; m--) {
+                        const testKey = `${activeYear}-${String(m).padStart(2, '0')}`;
+                        if (yearlyPayslipDataCache[testKey] && yearlyPayslipDataCache[testKey].length > 0) {
+                            targetMonth = m;
+                            break;
+                        }
                     }
+                    yearlyPayslipSelectedMonth = targetMonth || thisMonth;
 
                     renderYearlyPayslipMonthTabs(activeYear);
 
                     // 4. เรนเดอร์ตารางเดือนที่เลือกทันที
                     const activeKey = `${activeYear}-${String(yearlyPayslipSelectedMonth).padStart(2, '0')}`;
                     const records = yearlyPayslipDataCache[activeKey] || [];
+                    console.log(`[loadYearlyPayslipOverview] Rendering ${records.length} records for ${activeKey}`);
                     renderYearlyPayslipTable(records, yearlyPayslipSelectedMonth, activeYear);
                 }
 
