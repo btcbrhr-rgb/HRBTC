@@ -14511,33 +14511,69 @@ ${slip.textSample}
                 let allPayslipsLoadedList = []; // แคชข้อมูลสลิปทั้งหมด
 
                 // 🧮 ตัวแยกและจัดรูปแบบรอบเงินเดือน (Universal Period Parser)
-                function parsePayslipPeriod(rawPeriod) {
-                    if (!rawPeriod) return null;
-                    const str = rawPeriod.toString().trim();
-                    // 1. Match MM/YYYY (เช่น 08/2568 หรือ 08/2025)
-                    let m = str.match(/^(\d{1,2})[\/\-](\d{4})$/);
+                function parsePayslipPeriod(rawPeriod, record) {
+                    let str = (rawPeriod || '').toString().trim();
+                    if (!str && record) {
+                        str = (record.recorded_at || record.created_at || record.file_name || record['ชื่อไฟล์'] || '').toString().trim();
+                    }
+                    if (!str) return null;
+
+                    // 1. Match MM/YYYY หรือ M/YYYY (เช่น 08/2568, 8/2568, 08/2025)
+                    let m = str.match(/\b(\d{1,2})[\/\-](\d{4})\b/);
                     if (m) {
                         let month = parseInt(m[1], 10);
                         let year = parseInt(m[2], 10);
-                        if (year < 2400) year += 543; // แปลง ค.ศ. เป็น พ.ศ.
-                        return { month, year };
+                        if (month >= 1 && month <= 12) {
+                            if (year < 2400) year += 543; // แปลง ค.ศ. เป็น พ.ศ.
+                            return { month, year };
+                        }
                     }
-                    // 2. Match YYYY-MM หรือ YYYY/MM (เช่น 2568-08 หรือ 2025-08)
-                    m = str.match(/^(\d{4})[\/\-](\d{1,2})/);
+
+                    // 2. Match YYYY-MM หรือ YYYY/MM (เช่น 2568-08, 2025-08)
+                    m = str.match(/\b(\d{4})[\/\-](\d{1,2})\b/);
                     if (m) {
                         let year = parseInt(m[1], 10);
                         let month = parseInt(m[2], 10);
-                        if (year < 2400) year += 543; // แปลง ค.ศ. เป็น พ.ศ.
-                        return { month, year };
+                        if (month >= 1 && month <= 12) {
+                            if (year < 2400) year += 543; // แปลง ค.ศ. เป็น พ.ศ.
+                            return { month, year };
+                        }
                     }
-                    // 3. Match วันที่เต็ม (เช่น 31/08/2568 หรือ 2025-08-31)
+
+                    // 3. Match วันที่เต็ม (เช่น 31/08/2568, 2025-08-31)
                     m = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
                     if (m) {
                         let month = parseInt(m[2], 10);
                         let year = parseInt(m[3], 10);
-                        if (year < 2400) year += 543;
-                        return { month, year };
+                        if (month >= 1 && month <= 12) {
+                            if (year < 2400) year += 543;
+                            return { month, year };
+                        }
                     }
+
+                    // 4. Match ภาษาไทย เช่น "ส.ค. 2568", "สิงหาคม 2568"
+                    for (let mi = 0; mi < 12; mi++) {
+                        if (str.includes(THAI_MONTHS_SHORT[mi]) || str.includes(THAI_MONTHS_FULL[mi])) {
+                            let yMatch = str.match(/\b(\d{2,4})\b/);
+                            let year = yMatch ? parseInt(yMatch[1], 10) : (new Date().getFullYear() + 543);
+                            if (year < 100) year += 2500;
+                            else if (year < 2400) year += 543;
+                            return { month: mi + 1, year };
+                        }
+                    }
+
+                    // Fallback: ตรวจสอบจาก recorded_at / created_at ใน record
+                    if (record && (record.recorded_at || record.created_at)) {
+                        const dateStr = (record.recorded_at || record.created_at).toString();
+                        const dm = dateStr.match(/(\d{4})-(\d{2})/);
+                        if (dm) {
+                            let year = parseInt(dm[1], 10);
+                            let month = parseInt(dm[2], 10);
+                            if (year < 2400) year += 543;
+                            return { month, year };
+                        }
+                    }
+
                     return null;
                 }
 
@@ -14628,7 +14664,7 @@ ${slip.textSample}
 
                     allPayslips.forEach(r => {
                         const rawPeriod = r.period || r['รอบเงินเดือน'] || r.month || '';
-                        const parsed = parsePayslipPeriod(rawPeriod);
+                        const parsed = parsePayslipPeriod(rawPeriod, r);
                         if (parsed) {
                             foundYears.add(parsed.year);
                             const key = `${parsed.year}-${String(parsed.month).padStart(2, '0')}`;
@@ -14650,8 +14686,8 @@ ${slip.textSample}
                     const activeYear = currentSelectedYear || latestYearWithData || thisYearThai;
                     initPayslipYearSelector(Array.from(foundYears), activeYear);
 
-                    // เลือกเดือน: ถ้าปีที่เลือกมีข้อมูลเดือน ให้เลือกเดือนที่มีข้อมูลล่าสุด มิฉะนั้นเลือกเดือนปัจจุบัน
-                    if (yearlySelectedMonth == null || currentSelectedYear !== activeYear) {
+                    // เลือกเดือน: ถ้ายังไม่ได้เลือก หรือเปลี่ยนปี ให้เลือกเดือนที่มีข้อมูลล่าสุด หรือเดือนปัจจุบัน
+                    if (yearlyPayslipSelectedMonth == null || currentSelectedYear !== activeYear) {
                         yearlyPayslipSelectedMonth = (activeYear === latestYearWithData && latestMonthWithData) ? latestMonthWithData : thisMonth;
                     }
 
