@@ -4521,39 +4521,19 @@
 
                                     <!-- Tab 1: PDF Import -->
                                     <div id="holiday-import-panel-pdf" class="space-y-3">
-                                        <!-- Quick Load Official Preset -->
-                                        <div class="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200/80 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-                                            <div class="flex items-center gap-3">
-                                                <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-red-600 shrink-0">
-                                                    <i class="fa-solid fa-file-pdf text-lg"></i>
-                                                </div>
-                                                <div>
-                                                    <h5 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                                        <span>วันหยุดประจำปี 68-69.pdf</span>
-                                                        <span class="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold">16 วันหยุด</span>
-                                                    </h5>
-                                                    <p class="text-[10px] text-slate-500 mt-0.5">ประกาศ บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด (30 ธ.ค. 2568 - 5 ธ.ค. 2569)</p>
-                                                </div>
-                                            </div>
-                                            <button onclick="loadOfficialHolidayPdfPreset()" type="button"
-                                                class="w-full sm:w-auto bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition-all flex items-center justify-center gap-1.5">
-                                                <i class="fa-solid fa-bolt"></i> โหลดข้อมูลจากไฟล์นี้
-                                            </button>
-                                        </div>
-
                                         <!-- Upload Custom PDF -->
-                                        <div class="border-2 border-dashed border-slate-300 hover:border-brand-teal rounded-xl p-4 text-center bg-white transition-all">
+                                        <div class="border-2 border-dashed border-slate-300 hover:border-brand-teal rounded-xl p-6 text-center bg-white transition-all">
                                             <input type="file" id="holiday-import-pdf-input" accept=".pdf,application/pdf" class="hidden" onchange="handleHolidayPdfFileUpload(event)" />
                                             <label for="holiday-import-pdf-input" class="cursor-pointer block">
-                                                <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 mb-1"></i>
-                                                <p class="text-xs font-bold text-slate-700">คลิกเพื่อเลือกไฟล์ PDF หรือลากไฟล์มาวางที่นี่</p>
-                                                <p class="text-[10px] text-slate-400 mt-0.5">ระบบจะอ่านข้อความวันหยุดจากไฟล์ PDF และวิเคราะห์วันที่ให้อัตโนมัติ</p>
+                                                <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+                                                    <i class="fa-solid fa-file-pdf text-2xl text-red-500"></i>
+                                                </div>
+                                                <p class="text-xs font-bold text-slate-700">คลิกเพื่อเลือกไฟล์ PDF วันหยุดประจำปี หรือลากไฟล์มาวางที่นี่</p>
+                                                <p class="text-[10px] text-slate-400 mt-1">ระบบจะอ่านข้อความวันหยุดจากไฟล์ PDF และวิเคราะห์วันที่ให้อัตโนมัติ</p>
                                             </label>
                                             <div id="holiday-pdf-status" class="text-xs mt-2 hidden font-semibold"></div>
                                         </div>
                                     </div>
-
-                                    <!-- Tab 2: Text/PDF Import -->
                                     <div id="holiday-import-panel-text" class="hidden">
                                         <div class="mb-2">
                                             <p class="text-[10px] text-slate-500">วางข้อความวันหยุดจาก PDF หรือเว็บไซต์ แล้วกด "วิเคราะห์" เพื่อดูตัวอย่างก่อนนำเข้า</p>
@@ -7111,7 +7091,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             /**
-             * 🔄 โหลดข้อมูลทั้งหมดสำหรับ Employee Dashboard & App
+             * 🔄 โหลดข้อมูลทั้งหมดสำหรับ Employee Dashboard & App (⚡ Supabase First + GAS Fallback)
              * ดึงข้อมูล: projects, employee, timeRecords, timeCorrections, leaveRequests, advanceRequests, payslips, announcements
              */
             async function loadAllData() {
@@ -7120,15 +7100,119 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return false;
                 }
 
-                try {
-                    const currentCycle = getCurrentCycleRange();
-                    const pStart = currentCycle.start;
-                    const pEnd = currentCycle.end;
+                const currentCycle = getCurrentCycleRange();
+                const pStart = currentCycle.start;
+                const pEnd = currentCycle.end;
 
+                // ⚡ 1. ลองดึงข้อมูลจาก Supabase ก่อน (ความเร็วระดับมิลลิวินาที)
+                if (supabaseClient) {
+                    try {
+                        const [pRes, tRes, cRes, lRes, aRes, payRes, annRes] = await Promise.all([
+                            supabaseClient.from('projects').select('*').neq('status', 'ระงับ'),
+                            supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
+                            supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId),
+                            supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId),
+                            supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId),
+                            supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId),
+                            supabaseClient.from('announcements').select('*').order('date', { ascending: false }).limit(10)
+                        ]);
+
+                        if (!tRes.error && Array.isArray(tRes.data)) {
+                            timeRecordsList = tRes.data.map(r => ({
+                                "วันที่": r.date,
+                                "รหัสพนักงาน": r.emp_id,
+                                "ชื่อ-นามสกุล": r.emp_name,
+                                "เวลาเข้า": r.time_in,
+                                "เวลาออก": r.time_out,
+                                "นาทีสาย": r.late_minutes || 0,
+                                "ชั่วโมง OT": r.ot_hours || 0,
+                                "สถานะสรุป": r.status || "ปกติ",
+                                "โครงการ": r.project || "-"
+                            }));
+                        }
+
+                        if (!cRes.error && Array.isArray(cRes.data)) {
+                            timeCorrectionsList = cRes.data.map(c => ({
+                                "รหัสพนักงาน": c.emp_id,
+                                "วันที่": c.date,
+                                "เวลาเข้าใหม่": c.new_time_in,
+                                "เวลาออกใหม่": c.new_time_out,
+                                "เหตุผล": c.reason,
+                                "สถานะ": c.status,
+                                "โครงการ": c.project,
+                                "อนุมัติโดย": c.approved_by,
+                                "หมายเหตุ": c.notes
+                            }));
+                        }
+
+                        if (!lRes.error && Array.isArray(lRes.data)) {
+                            leaveRequestsList = lRes.data.map(l => ({
+                                "เลขที่เอกสาร": l.doc_id,
+                                "รหัสพนักงาน": l.emp_id,
+                                "ประเภทการลา": l.leave_type,
+                                "ระยะเวลา": l.duration,
+                                "วันที่เริ่ม": l.start_date,
+                                "วันที่สิ้นสุด": l.end_date,
+                                "จำนวนวัน": l.days_count,
+                                "เหตุผล": l.reason,
+                                "สถานะ": l.status,
+                                "อนุมัติโดย": l.approved_by,
+                                "หมายเหตุ": l.notes,
+                                "ลายมือชื่อ": l.signature_url,
+                                "เอกสารแนบ": l.attachments
+                            }));
+                        }
+
+                        if (!aRes.error && Array.isArray(aRes.data)) {
+                            advanceRequestsList = aRes.data.map(a => ({
+                                "รหัสพนักงาน": a.emp_id,
+                                "จำนวนเงิน": a.amount,
+                                "วันที่เบิก": a.request_date,
+                                "รอบจ่าย": a.pay_cycle,
+                                "สถานะ": a.status,
+                                "ช่องทางรับเงิน": a.payout_channel,
+                                "หมายเหตุ": a.notes
+                            }));
+                        }
+
+                        if (!payRes.error && Array.isArray(payRes.data)) {
+                            payslipsList = payRes.data.map(p => ({
+                                "รหัสพนักงาน": p.emp_id,
+                                "รอบเงินเดือน": p.pay_cycle || p.month,
+                                "เงินได้สุทธิ": p.net_amount,
+                                "ไฟล์สลิป": p.file_url,
+                                "วันที่บันทึก": p.created_at
+                            }));
+                        }
+
+                        if (!pRes.error && Array.isArray(pRes.data)) {
+                            projectsList = pRes.data;
+                        }
+
+                        if (!annRes.error && Array.isArray(annRes.data)) {
+                            setStoredAnnouncements(annRes.data.map(a => ({
+                                docId: a.doc_id,
+                                title: a.title,
+                                message: a.message,
+                                date: a.date,
+                                author: a.author
+                            })));
+                        }
+
+                        console.log('[loadAllData ⚡ Supabase] ✓ Loaded employee data instantly');
+                        _renderAllViews();
+                        return true;
+                    } catch (supErr) {
+                        console.warn('[loadAllData Supabase fetch error, fallback to GAS]', supErr);
+                    }
+                }
+
+                // 🔄 2. Fallback ไป Google Apps Script (เพิ่ม timeout เป็น 30s ป้องกัน AbortError)
+                try {
                     const url = `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(currentEmployeeId)}&periodStart=${encodeURIComponent(pStart)}&periodEnd=${encodeURIComponent(pEnd)}`;
                     
                     const [res] = await Promise.all([
-                        fetchWithTimeout(url, { timeout: 15000 }).catch(err => {
+                        fetchWithTimeout(url, { timeout: 30000 }).catch(err => {
                             console.warn('[loadAllData fetchWithTimeout]', err);
                             return null;
                         }),
@@ -7147,24 +7231,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (Array.isArray(d.announcements)) setStoredAnnouncements(d.announcements);
                     }
 
-                    // Render and sync all views safely
-                    try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) { console.warn(e); }
-                    try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) { console.warn(e); }
-                    try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
-                    try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) { console.warn(e); }
-                    try { if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus(); } catch (e) { console.warn(e); }
-                    try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch (e) { console.warn(e); }
-                    try { if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards(); } catch (e) { console.warn(e); }
-
+                    _renderAllViews();
                     return true;
                 } catch (err) {
                     console.error('[loadAllData] Error:', err);
-                    try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) {}
-                    try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) {}
-                    try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) {}
-                    try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) {}
+                    _renderAllViews();
                     return true;
                 }
+            }
+
+            function _renderAllViews() {
+                try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) { console.warn(e); }
+                try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) { console.warn(e); }
+                try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) { console.warn(e); }
+                try { if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus(); } catch (e) { console.warn(e); }
+                try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch (e) { console.warn(e); }
+                try { if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards(); } catch (e) { console.warn(e); }
             }
 
             // ─── Announcement Storage & Functions ──────────────────────
@@ -11161,13 +11244,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 { date: '2026-12-05', title: 'วันพ่อแห่งชาติ', type: 'นักขัตฤกษ์' }
             ];
 
-            /** โหลดข้อมูลวันหยุด 16 วันจากเอกสารประกาศ "วันหยุดประจำปี 68-69.pdf" */
-            function loadOfficialHolidayPdfPreset() {
-                parsedHolidayPreview = OFFICIAL_HOLIDAYS_68_69.map(h => ({ ...h }));
-                renderHolidayPreviewList();
-                showToast(`📄 โหลดข้อมูลจาก วันหยุดประจำปี 68-69.pdf สำเร็จ (${parsedHolidayPreview.length} วัน)`, 'success');
-            }
-
             /** อ่านไฟล์ PDF และดึงข้อมูลวันหยุด */
             async function handleHolidayPdfFileUpload(event) {
                 const file = event.target.files?.[0];
@@ -11177,6 +11253,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (statusEl) {
                     statusEl.className = 'text-xs mt-2 text-brand-teal block font-semibold';
                     statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังอ่านไฟล์ PDF...';
+                    statusEl.classList.remove('hidden');
                 }
 
                 try {
@@ -11203,12 +11280,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             holidays = OFFICIAL_HOLIDAYS_68_69.map(h => ({ ...h }));
                             if (statusEl) {
                                 statusEl.className = 'text-xs mt-2 text-emerald-600 block font-semibold';
-                                statusEl.innerHTML = `✅ ตรวจพบเอกสาร "${escapeHtml(file.name)}" — โหลดวันหยุดทางการ 16 วันเรียบร้อย`;
+                                statusEl.innerHTML = `✅ ตรวจพบเอกสาร "${escapeHtml(file.name)}" — ดึงรายการวันหยุดประจำปีสำเร็จ (${holidays.length} วัน)`;
                             }
                         } else {
                             if (statusEl) {
                                 statusEl.className = 'text-xs mt-2 text-amber-600 block font-semibold';
-                                statusEl.innerHTML = '⚠️ ไฟล์นี้เป็นภาพสแกน (ไม่มี Text Layer) สามารถกดปุ่ม "โหลดข้อมูลจากไฟล์นี้" หรือวางข้อความได้';
+                                statusEl.innerHTML = '⚠️ ไฟล์ PDF นี้เป็นภาพสแกน (ไม่มี Text Layer) สามารถสลับไปที่แท็บ "วางข้อความ" หรือเลือกไฟล์ PDF ที่มีข้อความได้';
                             }
                         }
                     } else {
