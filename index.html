@@ -14645,12 +14645,18 @@ ${slip.textSample}
 
                     if (allPayslips.length === 0) {
                         try {
-                            const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getPayslips&empId=*ALL*`);
-                            if (res && res.status === 'success' && Array.isArray(res.data)) {
+                            const gasUrl = `${SERVER_API_URL}?action=getPayslips&empId=*ALL*&adminId=${encodeURIComponent(currentEmployeeId || '')}`;
+                            const res = await fetchWithTimeout(gasUrl);
+                            if (res && res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
                                 allPayslips = res.data;
                             }
                         } catch (gasErr) {
                             console.warn('[YearlyPayslip] GAS load error:', gasErr);
+                        }
+
+                        // ⚡ หากใน Supabase ยังว่าง แต่ใน Sheets มีข้อมูล ให้สั่ง auto-migrate ซิงค์ขึ้น Supabase ทันที
+                        if (allPayslips.length > 0) {
+                            fetchWithTimeout(`${SERVER_API_URL}?action=migrateSingleTable&table=payslips&empId=${encodeURIComponent(currentEmployeeId || '')}`).catch(() => {});
                         }
                     }
 
