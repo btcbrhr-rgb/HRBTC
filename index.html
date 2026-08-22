@@ -18704,9 +18704,6 @@ ${slip.textSample}
             sbLog('🔄 เริ่มซิงค์ข้อมูล Google Sheets → Supabase...', '#60a5fa');
             showToast('🔄 กำลังซิงค์ข้อมูล...', 'info');
 
-            // Step 0: syncSchema + UNIQUE constraints จะถูกสร้างอัตโนมัติภายใน migrateAllDataToSupabase()
-            sbLog('🔧 UNIQUE constraints + schema sync อัตโนมัติ (ภายในซิงค์)...');
-
             const TABLE_NAMES = {
                 employees: '👥 พนักงาน', time_records: '⏰ เวลางาน',
                 leave_requests: '📋 คำขอลา', time_corrections: '✏️ แก้ไขเวลา',
@@ -18718,110 +18715,10 @@ ${slip.textSample}
             };
             const ALL_TABLES = Object.keys(TABLE_NAMES);
 
-            // ตรวจจำนวนแถวจริงใน Google Sheets ก่อนซิงค์
-            sbLog('📋 ตรวจสอบข้อมูลใน Google Sheets...', '#60a5fa');
             try {
-                let sheetInfo = null;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    sheetInfo = await new Promise((resolve, reject) => {
-                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).checkSheetsDataCount();
-                    });
-                } else {
-                    sheetInfo = await fetchWithTimeout(`${SERVER_API_URL}?action=checkSheetsData`, { timeout: 30000 });
-                }
-                if (sheetInfo && sheetInfo.data) {
-                    sbLog('📊 ข้อมูลใน Google Sheets:', '#60a5fa');
-                    for (const [key, info] of Object.entries(sheetInfo.data)) {
-                        const icon = TABLE_NAMES[key] || key;
-                        const status = info.dataRows > 0 ? `✅ ${info.dataRows} แถว` : '❌ ว่าง';
-                        sbLog(`  ${icon}: ${status}`, info.dataRows > 0 ? '#34d399' : '#94a3b8');
-                    }
-                }
-            } catch (e) {
-                sbLog(`⚠️ ไม่สามารถตรวจข้อมูล Sheets ได้: ${e.message}`, '#fbbf24');
-            }
-
-            // ตรวจจำนวนแถวจริงใน Supabase (ใช้ REST API ตรง — ไม่ผ่าน GAS)
-            try {
-                const sbUrl = (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.url) ? SUPABASE_CONFIG.url : (localStorage.getItem('sb_config_url') || '');
-                const sbKey = (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG.anonKey) ? SUPABASE_CONFIG.anonKey : (localStorage.getItem('sb_config_anon_key') || '');
-                if (sbUrl && sbKey) {
-                    sbLog('📊 ข้อมูลใน Supabase (ปัจจุบัน):', '#a78bfa');
-                    for (const [tbl, icon] of Object.entries(TABLE_NAMES)) {
-                        try {
-                            const r = await fetch(`${sbUrl}/rest/v1/${tbl}?select=*&limit=1`, {
-                                headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}`, 'Prefer': 'count=exact' }
-                            });
-                            const cr = r.headers.get('content-range') || '';
-                            const match = cr.match(/\/(\d+)/);
-                            const num = match ? parseInt(match[1]) : 0;
-                            sbLog(`  ${icon}: ${num} แถว`, num > 0 ? '#a78bfa' : '#94a3b8');
-                        } catch(e2) { /* skip */ }
-                    }
-                }
-            } catch(e) {
-                sbLog(`⚠️ ไม่สามารถตรวจ Supabase ได้: ${e.message}`, '#fbbf24');
-            }
-
-            try {
-                // ═══ Step 0: syncSchema + UNIQUE constraints ═══
-                sbLog('🔧 กำลัง sync schema + UNIQUE constraints...', '#a78bfa');
-                try {
-                    let schemaRes = null;
-                    if (typeof google !== 'undefined' && google.script && google.script.run) {
-                        schemaRes = await new Promise((resolve, reject) => {
-                            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).syncSupabaseSchema();
-                        });
-                    } else {
-                        schemaRes = await fetchWithTimeout(`${SERVER_API_URL}?action=syncSupabaseSchema&empId=${currentEmployeeId || 'admin'}`, { timeout: 60000 });
-                    }
-                    if (schemaRes && schemaRes.status === 'success') {
-                        sbLog('  ✅ Schema sync สำเร็จ', '#34d399');
-                    } else {
-                        sbLog('  ⚠️ Schema sync: ' + JSON.stringify(schemaRes || {}).substring(0, 200), '#fbbf24');
-                    }
-                } catch(e) {
-                    sbLog('  ⚠️ Schema sync error: ' + e.message, '#fbbf24');
-                }
-
-                // ═══ ซิงค์ทีละตาราง — เห็น progress จริง ═══
-                const MAX_RETRIES_PER_TABLE = 3;
-                let totalSynced = 0;
-                let totalFailed = 0;
-                let successCount = 0;
-                let failCount = 0;
-                const syncResults = [];
-
-                // ═══ Step 1: ลอง migrateSingleTable 1 ครั้งเพื่อทดสอบว่าใช้ได้ไหม ═══
-                let useSingleTableSync = false;
-                let testRes = null;
-                try {
-                    sbLog('🧪 ทดสอบ migrateSingleTable...');
-                    if (typeof google !== 'undefined' && google.script && google.script.run) {
-                        testRes = await new Promise((resolve, reject) => {
-                            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).migrateSingleTable('system_settings');
-                        });
-                    } else {
-                        testRes = await fetchWithTimeout(`${SERVER_API_URL}?action=migrateTable&table=system_settings`, { timeout: 60000 });
-                    }
-                    if (testRes && (testRes.status === 'success' || testRes.status === 'skip')) {
-                        useSingleTableSync = true;
-                        sbLog('  ✅ migrateSingleTable พร้อมใช้งาน!', '#34d399');
-                        // บันทึกผลทดสอบ (system_settings สำเร็จแล้ว)
-                        syncResults.push(testRes);
-                        if (testRes.status === 'success') {
-                            totalSynced += testRes.count || 0;
-                            successCount++;
-                        }
-                    } else {
-                        sbLog('  ⚠️ migrateSingleTable ไม่พร้อม — ใช้ migrateAllData แทน', '#fbbf24');
-                    }
-                } catch (testErr) {
-                    sbLog(`  ⚠️ migrateSingleTable ไม่พร้อม (${testErr.message || testErr}) — ใช้ migrateAllData แทน`, '#fbbf24');
-                }
-
-                // ═══ Step 2: ซิงค์ข้อมูล (auto-retry จนกว่าจะครบ) ═══
+                // ═══ ซิงค์ข้อมูล (auto-retry จนกว่าจะครบ) ═══
                 const startTime = performance.now();
+                let totalSynced = 0;
                 const MAX_ROUNDS = 20; // ป้องกัน infinite loop (20 × 6น. = 120 น.)
                 let round = 0;
                 let allDone = false;
@@ -18886,6 +18783,37 @@ ${slip.textSample}
                 if (!allDone && round >= MAX_ROUNDS) {
                     sbLog(`\n⚠️ ถึงจำนวน Round สูงสุด (${MAX_ROUNDS}) — ตรวจสอบตารางที่ยังไม่ครบ`, '#fbbf24');
                 }
+                // ═══ Sync กลับ: Supabase → Google Sheets ═══
+                if (allDone) {
+                    sbLog('\n🔄 กำลังซิงค์ข้อมูลกลับ Supabase → Google Sheets...', '#a78bfa');
+                    try {
+                        let backRes = null;
+                        if (typeof google !== 'undefined' && google.script && google.script.run) {
+                            backRes = await new Promise((resolve, reject) => {
+                                google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).syncFromSupabaseToSheets();
+                            });
+                        } else {
+                            backRes = await fetchWithTimeout(`${SERVER_API_URL}?action=syncBackToSheets&empId=${currentEmployeeId || 'admin'}`, { timeout: 600000 });
+                        }
+                        if (backRes && backRes.progress) {
+                            sbLog('📊 ผลลัพธ์ Supabase → Sheets:', '#a78bfa');
+                            backRes.progress.forEach(function(p) {
+                                const icon = TABLE_NAMES[p.table] || p.table;
+                                if (p.status === 'success') {
+                                    sbLog(`  ✅ ${icon}: อัพเดท ${p.updated || 0} + เพิ่ม ${p.inserted || 0} (${p.ms}ms)`, '#34d399');
+                                } else if (p.status === 'skip') {
+                                    sbLog(`  ⏭️ ${icon}: ${p.message || 'ข้าม'}`, '#94a3b8');
+                                } else {
+                                    sbLog(`  ❌ ${icon}: ${p.message || 'ผิดพลาด'}`, '#f87171');
+                                }
+                            });
+                            sbLog('✅ ซิงค์ 2 ทางเสร็จสิ้น!', '#34d399');
+                        }
+                    } catch (backErr) {
+                        sbLog(`⚠️ Sync กลับผิดพลาด: ${backErr.message}`, '#fbbf24');
+                    }
+                }
+
                 const totalMs = Math.round(performance.now() - startTime);
 
                 // สรุปผล
