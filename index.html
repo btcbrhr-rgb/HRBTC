@@ -5910,21 +5910,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
             }
 
-            // ⚡ SUPABASE DUAL-DATABASE CLIENT CONFIGURATION
-            const SUPABASE_CONFIG = {
-                url: "https://uldeugqrkabplavusoci.supabase.co",
-                anonKey: "sb_publishable__MbMYXLfBvlHHb6bKwigfA_vtGnn5Ll"
-            };
-
+            // ⚡ SUPABASE — config loaded from GAS server (PropertiesService)
+            let SUPABASE_CONFIG = { url: '', anonKey: '' };
             let supabaseClient = null;
-            try {
-                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-                    supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
-                    console.log('[Supabase ⚡] Client initialized successfully');
-                }
-            } catch (sbErr) {
-                console.warn('[Supabase ⚡] Client init failed:', sbErr);
-            }
 
             // ⚡ SUPABASE EMPTY CHECK — ตรวจสอบเมื่อเริ่มระบบครั้งแรก
             let supabaseIsEmpty = false;
@@ -6307,8 +6295,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 isPWAApp = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
                 localStorage.setItem("isPWAApp", isPWAApp ? "true" : "false");
 
-                // ⚡ ตรวจสอบ Supabase ว่างเปล่า (เร็ว < 100ms) — เก็บค่าไว้ก่อน ไม่แสดง Banner ที่หน้า Login
-                checkSupabaseIsEmpty();
+                // ⚡ Supabase empty check — deferred until client is initialized (in initSupabasePanelUI)
 
                 // 🌐 อ่าน URL Query Parameters สำหรับ Deep Linking จาก LINE Flex Message
                 const urlParams = new URLSearchParams(window.location.search);
@@ -18489,9 +18476,7 @@ ${slip.textSample}
         // ⚡ SUPABASE INTEGRATION PANEL — UI Controls & Logic
         // ══════════════════════════════════════════════════════════════
 
-        const SB_URL_KEY  = 'hrbtc_sb_url';
-        const SB_KEY_KEY  = 'hrbtc_sb_key';
-        const SB_MODE_KEY = 'hrbtc_sb_mode';
+        // Config loaded from GAS PropertiesService (server-side), NOT localStorage
 
         function sbLog(msg, color) {
             const log = document.getElementById('sb-result-log');
@@ -18505,54 +18490,110 @@ ${slip.textSample}
             log.scrollTop = log.scrollHeight;
         }
 
-        function initSupabasePanelUI() {
+        async function initSupabasePanelUI() {
             const urlEl  = document.getElementById('sb-config-url');
             const keyEl  = document.getElementById('sb-config-key');
-            const modeEl = document.querySelector(`input[name="sb-db-mode"][value="${localStorage.getItem(SB_MODE_KEY) || 'hybrid'}"]`);
+            const badge = document.getElementById('sb-status-badge');
+            const dot = document.getElementById('sb-status-dot');
+            const statusText = document.getElementById('sb-status-text');
+            const pingEl = document.getElementById('sb-ping-ms');
+            const lastEl = document.getElementById('sb-last-tested');
 
-            if (urlEl) urlEl.value  = localStorage.getItem(SB_URL_KEY)  || SUPABASE_CONFIG.url;
-            if (keyEl) keyEl.value  = localStorage.getItem(SB_KEY_KEY)  || SUPABASE_CONFIG.anonKey;
-            if (modeEl) { modeEl.checked = true; onSupabaseModeChange(modeEl.value); }
+            // แสดงสถานะกำลังโหลด
+            if (dot) dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+            if (statusText) statusText.textContent = 'กำลังโหลด...';
 
-            // แสดงแหล่งข้อมูลปัจจุบัน
+            // 1. อ่าน config จาก server (GAS PropertiesService)
+            let config = { url: '', anonKey: '', mode: 'hybrid' };
+            try {
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    config = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getSupabaseConfig();
+                    }).then(res => (res && res.status === 'success') ? res.config : { url: '', anonKey: '', mode: 'hybrid' });
+                } else if (SERVER_API_URL) {
+                    config = await fetchWithTimeout(`${SERVER_API_URL}?action=getSupabaseConfig`, { timeout: 10000 }).then(r => r.config || {});
+                }
+            } catch (e) {
+                console.warn('[Supabase] Failed to load config from server:', e);
+            }
+
+            // 2. ใส่ค่าใน input fields
+            SUPABASE_CONFIG.url = config.url || '';
+            SUPABASE_CONFIG.anonKey = config.anonKey || '';
+            if (urlEl) urlEl.value = config.url || '';
+            if (keyEl) keyEl.value = config.anonKey || '';
+            const mode = config.mode || 'hybrid';
+            const modeEl = document.querySelector(`input[name="sb-db-mode"][value="${mode}"]`);
+            if (modeEl) { modeEl.checked = true; onSupabaseModeChange(mode); }
             const srcEl = document.getElementById('sb-current-source');
             if (srcEl) {
-                const mode = localStorage.getItem(SB_MODE_KEY) || 'hybrid';
                 srcEl.textContent = mode === 'hybrid' ? '⚡ Supabase (หลัก)' : '📊 Google Sheets (สำรอง)';
                 srcEl.style.color = mode === 'hybrid' ? '#7c3aed' : '#d97706';
             }
 
-            // ⚡ ตรวจสอบ Supabase ว่างเปล่าและแสดง Sync Required Alert
-            if (typeof checkSupabaseIsEmpty === 'function') {
-                checkSupabaseIsEmpty().then(isEmpty => {
-                    const alertEl = document.getElementById('sb-sync-required-alert');
-                    if (alertEl) {
-                        alertEl.classList.toggle('hidden', !isEmpty);
-                    }
-                    // อัปเดต status badge
-                    const badge = document.getElementById('sb-status-badge');
-                    const dot = document.getElementById('sb-status-dot');
-                    const text = document.getElementById('sb-status-text');
-                    if (isEmpty && badge && dot && text) {
-                        badge.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-300 self-start sm:self-auto';
-                        dot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
-                        text.textContent = 'ต้องซิงค์ข้อมูล';
-                    }
-                    // ⚡ Auto-sync: มี config → ซิงค์อัตโนมัติ
-                    const sbUrl = localStorage.getItem('sb_config_url') || '';
-                    const sbKey = localStorage.getItem('sb_config_anon_key') || '';
-                    if (sbUrl && sbKey) {
-                        if (isEmpty && typeof triggerSupabaseMigration === 'function') {
-                            // Supabase ว่าง → ซิงค์ Sheets → Supabase
-                            console.log('[Supabase] ⚡ Auto-sync: ว่าง → ซิงค์ Sheets→Supabase อัตโนมัติ');
+            // 3. ไม่มี config → แสดง "ยังไม่ได้ตั้งค่า" + จบ
+            if (!config.url || !config.anonKey) {
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-slate-400';
+                if (statusText) statusText.textContent = 'ยังไม่ได้ตั้งค่า';
+                if (badge) badge.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200';
+                console.log('[Supabase] No config saved yet — waiting for user setup');
+                return;
+            }
+
+            // 4. มี config → auto-test เชื่อมต่อ
+            console.log(`[Supabase] ⚡ Config loaded from server → testing connection...`);
+            if (statusText) statusText.textContent = 'กำลังตรวจสอบ...';
+            try {
+                const t0 = performance.now();
+                const endpoint = `${config.url}/rest/v1/employees?select=emp_id&limit=1`;
+                const res = await fetch(endpoint, {
+                    headers: { 'apikey': config.anonKey, 'Authorization': `Bearer ${config.anonKey}` }
+                });
+                const ms = Math.round(performance.now() - t0);
+
+                if (res.ok || res.status === 406) {
+                    // เชื่อมต่อสำเร็จ
+                    if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+                    if (statusText) statusText.textContent = 'พร้อมใช้งาน';
+                    if (badge) badge.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200';
+                    if (pingEl) pingEl.textContent = `${ms} ms`;
+                    if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
+                    sbLog(`✅ Supabase เชื่อมต่อสำเร็จ (${ms}ms)`, '#34d399');
+                    console.log(`[Supabase] ✅ Connected in ${ms}ms`);
+
+                    // Init supabase client
+                    try {
+                        if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                            supabaseClient = window.supabase.createClient(config.url, config.anonKey);
+                        }
+                    } catch (e) { /* ok */ }
+
+                    // 5. Auto-sync: ตรวจสอบว่า Supabase ว่าง + sync อัตโนมัติ
+                    if (typeof checkSupabaseIsEmpty === 'function') {
+                        const isEmpty = await checkSupabaseIsEmpty().catch(() => false);
+                        const alertEl = document.getElementById('sb-sync-required-alert');
+                        if (isEmpty) {
+                            if (alertEl) alertEl.classList.remove('hidden');
+                            if (dot) dot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+                            if (statusText) statusText.textContent = 'ต้องซิงค์ข้อมูล';
+                            if (badge) badge.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200';
+                            console.log('[Supabase] ⚡ Empty → auto-sync Sheets→Supabase');
                             setTimeout(() => { triggerSupabaseMigration(); }, 2000);
-                        } else if (!isEmpty && typeof triggerSupabaseMigration === 'function') {
-                            // Supabase มีข้อมูล → ซิงค์ 2 ทาง
-                            console.log('[Supabase] ⚡ Auto-sync: มีข้อมูล → ซิงค์ 2 ทางอัตโนมัติ');
-                            setTimeout(() => { triggerSupabaseMigration(); }, 2000);
+                        } else {
+                            if (alertEl) alertEl.classList.add('hidden');
+                            console.log('[Supabase] ⚡ Has data → no sync needed');
                         }
                     }
-                });
+                } else {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+            } catch (err) {
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+                if (statusText) statusText.textContent = 'เชื่อมต่อไม่ได้';
+                if (badge) badge.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200';
+                if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
+                sbLog(`❌ Supabase เชื่อมต่อไม่ได้: ${err.message}`, '#f87171');
+                console.error('[Supabase] Connection failed:', err);
             }
         }
 
@@ -18580,7 +18621,7 @@ ${slip.textSample}
             }
         }
 
-        function saveSupabaseConfig() {
+        async function saveSupabaseConfig() {
             const url  = (document.getElementById('sb-config-url')?.value || '').trim();
             const key  = (document.getElementById('sb-config-key')?.value || '').trim();
             const mode = document.querySelector('input[name="sb-db-mode"]:checked')?.value || 'hybrid';
@@ -18590,28 +18631,31 @@ ${slip.textSample}
                 return;
             }
 
-            localStorage.setItem(SB_URL_KEY, url);
-            localStorage.setItem(SB_KEY_KEY, key);
-            localStorage.setItem(SB_MODE_KEY, mode);
+            sbLog('💾 กำลังบันทึก config ลง server...', '#60a5fa');
+            showToast('💾 กำลังบันทึก...', 'info', 3000);
 
-            // Re-initialize supabase client with new config
+            // บันทึกลง GAS PropertiesService (server-side)
             try {
-                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-                    supabaseClient = window.supabase.createClient(url, key);
-                    console.log('[Supabase ⚡] Client re-initialized with new config');
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).saveSupabaseConfigToServer(url, key, mode);
+                    });
+                } else if (SERVER_API_URL) {
+                    await fetchWithTimeout(`${SERVER_API_URL}?action=saveSupabaseConfigToServer&url=${encodeURIComponent(url)}&key=${encodeURIComponent(key)}&mode=${mode}`, { timeout: 10000 });
                 }
             } catch (e) {
-                console.warn('[Supabase ⚡] Re-init error:', e);
+                showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'error');
+                return;
             }
 
-            const srcEl = document.getElementById('sb-current-source');
-            if (srcEl) {
-                srcEl.textContent = mode === 'hybrid' ? '⚡ Supabase (Fast)' : '📊 Google Sheets';
-                srcEl.style.color = mode === 'hybrid' ? '#7c3aed' : '#475569';
-            }
+            // Update runtime config
+            SUPABASE_CONFIG.url = url;
+            SUPABASE_CONFIG.anonKey = key;
 
-            sbLog(`✅ บันทึกการตั้งค่าสำเร็จ — โหมด: ${mode === 'hybrid' ? 'Fast-Hybrid' : 'Google Sheets Only'}`);
-            showToast('✅ บันทึกการตั้งค่า Supabase สำเร็จ', 'success');
+            sbLog('✅ บันทึกสำเร็จ — กำลังทดสอบเชื่อมต่อ...', '#34d399');
+
+            // Auto-test ทันทีหลังบันทึก
+            await testSupabaseConnection();
         }
 
         async function testSupabaseConnection() {
