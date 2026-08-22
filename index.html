@@ -338,10 +338,7 @@
             if (adminTitle) adminTitle.textContent = COMPANY_INFO.adminTitle;
             if (empCompanyInput) empCompanyInput.placeholder = COMPANY_INFO.name;
 
-            const storedApiUrl = localStorage.getItem("hr_api_url");
-            if (storedApiUrl) {
-                SERVER_API_URL = storedApiUrl;
-            }
+            // API URL ใช้ค่าจาก hardcoded config หรือ server-side config เท่านั้น (ไม่ใช้ localStorage)
         }
 
         window.addEventListener('DOMContentLoaded', initializeCompanyInfo);
@@ -5905,10 +5902,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             currentEmployeeId = "";
-            SERVER_API_URL = normalizeApiBaseUrl(localStorage.getItem("hr_api_url") || "") || resolveApiUrl(localStorage.getItem("hr_api_url") || "") || "";
-            if (!SERVER_API_URL) {
-                SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
-            }
+            SERVER_API_URL = SERVER_API_URL || "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
 
             // ⚡ SUPABASE — config loaded from GAS server (PropertiesService)
             let SUPABASE_CONFIG = { url: '', anonKey: '' };
@@ -6224,9 +6218,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return getCycleDateRange(startYear, startMonth);
             }
 
-            function getPinStorageKey(empId) {
-                return `pin_hash_${empId}`;
-            }
+            // PIN ตรวจสอบผ่าน server-side (Supabase) เท่านั้น — ไม่เก็บใน localStorage
 
             // ฟังก์ชันสำหรับเปิดหน้าจอ Kiosk และ Register สแกนใบหน้าแบบแยกแท็บใหม่
             // ใช้ GitHub Pages URL โดยตรง เพราะ FaceKiosk.html / FaceRegister.html
@@ -6248,10 +6240,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function isPinValid(empId, pin) {
-                const storedHash = localStorage.getItem(getPinStorageKey(empId));
-                if (!storedHash) return false;
-                const pinHash = await hashPin(pin);
-                return storedHash === pinHash;
+                // ตรวจสอบ PIN ผ่าน server-side API (Supabase) เท่านั้น
+                try {
+                    const result = await apiRequest({ action: 'verifyPin', pin: pin, empId: empId });
+                    return result && result.status === 'success' && result.valid;
+                } catch(e) {
+                    console.warn('[isPinValid] API check failed:', e);
+                    return false;
+                }
             }
 
 
@@ -6262,8 +6258,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (resolvedEmpId) {
                     currentEmployeeId = resolvedEmpId;
                 }
-                localStorage.setItem("hr_emp_id", currentEmployeeId);
-                // ใช้ sessionStorage สำหรับ login status - ล้างเมื่อปิดเบราว์เซอร์
                 sessionStorage.setItem("is_logged_in", "true");
                 // ✅ Optimistic Login: แสดง loading overlay แล้วโหลดข้อมูลก่อนแสดงหน้า App
                 generateCycleOptions();
@@ -6291,9 +6285,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // --- เริ่มต้นโหลดแอป (App Initialization) ---
             window.onload = async function () {
-                // ตรวจสอบ PWA standalone mode
+                // ตรวจสอบ PWA standalone mode (runtime check, ไม่ใช้ localStorage)
                 isPWAApp = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-                localStorage.setItem("isPWAApp", isPWAApp ? "true" : "false");
 
                 // ⚡ Supabase empty check — deferred until client is initialized (in initSupabasePanelUI)
 
@@ -6318,21 +6311,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 else if (urlModal === "profile" || urlModal === "salaryCert") targetPage = "profile";
 
                 // ตรวจสอบว่า login ไว้แล้วหรือไม่ หรือส่ง empId มาผ่าน URL จาก LINE
-                const savedEmpId = urlEmpId || localStorage.getItem("hr_emp_id");
+                const savedEmpId = urlEmpId || null;
                 const savedLoginStatus = urlEmpId ? "true" : sessionStorage.getItem("is_logged_in");
 
                 if ((savedLoginStatus === "true" || urlEmpId) && savedEmpId) {
                     isLoggedIn = true;
                     currentEmployeeId = savedEmpId;
-                    localStorage.setItem("hr_emp_id", savedEmpId);
                     sessionStorage.setItem("is_logged_in", "true");
 
-                    // แสดงหน้า PIN login เมื่อ:
-                    // 1. เปิดจาก LINE (มี urlEmpId) แต่ยังไม่ได้ยืนยัน PIN ใน session นี้
-                    // 2. PWA mode + มี PIN ที่ตั้งไว้
-                    const hasPin = localStorage.getItem(getPinStorageKey(savedEmpId));
+                    // แสดงหน้า PIN login เมื่อเปิดจาก LINE (มี urlEmpId) แต่ยังไม่ได้ยืนยัน PIN ใน session นี้
                     const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
-                    if (hasPin && (!pinVerifiedThisSession || urlEmpId)) {
+                    if (!pinVerifiedThisSession && urlEmpId) {
                         document.getElementById("pin-login-emp-id").value = savedEmpId;
                         showModal("pin-login-modal");
                         return;
@@ -6560,7 +6549,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     isLoggedIn = true;
                     employeeData = empResponse.data || {};
                     sessionStorage.setItem("is_logged_in", "true");
-                    localStorage.setItem("hr_emp_id", currentEmployeeId);
 
                     // แสดงหน้า App หลังโหลดข้อมูลเสร็จ: แสดง overlay ขณะรอ loadAllData()
                     updateCalendarCycleUI();
@@ -6624,7 +6612,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             // Auto logout เมื่อปิดเว็บ/แท็บ - ใช้ sessionStorage ล้างเมื่อปิดเบราว์เซอร์
-            // (localStorage ถูกเก็บไว้เพื่อ remember employee ID สำหรับเติมรหัส)
 
             function logout() {
                 isLoggedIn = false;
@@ -6633,8 +6620,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const dot = document.getElementById("connection-status-dot");
                 if (dot) dot.classList.add("hidden");
                 sessionStorage.removeItem("is_logged_in");
-                localStorage.removeItem("is_logged_in");
-                localStorage.removeItem("hr_emp_id");
+                // ไม่ใช้ localStorage — ทุกอย่างเก็บใน server-side (Supabase)
 
                 timeRecordsList = [];
                 leaveRequestsList = [];
@@ -6780,8 +6766,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 if (saveSuccess) {
-                    const pinHash = await hashPin(pin);
-                    localStorage.setItem(getPinStorageKey(empId), pinHash);
+                    // PIN hash เก็บใน Supabase (server-side) เท่านั้น — ไม่เก็บใน localStorage
                     _pendingPinData = null;
 
                     closeModal("pin-confirm-modal");
@@ -6804,22 +6789,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return withSubmitLock("pinLogin", async () => {
                     const pin = document.getElementById("pin-login-input").value.trim();
                     const empId = document.getElementById("pin-login-emp-id").value.trim();
+                    // PIN lockout — ใช้ in-memory เท่านั้น (ไม่ใช้ localStorage)
+                    if (!window._pinLockouts) window._pinLockouts = {};
                     const lockKey = "pin_lock_" + empId;
-                    const lockData = JSON.parse(localStorage.getItem(lockKey) || "null");
+                    const lockData = window._pinLockouts[lockKey] || null;
 
                     if (lockData && lockData.count >= 3) {
                         const remaining = Math.ceil((lockData.unlockAt - Date.now()) / 1000);
                         if (remaining > 0) {
-                            showToast(`🔒 รหัสถูกล็อก รอ ${remaining} วินาที ก่อนลองใหม่`, "error");
+                            showToast(`\ud83d\udd12 \u0e23\u0e2b\u0e31\u0e27\u0e04\u0e4c\u0e21\u0e14\u0e23\u0e1a \u0e23\u0e2d {remaining} \u0e27\u0e34\u0e19\u0e15\u0e4c \u0e01\u0e2d\u0e23\u0e08\u0e32\u0e22\u0e43\u0e2b\u0e21\u0e48`, "error");
                             return;
                         }
-                        localStorage.removeItem(lockKey);
+                        delete window._pinLockouts[lockKey];
                     }
 
                     const isValidPin = await isPinValid(empId, pin);
                     console.log('[submitPinLogin] PIN validation result', { empId, isValidPin });
                     if (isValidPin) {
-                        localStorage.removeItem(lockKey);
+                        delete window._pinLockouts[lockKey];
                         closeModal("pin-login-modal");
                         document.getElementById("pin-login-input").value = "";
                         showToast("🔓 ยินดีต้อนรับกลับมา!", "success");
@@ -6831,14 +6818,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         proceedToMainApp();
                     } else {
                         const count = (lockData?.count || 0) + 1;
+                        if (!window._pinLockouts) window._pinLockouts = {};
                         if (count >= 3) {
-                            localStorage.setItem(lockKey, JSON.stringify({ count, unlockAt: Date.now() + 60000 }));
-                            showToast(`🔒 ป้อนรหัสผิด 3 ครั้ง ล็อก 60 วินาที`, "error");
+                            window._pinLockouts[lockKey] = { count, unlockAt: Date.now() + 60000 };
+                            showToast(`\ud83d\udd12 \u0e1b\u0e2d\u0e19\u0e23\u0e2d\u0e14\u0e2a\u0e34\u0e49\u0e19 3 \u0e04\u0e30\u0e15\u0e4c \u0e25\u0e47\u0e2d\u0e01 60 \u0e27\u0e34\u0e19\u0e15\u0e4c`, "error");
                             closeModal("pin-error-modal");
                             showModal("pin-lockout-modal");
                             startLockoutCountdown();
                         } else {
-                            localStorage.setItem(lockKey, JSON.stringify({ count }));
+                            window._pinLockouts[lockKey] = { count };
                             showModal("pin-error-modal");
                         }
                     }
@@ -6974,8 +6962,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     console.warn("[adminResetPin] API notice:", err);
                 }
 
-                localStorage.removeItem(getPinStorageKey(empId));
-                showToast(`🔑 ล้าง PIN ของ ${empName} (${empId}) ในระบบเรียบร้อยแล้ว`, "success");
+                // PIN hash ถูกลบจาก Supabase (server-side) แล้ว ไม่ต้องลบจาก localStorage
+                showToast(`\ud83d\udd11 \u0e25\u0e32\u0e07 PIN \u0e02\u0e2d\u0e07 ${empName} (${empId}) \u0e21\u0e23\u0e32\u0e14\u0e23\u0e2b\u0e31\u0e27\u0e23\u0e27\u0e08\u0e27\u0e48\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27`, "success");
             }
 
             // ⚡ ฟังก์ชันดึงข้อมูลทั้งหมดจาก Supabase (Instant Fast Load < 80ms)
@@ -7289,16 +7277,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             const ANNOUNCEMENTS_STORAGE_KEY = 'hrbtc_announcements';
 
+            // ประกาศเก็บใน in-memory (supabase เป็น source of truth)
+            let _announcementsCache = [];
+
             function getStoredAnnouncements() {
-                try {
-                    return JSON.parse(localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY) || '[]');
-                } catch (e) {
-                    return [];
-                }
+                return _announcementsCache || [];
             }
 
             function saveStoredAnnouncements(list) {
-                localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(list));
+                _announcementsCache = list || [];
             }
 
             function loadAdminAnnouncements() {
@@ -7430,10 +7417,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // 5. สถิติจาก calculateAndDisplayStats (ถ้ามี)
                 const cycleStats = window.__currentCycleStats || {};
 
-                // 6. ประกาศใหม่ (จาก localStorage)
+                // 6. ประกาศใหม่ (จาก in-memory cache)
                 let newAnnouncementsCount = 0;
                 try {
-                    const ann = JSON.parse(localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY) || '[]');
+                    const ann = getStoredAnnouncements();
                     newAnnouncementsCount = ann.filter(a => {
                         const d = (a["วันที่โพสต์"] || a["postDate"] || "").toString().trim();
                         return d && d >= sevenDaysAgoStr;
@@ -7742,11 +7729,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (!normalized) return;
                     if (SERVER_API_URL !== normalized) {
                         SERVER_API_URL = normalized;
-                        try {
-                            localStorage.setItem('hr_api_url', normalized);
-                        } catch (err) {
-                            console.warn('[API] Could not persist resolved URL', err);
-                        }
                     }
                 };
 
@@ -9647,18 +9629,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
                     }
 
-                    // Save the record to localStorage so the template can load it instantly!
-                    if (typeof recordOrDoc === 'object' && recordOrDoc) {
-                        localStorage.setItem('print_leave_data_' + docId, JSON.stringify(recordOrDoc));
-                    } else if (typeof recordOrDoc === 'string') {
-                        const found = (leaveRequestsList || []).find(l => {
-                            const currentId = l.docId || l.documentId || l['เลขที่เอกสาร'] || l['เลขที่'] || l['doc_no'] || l['document_no'] || l['id'];
-                            return String(currentId) === String(recordOrDoc);
-                        });
-                        if (found) {
-                            localStorage.setItem('print_leave_data_' + docId, JSON.stringify(found));
-                        }
-                    }
+                    // ข้อมูลใบลาจะถูกดึงจาก server ผ่าน docId (ไม่ใช้ localStorage)
+                    // Template จะเรียก loadDataFromServer(docId) อัตโนมัติ
 
                     // Use only docId in URL (standard flow). Template will fetch the record.
                     url.searchParams.set('docId', docId);
@@ -18371,7 +18343,7 @@ ${slip.textSample}
 
         function initGasPanelUI() {
             const urlEl = document.getElementById('gas-config-url');
-            const currentUrl = localStorage.getItem('hr_api_url') || (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
+            const currentUrl = (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
             if (urlEl && currentUrl) {
                 urlEl.value = currentUrl;
             }
@@ -18411,7 +18383,6 @@ ${slip.textSample}
                 return;
             }
 
-            localStorage.setItem('hr_api_url', url);
             SERVER_API_URL = url;
 
             gasLog(`💾 บันทึก URL เรียบร้อย: ${url}`);

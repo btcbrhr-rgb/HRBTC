@@ -434,19 +434,7 @@
     const DEFAULT_SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
     let SERVER_API_URL = DEFAULT_SERVER_API_URL;
 
-    function getStoredApiUrl() {
-      try {
-        return window.localStorage && window.localStorage.getItem ? window.localStorage.getItem('hr_api_url') : null;
-      } catch (err) {
-        console.warn('[FaceRegister] ไม่สามารถอ่าน hr_api_url จาก localStorage ได้', err);
-        return null;
-      }
-    }
-
-    const storedApiUrl = getStoredApiUrl();
-    if (storedApiUrl) {
-      SERVER_API_URL = storedApiUrl;
-    }
+    // API URL ใช้ค่าจาก hardcoded config เท่านั้น (ไม่ใช้ localStorage)
 
     // Helper function to call backend using fetch instead of google.script.run
     async function callBackend(action, payload = {}) {
@@ -492,14 +480,8 @@
       // 💡 ใช้ agentGetMasterEmployees เพราะเป็น public-agent action ที่ดึง
       // master employee list ได้โดยไม่ต้องล็อกอิน admin (เหมาะกับหน้า Kiosk/Register)
       // และต้องส่ง deviceId ไปด้วย เพราะ action นี้อยู่ใน AGENT_ACTIONS
-      const deviceId = (function () {
-        let id = localStorage.getItem('hrbtc_device_id');
-        if (!id) {
-          id = 'FACE_REG_' + Math.random().toString(36).slice(2, 10).toUpperCase();
-          try { localStorage.setItem('hrbtc_device_id', id); } catch (e) { /* ignore */ }
-        }
-        return id;
-      })();
+      // Device ID — สร้างใหม่ทุก session (ไม่ใช้ localStorage)
+      const deviceId = 'FACE_REG_' + Math.random().toString(36).slice(2, 10).toUpperCase();
       callBackend('agentGetMasterEmployees', { deviceId: deviceId })
         .then(function(response) {
           if (response.status === 'success') {
