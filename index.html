@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
     <!-- JSZip + FileSaver for scan agent download bundle -->
@@ -11190,64 +11191,130 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             let parsedHolidayPreview = [];
 
-            /** อ่านไฟล์ PDF และดึงข้อมูลวันหยุด */
+            /**
+             * 📄 อ่านไฟล์ PDF วันหยุด (รองรับทั้ง Text-Layer PDF และ Scanned Image PDF ผ่าน OCR)
+             */
             async function handleHolidayPdfFileUpload(event) {
                 const file = event.target.files?.[0];
                 if (!file) return;
 
                 const statusEl = document.getElementById('holiday-pdf-status');
+                const resultDiv = document.getElementById('holiday-import-result');
+                if (resultDiv) resultDiv.classList.add('hidden');
+
                 if (statusEl) {
                     statusEl.className = 'text-xs mt-2 text-brand-teal block font-semibold';
-                    statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังอ่านไฟล์ PDF...';
+                    statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังเปิดไฟล์ PDF...';
                     statusEl.classList.remove('hidden');
                 }
 
                 try {
+                    if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    }
+
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    // ─── ขั้นตอนที่ 1: ลองดึงข้อความจาก Text Layer โดยตรง (เร็วระดับมิลลิวินาที) ───
                     let extractedText = '';
-                    if (window.pdfjsLib) {
-                        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-                            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                        }
-                        const arrayBuffer = await file.arrayBuffer();
-                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                        for (let p = 1; p <= pdf.numPages; p++) {
-                            const page = await pdf.getPage(p);
-                            const textContent = await page.getTextContent();
-                            const pageText = textContent.items.map(item => item.str).join(' ');
-                            extractedText += pageText + '\n';
-                        }
+                    for (let p = 1; p <= pdf.numPages; p++) {
+                        const page = await pdf.getPage(p);
+                        const textContent = await page.getTextContent();
+                        const pageText = textContent.items.map(item => item.str).join(' ');
+                        extractedText += pageText + '\n';
                     }
 
                     let holidays = parseHolidayTextClient(extractedText);
 
+                    // ─── ขั้นตอนที่ 2: หากไม่มี Text Layer (เป็นไฟล์ภาพสแกน PDF) ให้รัน OCR อัตโนมัติ ───
                     if (holidays.length === 0) {
                         if (statusEl) {
-                            statusEl.className = 'text-xs mt-2 text-rose-600 block font-semibold';
-                            statusEl.innerHTML = '⚠️ ไม่พบข้อความวันหยุดในไฟล์ PDF นี้ (กรุณาใช้ไฟล์ PDF ที่มีข้อความ / Text Layer)';
+                            statusEl.className = 'text-xs mt-2 text-amber-600 block font-semibold';
+                            statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>ตรวจพบไฟล์ภาพสแกน (ไม่มี Text Layer) — กำลังเปิดระบบ OCR สแกนตัวอักษร...';
                         }
-                        showToast('⚠️ ไม่พบข้อมูลวันหยุดในไฟล์ PDF', 'warning');
-                    } else {
+
+                        // ตรวจสอบและโหลด Tesseract.js ถ้ายังไม่มี
+                        if (typeof Tesseract === 'undefined') {
+                            await new Promise((resolve, reject) => {
+                                const s = document.createElement('script');
+                                s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+                                s.onload = resolve;
+                                s.onerror = reject;
+                                document.head.appendChild(s);
+                            });
+                        }
+
+                        let allOcrText = '';
+                        for (let p = 1; p <= pdf.numPages; p++) {
+                            const page = await pdf.getPage(p);
+                            const viewport = page.getViewport({ scale: 2.0 }); // ขยายขนาด 2x เพื่อความคมชัดในการอ่าน OCR ภาษาไทย
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+
+                            await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                            if (statusEl) {
+                                statusEl.className = 'text-xs mt-2 text-brand-teal block font-semibold';
+                                statusEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังอ่านตัวอักษรจากภาพสแกน OCR (หน้า ${p}/${pdf.numPages})...`;
+                            }
+
+                            const { data: { text: pageOcr } } = await Tesseract.recognize(canvas, 'tha+eng', {
+                                logger: m => {
+                                    if (m.status === 'recognizing text' && statusEl) {
+                                        const pct = Math.round(m.progress * 100);
+                                        statusEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i>กำลังอ่านตัวอักษรจากภาพสแกน OCR (หน้า ${p}/${pdf.numPages}): ${pct}%`;
+                                    }
+                                }
+                            });
+
+                            allOcrText += pageOcr + '\n';
+                        }
+
+                        holidays = parseHolidayTextClient(allOcrText);
+                    }
+
+                    // ─── สรุปผลลัพธ์ ───
+                    if (holidays.length > 0) {
+                        parsedHolidayPreview = holidays;
+                        renderHolidayPreviewList();
                         if (statusEl) {
                             statusEl.className = 'text-xs mt-2 text-emerald-600 block font-semibold';
                             statusEl.innerHTML = `✅ อ่านไฟล์สำเร็จ พบ ${holidays.length} วันหยุด`;
                         }
-                        parsedHolidayPreview = holidays;
-                        renderHolidayPreviewList();
                         showToast(`✅ พบวันหยุด ${holidays.length} รายการจากไฟล์ PDF`, 'success');
+                    } else {
+                        if (statusEl) {
+                            statusEl.className = 'text-xs mt-2 text-rose-600 block font-semibold';
+                            statusEl.innerHTML = '⚠️ ไม่พบรายการวันหยุดในไฟล์ PDF นี้ กรุณาตรวจสอบเอกสาร';
+                        }
+                        showToast('⚠️ ไม่พบข้อมูลวันหยุดในไฟล์ PDF', 'warning');
                     }
                 } catch (err) {
                     console.error('[handleHolidayPdfFileUpload] Error:', err);
                     if (statusEl) {
                         statusEl.className = 'text-xs mt-2 text-rose-600 block font-semibold';
-                        statusEl.innerHTML = '❌ เกิดข้อผิดพลาดในการอ่านไฟล์ PDF';
+                        statusEl.innerHTML = '❌ เกิดข้อผิดพลาดในการอ่านไฟล์ PDF: ' + escapeHtml(err.message || '');
                     }
                     showToast('❌ ไม่สามารถอ่านไฟล์ PDF ได้', 'error');
                 }
             }
 
-            /** Client-side Parser สำหรับข้อความวันหยุด */
-            function parseHolidayTextClient(text) {
-                if (!text || !text.trim()) return [];
+            /**
+             * 🧠 Client-side Parser สำหรับข้อความวันหยุด (รองรับทั้ง Text ปกติ และข้อความจาก OCR)
+             */
+            function parseHolidayTextClient(rawText) {
+                if (!rawText || !rawText.trim()) return [];
+
+                // แปลงเลขไทยเป็นเลขอารบิก
+                const thaiDigits = ['๐','๑','๒','๓','๔','๕','๖','๗','๘','๙'];
+                let text = rawText;
+                for (let i = 0; i < 10; i++) {
+                    text = text.replaceAll(thaiDigits[i], String(i));
+                }
+
                 const monthMap = {
                     'มกราคม': '01', 'กุมภาพันธ์': '02', 'มีนาคม': '03', 'เมษายน': '04',
                     'พฤษภาคม': '05', 'มิถุนายน': '06', 'กรกฎาคม': '07', 'สิงหาคม': '08',
@@ -11263,34 +11330,35 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const lines = text.split('\n');
                 const holidays = [];
                 const seenDates = new Set();
+                const currentYear = new Date().getFullYear();
 
                 for (let line of lines) {
                     line = line.trim();
                     if (!line) continue;
+                    if (/^(ประกาศ|ลำดับ|วันที่|date|no|#|---|บริษัท|กรรมการ|เรื่อง|เรียน)/i.test(line)) continue;
 
                     let date = null;
-                    let title = null;
+                    let title = '';
 
-                    // Match pattern: 2026-01-01 or 2026/01/01
+                    // 1. ตรวจสอบรูปแบบ ISO: 2026-01-01 หรือ 2026/01/01 หรือ 01/01/2026
                     const isoMatch = line.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
                     if (isoMatch) {
                         const y = parseInt(isoMatch[1]);
                         const m = String(parseInt(isoMatch[2])).padStart(2, '0');
                         const d = String(parseInt(isoMatch[3])).padStart(2, '0');
-                        const finalY = y > 2500 ? y - 543 : y;
+                        const finalY = y > 2500 ? y - 543 : (y < 100 ? y + 2000 : y);
                         date = `${finalY}-${m}-${d}`;
                         title = line.replace(isoMatch[0], '').trim();
-                        title = title.replace(/^[\s,;:\t\-–—]+|[\s,;:\t\-–—]+$/g, '');
                     }
 
-                    // Match pattern: "1. วันอังคาร 30 ธันวาคม 2568 วันสิ้นปี/2568"
+                    // 2. ตรวจสอบรูปแบบ วันที่ไทย เช่น "30 ธันวาคม 2568" หรือ "1 มกราคม 2569" หรือ "13 ม.ค. 68"
                     if (!date) {
                         const thaiDateRegex = /(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|ม\.ค|ก\.พ|มี\.ค|เม\.ย|พ\.ค|มิ\.ย|ก\.ค|ส\.ค|ก\.ย|ต\.ค|พ\.ย|ธ\.ค)\s*(?:พ\.?ศ\.?\s*)?(\d{2,4})?/;
                         const thaiMatch = line.match(thaiDateRegex);
                         if (thaiMatch) {
                             const d = String(parseInt(thaiMatch[1])).padStart(2, '0');
                             const m = monthMap[thaiMatch[2]] || '01';
-                            let y = thaiMatch[3] ? parseInt(thaiMatch[3]) : new Date().getFullYear();
+                            let y = thaiMatch[3] ? parseInt(thaiMatch[3]) : currentYear;
                             if (y < 100) y += 2500;
                             if (y > 2500) y -= 543;
                             date = `${y}-${m}-${d}`;
@@ -11298,20 +11366,34 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             const matchIdx = line.indexOf(thaiMatch[0]);
                             const afterMatch = line.substring(matchIdx + thaiMatch[0].length).trim();
                             if (afterMatch) {
-                                title = afterMatch.replace(/^[\s,;:\t\-–—]+|[\s,;:\t\-–—]+$/g, '');
+                                title = afterMatch;
                             } else {
                                 let before = line.substring(0, matchIdx).trim();
-                                before = before.replace(/^(\d+[\.\)]?\s*)?(วัน[\u0E00-\u0E7F]+(?:ที่)?\s*)?/, '').trim();
                                 title = before;
                             }
                         }
                     }
 
-                    if (date && title && !seenDates.has(date)) {
-                        seenDates.add(date);
-                        holidays.push({ date, title, type: 'นักขัตฤกษ์' });
+                    if (date) {
+                        // ลบลำดับข้อด้านหน้า เช่น "1. ", "10) "
+                        title = title.replace(/^(\d+[\.\)]?\s*)/, '').trim();
+                        // ลบชื่อวันในสัปดาห์ เช่น "วันอังคาร", "วันจันทร์", "วันพฤหัสบดี" (แต่คงชื่อวันหยุด เช่น "วันสิ้นปี", "วันสงกรานต์", "วันพ่อแห่งชาติ")
+                        const dayOfWeekRegex = /^(?:วัน)?(?:จันทร์|อังคาร|พุธ|พฤหัสบดี|พฤหัส|ศุกร์|เสาร์|อาทิตย์)(?:\s*ที่)?\s*/i;
+                        title = title.replace(dayOfWeekRegex, '').trim();
+                        // ลบเครื่องหมายวรรคตอนขอบหน้า-หลัง
+                        title = title.replace(/^[\s,;:\t\-–—|]+|[\s,;:\t\-–—|]+$/g, '').trim();
+
+                        if (!title) title = 'วันหยุดประจำปี';
+
+                        if (!seenDates.has(date)) {
+                            seenDates.add(date);
+                            holidays.push({ date, title, type: 'นักขัตฤกษ์' });
+                        }
                     }
                 }
+
+                // เรียงลำดับตามวันที่
+                holidays.sort((a, b) => a.date.localeCompare(b.date));
                 return holidays;
             }
 
