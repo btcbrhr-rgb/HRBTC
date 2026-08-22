@@ -4482,8 +4482,8 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <!-- Config Fields -->
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <!-- Config Fields (Edit Mode) -->
+                                    <div id="sb-config-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div class="space-y-1">
                                             <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Project URL</label>
                                             <input id="sb-config-url" type="text" placeholder="https://xxxx.supabase.co"
@@ -4500,19 +4500,35 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <!-- Lock State (shown when config is saved) -->
+                                    <div id="sb-config-locked" class="hidden">
+                                        <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                                            <i class="fa-solid fa-check-circle text-emerald-500"></i>
+                                            <span class="text-[11px] font-bold text-emerald-700">บันทึกแล้ว</span>
+                                            <span id="sb-config-masked-url" class="text-[10px] text-emerald-500 font-mono truncate max-w-[200px]"></span>
+                                        </div>
+                                    </div>
                                     <!-- Actions -->
                                     <div class="flex flex-wrap items-center gap-2 pt-1">
+                                        <!-- Sync + Test (auto-run, ซ่อนไว้แล้วทำงานอัตโนมัติ) -->
                                         <button onclick="triggerSupabaseMigration()" id="sb-sync-btn"
-                                            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-[10px] font-bold shadow-sm transition-all">
+                                            class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase
                                         </button>
                                         <button onclick="testSupabaseConnection()" id="sb-test-btn"
-                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
+                                            class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-satellite-dish"></i> ทดสอบ
                                         </button>
-                                        <button onclick="saveSupabaseConfig()"
-                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-600 hover:bg-slate-700 text-white text-[10px] font-bold shadow-sm transition-all">
+                                        <!-- Edit Mode: Cancel + Save -->
+                                        <button id="sb-cancel-btn" onclick="cancelSupabaseEdit()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold shadow-sm transition-all">
+                                            <i class="fa-solid fa-xmark"></i> ยกเลิก
+                                        </button>
+                                        <button id="sb-save-btn" onclick="saveSupabaseConfig()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-600 hover:bg-slate-700 text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-floppy-disk"></i> บันทึก
+                                        </button>
+                                        <!-- Lock Mode: Edit Button -->
+                                        <button id="sb-edit-btn" onclick="enterSupabaseEditMode()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
+                                            <i class="fa-solid fa-pen-to-square"></i> แก้ไข Supabase
                                         </button>
                                     </div>
                                     <!-- Log -->
@@ -4554,7 +4570,8 @@
                                             <p id="gas-last-tested" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
                                         </div>
                                     </div>
-                                    <div class="space-y-1">
+                                    <!-- Config Field (Edit Mode) -->
+                                    <div id="gas-config-field" class="space-y-1">
                                         <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Apps Script Web App URL</label>
                                         <div class="relative">
                                             <input id="gas-config-url" type="url" placeholder="https://script.google.com/macros/s/.../exec"
@@ -4564,14 +4581,31 @@
                                             </button>
                                         </div>
                                     </div>
+                                    <!-- Lock State (shown when config is saved) -->
+                                    <div id="gas-config-locked" class="hidden">
+                                        <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                                            <i class="fa-solid fa-check-circle text-emerald-500"></i>
+                                            <span class="text-[11px] font-bold text-emerald-700">บันทึกแล้ว</span>
+                                            <span id="gas-config-masked-url" class="text-[10px] text-emerald-500 font-mono truncate max-w-[280px]"></span>
+                                        </div>
+                                    </div>
+                                    <!-- Actions -->
                                     <div class="flex gap-2">
+                                        <!-- Hidden auto-test button (auto-run on init) -->
                                         <button onclick="testGoogleSheetsConnection()" id="gas-test-btn"
-                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-sm transition-all">
+                                            class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-satellite-dish"></i> ทดสอบ Ping
                                         </button>
-                                        <button onclick="saveGasConfigDirect()"
-                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold shadow-sm transition-all">
+                                        <!-- Edit Mode: Cancel + Save -->
+                                        <button id="gas-cancel-btn" onclick="cancelGasEdit()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold shadow-sm transition-all">
+                                            <i class="fa-solid fa-xmark"></i> ยกเลิก
+                                        </button>
+                                        <button id="gas-save-btn" onclick="saveGasConfigDirect()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-floppy-disk"></i> บันทึก URL
+                                        </button>
+                                        <!-- Lock Mode: Edit Button -->
+                                        <button id="gas-edit-btn" onclick="enterGasEditMode()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-sm transition-all">
+                                            <i class="fa-solid fa-pen-to-square"></i> แก้ไข URL
                                         </button>
                                     </div>
                                     <div id="gas-result-log" class="hidden bg-slate-900 text-emerald-400 font-mono text-[10px] rounded-xl p-3 space-y-0.5 max-h-28 overflow-y-auto"></div>
