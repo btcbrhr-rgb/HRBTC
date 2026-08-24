@@ -19558,8 +19558,6 @@ ${slip.textSample}
                     config = await new Promise((resolve, reject) => {
                         google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getGasConfig();
                     }).then(r => (r && r.status === 'success') ? r.config : null);
-                } else if (SERVER_API_URL) {
-                    config = await postAction('getGasConfig', null, { timeout: 8000 }).then(r => r && r.config ? r.config : null);
                 }
                 if (config && config.url) {
                     SERVER_API_URL = config.url;
@@ -19715,6 +19713,7 @@ ${slip.textSample}
         }
 
         async function loadAutomaticSyncStatus() {
+            if (!currentEmployeeId && !isGoogleScriptEnvironment) return;
             try {
                 let result;
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -19783,13 +19782,6 @@ ${slip.textSample}
                     config = await new Promise((resolve, reject) => {
                         google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getSupabaseConfig();
                     }).then(res => (res && res.status === 'success') ? res.config : (res || { url: '', anonKey: '', mode: 'hybrid' }));
-                } else if (SERVER_API_URL) {
-                    const res = await postAction('getSupabaseConfig', null, { timeout: 10000 });
-                    if (res && res.config) {
-                        config = res.config;
-                    } else if (res && res.url) {
-                        config = res;
-                    }
                 }
             } catch (e) {
                 console.warn('[Supabase] Failed to load config from server:', e);
