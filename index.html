@@ -19656,6 +19656,7 @@ ${slip.textSample}
                     if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
                     gasLog(`✅ เชื่อมต่อ Google Apps Script สำเร็จ — ตอบสนองใน ${ms}ms`, '#34d399');
                     showToast(`⚡ Google Sheets ตอบสนอง (${ms}ms)`, 'success');
+                    startSyncWhenConnectionsReady();
                 } else {
                     throw new Error(res?.message || 'การตอบสนองไม่ถูกต้อง');
                 }
@@ -19858,10 +19859,11 @@ ${slip.textSample}
                             if (statusText) statusText.textContent = 'ต้องซิงค์ข้อมูล';
                             if (badge) badge.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200';
                             console.log('[Supabase] ⚡ Empty → auto-sync Sheets→Supabase');
-                            setTimeout(() => { triggerSupabaseMigration(); }, 2000);
+                            startSyncWhenConnectionsReady();
                         } else {
                             if (alertEl) alertEl.classList.add('hidden');
                             console.log('[Supabase] ⚡ Has data → no sync needed');
+                            startSyncWhenConnectionsReady();
                         }
                     }
                 } else {
@@ -19973,6 +19975,7 @@ ${slip.textSample}
                     if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
                     sbLog(`✅ เชื่อมต่อสำเร็จ — ตอบสนองใน ${ms}ms (HTTP ${res.status})`, '#34d399');
                     showToast(`⚡ Supabase เชื่อมต่อสำเร็จ (${ms}ms)`, 'success');
+                    startSyncWhenConnectionsReady();
                 } else {
                     throw new Error(`HTTP ${res.status} ${res.statusText}`);
                 }
@@ -19991,6 +19994,22 @@ ${slip.textSample}
         }
 
         let isMigrationRunning = false;
+        let syncStartedAfterConnections = false;
+
+        function startSyncWhenConnectionsReady() {
+            if (syncStartedAfterConnections || isMigrationRunning) return;
+
+            const supabaseReady = ['พร้อมใช้งาน', 'เชื่อมต่อสำเร็จ'].includes(
+                document.getElementById('sb-status-text')?.textContent
+            );
+            const sheetsReady = document.getElementById('gas-status-text')?.textContent === 'เชื่อมต่อสำเร็จ';
+            if (!supabaseReady || !sheetsReady) return;
+
+            syncStartedAfterConnections = true;
+            sbLog('🔄 เชื่อมต่อครบทั้งสองฝั่ง — เริ่มซิงค์ข้อมูลอัตโนมัติ', '#60a5fa');
+            setTimeout(() => { triggerSupabaseMigration(); }, 300);
+        }
+
         async function triggerSupabaseMigration() {
             if (isMigrationRunning) {
                 showToast('⚠️ กำลังดำเนินการซิงค์ข้อมูลอยู่แล้ว กรุณารอสักครู่...', 'warning');
