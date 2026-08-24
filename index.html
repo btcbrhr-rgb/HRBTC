@@ -4737,7 +4737,7 @@
                                             <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
                                             <div>
                                                 <p class="text-[11px] font-bold text-amber-800">Supabase ยังไม่มีข้อมูล</p>
-                                                <p class="text-[10px] text-amber-600">ระบบกำลังซิงค์อัตโนมัติ หรือกดปุ่มซิงค์ด้านล่าง</p>
+                                                <p class="text-[10px] text-amber-600">ระบบซิงค์ข้อมูลอัตโนมัติทุก 15 นาที</p>
                                             </div>
                                         </div>
                                     </div>
@@ -4769,11 +4769,7 @@
                                     </div>
                                     <!-- Actions -->
                                     <div class="flex flex-wrap items-center gap-2 pt-1">
-                                        <!-- Sync + Test (auto-run, ซ่อนไว้แล้วทำงานอัตโนมัติ) -->
-                                        <button onclick="triggerSupabaseMigration()" id="sb-sync-btn"
-                                            class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-[10px] font-bold shadow-sm transition-all">
-                                            <i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase
-                                        </button>
+                                        <!-- Sync runs automatically by Apps Script time trigger -->
                                         <button onclick="testSupabaseConnection()" id="sb-test-btn"
                                             class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-satellite-dish"></i> ทดสอบ
@@ -19873,6 +19869,42 @@ ${slip.textSample}
 
         let isMigrationRunning = false;
         async function triggerSupabaseMigration() {
+            if (isMigrationRunning) {
+                showToast('⚠️ กำลังดำเนินการซิงค์ข้อมูลอยู่แล้ว กรุณารอสักครู่...', 'warning');
+                return;
+            }
+            isMigrationRunning = true;
+            const btn = document.getElementById('sb-sync-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังซิงค์...'; }
+            sbLog('🔒 เริ่มซิงค์ข้อมูลชุดเดียวแบบมี Lock กลาง...', '#60a5fa');
+            try {
+                let result = null;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    result = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).synchronizeDataStores();
+                    });
+                } else {
+                    result = await postAction('synchronizeDataStores', { adminId: currentEmployeeId }, { timeout: 600000 });
+                }
+
+                if (!result || result.status !== 'success') {
+                    throw new Error(result?.message || 'ซิงค์ข้อมูลไม่ครบ');
+                }
+                const imported = (result.importProgress || []).reduce((sum, item) => sum + (item.count || 0), 0);
+                const backedUp = (result.backupProgress || []).reduce((sum, item) => sum + (item.updated || 0) + (item.inserted || 0), 0);
+                sbLog(`✅ ซิงค์ครบทั้งสองฝั่ง: นำเข้า ${imported} รายการ, อัปเดต Backup ${backedUp} รายการ (${result.totalMs || 0}ms)`, '#34d399');
+                showToast('✅ Supabase และ Google Sheets เป็นข้อมูลชุดเดียวกันแล้ว', 'success');
+                if (isLoggedIn && currentEmployeeId) await loadAllData().catch(() => false);
+            } catch (err) {
+                sbLog(`❌ ซิงค์ไม่ครบ: ${err.message || err}`, '#f87171');
+                showToast(`❌ ซิงค์ไม่ครบ: ${err.message || err}`, 'error');
+            } finally {
+                isMigrationRunning = false;
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
+            }
+        }
+
+        async function triggerSupabaseMigrationLegacy() {
             if (isMigrationRunning) {
                 showToast('⚠️ กำลังดำเนินการซิงค์ข้อมูลอยู่แล้ว กรุณารอสักครู่...', 'warning');
                 return;
