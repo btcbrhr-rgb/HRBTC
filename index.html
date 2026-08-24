@@ -6802,6 +6802,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return withSubmitLock("login", async () => {
                     showToast("⏳ กำลังเชื่อมโยงไปที่เซิร์ฟเวอร์ฐานข้อมูล...", "info");
                     let empResponse = null;
+                    let supabaseLoginError = null;
 
                     // ⚡ 1. Fast-Login via Supabase (< 50ms)
                     if (supabaseClient) {
@@ -6842,18 +6843,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 console.log('[handleLogin ⚡ Supabase] Employee profile loaded instantly');
                             }
                         } catch (sbErr) {
+                            supabaseLoginError = sbErr;
                             console.warn('[handleLogin Supabase Error]', sbErr);
                         }
                     }
 
-                    // 2. Fallback to Google Apps Script
-                    if (!empResponse) {
+                    // Apps Script fallback is only valid inside the Apps Script HTML service.
+                    // Static hosts cannot read this deployment because it does not provide CORS.
+                    if (!empResponse && isGoogleScriptEnvironment) {
                         empResponse = await postAction('getEmployee', { empId: empIdInput, adminId: empIdInput }, { timeout: 60000 });
                     }
 
                     if (!(empResponse && empResponse.status === "success")) {
                         console.error('[handleLogin] getEmployee failed', empResponse, { empIdInput, SERVER_API_URL });
-                        showToast("❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง", "error");
+                        const message = supabaseLoginError
+                            ? "❌ เชื่อมต่อฐานข้อมูล Supabase ไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า"
+                            : "❌ รหัสพนักงานไม่ถูกต้อง หรือไม่พบข้อมูลในตาราง";
+                        showToast(message, "error");
                         return;
                     }
 
