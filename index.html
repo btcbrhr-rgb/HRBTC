@@ -6285,6 +6285,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let advanceRequestsList = [];
             let payslipsList = [];
             let projectsList = [];
+            let holidaysList = [];  // วันหยุดนักขัตฤกษ์ (loaded from Supabase/Sheets)
 
             function getApiDebugInfo(targetUrl) {
                 return {
@@ -7104,14 +7105,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ⚡ 1. ลองดึงข้อมูลจาก Supabase ก่อน (ความเร็วระดับมิลลิวินาที)
                 if (supabaseClient) {
                     try {
-                        const [pRes, tRes, cRes, lRes, aRes, payRes, annRes] = await Promise.all([
+                        const [pRes, tRes, cRes, lRes, aRes, payRes, annRes, holRes] = await Promise.all([
                             supabaseClient.from('projects').select('*').neq('status', 'ระงับ'),
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
                             supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId),
                             supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId),
                             supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId),
                             supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId),
-                            supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10)
+                            supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10),
+                            supabaseClient.from('holidays').select('date,title,holiday_type').order('date')
                         ]);
 
                         if (!tRes.error && Array.isArray(tRes.data)) {
@@ -7194,6 +7196,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 date: a.posted_at || (a.created_at ? a.created_at.slice(0, 10) : '') || a.date || '',
                                 author: a.posted_by || a.author || ''
                             })));
+                        }
+
+                        // 🎌 Holidays (วันหยุดนักขัตฤกษ์)
+                        if (!holRes.error && Array.isArray(holRes.data)) {
+                            holidaysList = holRes.data.map(h => ({
+                                date: (h.date || '').toString().trim(),
+                                title: (h.title || '').toString().trim(),
+                                type: (h.holiday_type || 'นักขัตฤกษ์').toString().trim()
+                            }));
+                            console.log('[loadAllData ⚡ Supabase] ✓ Holidays loaded:', holidaysList.length);
                         }
 
                         console.log('[loadAllData ⚡ Supabase] ✓ Loaded employee data instantly');
@@ -8466,6 +8478,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             // helper: ตรวจสอบวันหยุดประจำสัปดาห์ของพนักงาน
+            /**
+             * ตรวจสอบว่าวันที่เป็นวันหยุดนักขัตฤกษ์หรือไม่
+             * @param {string} dateStr - YYYY-MM-DD
+             * @returns {Object|null} { date, title, type } หรือ null ถ้าไม่ใช่วันหยุด
+             */
+            function getHoliday(dateStr) {
+                if (!dateStr || !holidaysList || holidaysList.length === 0) return null;
+                return holidaysList.find(h => h.date === dateStr) || null;
+            }
+
             function isDateEmployeeDayOff(dateStr, empData) {
                 const data = empData || employeeData || {};
                 const rawDayoff = (data["วันหยุดประจําสัปดาห์"] || data["วันหยุดประจำสัปดาห์"] || "").toString().trim() || "อาทิตย์";
@@ -8556,9 +8578,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         fullRecords.push(leaveByDate.get(dateStr));
                     } else {
                         const isDayOff = isDateEmployeeDayOff(dateStr, emp);
+                        const holidayInfo = getHoliday(dateStr);
                         const isPastOrToday = dateStr <= todayStr;
 
-                        if (isDayOff) {
+                        if (holidayInfo) {
+                            // 🗓️ วันหยุดนักขัตฤกษ์
+                            fullRecords.push({
+                                "วันที่": dateStr,
+                                "เวลาเข้า": "--:--",
+                                "เวลาออก": "--:--",
+                                "นาทีสาย": 0,
+                                "ชั่วโมง OT": 0,
+                                "สถานะสรุป": "วันหยุดนักขัตฤกษ์",
+                                "โครงการ (เข้า)": holidayInfo.title || 'วันหยุดนักขัตฤกษ์',
+                                "_isHoliday": true,
+                                "_holidayTitle": holidayInfo.title
+                            });
+                        } else if (isDayOff) {
                             fullRecords.push({
                                 "วันที่": dateStr,
                                 "เวลาเข้า": "--:--",
@@ -9052,7 +9088,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // ตรวจว่า record นี้เป็น "วันลา" หรือ "วันหยุด" หรือ "ขาดงาน"
                     const isLeaveDay = rec["_leaveStatus"] !== undefined;
                     const leaveApprovalStatus = rec["_leaveStatus"] || "";
-                    const isDayOff = rec["_isDayOff"] === true || status.includes("หยุด") || status === "พร" || status === "H";
+                    const isHoliday = rec["_isHoliday"] === true || status === "วันหยุดนักขัตฤกษ์";
+                    const isDayOff = !isHoliday && (rec["_isDayOff"] === true || status.includes("หยุด") || status === "พร" || status === "H");
                     const isAbsent = rec["_isAbsent"] === true || status.includes("ขาด") || status === "A";
 
                     let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
@@ -9063,6 +9100,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     else if (status.includes("ทำงานครึ่งวันเช้า")) badgeColor = "bg-cyan-50 text-cyan-700 border-cyan-100";
                     else if (status.includes("ทำงานครึ่งวันบ่าย")) badgeColor = "bg-sky-50 text-sky-700 border-sky-100";
                     else if (status.includes("ลา")) badgeColor = "bg-brand-sky text-brand-deep border-brand-sky2";
+                    else if (isHoliday) badgeColor = "bg-yellow-50 text-yellow-700 border-yellow-200";
                     else if (isDayOff) badgeColor = "bg-slate-50 text-slate-600 border-slate-200";
 
                     // badge สถานะการอนุมัติลา (เฉพาะวันลา)
@@ -18323,7 +18361,8 @@ ${slip.textSample}
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-green-50 text-green-700 border border-green-200 font-bold"><i class="fa-solid fa-check text-[10px]"></i> W ทำงาน</span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold">L สาย</span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold">A ขาด</span>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-bold">ย วันหยุด</span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-bold">ย หยุดประจำสัปดาห์</span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-50 text-yellow-700 border border-yellow-200 font-bold"><i class="fa-solid fa-calendar-day text-[10px]"></i> นข วันหยุดนักขัตฤกษ์</span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-sky text-brand-deep border border-brand-sky2 font-bold"><i class="fa-solid fa-star-half-stroke text-[10px]"></i> OT ล่วงเวลา</span>
                     <span class="text-slate-400 ml-auto hidden lg:inline-flex"><i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> เลื่อนซ้าย-ขวาเพื่อดูทั้งงวด • คลิกช่องสถานะเพื่อแก้ไข</span>
             `;
@@ -18520,7 +18559,8 @@ ${slip.textSample}
 
                 // ── Daily attendance cells ──
                 dates.forEach((date, idx) => {
-                    const log = attendanceData[date]?.[emp.id] || { status: 'ย', project: emp.project };
+                    const holidayInfo = getHoliday(date);
+                    const log = attendanceData[date]?.[emp.id] || { status: holidayInfo ? 'นข' : 'ย', project: emp.project, _holiday: holidayInfo };
                     let statusClass = "bg-slate-50 text-slate-400";
                     let statusSymbol = log.status;
 
@@ -18533,7 +18573,11 @@ ${slip.textSample}
                         statusSymbol = `↳(${otherProjCode})`;
                     } else {
                         const cat = getStatusCategory(log.status);
-                        if (cat === 'work' || cat === 'work_other') statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
+                        if (log.status === 'นข' || (log._holiday && cat === 'off')) {
+                            // 🗓️ วันหยุดนักขัตฤกษ์ — สีเหลือง/ปฏิทิน ต่างจาก ย (วันหยุดประจำสัปดาห์)
+                            statusClass = "bg-yellow-50 text-yellow-700 border-yellow-200 font-extrabold shadow-sm";
+                            statusSymbol = 'นข';
+                        } else if (cat === 'work' || cat === 'work_other') statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
                         else if (cat === 'late' || cat === 'work_incomplete') statusClass = "bg-amber-100 text-amber-800 border-amber-200 font-extrabold shadow-sm";
                         else if (cat === 'absent') statusClass = "bg-rose-100 text-rose-700 border-rose-200 font-extrabold shadow-sm";
                         else if (cat === 'off') statusClass = "bg-rose-50/30 text-rose-500 border-rose-100/30";
