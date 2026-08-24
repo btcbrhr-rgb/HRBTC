@@ -6197,9 +6197,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             currentEmployeeId = "";
             SERVER_API_URL = SERVER_API_URL || "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
 
-            // ⚡ SUPABASE — config loaded from GAS server (PropertiesService)
-            let SUPABASE_CONFIG = { url: '', anonKey: '' };
+            // ⚡ SUPABASE — public client config; server config remains an optional override for admin settings
+            let SUPABASE_CONFIG = {
+                url: 'https://uldeugqrkabplavusoci.supabase.co',
+                anonKey: 'sb_publishable__MbMYXLfBvlHHb6bKwigfA_vtGnn5Ll',
+                mode: 'hybrid'
+            };
             let supabaseClient = null;
+
+            try {
+                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                    supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+                }
+            } catch (e) {
+                console.warn('[Supabase] Client initialization failed:', e);
+            }
 
             // ⚡ SUPABASE EMPTY CHECK — ตรวจสอบเมื่อเริ่มระบบครั้งแรก
             let supabaseIsEmpty = false;
@@ -19626,7 +19638,7 @@ ${slip.textSample}
             if (statusText) statusText.textContent = 'กำลังโหลด...';
 
             // 1. อ่าน config จาก server (GAS PropertiesService)
-            let config = { url: '', anonKey: '', mode: 'hybrid' };
+            let config = { ...SUPABASE_CONFIG };
             try {
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
                     config = await new Promise((resolve, reject) => {
