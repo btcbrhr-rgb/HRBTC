@@ -6762,7 +6762,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     // บังคับยืนยัน PIN ก่อน auto-login เมื่อมี empId มาจาก deep link
                     const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
-                    if (!pinVerifiedThisSession && urlEmpId) {
+                    if (!pinVerifiedThisSession && urlEmpId && !isAdminLoginAccount(savedEmpId)) {
                         await promptPinBeforeAutoLogin(savedEmpId);
                         return;
                     }
@@ -6979,7 +6979,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const configuredPin = employeeData["PIN"] || employeeData.pin || '';
                     const pinInput = document.getElementById("pin-login-emp-id");
                     const setupInput = document.getElementById("pin-setup-emp-id");
-                    if (configuredPin) {
+                    if (isAdminLoginAccount(currentEmployeeId)) {
+                        await handleLoginSuccess(currentEmployeeId);
+                    } else if (configuredPin) {
                         if (pinInput) pinInput.value = currentEmployeeId;
                         showModal("pin-login-modal");
                     } else {
