@@ -7381,10 +7381,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (!payRes.error && Array.isArray(payRes.data)) {
                             payslipsList = payRes.data.map(p => ({
                                 "รหัสพนักงาน": p.emp_id,
-                                "รอบเงินเดือน": p.pay_cycle || p.month,
-                                "เงินได้สุทธิ": p.net_amount,
-                                "ไฟล์สลิป": p.file_url,
-                                "วันที่บันทึก": p.created_at
+                                "รอบเงินเดือน": p.period || '',
+                                "ชื่อไฟล์": p.file_name || '',
+                                "ID ไฟล์": p.file_id || '',
+                                "ไฟล์สลิป": p.slip_url || '',
+                                "วันที่บันทึก": p.recorded_at || '',
+                                "ยอดสุทธิ": p.net_amount || 0,
+                                "period": p.period || '',
+                                "file_name": p.file_name || '',
+                                "net_amount": p.net_amount || 0,
+                                "recorded_at": p.recorded_at || ''
                             }));
                         }
 
@@ -10127,8 +10133,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (p && p !== '-' && p !== 'N/A') return p;
                 // Fallback: ดึงจากชื่อไฟล์ Payslip_102003_01_2569 -> 01/2569
                 const fn = slip['\u0E0A\u0E37\u0E48\u0E2D\u0E44\u0E1F\u0E25\u0E4C'] || slip['file_name'] || '';
-                const m = fn.match(/Payslip_\d+_(\d{1,2})_(\d{4})/i);
-                if (m) return m[1] + '/' + m[2];
+                if (fn) {
+                    const m = fn.match(/Payslip_\d+_(\d{1,2})_(\d{4})/i);
+                    if (m) return m[1] + '/' + m[2];
+                }
+                // Fallback: ดึงจาก recorded_at หรือ created_at
+                const dateStr = slip['\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E1A\u0E32\u0E19\u0E17\u0E33'] || slip['recorded_at'] || slip['created_at'] || '';
+                if (dateStr) {
+                    const dm = dateStr.match(/(\d{4})-(\d{2})/);
+                    if (dm) return dm[2] + '/' + dm[1];
+                }
                 return '';
             }
 
@@ -10136,6 +10150,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const container = document.getElementById("payslip-records-list");
                 const countBadge = document.getElementById("payslip-count-badge");
                 container.innerHTML = "";
+                console.log('[displayPayslipList] payslipsList:', payslipsList.length, 'items', payslipsList.slice(0, 2));
                 if (countBadge) countBadge.textContent = payslipsList.length > 0 ? payslipsList.length + ' \u0E23\u0E32\u0E08' : '';
 
                 if (payslipsList.length === 0) {
@@ -10172,6 +10187,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const sorted = [...payslipsList].sort((a, b) => _payslipSortKey(b) - _payslipSortKey(a));
 
                 sorted.forEach((slip, idx) => {
+                    if (idx < 3) console.log('[displayPayslipList] slip[' + idx + ']:', JSON.stringify(slip));
                     const cycle = _extractPayslipPeriod(slip) || "\u0E44\u0E21\u0E48\u0E2E\u0E32\u0E01";
                     const formattedCycle = formatPayslipCycle(cycle);
                     const net = slip['\u0E22\u0E2D\u0E14\u0E2A\u0E38\u0E17\u0E34'] || slip['net_amount'] || 0;
