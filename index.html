@@ -6287,6 +6287,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let projectsList = [];
             let holidaysList = [];  // วันหยุดนักขัตฤกษ์ (loaded from Supabase/Sheets)
 
+            // 🔧 Helper: POST action to GAS (CORS-safe — ใช้แทน GET URL params)
+            function postAction(action, extraBody, fetchOpts) {
+                const body = Object.assign({ action: action }, extraBody || {});
+                return fetchWithTimeout(SERVER_API_URL, Object.assign({
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(body)
+                }, fetchOpts || {}));
+            }
+
             function getApiDebugInfo(targetUrl) {
                 return {
                     location: window.location.href,
@@ -6297,9 +6307,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             async function ensureApiConnectivity() {
                 if (!SERVER_API_URL) return { ok: false, reason: 'missing-url' };
-                const targetUrl = `${SERVER_API_URL}?action=health`;
                 try {
-                    const response = await fetchWithTimeout(targetUrl, { timeout: 10000, skipPerf: true });
+                    const response = await postAction('health', null, { timeout: 10000, skipPerf: true });
                     console.log('[API] Health probe', getApiDebugInfo(targetUrl), response);
                     if (response && response.status === 'success' && response.data && response.data.ok) {
                         return { ok: true, data: response.data };
@@ -6827,10 +6836,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     // 2. Fallback to Google Apps Script
                     if (!empResponse) {
-                        empResponse = await tryApiRequest([
-                            `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}`,
-                            `${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empIdInput)}&adminId=${encodeURIComponent(empIdInput)}`
-                        ], { timeout: 60000 });
+                        empResponse = await postAction('getEmployee', { empId: empIdInput, adminId: empIdInput }, { timeout: 60000 });
                     }
 
                     if (!(empResponse && empResponse.status === "success")) {
@@ -7782,7 +7788,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 const tryFetch = async (url) => {
-                    const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
+                    // 🔧 CORS FIX: แปลง GET URL (?action=xxx) เป็น POST อัตโนมัติ
+                    let fetchUrl = url;
+                    let fetchOpts = { ...fetchOptions, signal: controller.signal };
+                    if (url && url.includes('?action=') && (!fetchOptions.method || fetchOptions.method === 'GET')) {
+                        try {
+                            const u = new URL(url);
+                            const params = Object.fromEntries(u.searchParams.entries());
+                            fetchUrl = u.origin + u.pathname;
+                            fetchOpts = Object.assign({}, fetchOpts, {
+                                method: 'POST',
+                                headers: Object.assign({}, fetchOpts.headers || {}, { 'Content-Type': 'text/plain;charset=utf-8' }),
+                                body: JSON.stringify(params)
+                            });
+                        } catch(e) { /* ใช้ URL เดิม */ }
+                    }
+                    const response = await fetch(fetchUrl, fetchOpts);
                     if (id !== null) clearTimeout(id);
                     const ms = performance.now() - t0;
                     if (!response.ok) {
@@ -12820,7 +12841,7 @@ async function loadAdminEmployees() {
                     if (!empId || empId.length < 3) { nameEl.textContent = '-'; return; }
                     nameEl.textContent = '⏳ กำลังค้นหา...';
                     try {
-                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`, { timeout: 6000 });
+                        const res = await postAction('getEmployee', { empId: empId }, { timeout: 6000 });
                         if (res && res.status === 'success' && res.data) {
                             nameEl.textContent = res.data['ชื่อ-นามสกุล'] || res.data.name || '(ไม่พบชื่อ)';
                         } else {
@@ -12894,7 +12915,7 @@ async function loadAdminEmployees() {
                     const nameEl = document.getElementById('admin-create-leave-empname');
                     if (!nameEl.textContent || nameEl.textContent === '-' || nameEl.textContent.startsWith('❌')) {
                         try {
-                            const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`);
+                            const empRes = await postAction('getEmployee', { empId: empId });
                             if (!empRes || empRes.status !== 'success') {
                                 return showToast('❌ ไม่พบข้อมูลพนักงาน: ' + empId, 'error');
                             }
@@ -15873,7 +15894,7 @@ ${slip.textSample}
 
                     showToast("⏳ กำลังโหลดข้อมูลโปรไฟล์...", "info");
                     try {
-                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployeeData&empId=${currentEmployeeId}`);
+                        const res = await postAction('getEmployeeData', { empId: currentEmployeeId });
                         if (res.status === "success") {
                             employeeData = res.data; // Cache locally
                             populateProfileUI(res.data);
@@ -19432,7 +19453,7 @@ ${slip.textSample}
                         google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getGasConfig();
                     }).then(r => (r && r.status === 'success') ? r.config : null);
                 } else if (SERVER_API_URL) {
-                    config = await fetchWithTimeout(SERVER_API_URL + '?action=getGasConfig', { timeout: 8000 }).then(r => r && r.config ? r.config : null);
+                    config = await postAction('getGasConfig', null, { timeout: 8000 }).then(r => r && r.config ? r.config : null);
                 }
                 if (config && config.url) {
                     SERVER_API_URL = config.url;
@@ -19479,7 +19500,7 @@ ${slip.textSample}
                         google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).saveGasConfigToServer(url);
                     });
                 } else if (SERVER_API_URL) {
-                    await fetchWithTimeout(SERVER_API_URL + '?action=saveGasConfigToServer&url=' + encodeURIComponent(url), { timeout: 8000 });
+                    await postAction('saveGasConfigToServer', { url: url }, { timeout: 8000 });
                 }
             } catch (e) { console.warn('[GAS] save config error:', e); }
             SERVER_API_URL = url;
@@ -19513,7 +19534,7 @@ ${slip.textSample}
             gasLog(`🔍 ส่งคำสั่ง Ping (Health Check) → ${url}`);
             const t0 = performance.now();
             try {
-                const res = await fetchWithTimeout(`${url}?action=health`, { timeout: 15000 });
+                const res = await fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'health' }), timeout: 15000 });
                 const ms = Math.round(performance.now() - t0);
 
                 if (res && res.status === 'success') {
@@ -19612,7 +19633,7 @@ ${slip.textSample}
                         google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getSupabaseConfig();
                     }).then(res => (res && res.status === 'success') ? res.config : (res || { url: '', anonKey: '', mode: 'hybrid' }));
                 } else if (SERVER_API_URL) {
-                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSupabaseConfig`, { timeout: 10000 });
+                    const res = await postAction('getSupabaseConfig', null, { timeout: 10000 });
                     if (res && res.config) {
                         config = res.config;
                     } else if (res && res.url) {
