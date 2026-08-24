@@ -5869,8 +5869,18 @@ let selectedAdvanceItems = new Set(); // For batch advance approval
 let currentEmployeeId;
 var isProjectCostInitialized = false;
 let SERVER_API_URL;
+let adminSettingsInitPromise = null;
+let adminEmployeeListPromise = null;
 
 async function fetchAdminEmployeeList() {
+    if (adminEmployeeListPromise) return adminEmployeeListPromise;
+    adminEmployeeListPromise = fetchAdminEmployeeListInternal().finally(() => {
+        adminEmployeeListPromise = null;
+    });
+    return adminEmployeeListPromise;
+}
+
+async function fetchAdminEmployeeListInternal() {
     if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) return;
     if (!currentEmployeeId) return;
 
@@ -6204,10 +6214,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 mode: 'hybrid'
             };
             let supabaseClient = null;
+            let supabaseClientConfigKey = '';
+
+            function ensureSupabaseClient(url, anonKey) {
+                if (!url || !anonKey || typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+                    return supabaseClient;
+                }
+                const configKey = `${url}|${anonKey}`;
+                if (!supabaseClient || supabaseClientConfigKey !== configKey) {
+                    supabaseClient = window.supabase.createClient(url, anonKey);
+                    supabaseClientConfigKey = configKey;
+                }
+                return supabaseClient;
+            }
 
             try {
                 if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-                    supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+                    ensureSupabaseClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
                 }
             } catch (e) {
                 console.warn('[Supabase] Client initialization failed:', e);
@@ -6484,7 +6507,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 updateCalendarCycleUI();
             }
 
-            function updateCalendarCycleUI() {
+            function updateCalendarCycleUI(refreshData = true) {
                 const thMonthsFull = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
                 const displayEl = document.getElementById("calendar-month-year-display");
@@ -6511,7 +6534,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (statCycleLabel) statCycleLabel.textContent = `${formatThaiDateShort(range.start)} - ${formatThaiDateShort(range.end)}`;
 
                 // โหลดและคำนวณข้อมูลใหม่ทั้งหมด (สำหรับหน้าแรกและสถิติ)
-                loadAllData();
+                if (refreshData && isLoggedIn) loadAllData();
 
                 // หากอยู่ใน Admin mode ให้รีโหลดข้อมูล Admin ด้วยรอบบัญชีที่เลือก
                 if (typeof isAdminMode !== 'undefined' && isAdminMode && typeof loadAdminApprovals === 'function') {
@@ -6870,7 +6893,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     sessionStorage.setItem("is_logged_in", "true");
 
                     // แสดงหน้า App หลังโหลดข้อมูลเสร็จ: แสดง overlay ขณะรอ loadAllData()
-                    updateCalendarCycleUI();
+                    updateCalendarCycleUI(false);
                     const currentCycle = getCurrentCycleRange();
                     const homeCycleRange = document.getElementById("home-cycle-range");
                     if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
@@ -10718,7 +10741,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 showToast("🛠️ เข้าสู่ระบบในฐานะผู้ดูแลระบบ", "success");
                 switchAdminTab(adminActiveTab);
-                loadAdminApprovals();
             }
 
             // สลับการแสดงผลแถบเมนูด้านข้างของแอดมินบนมือถือ (Mobile Drawer)
@@ -10774,7 +10796,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     showToast("🛠️ เข้าสู่โหมดผู้ดูแลระบบ (เต็มหน้าจอ)", "info");
                     switchAdminTab(adminActiveTab);
-                    loadAdminApprovals();
+                    if (!adminApprovalsLoadedOnce) loadAdminApprovals();
                 } else {
                     toggleAdminMobileSidebar(false);
                     adminContainer.classList.add("hidden");
@@ -10888,9 +10910,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } else if (tabId === 'settings') {
                     titleEl.textContent = "ตั้งค่าระบบส่วนกลาง";
                     descEl.textContent = "กำหนดเวลาเข้างาน-ออกงาน เวลาสาย ค่าเวลา และตั้งค่าพารามิเตอร์หลักขององค์กร";
-                    loadAdminSettings();
-                    if (typeof initGasPanelUI === 'function') initGasPanelUI();
-                    if (typeof initSupabasePanelUI === 'function') initSupabasePanelUI();
+                    if (!adminSettingsInitPromise) {
+                        adminSettingsInitPromise = Promise.all([
+                            loadAdminSettings(),
+                            typeof initGasPanelUI === 'function' ? initGasPanelUI() : null,
+                            typeof initSupabasePanelUI === 'function' ? initSupabasePanelUI() : null
+                        ]).catch(err => {
+                            console.warn('[Admin settings] initialization failed', err);
+                            adminSettingsInitPromise = null;
+                        });
+                    }
                 }
             }
 
@@ -19404,17 +19433,6 @@ ${slip.textSample}
             }, 1000);
         }
 
-        // ─── Auto-initialize page when DOM loads ───
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                initializeProjectCostPage();
-            });
-        } else {
-            (async () => {
-                initializeProjectCostPage();
-            })();
-        }
-    
         // ══════════════════════════════════════════════════════════════
         // 📊 GOOGLE SHEETS & APPS SCRIPT INTEGRATION PANEL — UI Controls & Logic
         // ══════════════════════════════════════════════════════════════
@@ -19708,12 +19726,8 @@ ${slip.textSample}
                     sbLog(`✅ Supabase เชื่อมต่อสำเร็จ (${ms}ms)`, '#34d399');
                     console.log(`[Supabase] ✅ Connected in ${ms}ms`);
 
-                    // Init supabase client
-                    try {
-                        if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-                            supabaseClient = window.supabase.createClient(config.url, config.anonKey);
-                        }
-                    } catch (e) { /* ok */ }
+                    // Init or reuse the Supabase client
+                    try { ensureSupabaseClient(config.url, config.anonKey); } catch (e) { /* ok */ }
 
                     // 5. Auto-sync: ตรวจสอบว่า Supabase ว่าง + sync อัตโนมัติ
                     if (typeof checkSupabaseIsEmpty === 'function') {
