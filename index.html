@@ -4731,6 +4731,16 @@
                                             <p id="sb-last-tested" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
                                         </div>
                                     </div>
+                                    <div id="sb-sync-status-panel" class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                        <div class="flex min-w-0 items-center gap-2">
+                                            <span id="sb-sync-status-dot" class="h-2 w-2 shrink-0 rounded-full bg-slate-400"></span>
+                                            <div class="min-w-0">
+                                                <p id="sb-sync-status-text" class="truncate text-[11px] font-bold text-slate-700">กำลังอ่านสถานะการซิงค์...</p>
+                                                <p id="sb-sync-status-detail" class="truncate text-[10px] text-slate-500">-</p>
+                                            </div>
+                                        </div>
+                                        <p id="sb-sync-status-time" class="shrink-0 text-[10px] font-semibold text-slate-500">-</p>
+                                    </div>
                                     <!-- Sync Alert -->
                                     <div id="sb-sync-required-alert" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3">
                                         <div class="flex items-center gap-2">
@@ -19612,6 +19622,39 @@ ${slip.textSample}
             log.scrollTop = log.scrollHeight;
         }
 
+        function renderAutomaticSyncStatus(status) {
+            const dot = document.getElementById('sb-sync-status-dot');
+            const text = document.getElementById('sb-sync-status-text');
+            const detail = document.getElementById('sb-sync-status-detail');
+            const time = document.getElementById('sb-sync-status-time');
+            const config = {
+                synced: { label: 'ข้อมูลสองฝั่งตรงกันแล้ว', color: 'bg-emerald-500', detailColor: 'text-emerald-700' },
+                running: { label: 'กำลังซิงค์ข้อมูลอัตโนมัติ...', color: 'bg-amber-500 animate-pulse', detailColor: 'text-amber-700' },
+                error: { label: 'ซิงค์ข้อมูลไม่ครบ', color: 'bg-rose-500', detailColor: 'text-rose-700' },
+                pending: { label: 'รอการซิงค์อัตโนมัติครั้งแรก', color: 'bg-slate-400', detailColor: 'text-slate-600' }
+            }[status?.status] || { label: 'ยังไม่ทราบสถานะการซิงค์', color: 'bg-slate-400', detailColor: 'text-slate-600' };
+            if (dot) dot.className = `h-2 w-2 shrink-0 rounded-full ${config.color}`;
+            if (text) { text.textContent = config.label; text.className = `truncate text-[11px] font-bold ${config.detailColor}`; }
+            if (detail) detail.textContent = status?.message || '-';
+            if (time) time.textContent = status?.at ? new Date(status.at).toLocaleString('th-TH') : '-';
+        }
+
+        async function loadAutomaticSyncStatus() {
+            try {
+                let result;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    result = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getAutomaticDataSyncStatus();
+                    });
+                } else {
+                    result = await postAction('getAutomaticDataSyncStatus', { adminId: currentEmployeeId }, { timeout: 10000 });
+                }
+                if (result?.status === 'success') renderAutomaticSyncStatus(result.data);
+            } catch (e) {
+                renderAutomaticSyncStatus({ status: 'error', message: 'อ่านสถานะจาก server ไม่ได้' });
+            }
+        }
+
         /* Supabase Config lock/edit helpers */
         function setSupabaseLocked(locked) {
             var fields = document.getElementById('sb-config-fields');
@@ -19645,6 +19688,7 @@ ${slip.textSample}
         }
 
         async function initSupabasePanelUI() {
+            loadAutomaticSyncStatus();
             const urlEl  = document.getElementById('sb-config-url');
             const keyEl  = document.getElementById('sb-config-key');
             const badge = document.getElementById('sb-status-badge');
@@ -19874,6 +19918,7 @@ ${slip.textSample}
                 return;
             }
             isMigrationRunning = true;
+            renderAutomaticSyncStatus({ status: 'running', message: 'กำลังตรวจสอบและรวมข้อมูลจากทั้งสองฝั่ง' });
             const btn = document.getElementById('sb-sync-btn');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังซิงค์...'; }
             sbLog('🔒 เริ่มซิงค์ข้อมูลชุดเดียวแบบมี Lock กลาง...', '#60a5fa');
@@ -19888,14 +19933,17 @@ ${slip.textSample}
                 }
 
                 if (!result || result.status !== 'success') {
+                    renderAutomaticSyncStatus({ status: 'error', message: result?.message || 'ซิงค์ข้อมูลไม่ครบ' });
                     throw new Error(result?.message || 'ซิงค์ข้อมูลไม่ครบ');
                 }
+                renderAutomaticSyncStatus({ status: 'synced', message: result.message, at: new Date().toISOString() });
                 const imported = (result.importProgress || []).reduce((sum, item) => sum + (item.count || 0), 0);
                 const backedUp = (result.backupProgress || []).reduce((sum, item) => sum + (item.updated || 0) + (item.inserted || 0), 0);
                 sbLog(`✅ ซิงค์ครบทั้งสองฝั่ง: นำเข้า ${imported} รายการ, อัปเดต Backup ${backedUp} รายการ (${result.totalMs || 0}ms)`, '#34d399');
                 showToast('✅ Supabase และ Google Sheets เป็นข้อมูลชุดเดียวกันแล้ว', 'success');
                 if (isLoggedIn && currentEmployeeId) await loadAllData().catch(() => false);
             } catch (err) {
+                renderAutomaticSyncStatus({ status: 'error', message: err.message || 'เชื่อมต่อระบบซิงค์ไม่ได้' });
                 sbLog(`❌ ซิงค์ไม่ครบ: ${err.message || err}`, '#f87171');
                 showToast(`❌ ซิงค์ไม่ครบ: ${err.message || err}`, 'error');
             } finally {
