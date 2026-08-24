@@ -707,10 +707,18 @@
       mainInterval = setInterval(async () => {
         if (isProcessingMatch) return; // หากกำลังอัปโหลดเวลา ให้ข้ามการประมวลผลก่อน
 
-        // ตรวจหาใบหน้าเพียงใบหน้าเดียวในกล้อง
-        const detection = await faceapi.detectSingleFace(webcam)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        // ⚡ Error Boundary: ป้องกัน face-api.js crash ทั้ง interval
+        let detection = null;
+        try {
+          // ตรวจหาใบหน้าเพียงใบหน้าเดียวในกล้อง
+          detection = await faceapi.detectSingleFace(webcam)
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        } catch (faceErr) {
+          console.error('[FaceKiosk] Face detection error (non-fatal):', faceErr);
+          // ไม่ interrupt interval — ลองใหม่ในรอบถัดไป
+          return;
+        }
 
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
