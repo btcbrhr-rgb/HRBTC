@@ -7176,6 +7176,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 try {
+                    // ⚡ แสดง Loading Overlay + Spinner บนปุ่ม ทันที
+                    showLoginLoading();
+                    const pinBtn = document.getElementById('btn-submit-pin-login');
+                    if (pinBtn) {
+                        pinBtn.disabled = true;
+                        pinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบ...';
+                    }
+
                     const res = await fetch(SERVER_API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -7190,6 +7198,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         closeModal("pin-login-modal");
                         await handleLoginSuccess(empId);
                     } else {
+                        // ซ่อน Loading Overlay + รีเซ็ตปุ่ม ถ้า PIN ผิด
+                        const overlay = document.getElementById("login-loading-overlay");
+                        if (overlay) overlay.classList.add("hidden");
+                        const pinBtn = document.getElementById('btn-submit-pin-login');
+                        if (pinBtn) {
+                            pinBtn.disabled = false;
+                            pinBtn.innerHTML = 'เข้าใช้งาน';
+                        }
                         closeModal("pin-login-modal");
                         const errReason = document.getElementById("pin-error-reason");
                         if (errReason) errReason.textContent = json.message || "รหัส PIN ไม่ถูกต้อง";
@@ -7197,6 +7213,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 } catch (err) {
                     console.error("[submitPinLogin] Error:", err);
+                    const overlay = document.getElementById("login-loading-overlay");
+                    if (overlay) overlay.classList.add("hidden");
+                    const pinBtn = document.getElementById('btn-submit-pin-login');
+                    if (pinBtn) {
+                        pinBtn.disabled = false;
+                        pinBtn.innerHTML = 'เข้าใช้งาน';
+                    }
                     showToast("❌ เกิดข้อผิดพลาดในการตรวจสอบ PIN", "error");
                 }
             }
