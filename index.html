@@ -6324,6 +6324,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // showSupabaseSyncBanner / goToSettingsAndSync — removed, auto-sync replaces manual flow
 
             let activePage = "home";
+            let deepLinkTargetPage = null; // เก็บหน้าเป้าหมายจาก Deep Link (LINE Flex Message)
             let currentGpsLocation = { lat: "", lng: "" };
             let streamRef = null;
             let cameraMode = "user";
@@ -6762,6 +6763,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 else if (urlModal === "advance") targetPage = "advance";
                 else if (urlModal === "payslip") targetPage = "payslip";
                 else if (urlModal === "profile" || urlModal === "salaryCert") targetPage = "profile";
+                // เก็บใน global เพื่อให้ handleLoginSuccess ใช้ได้
+                deepLinkTargetPage = (urlTab || urlModal) ? targetPage : null;
 
                 // ตรวจสอบว่า login ไว้แล้วหรือไม่ หรือส่ง empId มาผ่าน URL จาก LINE
                 const savedEmpId = urlEmpId || null;
@@ -7279,8 +7282,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // ✅ ข้อมูลพร้อมแล้ว → ซ่อน overlay แล้วแสดงหน้าเว็บ
                 hideLoginContainer();
-                if (isAdminUser) enterAdminMode();
-                else navigateTo("home");
+                const targetPage = deepLinkTargetPage || (isAdminUser ? null : "home");
+                if (isAdminUser && !deepLinkTargetPage) enterAdminMode();
+                else navigateTo(targetPage || "home");
+                deepLinkTargetPage = null; // ใช้แล้วล้างทิ้ง
             }
 
             // === ⚡ Pre-login Data: โหลดข้อมูลสาธารณะทันทีเมื่อเปิดเว็บ ===
