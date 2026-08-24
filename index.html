@@ -25,6 +25,7 @@
         })();
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
@@ -19799,6 +19800,14 @@ ${slip.textSample}
             SUPABASE_CONFIG.anonKey = config.anonKey || '';
             if (urlEl) urlEl.value = config.url || '';
             if (keyEl) keyEl.value = config.anonKey || '';
+
+            // สร้าง client ทันทีหลังโหลด config เพื่อไม่ให้การล็อกอินแข่งกับ connection test
+            if (config.url && config.anonKey) {
+                try { ensureSupabaseClient(config.url, config.anonKey); } catch (e) {
+                    console.warn('[Supabase] Client initialization failed:', e);
+                }
+            }
+
             const mode = config.mode || 'hybrid';
             const modeEl = document.querySelector(`input[name="sb-db-mode"][value="${mode}"]`);
             if (modeEl) { modeEl.checked = true; onSupabaseModeChange(mode); }
