@@ -74,7 +74,6 @@
         }
 
         /* PWA Splash Simulator style */
-        .pwa-badge {
             animation: pulse 2s infinite;
         }
 
@@ -6681,15 +6680,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     initializeProjectCostPage();
                 }
                 showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
-                const autoLoadSuccess = await loadAllData().catch(err => {
-                    console.warn('[autoLoginAndNavigate loadAllData]', err);
-                    return false;
-                });
                 hideLoginContainer();
                 navigateTo(navigateToPage || targetPage || "home");
-                if (!autoLoadSuccess) {
-                    showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
-                }
+                refreshDataInBackground();
             }
 
 
@@ -6753,23 +6746,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (typeof initializeProjectCostPage === 'function') {
                         initializeProjectCostPage();
                     }
-                    showLoginLoading();
-                    let autoLoadSuccess = await loadAllData().catch(err => {
-                        console.warn('[Auto-login loadAllData]', err);
-                        return false;
-                    });
-                    // 🔄 Auto-retry ครั้งเดียวถ้าโหลดไม่สำเร็จ (network glitch)
-                    if (!autoLoadSuccess) {
-                        console.warn('[Auto-login] Retry loadAllData in 2s...');
-                        await new Promise(r => setTimeout(r, 2000));
-                        autoLoadSuccess = await loadAllData().catch(err => {
-                            console.warn('[Auto-login loadAllData retry]', err);
-                            return false;
-                        });
-                    }
                     hideLoginContainer();
                     const autoAdminUser = isAdminLoginAccount(currentEmployeeId);
-                    if (autoLoadSuccess && autoAdminUser && !urlTab && !urlModal) {
+                    refreshDataInBackground();
+                    if (autoAdminUser && !urlTab && !urlModal) {
                         enterAdminMode();
                         // ⚡ Auto-sync ถ้า Supabase ว่างเปล่า (auto-login path)
                         if (supabaseIsEmpty) {
@@ -6784,9 +6764,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (urlModal === "correction" && typeof openCorrectionModal === "function") {
                             setTimeout(() => openCorrectionModal(), 350);
                         }
-                    }
-                    if (!autoLoadSuccess) {
-                        showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่", "error");
                     }
                     return;
                 }
@@ -6970,7 +6947,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     employeeData = empResponse.data || {};
                     sessionStorage.setItem("is_logged_in", "true");
 
-                    // แสดงหน้า App หลังโหลดข้อมูลเสร็จ: แสดง overlay ขณะรอ loadAllData()
+                    // เปิดหน้า App ทันที แล้วโหลดข้อมูลจาก Supabase ต่อเบื้องหลัง
                     updateCalendarCycleUI(false);
                     const currentCycle = getCurrentCycleRange();
                     const homeCycleRange = document.getElementById("home-cycle-range");
@@ -6978,46 +6955,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const statCycleLabel = document.getElementById("stat-cycle-label");
                     if (statCycleLabel) statCycleLabel.textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
 
-                    // แสดง overlay loading บนหน้า login ขณะรอโหลดข้อมูลทั้งหมด
-                    showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
                     console.log('[handleLogin] login initiated, loading dashboard', { currentEmployeeId });
 
                     const isAdminUser = isAdminLoginAccount(currentEmployeeId);
-
-                    let loadSuccess = await loadAllData().catch(err => {
-                        console.warn('[handleLogin loadAllData]', err);
-                        return false;
-                    });
-                    // 🔄 Auto-retry ครั้งเดียวถ้าโหลดไม่สำเร็จ (network glitch)
-                    if (!loadSuccess) {
-                        console.warn('[handleLogin] Retry loadAllData in 2s...');
-                        await new Promise(r => setTimeout(r, 2000));
-                        loadSuccess = await loadAllData().catch(err => {
-                            console.warn('[handleLogin loadAllData retry]', err);
-                            return false;
-                        });
-                    }
-
-                    if (loadSuccess) {
-                        hideLoginContainer();
-                        console.log('[handleLogin] loadAllData ✓, entering app', { currentEmployeeId });
-
-                        if (isAdminUser) {
-                            enterAdminMode();
-                            if (supabaseIsEmpty) {
-                                setTimeout(() => {
-                                    showToast('🔄 ตรวจพบ Supabase ว่าง — กำลังซิงค์ข้อมูลอัตโนมัติ...', 'info');
-                                    triggerSupabaseMigration();
-                                }, 1500);
-                            }
-                        } else {
-                            navigateTo("home");
-                        }
-                    } else {
-                        console.warn('[handleLogin] loadAllData failed', { currentEmployeeId });
-                        showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
-                        const retryBtn = document.getElementById("login-loading-retry-btn");
-                        if (retryBtn) retryBtn.classList.remove("hidden");
+                    hideLoginContainer();
+                    if (isAdminUser) enterAdminMode();
+                    else navigateTo("home");
+                    refreshDataInBackground();
+                    if (isAdminUser && supabaseIsEmpty) {
+                        setTimeout(() => {
+                            showToast('🔄 ตรวจพบ Supabase ว่าง — กำลังซิงค์ข้อมูลอัตโนมัติ...', 'info');
+                            triggerSupabaseMigration();
+                        }, 1500);
                     }
 
                     return;
@@ -7194,23 +7143,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 sessionStorage.setItem("is_logged_in", "true");
 
                 const isAdminUser = isAdminLoginAccount(empId);
-                showLoginLoading(employeeData["ชื่อ-นามสกุล"] || empId);
-
-                let loadSuccess = await loadAllData().catch(err => {
-                    console.warn('[handleLoginSuccess loadAllData]', err);
-                    return false;
-                });
-
-                if (loadSuccess) {
-                    hideLoginContainer();
-                    if (isAdminUser) {
-                        enterAdminMode();
-                    } else {
-                        navigateTo("home");
-                    }
-                } else {
-                    showToast("❌ โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
-                }
+                hideLoginContainer();
+                if (isAdminUser) enterAdminMode();
+                else navigateTo("home");
+                refreshDataInBackground();
             }
 
             /**
@@ -7372,6 +7308,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     _renderAllViews();
                     return true;
                 }
+            }
+
+            function refreshDataInBackground() {
+                loadAllData().then(function(success) {
+                    if (!success) console.warn('[background refresh] data load returned false');
+                }).catch(function(err) {
+                    console.warn('[background refresh] data load failed', err);
+                });
             }
 
             function _renderAllViews() {
