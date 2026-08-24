@@ -28,28 +28,6 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-
-    <!-- JSZip + FileSaver for scan agent download bundle -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-
-    <!-- Supabase JS Client v2 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- SweetAlert2 for Admin confirm dialogs -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-    <!-- Google Fonts Prompt -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        body {
-            font-family: 'Prompt', sans-serif;
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -6661,6 +6639,56 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            async function promptPinBeforeAutoLogin(empId) {
+                let response = null;
+
+                if (supabaseClient) {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('employees')
+                            .select('*')
+                            .ilike('emp_id', empId)
+                            .maybeSingle();
+                        if (!error && data) {
+                            response = {
+                                status: 'success',
+                                data: {
+                                    'รหัสพนักงาน': data.emp_id,
+                                    'ชื่อ-นามสกุล': data.name,
+                                    'ตำแหน่ง': data.position,
+                                    'PIN': (data.pin || data.pin_hash) ? 'configured' : ''
+                                }
+                            };
+                        }
+                    } catch (error) {
+                        console.warn('[promptPinBeforeAutoLogin] Supabase lookup failed', error);
+                    }
+                }
+
+                if (!response && isGoogleScriptEnvironment) {
+                    response = await postAction('getEmployee', { empId: empId }, { timeout: 60000 });
+                }
+
+                if (!(response && response.status === 'success')) {
+                    showLoginContainer();
+                    showToast('ไม่สามารถโหลดข้อมูลพนักงานเพื่อยืนยัน PIN ได้', 'error');
+                    return false;
+                }
+
+                employeeData = response.data || {};
+                const configuredPin = employeeData['PIN'] || employeeData.pin || '';
+                const pinInput = document.getElementById('pin-login-emp-id');
+                const setupInput = document.getElementById('pin-setup-emp-id');
+                if (configuredPin) {
+                    if (pinInput) pinInput.value = empId;
+                    showModal('pin-login-modal');
+                } else {
+                    if (setupInput) setupInput.value = empId;
+                    showModal('pin-setup-modal');
+                }
+                return true;
+            }
+
 
             async function autoLoginAndNavigate(empData, navigateToPage = null) {
                 isLoggedIn = true;
@@ -6729,11 +6757,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     currentEmployeeId = savedEmpId;
                     sessionStorage.setItem("is_logged_in", "true");
 
-                    // แสดงหน้า PIN login เมื่อเปิดจาก LINE (มี urlEmpId) แต่ยังไม่ได้ยืนยัน PIN ใน session นี้
+                    // บังคับยืนยัน PIN ก่อน auto-login เมื่อมี empId มาจาก deep link
                     const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
                     if (!pinVerifiedThisSession && urlEmpId) {
-                        document.getElementById("pin-login-emp-id").value = savedEmpId;
-                        showModal("pin-login-modal");
+                        await promptPinBeforeAutoLogin(savedEmpId);
                         return;
                     }
 
@@ -6915,7 +6942,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                         "ชั่วโมงทำงานต่อวัน": data.work_hours_per_day,
                                         "ตัวคูณโอที": data.ot_rate,
                                         "สิทธิ์การใช้งาน": data.role,
-                                        "LineUserId": data.line_user_id
+                                        "LineUserId": data.line_user_id,
+                                        "PIN": (data.pin || data.pin_hash) ? "configured" : ""
                                     }
                                 };
                                 console.log('[handleLogin ⚡ Supabase] Employee profile loaded instantly');
@@ -6943,9 +6971,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     currentEmployeeId = getEmployeeIdFromData(empResponse.data || {}, empIdInput);
                     console.log('[handleLogin] resolved currentEmployeeId', { empIdInput, currentEmployeeId, apiData: empResponse.data });
-                    isLoggedIn = true;
                     employeeData = empResponse.data || {};
-                    sessionStorage.setItem("is_logged_in", "true");
+
+                    const configuredPin = employeeData["PIN"] || employeeData.pin || '';
+                    const pinInput = document.getElementById("pin-login-emp-id");
+                    const setupInput = document.getElementById("pin-setup-emp-id");
+                    if (configuredPin) {
+                        if (pinInput) pinInput.value = currentEmployeeId;
+                        showModal("pin-login-modal");
+                    } else {
+                        if (setupInput) setupInput.value = currentEmployeeId;
+                        showModal("pin-setup-modal");
+                    }
+                    return;
 
                     // เปิดหน้า App ทันที แล้วโหลดข้อมูลจาก Supabase ต่อเบื้องหลัง
                     updateCalendarCycleUI(false);
@@ -6978,6 +7016,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function logout() {
+                if (currentEmployeeId) {
+                    sessionStorage.removeItem('pin_verified_' + currentEmployeeId);
+                }
                 isLoggedIn = false;
                 isAdminMode = false;
                 const dot = document.getElementById("connection-status-dot");
@@ -6989,6 +7030,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 advanceRequestsList = [];
                 payslipsList = [];
                 employeeData = {};
+                currentEmployeeId = "";
 
                 document.getElementById("admin-app").classList.add("hidden");
                 document.getElementById("app").classList.remove("hidden");
@@ -7141,6 +7183,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 isLoggedIn = true;
                 currentEmployeeId = empId;
                 sessionStorage.setItem("is_logged_in", "true");
+                sessionStorage.setItem('pin_verified_' + empId, 'true');
 
                 const isAdminUser = isAdminLoginAccount(empId);
                 hideLoginContainer();
