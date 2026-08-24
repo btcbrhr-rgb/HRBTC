@@ -6711,9 +6711,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     initializeProjectCostPage();
                 }
                 showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
+
+                // ⚡ โหลดข้อมูลทั้งหมดก่อนแสดง UI
+                try {
+                    await loadAllData();
+                } catch (err) {
+                    console.error('[autoLoginAndNavigate] loadAllData error:', err);
+                }
+
                 hideLoginContainer();
                 navigateTo(navigateToPage || targetPage || "home");
-                refreshDataInBackground();
             }
 
 
@@ -6731,6 +6738,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     typeof initGasPanelUI === 'function' ? initGasPanelUI() : Promise.resolve(),
                     typeof initSupabasePanelUI === 'function' ? initSupabasePanelUI() : Promise.resolve()
                 ]).catch(err => console.warn('[startup data services] initialization failed', err));
+
+                // ⚡ Load public data immediately (projects, holidays, announcements)
+                // ไม่ต้องรอเข้าระบบ — ข้อมูลสาธารณะพร้อมใช้ทันทีเมื่อเปิดเว็บ
+                loadPublicData().catch(err => console.warn('[loadPublicData] startup error:', err));
 
                 // 🌐 อ่าน URL Query Parameters สำหรับ Deep Linking จาก LINE Flex Message
                 const urlParams = new URLSearchParams(window.location.search);
@@ -6768,7 +6779,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return;
                     }
 
-                    // ✅ Optimistic Login: แสดง loading overlay แล้วโหลดข้อมูลก่อนแสดงหน้า App
+                    // ✅ Optimistic Login: แสดง loading overlay แล้วโหลดข้อมูลทั้งหมดก่อนแสดงหน้า App
+                    showLoginLoading();
                     generateCycleOptions();
                     const currentCycle = getCurrentCycleRange();
                     const homeCycleRange = document.getElementById("home-cycle-range");
@@ -6777,9 +6789,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (typeof initializeProjectCostPage === 'function') {
                         initializeProjectCostPage();
                     }
+
+                    // ⚡ โหลดข้อมูลทั้งหมดก่อนแสดง UI
+                    try {
+                        await loadAllData();
+                    } catch (err) {
+                        console.error('[auto-login] loadAllData error:', err);
+                    }
+
                     hideLoginContainer();
                     const autoAdminUser = isAdminLoginAccount(currentEmployeeId);
-                    refreshDataInBackground();
                     if (autoAdminUser && !urlTab && !urlModal) {
                         enterAdminMode();
                         // ⚡ Auto-sync ถ้า Supabase ว่างเปล่า (auto-login path)
@@ -6990,30 +7009,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         showModal("pin-setup-modal");
                     }
                     return;
-
-                    // เปิดหน้า App ทันที แล้วโหลดข้อมูลจาก Supabase ต่อเบื้องหลัง
-                    updateCalendarCycleUI(false);
-                    const currentCycle = getCurrentCycleRange();
-                    const homeCycleRange = document.getElementById("home-cycle-range");
-                    if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-                    const statCycleLabel = document.getElementById("stat-cycle-label");
-                    if (statCycleLabel) statCycleLabel.textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-
-                    console.log('[handleLogin] login initiated, loading dashboard', { currentEmployeeId });
-
-                    const isAdminUser = isAdminLoginAccount(currentEmployeeId);
-                    hideLoginContainer();
-                    if (isAdminUser) enterAdminMode();
-                    else navigateTo("home");
-                    refreshDataInBackground();
-                    if (isAdminUser && supabaseIsEmpty) {
-                        setTimeout(() => {
-                            showToast('🔄 ตรวจพบ Supabase ว่าง — กำลังซิงค์ข้อมูลอัตโนมัติ...', 'info');
-                            triggerSupabaseMigration();
-                        }, 1500);
-                    }
-
-                    return;
                 }, {
                     buttonId: "login-btn",
                     activeLabel: '<span>เข้าสู่ระบบ</span>',
@@ -7066,6 +7061,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 closeModal("pin-error-modal");
                 document.getElementById("pin-login-input").value = "";
                 document.getElementById("pin-login-input").focus();
+            }
+
+            // === 📢 Notification Center ===
+            function showNotificationCenter() {
+                const panel = document.getElementById('notification-panel');
+                if (!panel) return;
+                panel.classList.remove('hidden');
+                // อัปเดตช่วงรอบบัญชี
+                const cycleEl = document.getElementById('notification-cycle-range');
+                if (cycleEl && typeof getCurrentCycleRange === 'function') {
+                    const c = getCurrentCycleRange();
+                    cycleEl.textContent = c.start + ' ถึง ' + c.end;
+                }
+                // โหลดข้อมูลแจ้งเตือนและประกาศ
+                try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch(e) {}
+                try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch(e) {}
+            }
+
+            function closeNotificationCenter() {
+                const panel = document.getElementById('notification-panel');
+                if (panel) panel.classList.add('hidden');
             }
 
             let _pendingPinData = null;
@@ -7192,15 +7208,76 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 sessionStorage.setItem('pin_verified_' + empId, 'true');
 
                 const isAdminUser = isAdminLoginAccount(empId);
+
+                // ⚡ แสดง Loading Overlay แล้วโหลดข้อมูลทั้งหมดก่อนแสดง UI
+                showLoginLoading();
+                try {
+                    await loadAllData();
+                } catch (err) {
+                    console.error('[handleLoginSuccess] loadAllData error:', err);
+                }
+
+                // ✅ ข้อมูลพร้อมแล้ว → ซ่อน overlay แล้วแสดงหน้าเว็บ
                 hideLoginContainer();
                 if (isAdminUser) enterAdminMode();
                 else navigateTo("home");
-                refreshDataInBackground();
+            }
+
+            // === ⚡ Pre-login Data: โหลดข้อมูลสาธารณะทันทีเมื่อเปิดเว็บ ===
+            let publicDataLoaded = false;
+
+            /**
+             * 🌐 โหลดข้อมูลสาธารณะทันทีเมื่อเปิดเว็บ (ไม่ต้องเข้าระบบ)
+             * ข้อมูลที่โหลด: projects, holidays, announcements
+             */
+            async function loadPublicData() {
+                if (publicDataLoaded) return; // โหลดไปแล้ว ไม่ต้องโหลดซ้ำ
+                if (!supabaseClient) {
+                    console.warn('[loadPublicData] Supabase client not ready');
+                    return;
+                }
+                try {
+                    console.log('[loadPublicData] ⚡ Loading public data...');
+                    const [pRes, holRes, annRes] = await Promise.all([
+                        supabaseClient.from('projects').select('*').neq('status', 'ระงับ'),
+                        supabaseClient.from('holidays').select('date,title,holiday_type').order('date'),
+                        supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10)
+                    ]);
+
+                    if (!pRes.error && Array.isArray(pRes.data)) {
+                        projectsList = pRes.data;
+                        console.log('[loadPublicData] ✓ Projects:', projectsList.length);
+                    }
+                    if (!holRes.error && Array.isArray(holRes.data)) {
+                        holidaysList = holRes.data.map(h => ({
+                            date: (h.date || '').toString().trim(),
+                            title: (h.title || '').toString().trim(),
+                            type: (h.holiday_type || 'นักขัตฤกษ์').toString().trim()
+                        }));
+                        console.log('[loadPublicData] ✓ Holidays:', holidaysList.length);
+                    }
+                    if (!annRes.error && Array.isArray(annRes.data)) {
+                        setStoredAnnouncements(annRes.data.map(a => ({
+                            docId: a.doc_id || a.id,
+                            title: a.title,
+                            message: a.content || a.message || '',
+                            date: a.posted_at || (a.created_at ? a.created_at.slice(0, 10) : '') || a.date || '',
+                            author: a.posted_by || a.author || ''
+                        })));
+                        console.log('[loadPublicData] ✓ Announcements:', getStoredAnnouncements().length);
+                    }
+
+                    publicDataLoaded = true;
+                    console.log('[loadPublicData] ⚡ All public data loaded (no login required)');
+                } catch (err) {
+                    console.warn('[loadPublicData] Error:', err);
+                }
             }
 
             /**
              * 🔄 โหลดข้อมูลทั้งหมดสำหรับ Employee Dashboard & App (⚡ Supabase First + GAS Fallback)
-             * ดึงข้อมูล: projects, employee, timeRecords, timeCorrections, leaveRequests, advanceRequests, payslips, announcements
+             * ข้อมูลสาธารณะจะ reuse จาก loadPublicData() ที่โหลดไว้แล้ว
+             * ดึงข้อมูลเฉพาะของพนักงาน: timeRecords, timeCorrections, leaveRequests, advanceRequests, payslips
              */
             async function loadAllData() {
                 if (!currentEmployeeId) {
@@ -7213,18 +7290,35 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const pEnd = currentCycle.end;
 
                 // ⚡ 1. ลองดึงข้อมูลจาก Supabase ก่อน (ความเร็วระดับมิลลิวินาที)
+                // ข้อมูลสาธารณะ (projects, holidays, announcements) reuse จาก loadPublicData() ที่โหลดไว้แล้ว
                 if (supabaseClient) {
                     try {
-                        const [pRes, tRes, cRes, lRes, aRes, payRes, annRes, holRes] = await Promise.all([
-                            supabaseClient.from('projects').select('*').neq('status', 'ระงับ'),
+                        const queries = [
+                            // User-specific data (always fetch)
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
                             supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId),
                             supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId),
                             supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId),
-                            supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId),
-                            supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10),
-                            supabaseClient.from('holidays').select('date,title,holiday_type').order('date')
-                        ]);
+                            supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId)
+                        ];
+                        // Public data: โหลดเฉพาะเมื่อยังไม่ได้โหลด (reuse จาก loadPublicData)
+                        if (!publicDataLoaded || projectsList.length === 0) {
+                            queries.push(supabaseClient.from('projects').select('*').neq('status', 'ระงับ'));
+                        } else {
+                            queries.push(null); // placeholder
+                        }
+                        if (!publicDataLoaded || getStoredAnnouncements().length === 0) {
+                            queries.push(supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10));
+                        } else {
+                            queries.push(null);
+                        }
+                        if (!publicDataLoaded || holidaysList.length === 0) {
+                            queries.push(supabaseClient.from('holidays').select('date,title,holiday_type').order('date'));
+                        } else {
+                            queries.push(null);
+                        }
+
+                        const [tRes, cRes, lRes, aRes, payRes, pRes, annRes, holRes] = await Promise.all(queries);
 
                         if (!tRes.error && Array.isArray(tRes.data)) {
                             timeRecordsList = tRes.data.map(r => ({
@@ -7294,11 +7388,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }));
                         }
 
-                        if (!pRes.error && Array.isArray(pRes.data)) {
+                        // Projects (reuse from loadPublicData ถ้ามี)
+                        if (pRes && !pRes.error && Array.isArray(pRes.data)) {
                             projectsList = pRes.data;
                         }
 
-                        if (!annRes.error && Array.isArray(annRes.data)) {
+                        // Announcements (reuse from loadPublicData ถ้ามี)
+                        if (annRes && !annRes.error && Array.isArray(annRes.data)) {
                             setStoredAnnouncements(annRes.data.map(a => ({
                                 docId: a.doc_id || a.id,
                                 title: a.title,
@@ -7308,8 +7404,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             })));
                         }
 
-                        // 🎌 Holidays (วันหยุดนักขัตฤกษ์)
-                        if (!holRes.error && Array.isArray(holRes.data)) {
+                        // 🎌 Holidays (reuse from loadPublicData ถ้ามี)
+                        if (holRes && !holRes.error && Array.isArray(holRes.data)) {
                             holidaysList = holRes.data.map(h => ({
                                 date: (h.date || '').toString().trim(),
                                 title: (h.title || '').toString().trim(),
@@ -7317,6 +7413,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }));
                             console.log('[loadAllData ⚡ Supabase] ✓ Holidays loaded:', holidaysList.length);
                         }
+                        console.log('[loadAllData ⚡ Supabase] Public data reused:', publicDataLoaded ? 'yes' : 'no');
 
                         console.log('[loadAllData ⚡ Supabase] ✓ Loaded employee data instantly');
                         _renderAllViews();
