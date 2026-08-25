@@ -8975,13 +8975,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     'ลืมลงชื่อออก':     'absent',
                     'ลืมลงชื่อเข้า':    'absent',
                     'ลืม':              'absent',
-                    // วันหยุด
-                    'วันหยุด':          'holiday',
-                    'หยุด':             'holiday',
-                    'H':                'holiday',
-                    'พร':               'holiday',
-                    'วันหยุดนักขัตฤกษ์': 'holiday',
-                    'คส':               'holiday'
+                    // วันหยุด → นับเป็นวันทำงาน
+                    'วันหยุด':          'work',
+                    'หยุด':             'work',
+                    'H':                'work',
+                    'พร':               'work',
+                    'วันหยุดนักขัตฤกษ์': 'work',
+                    'คส':               'work'
                 };
 
                 // ค่าเริ่มต้น (zero state) — ทุก field
@@ -17160,7 +17160,7 @@ ${slip.textSample}
             
             if (['พร', 'คส', 'S+', 'H+', 'B+', 'นข', 'ลาป่วย', 'ลาพักร้อน', 'ลากิจ', 'วันหยุดนักขัตฤกษ์', 'เพิ่มแรง', 'สวัสดิการ'].includes(s)) return 'work_other';
             if (['MI', 'MO', 'ลืมเข้า', 'ลืมออก', 'ลืมลงเวลา'].includes(s)) return 'work_incomplete';
-            if (['ย', 'วันหยุด', 'วันหยุดประจำสัปดาห์'].includes(s)) return 'off';
+            if (['ย', 'วันหยุด', 'วันหยุดประจำสัปดาห์'].includes(s)) return 'work';
             
             if (s.startsWith('S') || s.startsWith('H') || s.startsWith('B') || s.includes('ลา')) return 'work_other';
             
@@ -18824,27 +18824,36 @@ ${slip.textSample}
                 let totalOtherSum = 0;
 
                 dates.forEach(date => {
-                    const log = attendanceData[date]?.[emp.id];
-                    if (log) {
-                        const matchesFilter = (activeProject === 'all' || log.project === activeProject);
-
-                        if (matchesFilter) {
-                            const cat = getStatusCategory(log.status);
-                            if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
-                                workedDaysCount++;
-                            } else if (cat === 'late') {
-                                workedDaysCount++;
-                                lateDaysCount++;
-                                lateMinutesSum += parseFloat(log.penalty || 0);
-                            } else if (cat === 'absent') {
-                                absentDaysCount++;
-                            }
-
-                            totalOtHours += parseFloat(log.ot || 0);
-                            totalFoodSum += parseFloat(log.food || 0);
-                            totalTripSum += parseFloat(log.trip || 0);
-                            totalOtherSum += parseFloat(log.other || 0);
+                    const holidayInfo = getHoliday(date);
+                    let log = attendanceData[date]?.[emp.id];
+                    if (!log) {
+                        // ไม่มีข้อมูล time record → ต้องเช็กว่าวันนี้เป็นวันหยุดหรือไม่
+                        if (holidayInfo) {
+                            log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                        } else if (isDateEmployeeDayOff(date, emp)) {
+                            log = { status: 'ย', project: emp.project };
+                        } else {
+                            log = { status: 'A', project: emp.project, _isAbsent: true };
                         }
+                    }
+                    const matchesFilter = (activeProject === 'all' || log.project === activeProject);
+
+                    if (matchesFilter) {
+                        const cat = getStatusCategory(log.status);
+                        if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
+                            workedDaysCount++;
+                        } else if (cat === 'late') {
+                            workedDaysCount++;
+                            lateDaysCount++;
+                            lateMinutesSum += parseFloat(log.penalty || 0);
+                        } else if (cat === 'absent') {
+                            absentDaysCount++;
+                        }
+
+                        totalOtHours += parseFloat(log.ot || 0);
+                        totalFoodSum += parseFloat(log.food || 0);
+                        totalTripSum += parseFloat(log.trip || 0);
+                        totalOtherSum += parseFloat(log.other || 0);
                     }
                 });
 
@@ -18888,7 +18897,17 @@ ${slip.textSample}
                 // ── Daily attendance cells ──
                 dates.forEach((date, idx) => {
                     const holidayInfo = getHoliday(date);
-                    const log = attendanceData[date]?.[emp.id] || { status: holidayInfo ? 'นข' : 'ย', project: emp.project, _holiday: holidayInfo };
+                    let log = attendanceData[date]?.[emp.id];
+                    if (!log) {
+                        // ไม่มีข้อมูล time record → ต้องเช็กว่าวันนี้เป็นวันหยุดหรือไม่
+                        if (holidayInfo) {
+                            log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                        } else if (isDateEmployeeDayOff(date, emp)) {
+                            log = { status: 'ย', project: emp.project };
+                        } else {
+                            log = { status: 'A', project: emp.project, _isAbsent: true };
+                        }
+                    }
                     let statusClass = "bg-slate-50 text-slate-400";
                     let statusSymbol = log.status;
 
