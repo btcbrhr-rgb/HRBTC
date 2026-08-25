@@ -10402,56 +10402,39 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 document.getElementById("correction-date").value = dateStr;
                 document.getElementById("correction-date-display").textContent = formatThaiDate(dateStr);
 
-                // Show modal with loading indicator first
-                document.getElementById("correction-loading").classList.remove("hidden");
-                document.getElementById("correction-fields").classList.add("hidden");
-                document.getElementById("correction-modal").classList.remove("hidden");
-
-                // Reset form fields
-                document.getElementById("correction-time-in").value = "";
-                document.getElementById("correction-time-out").value = "";
-                document.getElementById("correction-reason").value = "";
-
-                // Fetch time records to get original times and pre-fill inputs
-                try {
-                    // ใช้ POST แทน GET เพื่อความเสถียร
-                    const res = await postAction('getTimeRecords', {
-                        empId: currentEmployeeId,
-                        periodStart: dateStr,
-                        periodEnd: dateStr
-                    });
-                    if (res && res.status === "success" && res.data) {
-                        const record = res.data.find(r => r['วันที่'] === dateStr);
-                        if (record) {
-                            let inTime = record['เวลาเข้า'] || "";
-                            let outTime = record['เวลาออก'] || "";
-                            // Format for input (HH:MM) - ตัด seconds ออกถ้ามี
-                            if (inTime) {
-                                const parts = inTime.split(':');
-                                inTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-                            }
-                            if (outTime) {
-                                const parts = outTime.split(':');
-                                outTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-                            }
-                            // Pre-fill original times into new time inputs
-                            document.getElementById("correction-time-in").value = inTime;
-                            document.getElementById("correction-time-out").value = outTime;
-                            console.log(`[openCorrectionModal] Loaded times: IN=${inTime}, OUT=${outTime}`);
-                        } else {
-                            console.log(`[openCorrectionModal] No record found for date: ${dateStr}`);
-                        }
-                    } else {
-                        console.warn("[openCorrectionModal] Failed to load time records:", res);
-                    }
-                } catch (err) {
-                    console.error("[openCorrectionModal] Error fetching time record:", err);
-                    showToast("⚠️ ไม่สามารถโหลดข้อมูลเวลาได้", "warning");
-                }
-
-                // Hide loading and show form fields
+                // 🚀 ใช้ข้อมูลที่โหลดไว้แล้ว (timeRecordsList) — เร็วทันที ไม่ต้อง call backend
+                // แสดง form fields ทันที (ไม่ต้องรอ loading)
                 document.getElementById("correction-loading").classList.add("hidden");
                 document.getElementById("correction-fields").classList.remove("hidden");
+                document.getElementById("correction-modal").classList.remove("hidden");
+
+                // Reset reason field
+                document.getElementById("correction-reason").value = "";
+
+                // ค้นหาข้อมูลเวลาเดิมจาก timeRecordsList (ข้อมูลที่โหลดไว้แล้ว)
+                const record = (timeRecordsList || []).find(r => r["วันที่"] === dateStr);
+                if (record) {
+                    let inTime = record["เวลาเข้า"] || "";
+                    let outTime = record["เวลาออก"] || "";
+                    // Format for input (HH:MM) - ตัด seconds ออกถ้ามี
+                    if (inTime) {
+                        const parts = inTime.split(':');
+                        inTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                    }
+                    if (outTime) {
+                        const parts = outTime.split(':');
+                        outTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                    }
+                    // ✅ แสดงเวลาเดิมเป็นค่าเริ่มต้นในช่องแก้ไข
+                    document.getElementById("correction-time-in").value = inTime;
+                    document.getElementById("correction-time-out").value = outTime;
+                    console.log(`[openCorrectionModal] Pre-filled times: IN=${inTime}, OUT=${outTime}`);
+                } else {
+                    // ไม่มีข้อมูลเดิม — ปล่อยให้ field ว่างเพื่อกรอกใหม่
+                    document.getElementById("correction-time-in").value = "";
+                    document.getElementById("correction-time-out").value = "";
+                    console.log(`[openCorrectionModal] No existing record for date: ${dateStr}`);
+                }
             }
 
             function closeCorrectionModal() {
