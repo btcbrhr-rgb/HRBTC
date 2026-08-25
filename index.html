@@ -953,14 +953,14 @@
                         <div>
                             <label for="pin-setup-emp-id"
                                 class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">รหัสพนักงาน</label>
-                            <input id="pin-setup-emp-id" type="text" readonly title="รหัสพนักงาน"
+                            <input id="pin-setup-emp-id" type="text" readonly title="รหัสพนักงาน" autocomplete="off"
                                 class="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800">
                         </div>
                         <div>
                             <label for="pin-setup-idcard-last4"
                                 class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">ยืนยันตัวตน (เลข 4 ตัวท้ายบัตรประชาชน)</label>
                             <input id="pin-setup-idcard-last4" type="password" maxlength="4" placeholder="• • • •"
-                                title="เลข 4 ตัวท้ายของบัตรประชาชน"
+                                title="เลข 4 ตัวท้ายของบัตรประชาชน" autocomplete="off"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-center tracking-widest text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                         </div>
                         <div>
@@ -968,7 +968,7 @@
                                 class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">กำหนดรหัส
                                 PIN 6 หลัก</label>
                             <input id="pin-setup-input" type="password" maxlength="6" placeholder="• • • • • •"
-                                title="กำหนดรหัส PIN 6 หลัก"
+                                title="กำหนดรหัส PIN 6 หลัก" autocomplete="off"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-center tracking-widest text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                         </div>
                         <div>
@@ -976,7 +976,7 @@
                                 class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">ยืนยันรหัส
                                 PIN อีกครั้ง</label>
                             <input id="pin-setup-confirm" type="password" maxlength="6" placeholder="• • • • • •"
-                                title="ยืนยันรหัส PIN อีกครั้ง"
+                                title="ยืนยันรหัส PIN อีกครั้ง" autocomplete="off"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-center tracking-widest text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                         </div>
                     </div>
@@ -1056,7 +1056,7 @@
                         <div>
                             <label for="pin-login-emp-id"
                                 class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">รหัสพนักงาน</label>
-                            <input id="pin-login-emp-id" type="text" readonly title="รหัสพนักงาน"
+                            <input id="pin-login-emp-id" type="text" readonly title="รหัสพนักงาน" autocomplete="off"
                                 class="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800">
                         </div>
                         <div>
@@ -1064,7 +1064,7 @@
                                 class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">รหัส PIN
                                 6 หลัก</label>
                             <input id="pin-login-input" type="password" maxlength="6" placeholder="• • • • • •"
-                                title="รหัส PIN 6 หลัก"
+                                title="รหัส PIN 6 หลัก" autocomplete="off"
                                 oninput="if(this.value.length === 6) submitPinLogin();"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-center tracking-widest text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-teal transition-all">
                         </div>
@@ -7020,33 +7020,51 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function logout() {
+                // 🔐 ล้าง sessionStorage ทั้งหมด (pin_verified_* + is_logged_in)
                 if (currentEmployeeId) {
                     sessionStorage.removeItem('pin_verified_' + currentEmployeeId);
                 }
+                sessionStorage.removeItem("is_logged_in");
+                sessionStorage.clear(); // ล้างทุกอย่างใน sessionStorage
+
+                // 🧹 ล้างข้อมูลในหน่วยความจำ
                 isLoggedIn = false;
                 isAdminMode = false;
-                const dot = document.getElementById("connection-status-dot");
-                if (dot) dot.classList.add("hidden");
-                sessionStorage.removeItem("is_logged_in");
-
                 timeRecordsList = [];
                 leaveRequestsList = [];
                 advanceRequestsList = [];
                 payslipsList = [];
+                holidaysList = [];
                 employeeData = {};
                 currentEmployeeId = "";
 
+                // 🧹 ล้างค่าใน input fields ทั้งหมด (ป้องกันค้าง)
+                const fieldsToClear = [
+                    'login-emp-id', 'pin-login-input', 'pin-login-emp-id',
+                    'pin-setup-emp-id', 'pin-setup-input', 'pin-setup-confirm',
+                    'pin-setup-idcard-last4'
+                ];
+                fieldsToClear.forEach(function(id) {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+
+                // 📱 ซ่อน UI elements
+                const dot = document.getElementById("connection-status-dot");
+                if (dot) dot.classList.add("hidden");
                 document.getElementById("admin-app").classList.add("hidden");
                 document.getElementById("app").classList.remove("hidden");
 
                 const switcher = document.getElementById("global-cycle-switcher");
                 if (switcher) switcher.classList.add("hidden");
 
-                showToast("🔒 ออกจากระบบเรียบร้อยแล้ว", "success");
-                document.getElementById("login-emp-id").value = "";
+                // 🚪 ปิด modals ทั้งหมด
                 closeModal("pin-login-modal");
                 closeModal("pin-setup-modal");
                 closeModal("pin-error-modal");
+                closeModal("pin-confirm-modal");
+
+                showToast("🔒 ออกจากระบบเรียบร้อยแล้ว", "success");
                 showLoginContainer();
             }
 
