@@ -17563,6 +17563,7 @@ ${slip.textSample}
                                 date: (raw.date || '').toString().trim(),
                                 timeIn: raw.time_in || '', timeOut: raw.time_out || '',
                                 status: raw.status || 'ปกติ', late: parseInt(raw.late_minutes) || 0,
+                                penalty: parseInt(raw.late_minutes) || 0,
                                 ot: parseFloat(raw.ot_hours) || 0, project: raw.project_in || '',
                                 source: raw.source || ''
                             };
@@ -18836,18 +18837,21 @@ ${slip.textSample}
                             log = { status: 'A', project: emp.project, _isAbsent: true };
                         }
                     }
-                    const matchesFilter = (activeProject === 'all' || log.project === activeProject);
-
-                    if (matchesFilter) {
+                    const matchesFilter = (activeProject === 'all' || log.project === activeProject);                        if (matchesFilter) {
                         const cat = getStatusCategory(log.status);
+                        const lateMins = parseFloat(log.penalty || 0);
                         if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
                             workedDaysCount++;
                         } else if (cat === 'late') {
                             workedDaysCount++;
                             lateDaysCount++;
-                            lateMinutesSum += parseFloat(log.penalty || 0);
                         } else if (cat === 'absent') {
                             absentDaysCount++;
+                        }
+                        // ✅ นับนาทีสายจาก penalty ทุก record ที่มีค่า > 0 (ไม่จำกัดเฉพาะ cat === 'late')
+                        if (lateMins > 0) {
+                            lateMinutesSum += lateMins;
+                            if (cat !== 'late') lateDaysCount++;
                         }
 
                         totalOtHours += parseFloat(log.ot || 0);
