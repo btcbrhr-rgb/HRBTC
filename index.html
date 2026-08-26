@@ -1182,8 +1182,12 @@
                             alt="Avatar" class="w-full h-full object-cover">
                     </div>
                     <div>
-                        <h1 class="text-xs text-blue-100 font-light flex items-center gap-1">
+                        <h1 class="text-xs text-blue-100 font-light flex items-center gap-1.5">
                             <span id="portal-name">Buriram Thongchai Portal</span>
+                            <span id="realtime-live-badge" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[9px] font-medium" title="Real-time Synchronization ทำงานอยู่">
+                                <span id="realtime-indicator-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                <span id="realtime-indicator-text">Real-time</span>
+                            </span>
                             <span id="connection-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 hidden"></span>
                         </h1>
                         <!-- แสดงชื่อ-สกุล (รหัสพนักงาน) ตามเงื่อนไขหน้าอื่นๆ ยกเว้นหน้าแรก -->
@@ -6307,13 +6311,226 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (!supabaseClient || supabaseClientConfigKey !== configKey) {
                     supabaseClient = window.supabase.createClient(url, anonKey);
                     supabaseClientConfigKey = configKey;
+                    if (typeof RealtimeSyncManager !== 'undefined') {
+                        RealtimeSyncManager.init();
+                    }
                 }
                 return supabaseClient;
             }
 
+            // ═══════════════════════════════════════════════════════════════════════
+            // ⚡ SUPABASE REAL-TIME DATA SYNCHRONIZATION (Live Updates without Refresh)
+            // ═══════════════════════════════════════════════════════════════════════
+            const RealtimeSyncManager = {
+                _channel: null,
+                _debounceTimer: null,
+                _pendingTables: new Set(),
+                _status: 'disconnected', // 'connected' | 'connecting' | 'disconnected'
+                _reconnectAttempts: 0,
+                _maxReconnectAttempts: 10,
+                _reconnectTimer: null,
+                _initialized: false,
+
+                init() {
+                    if (!supabaseClient) {
+                        if (SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey) {
+                            ensureSupabaseClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+                        }
+                    }
+                    if (!supabaseClient) return;
+
+                    this.subscribe();
+                    if (!this._initialized) {
+                        this._setupVisibilityListener();
+                        this._initialized = true;
+                    }
+                },
+
+                subscribe() {
+                    if (!supabaseClient || typeof supabaseClient.channel !== 'function') return;
+
+                    if (this._channel) {
+                        try { supabaseClient.removeChannel(this._channel); } catch(e) {}
+                        this._channel = null;
+                    }
+
+                    this._status = 'connecting';
+                    this._updateIndicator();
+
+                    const tablesToWatch = [
+                        'time_records', 'time_corrections', 'leave_requests',
+                        'advance_requests', 'employees', 'payslips',
+                        'announcements', 'holidays', 'projects', 'system_settings'
+                    ];
+
+                    let chan = supabaseClient.channel('hrbtc-realtime-sync');
+
+                    tablesToWatch.forEach(table => {
+                        chan = chan.on(
+                            'postgres_changes',
+                            { event: '*', schema: 'public', table: table },
+                            (payload) => this._handleEvent(table, payload)
+                        );
+                    });
+
+                    chan.subscribe((status) => {
+                        console.log('[Realtime] Subscription status:', status);
+                        if (status === 'SUBSCRIBED') {
+                            this._status = 'connected';
+                            this._reconnectAttempts = 0;
+                            this._updateIndicator();
+                            if (typeof logDbActivity === 'function') {
+                                logDbActivity('SYNC', 'Realtime', 'เชื่อมต่อ Real-time Synchronization สำเร็จ (พร้อมรับการอัปเดตทันที)', 'success');
+                            }
+                        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                            this._status = 'disconnected';
+                            this._updateIndicator();
+                            this._scheduleReconnect();
+                        }
+                    });
+
+                    this._channel = chan;
+                },
+
+                _handleEvent(table, payload) {
+                    console.log(`[Realtime] ⚡ Change detected on [${table}]:`, payload.eventType, payload);
+                    const eventType = payload.eventType || 'UPDATE';
+
+                    // Invalidate Client & Admin Caches ทันที
+                    if (typeof ClientCache !== 'undefined' && ClientCache.invalidate) {
+                        ClientCache.invalidate();
+                    }
+                    if (typeof AdminDataCache !== 'undefined' && AdminDataCache.invalidateAll) {
+                        AdminDataCache.invalidateAll();
+                    }
+
+                    // บันทึก Activity Log แบบ Real-time
+                    if (typeof logDbActivity === 'function') {
+                        const opType = eventType === 'INSERT' ? 'CREATE' : (eventType === 'DELETE' ? 'DELETE' : 'UPDATE');
+                        const detailMsg = `⚡ Real-time Event: พบการเปลี่ยนแปลงข้อมูลในตาราง [${table}] (${eventType})`;
+                        logDbActivity(opType, table, detailMsg, 'success');
+                    }
+
+                    this._pendingTables.add(table);
+                    this._scheduleDebouncedSync();
+                },
+
+                _scheduleDebouncedSync() {
+                    if (this._debounceTimer) clearTimeout(this._debounceTimer);
+                    this._debounceTimer = setTimeout(() => {
+                        this._executeSync();
+                    }, 250); // 250ms debounce เพื่อรวมหลายเหตุการณ์ที่เกิดขึ้นพร้อมกัน
+                },
+
+                async _executeSync() {
+                    const tables = Array.from(this._pendingTables);
+                    this._pendingTables.clear();
+                    if (tables.length === 0) return;
+
+                    console.log('[Realtime] 🔄 Auto-syncing data for tables:', tables);
+
+                    // 1. ถ้าเป็นข้อมูลสาธารณะ (projects, holidays, announcements)
+                    if (tables.includes('projects') || tables.includes('holidays') || tables.includes('announcements')) {
+                        if (typeof publicDataLoaded !== 'undefined') publicDataLoaded = false;
+                        if (typeof loadPublicData === 'function') await loadPublicData().catch(() => {});
+                    }
+
+                    // 2. ถ้าล็อกอินอยู่ ให้โหลดข้อมูลของผู้ใช้ใหม่ทันที
+                    if (typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId) {
+                        if (typeof loadAllData === 'function') {
+                            await loadAllData().catch(e => console.warn('[Realtime loadAllData]', e));
+                        }
+                    }
+
+                    // 3. ถ้าอยู่ใน Admin mode ให้อัปเดตตารางของ Admin
+                    if (typeof isAdminMode !== 'undefined' && isAdminMode) {
+                        if (tables.includes('employees') && typeof fetchAdminEmployeeListInternal === 'function') {
+                            adminEmployeesList = [];
+                            if (typeof fetchAdminEmployeeList === 'function') await fetchAdminEmployeeList().catch(() => {});
+                        }
+                        if ((tables.includes('leave_requests') || tables.includes('time_corrections') || tables.includes('advance_requests')) && typeof loadAdminApprovals === 'function') {
+                            loadAdminApprovals();
+                        }
+                    }
+
+                    // 4. สั่ง Re-render ทุก View ให้ตรงกับข้อมูลล่าสุดทันที
+                    if (typeof _renderAllViews === 'function') {
+                        _renderAllViews();
+                    }
+
+                    // 5. แสดงเอฟเฟกต์กะพริบ Live Sync Badge
+                    this._flashLiveBadge();
+                },
+
+                _setupVisibilityListener() {
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.visibilityState === 'visible') {
+                            console.log('[Realtime] Tab became visible — checking connection & syncing fresh data');
+                            if (this._status !== 'connected') {
+                                this.subscribe();
+                            } else if (typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId) {
+                                if (typeof loadAllData === 'function') loadAllData().catch(() => {});
+                            }
+                        }
+                    });
+                },
+
+                _scheduleReconnect() {
+                    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+                    if (this._reconnectAttempts >= this._maxReconnectAttempts) {
+                        console.warn('[Realtime] Max reconnect attempts reached');
+                        return;
+                    }
+                    this._reconnectAttempts++;
+                    const delay = Math.min(1000 * Math.pow(1.5, this._reconnectAttempts), 15000);
+                    console.log(`[Realtime] Scheduling reconnect attempt ${this._reconnectAttempts} in ${Math.round(delay)}ms`);
+                    this._reconnectTimer = setTimeout(() => {
+                        this.subscribe();
+                    }, delay);
+                },
+
+                _updateIndicator() {
+                    const dot = document.getElementById('realtime-indicator-dot');
+                    const text = document.getElementById('realtime-indicator-text');
+                    const badge = document.getElementById('realtime-live-badge');
+                    if (dot) {
+                        if (this._status === 'connected') {
+                            dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
+                        } else if (this._status === 'connecting') {
+                            dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping';
+                        } else {
+                            dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
+                        }
+                    }
+                    if (text) {
+                        text.textContent = this._status === 'connected' ? 'Real-time' : (this._status === 'connecting' ? 'Connecting...' : 'Offline');
+                    }
+                    if (badge) {
+                        if (this._status === 'connected') {
+                            badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[9px] font-medium';
+                        } else if (this._status === 'connecting') {
+                            badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[9px] font-medium';
+                        } else {
+                            badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-400/30 text-[9px] font-medium';
+                        }
+                    }
+                },
+
+                _flashLiveBadge() {
+                    const badge = document.getElementById('realtime-live-badge');
+                    if (badge) {
+                        badge.classList.add('ring-2', 'ring-emerald-400/80', 'scale-105');
+                        setTimeout(() => {
+                            badge.classList.remove('ring-2', 'ring-emerald-400/80', 'scale-105');
+                        }, 1200);
+                    }
+                }
+            };
+
             try {
                 if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
                     ensureSupabaseClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+                    RealtimeSyncManager.init();
                 }
             } catch (e) {
                 console.warn('[Supabase] Client initialization failed:', e);
@@ -6787,6 +7004,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ⚡ โหลดข้อมูลทั้งหมดก่อนแสดง UI
                 try {
                     await loadAllData();
+                    if (typeof RealtimeSyncManager !== 'undefined') {
+                        RealtimeSyncManager.init();
+                    }
                 } catch (err) {
                     console.error('[autoLoginAndNavigate] loadAllData error:', err);
                 }
@@ -7365,6 +7585,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     }
                     await loadAllData();
+                    if (typeof RealtimeSyncManager !== 'undefined') {
+                        RealtimeSyncManager.init();
+                    }
                 } catch (err) {
                     console.error('[handleLoginSuccess] loadAllData error:', err);
                 }
