@@ -4930,12 +4930,13 @@
                                     </div>
 
                                     <div class="flex flex-wrap items-center justify-between gap-1.5">
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-2 min-w-0">
                                             <i class="fa-solid fa-terminal text-emerald-400 text-[10px]"></i>
                                             <p class="text-[10px] font-bold uppercase tracking-wider text-slate-200">Activity Log (CRUD Monitor)</p>
+                                            <span class="text-[8px] text-emerald-300/90 bg-emerald-950/70 px-1.5 py-0.5 rounded border border-emerald-500/30 whitespace-nowrap"><i class="fa-solid fa-arrow-down-short-wide text-[7px]"></i> ใหม่สุดอยู่บน</span>
                                         </div>
                                         <div class="flex items-center gap-1.5">
-                                            <span class="text-[8px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10">ย้อนหลัง 30 วัน</span>
+                                            <span class="text-[8px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10">30 วัน</span>
                                             <button type="button" onclick="copyActivityLog()" class="text-[9px] text-cyan-300 hover:text-cyan-100 font-bold transition-all flex items-center gap-1 bg-cyan-950/70 hover:bg-cyan-900 px-2 py-0.5 rounded border border-cyan-500/40 shadow-sm" title="คัดลอก Log ทั้งหมดเพื่อส่งให้ทีมพัฒนา">
                                                 <i class="fa-solid fa-copy text-[9px]"></i> คัดลอก Log
                                             </button>
@@ -4947,7 +4948,7 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <div id="sb-result-log" class="min-h-[240px] max-h-[min(52vh,520px)] overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 space-y-1">
+                                    <div id="sb-result-log" class="min-h-[250px] max-h-[min(55vh,520px)] overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 space-y-1.5 scroll-smooth overscroll-contain">
                                         <span data-log-empty class="text-slate-500 text-xs italic block py-4 text-center">⏳ กำลังรอการทำงานของฐานข้อมูล (CRUD / Sync / Health Check)...</span>
                                     </div>
                                 </div>
@@ -20005,8 +20006,10 @@ ${slip.textSample}
                 if (!raw) return [];
                 const list = JSON.parse(raw);
                 const cutoff = Date.now() - ACTIVITY_LOG_MAX_RETENTION_MS;
-                // Auto purge logs older than 30 days (1 month)
-                return Array.isArray(list) ? list.filter(item => item && item.ts && item.ts >= cutoff) : [];
+                // Auto purge logs older than 30 days and sort newest first (ts descending)
+                const validList = Array.isArray(list) ? list.filter(item => item && item.ts && item.ts >= cutoff) : [];
+                validList.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+                return validList;
             } catch (e) {
                 console.warn('[ActivityLog] getStoredActivityLogs error:', e);
                 return [];
@@ -20016,7 +20019,9 @@ ${slip.textSample}
         function saveStoredActivityLogs(logs) {
             try {
                 const cutoff = Date.now() - ACTIVITY_LOG_MAX_RETENTION_MS;
-                const cleanLogs = (logs || []).filter(item => item && item.ts && item.ts >= cutoff).slice(-300); // เก็บสูงสุด 300 รายการล่าสุด
+                const sortedLogs = (logs || []).filter(item => item && item.ts && item.ts >= cutoff);
+                sortedLogs.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+                const cleanLogs = sortedLogs.slice(0, 300); // เก็บสูงสุด 300 รายการล่าสุด (ใหม่สุดอยู่หัว)
                 localStorage.setItem(ACTIVITY_LOG_STORAGE_KEY, JSON.stringify(cleanLogs));
             } catch (e) {
                 console.warn('[ActivityLog] saveStoredActivityLogs error:', e);
@@ -20076,12 +20081,12 @@ ${slip.textSample}
                 latencyMs: latencyMs
             };
 
-            // Save to persistent storage (30 days auto-rotation)
+            // Save to persistent storage (30 days auto-rotation, newest first)
             const list = getStoredActivityLogs();
-            list.push(item);
+            list.unshift(item);
             saveStoredActivityLogs(list);
 
-            // Render to DOM
+            // Render to DOM (Prepending to top so newest is always on top)
             const log = document.getElementById('sb-result-log');
             if (log) {
                 log.classList.remove('hidden');
@@ -20089,12 +20094,12 @@ ${slip.textSample}
                 if (emptyState) emptyState.remove();
 
                 const el = renderLogItemDiv(item);
-                log.appendChild(el);
+                log.insertBefore(el, log.firstChild);
 
                 while (log.children.length > 250) {
-                    log.removeChild(log.firstChild);
+                    log.removeChild(log.lastChild);
                 }
-                log.scrollTop = log.scrollHeight;
+                log.scrollTop = 0; // Scroll to top for newest
             }
         }
 
@@ -20104,11 +20109,11 @@ ${slip.textSample}
             const list = getStoredActivityLogs();
             if (list && list.length > 0) {
                 log.innerHTML = '';
-                const recent = list.slice(-150);
+                const recent = list.slice(0, 150); // Newest 150 items
                 recent.forEach(item => {
                     log.appendChild(renderLogItemDiv(item));
                 });
-                log.scrollTop = log.scrollHeight;
+                log.scrollTop = 0;
             }
         }
 
@@ -20128,7 +20133,7 @@ ${slip.textSample}
             text += `  Active User: ${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : 'Guest/Admin'}\n`;
             text += `  Supabase DB: ${hasSupabase ? 'Configured & Active' : 'Missing'}\n`;
             text += `  GAS Web App: ${typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL ? 'Configured' : 'Missing'}\n`;
-            text += `  Total Logs: ${list.length} records (Auto-rotated 30 days)\n`;
+            text += `  Total Logs: ${list.length} records (Auto-rotated 30 days | ใหม่สุด ➔ เก่าสุด)\n`;
             text += `====================================================\n\n`;
 
             list.forEach((item, idx) => {
@@ -20168,7 +20173,7 @@ ${slip.textSample}
             text += `  Active User: ${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : 'Guest/Admin'}\n`;
             text += `  Supabase DB: ${hasSupabase ? 'Configured & Active' : 'Missing'}\n`;
             text += `  GAS Web App: ${typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL ? 'Configured' : 'Missing'}\n`;
-            text += `  Total Logs: ${list.length} records\n`;
+            text += `  Total Logs: ${list.length} records (ใหม่สุด ➔ เก่าสุด)\n`;
             text += `====================================================\n\n`;
 
             list.forEach((item) => {
@@ -20621,12 +20626,8 @@ ${slip.textSample}
                             .restoreFromSheetsToSupabase();
                     });
                 } else if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                    const resp = await fetchWithTimeout(SERVER_API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'restoreFromSheetsToSupabase' })
-                    }, 120000);
-                    result = await resp.json();
+                    // postAction ใช้ fetchWithTimeout และคืนค่า parsed JSON โดยตรง (ไม่ต้องเรียก .json() ซ้ำ)
+                    result = await postAction('restoreFromSheetsToSupabase', {}, { timeout: 120000 });
                 } else {
                     throw new Error('ไม่สามารถเชื่อมต่อ Server สำหรับกู้คืนข้อมูลได้');
                 }
@@ -20712,12 +20713,8 @@ ${slip.textSample}
                             .setupAllSystemTriggers();
                     });
                 } else if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                    const resp = await fetchWithTimeout(SERVER_API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'setupAllSystemTriggers' })
-                    }, 60000);
-                    result = await resp.json();
+                    // postAction ใช้ fetchWithTimeout และคืนค่า parsed JSON โดยตรง (ไม่ต้องเรียก .json() ซ้ำ)
+                    result = await postAction('setupAllSystemTriggers', {}, { timeout: 60000 });
                 } else {
                     throw new Error('ไม่สามารถเชื่อมต่อ Server สำหรับตั้งค่า Trigger ได้');
                 }
