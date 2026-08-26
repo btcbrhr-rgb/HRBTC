@@ -4761,10 +4761,14 @@
                                     </div>
                                     <!-- Actions -->
                                     <div class="flex flex-wrap items-center gap-2 pt-1">
-                                        <!-- Sync runs automatically by Apps Script time trigger -->
+                                        <!-- One-way Backup button (Supabase -> Sheets) -->
+                                        <button id="sb-backup-btn" onclick="triggerSupabaseMigration()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold shadow-sm transition-all">
+                                            <i class="fa-solid fa-cloud-arrow-down"></i> สำรองข้อมูลลง Sheets ทันที
+                                        </button>
                                         <button onclick="testSupabaseConnection()" id="sb-test-btn"
                                             class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
-                                            <i class="fa-solid fa-satellite-dish"></i> ทดสอบ
+                                            <i class="fa-solid fa-satellite-dish"></i> ทดสอบ Ping
                                         </button>
                                         <!-- Edit Mode: Cancel + Save -->
                                         <button id="sb-cancel-btn" onclick="cancelSupabaseEdit()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold shadow-sm transition-all">
@@ -4912,15 +4916,26 @@
                                         <p id="monitor-sync-detail" class="mt-1 text-[10px] leading-relaxed text-slate-400">ระบบจะแสดงผลการตรวจสอบและการวิ่งข้อมูลล่าสุดที่นี่</p>
                                     </div>
 
-                                    <div class="flex items-center justify-between">
+                                    <div class="flex flex-wrap items-center justify-between gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <i class="fa-solid fa-terminal text-slate-500 text-[10px]"></i>
-                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Activity log</p>
+                                            <i class="fa-solid fa-terminal text-emerald-400 text-[10px]"></i>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-200">Activity Log (CRUD Monitor)</p>
                                         </div>
-                                        <span class="text-[9px] text-slate-600">ระบบซิงค์อัตโนมัติทุก 15 นาที</span>
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[8px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10">ย้อนหลัง 30 วัน</span>
+                                            <button type="button" onclick="copyActivityLog()" class="text-[9px] text-cyan-300 hover:text-cyan-100 font-bold transition-all flex items-center gap-1 bg-cyan-950/70 hover:bg-cyan-900 px-2 py-0.5 rounded border border-cyan-500/40 shadow-sm" title="คัดลอก Log ทั้งหมดเพื่อส่งให้ทีมพัฒนา">
+                                                <i class="fa-solid fa-copy text-[9px]"></i> คัดลอก Log
+                                            </button>
+                                            <button type="button" onclick="exportActivityLogFile()" class="text-[9px] text-emerald-300 hover:text-emerald-100 transition-all flex items-center gap-1 bg-emerald-950/60 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/30" title="ดาวน์โหลดไฟล์ .txt">
+                                                <i class="fa-solid fa-download text-[9px]"></i>
+                                            </button>
+                                            <button type="button" onclick="clearActivityLog()" class="text-[9px] text-slate-400 hover:text-rose-300 transition-colors flex items-center gap-1 bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded border border-white/10" title="ล้างประวัติการทำงาน">
+                                                <i class="fa-solid fa-trash-can text-[8px]"></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div id="sb-result-log" class="min-h-[240px] max-h-[min(52vh,520px)] overflow-y-auto rounded-xl border border-white/10 bg-black/25 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 empty:flex empty:items-center empty:justify-center">
-                                        <span data-log-empty class="text-slate-600">ยังไม่มีรายการทำงาน</span>
+                                    <div id="sb-result-log" class="min-h-[240px] max-h-[min(52vh,520px)] overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 space-y-1">
+                                        <span data-log-empty class="text-slate-500 text-xs italic block py-4 text-center">⏳ กำลังรอการทำงานของฐานข้อมูล (CRUD / Sync / Health Check)...</span>
                                     </div>
                                 </div>
                             </aside>
@@ -6377,14 +6392,55 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let projectsList = [];
             let holidaysList = [];  // วันหยุดนักขัตฤกษ์ (loaded from Supabase/Sheets)
 
-            // 🔧 Helper: POST action to GAS (CORS-safe — ใช้แทน GET URL params)
-            function postAction(action, extraBody, fetchOpts) {
+            // 🔧 Helper: POST action to GAS (CORS-safe — พร้อมระบบส่ง Log เข้า Activity Log อัตโนมัติ)
+            async function postAction(action, extraBody, fetchOpts) {
+                const t0 = performance.now();
                 const body = Object.assign({ action: action }, extraBody || {});
-                return fetchWithTimeout(SERVER_API_URL, Object.assign({
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(body)
-                }, fetchOpts || {}));
+                try {
+                    const res = await fetchWithTimeout(SERVER_API_URL, Object.assign({
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(body)
+                    }, fetchOpts || {}));
+                    const ms = Math.round(performance.now() - t0);
+                    if (!fetchOpts?.skipPerf && action !== 'health' && action !== 'getAutomaticDataSyncStatus') {
+                        let opType = 'READ';
+                        let targetTable = '';
+                        if (action.startsWith('get') || action.startsWith('check') || action.startsWith('load') || action.startsWith('read')) {
+                            opType = 'READ';
+                        } else if (action.startsWith('submit') || action.startsWith('register') || action.startsWith('add') || action.startsWith('create') || action.startsWith('insert')) {
+                            opType = 'CREATE';
+                        } else if (action.startsWith('delete') || action.startsWith('remove')) {
+                            opType = 'DELETE';
+                        } else {
+                            opType = 'UPDATE';
+                        }
+                        if (action.includes('Employee')) targetTable = 'employees';
+                        else if (action.includes('Time') || action.includes('Attendance')) targetTable = 'time_records';
+                        else if (action.includes('Leave')) targetTable = 'leave_requests';
+                        else if (action.includes('Advance')) targetTable = 'advance_requests';
+                        else if (action.includes('Payslip')) targetTable = 'payslips';
+                        else if (action.includes('Project')) targetTable = 'projects';
+                        else if (action.includes('Holiday')) targetTable = 'holidays';
+                        else if (action.includes('Announcement')) targetTable = 'announcements';
+                        else if (action.includes('Setting')) targetTable = 'system_settings';
+                        else if (action.includes('Face')) targetTable = 'face_database';
+                        else if (action.includes('Line')) targetTable = 'line_groups';
+
+                        if (typeof logDbActivity === 'function') {
+                            const isOk = res?.status === 'success';
+                            const detail = `${action} ${isOk ? 'สำเร็จ' : (res?.message || 'พบข้อควรระวัง')}`;
+                            logDbActivity(opType, targetTable, detail, isOk ? 'success' : 'warning', ms);
+                        }
+                    }
+                    return res;
+                } catch (err) {
+                    const ms = Math.round(performance.now() - t0);
+                    if (typeof logDbActivity === 'function') {
+                        logDbActivity('ERROR', action, `เชื่อมต่อล้มเหลว: ${err?.message || err}`, 'error', ms);
+                    }
+                    throw err;
+                }
             }
 
             function getApiDebugInfo(targetUrl) {
@@ -7376,6 +7432,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ⚡ 1. ลองดึงข้อมูลจาก Supabase ก่อน (ความเร็วระดับมิลลิวินาที)
                 // ข้อมูลสาธารณะ (projects, holidays, announcements) reuse จาก loadPublicData() ที่โหลดไว้แล้ว
                 if (supabaseClient) {
+                    const tSup0 = performance.now();
                     try {
                         const queries = [
                             // User-specific data (always fetch)
@@ -7510,9 +7567,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         console.log('[loadAllData ⚡ Supabase] Public data reused:', publicDataLoaded ? 'yes' : 'no');
 
                         console.log('[loadAllData ⚡ Supabase] ✓ Loaded employee data instantly');
+                        if (typeof logDbActivity === 'function') {
+                            logDbActivity('READ', 'Dashboard', `ดึงข้อมูลส่วนตัวพนักงาน ${currentEmployeeId} (${timeRecordsList.length} เวลางาน, ${leaveRequestsList.length} ลา)`, 'success', Math.round(performance.now() - tSup0));
+                        }
                         _renderAllViews();
                         return true;
                     } catch (supErr) {
+                        if (typeof logDbActivity === 'function') {
+                            logDbActivity('ERROR', 'Supabase', `ดึงข้อมูลพนักงานไม่สำเร็จ: ${supErr.message || supErr}`, 'error');
+                        }
                         console.warn('[loadAllData Supabase fetch error, fallback to GAS]', supErr);
                     }
                 }
@@ -11909,7 +11972,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 };
                             });
                             await supabaseClient.from('holidays').upsert(sbPayload, { onConflict: 'date' });
+                            if (typeof logDbActivity === 'function') {
+                                logDbActivity('UPDATE', 'holidays', `บันทึกวันหยุด ${sbPayload.length} รายการลง Supabase`, 'success');
+                            }
                         } catch (supErr) {
+                            if (typeof logDbActivity === 'function') {
+                                logDbActivity('ERROR', 'holidays', `บันทึกวันหยุดลง Supabase ไม่สำเร็จ: ${supErr.message || supErr}`, 'error');
+                            }
                             console.warn('[confirmImportHolidayBatch Supabase error]', supErr);
                         }
                     }
@@ -12396,11 +12465,17 @@ async function loadAdminEmployees() {
                                 }))
                             });
                             console.log('[loadAdminApprovals ⚡ Supabase] ✓ Loaded pending approvals instantly');
+                            if (typeof logDbActivity === 'function') {
+                                logDbActivity('READ', 'Approvals', `โหลดรายการรออนุมัติ (ลา ${(lRes.data||[]).length}, แก้ไขเวลา ${(cRes.data||[]).length}, เบิกเงิน ${(aRes.data||[]).length})`, 'success');
+                            }
                             adminApprovalsLoadedOnce = true;
                             updateApprovalStatCards();
                             return;
                         }
                     } catch (sbErr) {
+                        if (typeof logDbActivity === 'function') {
+                            logDbActivity('ERROR', 'Approvals', `โหลดรายการรออนุมัติไม่สำเร็จ: ${sbErr.message || sbErr}`, 'error');
+                        }
                         console.warn('[loadAdminApprovals Supabase Error]', sbErr);
                     }
                 }
@@ -19905,23 +19980,201 @@ ${slip.textSample}
         }
 
         // ══════════════════════════════════════════════════════════════
-        // ⚡ SUPABASE INTEGRATION PANEL — UI Controls & Logic
+        // ⚡ SUPABASE INTEGRATION PANEL — Activity Log & Diagnostics
         // ══════════════════════════════════════════════════════════════
 
-        // Config loaded from GAS PropertiesService (server-side), NOT localStorage
+        const ACTIVITY_LOG_STORAGE_KEY = 'HRBTC_ACTIVITY_LOGS_STORE';
+        const ACTIVITY_LOG_MAX_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 วัน (1 เดือน)
 
-        function sbLog(msg, color) {
+        function getStoredActivityLogs() {
+            try {
+                const raw = localStorage.getItem(ACTIVITY_LOG_STORAGE_KEY);
+                if (!raw) return [];
+                const list = JSON.parse(raw);
+                const cutoff = Date.now() - ACTIVITY_LOG_MAX_RETENTION_MS;
+                // Auto purge logs older than 30 days (1 month)
+                return Array.isArray(list) ? list.filter(item => item && item.ts && item.ts >= cutoff) : [];
+            } catch (e) {
+                console.warn('[ActivityLog] getStoredActivityLogs error:', e);
+                return [];
+            }
+        }
+
+        function saveStoredActivityLogs(logs) {
+            try {
+                const cutoff = Date.now() - ACTIVITY_LOG_MAX_RETENTION_MS;
+                const cleanLogs = (logs || []).filter(item => item && item.ts && item.ts >= cutoff).slice(-300); // เก็บสูงสุด 300 รายการล่าสุด
+                localStorage.setItem(ACTIVITY_LOG_STORAGE_KEY, JSON.stringify(cleanLogs));
+            } catch (e) {
+                console.warn('[ActivityLog] saveStoredActivityLogs error:', e);
+            }
+        }
+
+        function clearActivityLog() {
+            try {
+                localStorage.removeItem(ACTIVITY_LOG_STORAGE_KEY);
+            } catch (e) {}
+            const log = document.getElementById('sb-result-log');
+            if (log) {
+                log.innerHTML = '<span data-log-empty class="text-slate-500 text-xs italic block py-4 text-center">⏳ ล้างประวัติแล้ว — กำลังรอการทำงานใหม่ของฐานข้อมูล (CRUD / Sync / Health Check)...</span>';
+            }
+            showToast('ล้างประวัติ Activity Log เรียบร้อยแล้ว', 'info');
+        }
+
+        function renderLogItemDiv(item) {
+            const opConfig = {
+                'CREATE': { badge: '➕ CREATE', color: '#6ee7b7', tagColor: 'text-emerald-300 bg-emerald-950/60 border border-emerald-500/30' },
+                'READ':   { badge: '🔍 READ',   color: '#93c5fd', tagColor: 'text-blue-300 bg-blue-950/60 border border-blue-500/30' },
+                'UPDATE': { badge: '✏️ UPDATE', color: '#fde047', tagColor: 'text-amber-300 bg-amber-950/60 border border-amber-500/30' },
+                'DELETE': { badge: '🗑️ DELETE', color: '#fca5a5', tagColor: 'text-rose-300 bg-rose-950/60 border border-rose-500/30' },
+                'SYNC':   { badge: '🔄 SYNC',   color: '#c084fc', tagColor: 'text-purple-300 bg-purple-950/60 border border-purple-500/30' },
+                'HEALTH': { badge: '⚡ HEALTH', color: '#34d399', tagColor: 'text-teal-300 bg-teal-950/60 border border-teal-500/30' },
+                'ERROR':  { badge: '❌ ERROR',  color: '#f87171', tagColor: 'text-rose-400 bg-rose-950/80 border border-rose-500/40' }
+            }[item.op] || { badge: '📡 ' + item.op, color: '#cbd5e1', tagColor: 'text-slate-300 bg-slate-900 border border-slate-700' };
+
+            const statusColor = item.status === 'error' ? '#f87171' : (item.status === 'warning' ? '#fbbf24' : (opConfig.color || '#34d399'));
+            const latencyStr = (item.latencyMs !== undefined && item.latencyMs !== null) ? `<span class="text-slate-500 text-[9px] shrink-0 font-mono">(${item.latencyMs}ms)</span>` : '';
+            const tableBadge = item.table ? `<span class="text-slate-400 bg-white/5 border border-white/10 px-1 py-0.2 rounded text-[9px] shrink-0 font-semibold">[${item.table}]</span>` : '';
+
+            const div = document.createElement('div');
+            div.className = 'py-1 px-1.5 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors flex items-start gap-1.5 font-mono text-[10px] leading-tight';
+            div.innerHTML = `
+                <span class="text-slate-500 text-[9px] shrink-0">[${item.timeStr || ''}]</span>
+                <span class="${opConfig.tagColor} px-1 py-0.2 rounded text-[9px] font-extrabold shrink-0">${opConfig.badge}</span>
+                ${tableBadge}
+                <span style="color: ${statusColor};" class="flex-1 break-words">${item.detail || ''}</span>
+                ${latencyStr}
+            `;
+            return div;
+        }
+
+        function logDbActivity(operation, table, detail, status, latencyMs) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('th-TH');
+            const dateStr = now.toLocaleDateString('th-TH');
+            const item = {
+                ts: now.getTime(),
+                dateStr: dateStr,
+                timeStr: timeStr,
+                op: operation,
+                table: table || '',
+                detail: detail || '',
+                status: status || 'success',
+                latencyMs: latencyMs
+            };
+
+            // Save to persistent storage (30 days auto-rotation)
+            const list = getStoredActivityLogs();
+            list.push(item);
+            saveStoredActivityLogs(list);
+
+            // Render to DOM
+            const log = document.getElementById('sb-result-log');
+            if (log) {
+                log.classList.remove('hidden');
+                const emptyState = log.querySelector('[data-log-empty]');
+                if (emptyState) emptyState.remove();
+
+                const el = renderLogItemDiv(item);
+                log.appendChild(el);
+
+                while (log.children.length > 250) {
+                    log.removeChild(log.firstChild);
+                }
+                log.scrollTop = log.scrollHeight;
+            }
+        }
+
+        function initActivityLogs() {
             const log = document.getElementById('sb-result-log');
             if (!log) return;
-            log.classList.remove('hidden');
-            const emptyState = log.querySelector('[data-log-empty]');
-            if (emptyState) emptyState.remove();
-            const ts = new Date().toLocaleTimeString('th-TH');
-            const span = document.createElement('div');
-            span.style.color = color || '#34d399';
-            span.textContent = `[${ts}] [Supabase / Sync] ${msg}`;
-            log.appendChild(span);
-            log.scrollTop = log.scrollHeight;
+            const list = getStoredActivityLogs();
+            if (list && list.length > 0) {
+                log.innerHTML = '';
+                const recent = list.slice(-150);
+                recent.forEach(item => {
+                    log.appendChild(renderLogItemDiv(item));
+                });
+                log.scrollTop = log.scrollHeight;
+            }
+        }
+
+        // 📋 คัดลอก Activity Log ทั้งหมดส่งให้ทีมพัฒนา
+        async function copyActivityLog() {
+            const list = getStoredActivityLogs();
+            if (!list || list.length === 0) {
+                showToast('ไม่มีรายการ Log ในขณะนี้', 'info');
+                return;
+            }
+
+            const now = new Date();
+            let text = `====================================================\n`;
+            text += `  HRBTC V2 — ACTIVITY & SYSTEM DIAGNOSTIC LOG\n`;
+            text += `  Export Date: ${now.toLocaleString('th-TH')}\n`;
+            text += `  Active User: ${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : 'Guest/Admin'}\n`;
+            text += `  Supabase URL: ${typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL ? 'Configured' : 'Missing'}\n`;
+            text += `  GAS Web App: ${typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL ? 'Configured' : 'Missing'}\n`;
+            text += `  Total Logs: ${list.length} records (Auto-rotated 30 days)\n`;
+            text += `====================================================\n\n`;
+
+            list.forEach((item, idx) => {
+                const tablePart = item.table ? ` [${item.table}]` : '';
+                const latPart = (item.latencyMs !== undefined && item.latencyMs !== null) ? ` (${item.latencyMs}ms)` : '';
+                text += `[${item.dateStr} ${item.timeStr}] [${item.op}]${tablePart} ${item.detail}${latPart}\n`;
+            });
+
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('📋 คัดลอก Activity Log เรียบร้อยแล้ว พร้อมส่งให้ผู้พัฒนา!', 'success');
+            } catch (err) {
+                // Fallback for older browsers
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('📋 คัดลอก Activity Log เรียบร้อยแล้ว พร้อมส่งให้ผู้พัฒนา!', 'success');
+            }
+        }
+
+        // 💾 ดาวน์โหลดไฟล์ Activity Log (.txt)
+        function exportActivityLogFile() {
+            const list = getStoredActivityLogs();
+            if (!list || list.length === 0) {
+                showToast('ไม่มีรายการ Log ให้ดาวน์โหลด', 'info');
+                return;
+            }
+
+            const now = new Date();
+            let text = `====================================================\n`;
+            text += `  HRBTC V2 — ACTIVITY & SYSTEM DIAGNOSTIC LOG\n`;
+            text += `  Export Date: ${now.toLocaleString('th-TH')}\n`;
+            text += `  Active User: ${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : 'Guest/Admin'}\n`;
+            text += `  Total Logs: ${list.length} records\n`;
+            text += `====================================================\n\n`;
+
+            list.forEach((item) => {
+                const tablePart = item.table ? ` [${item.table}]` : '';
+                const latPart = (item.latencyMs !== undefined && item.latencyMs !== null) ? ` (${item.latencyMs}ms)` : '';
+                text += `[${item.dateStr} ${item.timeStr}] [${item.op}]${tablePart} ${item.detail}${latPart}\n`;
+            });
+
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dStr = now.toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `HRBTC_ActivityLog_${dStr}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('💾 ดาวน์โหลดไฟล์ Activity Log เรียบร้อยแล้ว', 'success');
+        }
+
+        function sbLog(msg, color) {
+            logDbActivity('SYNC', '', msg, color && color.includes('f87171') ? 'error' : (color && color.includes('fbbf24') ? 'warning' : 'success'));
         }
 
         function renderAutomaticSyncStatus(status) {
@@ -19960,7 +20213,12 @@ ${slip.textSample}
                 } else {
                     result = await postAction('getAutomaticDataSyncStatus', { adminId: currentEmployeeId }, { timeout: 10000 });
                 }
-                if (result?.status === 'success') renderAutomaticSyncStatus(result.data);
+                if (result?.status === 'success' && result.data) {
+                    renderAutomaticSyncStatus(result.data);
+                    if (result.data.message) {
+                        sbLog(`📊 สถานะสำรองข้อมูลล่าสุด: ${result.data.message}`, '#a78bfa');
+                    }
+                }
             } catch (e) {
                 renderAutomaticSyncStatus({ status: 'error', message: 'อ่านสถานะจาก server ไม่ได้' });
             }
@@ -19999,6 +20257,7 @@ ${slip.textSample}
         }
 
         async function initSupabasePanelUI() {
+            initActivityLogs();
             loadAutomaticSyncStatus();
             const urlEl  = document.getElementById('sb-config-url');
             const keyEl  = document.getElementById('sb-config-key');
@@ -20247,14 +20506,15 @@ ${slip.textSample}
 
         async function triggerSupabaseMigration() {
             if (isMigrationRunning) {
-                showToast('⚠️ กำลังดำเนินการซิงค์ข้อมูลอยู่แล้ว กรุณารอสักครู่...', 'warning');
+                showToast('⚠️ กำลังดำเนินการสำรองข้อมูลอยู่แล้ว กรุณารอสักครู่...', 'warning');
                 return;
             }
             isMigrationRunning = true;
-            renderAutomaticSyncStatus({ status: 'running', message: 'กำลังตรวจสอบและรวมข้อมูลจากทั้งสองฝั่ง' });
-            const btn = document.getElementById('sb-sync-btn');
-            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังซิงค์...'; }
-            sbLog('🔒 เริ่มสำรองข้อมูลจาก Supabase ลง Google Sheets แบบมี Lock กลาง...', '#60a5fa');
+            renderAutomaticSyncStatus({ status: 'running', message: 'กำลังสำรองข้อมูล 18 ตารางจาก Supabase ลง Google Sheets...' });
+            const btn = document.getElementById('sb-backup-btn') || document.getElementById('sb-sync-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังสำรองข้อมูล...'; }
+            sbLog('🚀 กำลังเริ่มกระบวนการสำรองข้อมูล (Supabase ➔ Google Sheets) ครบ 18 ตาราง...', '#60a5fa');
+            showToast('🔄 กำลังสำรองข้อมูลลง Google Sheets...', 'info');
             try {
                 let result = null;
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -20265,28 +20525,45 @@ ${slip.textSample}
                     result = await postAction('synchronizeDataStores', { adminId: currentEmployeeId }, { timeout: 600000 });
                 }
 
-                if (result && result.code === 'SYNC_IN_PROGRESS') {
-                    renderAutomaticSyncStatus({ status: 'running', message: result.message || 'กำลังสำรองข้อมูลอยู่' });
-                    sbLog(`⏳ ${result.message || 'มีการซิงค์ข้อมูลอยู่แล้ว'} กำลังรอผลการซิงค์ชุดแรก...`, '#fbbf24');
-                    return;
-                }
                 if (!result || result.status !== 'success') {
-                    renderAutomaticSyncStatus({ status: 'error', message: result?.message || 'ซิงค์ข้อมูลไม่ครบ' });
-                    throw new Error(result?.message || 'ซิงค์ข้อมูลไม่ครบ');
+                    renderAutomaticSyncStatus({ status: 'error', message: result?.message || 'สำรองข้อมูลไม่สำเร็จ' });
+                    throw new Error(result?.message || 'สำรองข้อมูลไม่สำเร็จ');
                 }
-                renderAutomaticSyncStatus({ status: 'synced', message: result.message, at: new Date().toISOString() });
-                const imported = (result.importProgress || []).reduce((sum, item) => sum + (item.count || 0), 0);
-                const backedUp = (result.backupProgress || []).reduce((sum, item) => sum + (item.updated || 0) + (item.inserted || 0), 0);
-                sbLog(`✅ ซิงค์ครบทั้งสองฝั่ง: นำเข้า ${imported} รายการ, อัปเดต Backup ${backedUp} รายการ (${result.totalMs || 0}ms)`, '#34d399');
-                showToast('✅ สำรองข้อมูลจาก Supabase ลง Google Sheets สำเร็จ', 'success');
-                if (isLoggedIn && currentEmployeeId) await loadAllData().catch(() => false);
+
+                // แสดงผลความคืบหน้ารายตารางลง Activity Log
+                const TABLE_ICONS = {
+                    'เวลางาน': '⏰', 'พนักงาน': '👥', 'คำขอแก้ไขเวลา': '✏️',
+                    'คำขอลา': '📋', 'บันทึกเบิกเงินกลางเดือน': '💳', 'สลิปเงินเดือน': '💰',
+                    'โครงการ': '🏗️', 'วันหยุด': '🏖️', 'ข่าวสาร': '📢',
+                    'ตั้งค่าระบบ': '⚙️', 'LINE_Chat_State': '💬', 'LINE_Groups': '👥',
+                    'LINE_Followers': '👤', 'FaceDatabase': '📸', 'Scanner_Mappings': '📟',
+                    'Agent_Configs': '🖥️', 'Attendance_Raw': '📥', 'Notification_Prefs': '🔔'
+                };
+
+                if (Array.isArray(result.results)) {
+                    result.results.forEach(item => {
+                        const icon = TABLE_ICONS[item.sheet] || '📄';
+                        if (item.status === 'success') {
+                            sbLog(`${icon} ตาราง "${item.sheet}": สำรองเรียบร้อย ${item.totalUniqueRows || 0} แถว (ดึงจาก Supabase ${item.supabaseFetched || 0} แถว)`, '#a7f3d0');
+                        } else if (item.status === 'skipped') {
+                            sbLog(`⏭️ ตาราง "${item.sheet}": ข้าม (${item.message || '-'})`, '#94a3b8');
+                        } else {
+                            sbLog(`⚠️ ตาราง "${item.sheet}": ไม่สำเร็จ (${item.message || 'Error'})`, '#fbbf24');
+                        }
+                    });
+                }
+
+                const msg = result.message || 'สำรองข้อมูลครบถ้วนเรียบร้อย';
+                renderAutomaticSyncStatus({ status: 'synced', message: msg, at: new Date().toISOString() });
+                sbLog(`🎉 สรุปผล: ${msg}`, '#34d399');
+                showToast(`✅ ${msg}`, 'success');
             } catch (err) {
-                renderAutomaticSyncStatus({ status: 'error', message: err.message || 'เชื่อมต่อระบบซิงค์ไม่ได้' });
-                sbLog(`❌ ซิงค์ไม่ครบ: ${err.message || err}`, '#f87171');
-                showToast(`❌ ซิงค์ไม่ครบ: ${err.message || err}`, 'error');
+                renderAutomaticSyncStatus({ status: 'error', message: err.message || 'เชื่อมต่อระบบสำรองข้อมูลไม่ได้' });
+                sbLog(`❌ เกิดข้อผิดพลาดในการสำรองข้อมูล: ${err.message || err}`, '#f87171');
+                showToast(`❌ สำรองข้อมูลไม่สำเร็จ: ${err.message || err}`, 'error');
             } finally {
                 isMigrationRunning = false;
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ซิงค์ Sheets → Supabase'; }
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> สำรองข้อมูลลง Sheets ทันที'; }
             }
         }
 
