@@ -6453,12 +6453,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     }
 
-                    // 4. สั่ง Re-render ทุก View ให้ตรงกับข้อมูลล่าสุดทันที
-                    if (typeof _renderAllViews === 'function') {
-                        _renderAllViews();
-                    }
+                    // 4. ⚡ Re-render ทุก View — loadAllData() ในขั้นตอนที่ 2 เรียก _renderAllViews() แล้ว
+                    //    ไม่ต้องเรียกซ้ำอีก เพื่อป้องกัน UI flicker (หน้าจอกระพิบ)
 
-                    // 5. แสดงเอฟเฟกต์กะพริบ Live Sync Badge
+                    // 5. แสดงเอฟเฟกต์กะพริบ Live Sync Badge (subtle — ไม่ใช้ scale)
                     this._flashLiveBadge();
                 },
 
@@ -6519,10 +6517,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 _flashLiveBadge() {
                     const badge = document.getElementById('realtime-live-badge');
                     if (badge) {
-                        badge.classList.add('ring-2', 'ring-emerald-400/80', 'scale-105');
+                        // ⚡ เปลี่ยนจาก scale-105 เป็น ring-only เพื่อป้องกันหน้าจอกระพิบ
+                        badge.classList.add('ring-2', 'ring-emerald-400/80');
                         setTimeout(() => {
-                            badge.classList.remove('ring-2', 'ring-emerald-400/80', 'scale-105');
-                        }, 1200);
+                            badge.classList.remove('ring-2', 'ring-emerald-400/80');
+                        }, 800);
                     }
                 }
             };
@@ -7858,16 +7857,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 });
             }
 
+            // ⚡ Throttle guard: ป้องกัน _renderAllViews() ถูกเรียกรัวๆ จาก Realtime events
+            let _renderAllViewsTimer = null;
+            let _renderAllViewsRunning = false;
+
             function _renderAllViews() {
-                try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) { console.warn(e); }
-                try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) { console.warn(e); }
-                try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
-                try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) { console.warn(e); }
-                try { if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus(); } catch (e) { console.warn(e); }
-                try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch (e) { console.warn(e); }
-                try { if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards(); } catch (e) { console.warn(e); }
-                // 🚀 填充 project dropdowns หลังจากโหลดข้อมูลโครงการแล้ว
-                try { if (typeof populateProjectDropdowns === 'function') populateProjectDropdowns(); } catch (e) { console.warn(e); }
+                // ⚡ If a timer is already pending, skip this call (debounce 250ms)
+                if (_renderAllViewsTimer) return;
+                _renderAllViewsTimer = setTimeout(() => {
+                    _renderAllViewsTimer = null;
+                    _renderAllViewsImmediate();
+                }, 250);
+            }
+
+            function _renderAllViewsImmediate() {
+                // Guard: ถ้ากำลัง render อยู่ ให้ข้าม (ป้องกัน re-entrant)
+                if (_renderAllViewsRunning) return;
+                _renderAllViewsRunning = true;
+                try {
+                    try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) { console.warn(e); }
+                    try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) { console.warn(e); }
+                    try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                    try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) { console.warn(e); }
+                    try { if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus(); } catch (e) { console.warn(e); }
+                    try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch (e) { console.warn(e); }
+                    try { if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards(); } catch (e) { console.warn(e); }
+                    // 🚀 填充 project dropdowns หลังจากโหลดข้อมูลโครงการแล้ว
+                    try { if (typeof populateProjectDropdowns === 'function') populateProjectDropdowns(); } catch (e) { console.warn(e); }
+                } finally {
+                    _renderAllViewsRunning = false;
+                }
             }
 
             // ─── Announcement Storage & Functions ──────────────────────
