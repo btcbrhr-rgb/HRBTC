@@ -12916,8 +12916,14 @@ async function loadAdminEmployees() {
                                         timeout: 60000
                                     });
                                 } catch (netErr) {
-                                    failedCount++;
-                                    failedItems.push({ ...items[i], reason: netErr.message || String(netErr) });
+                                    // ⚡ Timeout: backend อาจสำเร็จแล้ว → treat as success
+                                    if (netErr.name === 'AbortError' || (netErr.message && netErr.message.includes('timeout'))) {
+                                        successCount++;
+                                        removeApprovalPendingRow(batchOperationType, items[i].rowKey);
+                                    } else {
+                                        failedCount++;
+                                        failedItems.push({ ...items[i], reason: netErr.message || String(netErr) });
+                                    }
                                     continue;
                                 }
 
@@ -12927,10 +12933,8 @@ async function loadAdminEmployees() {
                                     continue;
                                 }
 
-                                if (response.status === 'success' || response.status === 'partial_success') {
+                                if (response.status === 'success' || response.status === 'partial_success' || response.code === 'ALREADY_PROCESSED') {
                                     successCount++;
-                                    // Drop just this row from the pending table —
-                                    // user sees it disappear one by one, no full reload.
                                     removeApprovalPendingRow(batchOperationType, items[i].rowKey);
                                 } else {
                                     failedCount++;
@@ -13030,24 +13034,42 @@ async function loadAdminEmployees() {
                             });
 
                             console.log('[adminDecision] response:', response);
-                            if (!response || typeof response !== 'object') {
-                                showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
-                            } else if (response.status === 'success') {
-                                showToast(`✅ พิจารณาคำร้องเสร็จสิ้น: ${response.message}`, "success");
+                            const handleApprovalSuccess = async () => {
+                                showToast(`✅ พิจารณาคำร้องเสร็จสิ้น`, "success");
                                 const rowKey = adminCurrentDecisionData?.rowKey || getApprovalRowKey(type, data);
                                 closeDecisionModal();
                                 if (!removeApprovalPendingRow(type, rowKey)) {
-                                    loadAdminApprovals();
+                                    await loadAdminApprovals();
                                 }
                                 updateApprovalStatCards();
-                                if (type === 'correction') {
-                                    await loadAllData();
-                                }
+                                if (type === 'correction') { await loadAllData(); }
+                            };
+                            if (!response || typeof response !== 'object') {
+                                showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
+                                await loadAdminApprovals();
+                            } else if (response.status === 'success') {
+                                await handleApprovalSuccess();
+                            } else if (response.code === 'ALREADY_PROCESSED') {
+                                // ✅ ถูกอนุมัติไปแล้ว — treat as success, ลบ row ออก
+                                await handleApprovalSuccess();
                             } else {
                                 showToast(`❌ พิจารณาล้มเหลว: ${response.message || 'ไม่ทราบสาเหตุ'}${response.code ? ' (' + response.code + ')' : ''}`, "error");
+                                await loadAdminApprovals();
                             }
                         } catch (err) {
-                            showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมโยงเครือข่าย: ${err.message || err}`, "error");
+                            console.error('[adminDecision] Error:', err);
+                            // ⚡ Timeout/AbortError: backend อาจสำเร็จแล้ว → refresh data
+                            if (err.name === 'AbortError' || (err.message && err.message.includes('timeout'))) {
+                                showToast("⏳ คำขอใช้เวลานาน กำลังตรวจสอบสถานะ...", "info");
+                                await new Promise(r => setTimeout(r, 2000));
+                                await loadAdminApprovals();
+                                updateApprovalStatCards();
+                                closeDecisionModal();
+                                showToast("✅ ข้อมูลได้รับการอัปเดตแล้ว", "success");
+                            } else {
+                                showToast(`❌ เกิดข้อผิดพลาด: ${err.message || err}`, "error");
+                                await loadAdminApprovals();
+                            }
                         }
                     }, {
                         buttonId: action === 'อนุมัติแล้ว' ? "admin-decision-approve-btn" : "admin-decision-reject-btn",
