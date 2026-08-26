@@ -20597,50 +20597,67 @@ ${slip.textSample}
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังสำรองข้อมูล...'; }
             sbLog('🚀 กำลังเริ่มกระบวนการสำรองข้อมูล (Supabase ➔ Google Sheets) ครบ 18 ตาราง...', '#60a5fa');
             showToast('🔄 กำลังสำรองข้อมูลลง Google Sheets...', 'info');
+            const ALL_18_TABLES = [
+                { table: 'employees', icon: '👥', label: 'พนักงาน' },
+                { table: 'time_records', icon: '⏰', label: 'เวลางาน' },
+                { table: 'time_corrections', icon: '✏️', label: 'คำขอแก้ไขเวลา' },
+                { table: 'leave_requests', icon: '📋', label: 'คำขอลา' },
+                { table: 'advance_requests', icon: '💳', label: 'บันทึกเบิกเงินกลางเดือน' },
+                { table: 'payslips', icon: '💰', label: 'สลิปเงินเดือน' },
+                { table: 'projects', icon: '🏗️', label: 'โครงการ' },
+                { table: 'holidays', icon: '🏖️', label: 'วันหยุด' },
+                { table: 'announcements', icon: '📢', label: 'ข่าวสาร' },
+                { table: 'system_settings', icon: '⚙️', label: 'ตั้งค่าระบบ' },
+                { table: 'line_chat_state', icon: '💬', label: 'LINE_Chat_State' },
+                { table: 'line_groups', icon: '👥', label: 'LINE_Groups' },
+                { table: 'line_followers', icon: '👤', label: 'LINE_Followers' },
+                { table: 'face_database', icon: '📸', label: 'FaceDatabase' },
+                { table: 'scanner_mappings', icon: '📟', label: 'Scanner_Mappings' },
+                { table: 'agent_configs', icon: '🖥️', label: 'Agent_Configs' },
+                { table: 'attendance_raw', icon: '📥', label: 'Attendance_Raw' },
+                { table: 'employee_notification_prefs', icon: '🔔', label: 'Notification_Prefs' }
+            ];
+
+            let successCount = 0;
+            let totalBackedUpRows = 0;
+            const t0 = performance.now();
+
             try {
-                let result = null;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    result = await new Promise((resolve, reject) => {
-                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).synchronizeDataStores();
-                    });
-                } else {
-                    result = await postAction('synchronizeDataStores', { adminId: currentEmployeeId }, { timeout: 600000 });
+                for (let i = 0; i < ALL_18_TABLES.length; i++) {
+                    const item = ALL_18_TABLES[i];
+                    if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> สำรอง (${i + 1}/${ALL_18_TABLES.length}) ${item.table}...`;
+
+                    let tableRes = null;
+                    if (typeof google !== 'undefined' && google.script && google.script.run) {
+                        tableRes = await new Promise((resolve) => {
+                            google.script.run
+                                .withSuccessHandler(resolve)
+                                .withFailureHandler(err => resolve({ table: item.table, status: 'error', message: err?.message || err }))
+                                .backupSingleTable(item.table);
+                        });
+                    } else {
+                        tableRes = await postAction('backupSingleTable', { table: item.table }, { timeout: 60000 });
+                    }
+
+                    if (tableRes && tableRes.status === 'success') {
+                        successCount++;
+                        const rows = tableRes.totalRows || tableRes.supabaseFetched || 0;
+                        totalBackedUpRows += rows;
+                        sbLog(`${item.icon} ตาราง "${item.table}": สำรองเรียบร้อย ${rows} แถว (${tableRes.columnsCount || 0} คอลัมน์)`, '#a7f3d0');
+                    } else if (tableRes && tableRes.status === 'skipped') {
+                        sbLog(`⏭️ ตาราง "${item.table}": ข้าม (${tableRes.message || '-'})`, '#94a3b8');
+                    } else {
+                        sbLog(`⚠️ ตาราง "${item.table}": ไม่สำเร็จ (${tableRes?.message || 'Error'})`, '#fbbf24');
+                    }
                 }
 
-                if (!result || result.status !== 'success') {
-                    renderAutomaticSyncStatus({ status: 'error', message: result?.message || 'สำรองข้อมูลไม่สำเร็จ' });
-                    throw new Error(result?.message || 'สำรองข้อมูลไม่สำเร็จ');
-                }
-
-                // แสดงผลความคืบหน้ารายตารางลง Activity Log
-                const TABLE_ICONS = {
-                    'เวลางาน': '⏰', 'พนักงาน': '👥', 'คำขอแก้ไขเวลา': '✏️',
-                    'คำขอลา': '📋', 'บันทึกเบิกเงินกลางเดือน': '💳', 'สลิปเงินเดือน': '💰',
-                    'โครงการ': '🏗️', 'วันหยุด': '🏖️', 'ข่าวสาร': '📢',
-                    'ตั้งค่าระบบ': '⚙️', 'LINE_Chat_State': '💬', 'LINE_Groups': '👥',
-                    'LINE_Followers': '👤', 'FaceDatabase': '📸', 'Scanner_Mappings': '📟',
-                    'Agent_Configs': '🖥️', 'Attendance_Raw': '📥', 'Notification_Prefs': '🔔'
-                };
-
-                if (Array.isArray(result.results)) {
-                    result.results.forEach(item => {
-                        const icon = TABLE_ICONS[item.sheet] || '📄';
-                        if (item.status === 'success') {
-                            sbLog(`${icon} ตาราง "${item.sheet}": สำรองเรียบร้อย ${item.totalUniqueRows || 0} แถว (ดึงจาก Supabase ${item.supabaseFetched || 0} แถว)`, '#a7f3d0');
-                        } else if (item.status === 'skipped') {
-                            sbLog(`⏭️ ตาราง "${item.sheet}": ข้าม (${item.message || '-'})`, '#94a3b8');
-                        } else {
-                            sbLog(`⚠️ ตาราง "${item.sheet}": ไม่สำเร็จ (${item.message || 'Error'})`, '#fbbf24');
-                        }
-                    });
-                }
-
-                const msg = result.message || 'สำรองข้อมูลครบถ้วนเรียบร้อย';
+                const elapsedSec = Math.round((performance.now() - t0) / 1000);
+                const msg = `สำรองข้อมูล 1:1 สำเร็จครบทั้ง 18 ตาราง (${totalBackedUpRows.toLocaleString()} แถว, ใช้เวลา ${elapsedSec} วิ)`;
                 renderAutomaticSyncStatus({ status: 'synced', message: msg, at: new Date().toISOString() });
                 sbLog(`🎉 สรุปผล: ${msg}`, '#34d399');
                 showToast(`✅ ${msg}`, 'success');
             } catch (err) {
-                renderAutomaticSyncStatus({ status: 'error', message: err.message || 'เชื่อมต่อระบบสำรองข้อมูลไม่ได้' });
+                renderAutomaticSyncStatus({ status: 'error', message: err.message || 'เกิดข้อผิดพลาดในการสำรองข้อมูล' });
                 sbLog(`❌ เกิดข้อผิดพลาดในการสำรองข้อมูล: ${err.message || err}`, '#f87171');
                 showToast(`❌ สำรองข้อมูลไม่สำเร็จ: ${err.message || err}`, 'error');
             } finally {
@@ -20675,52 +20692,63 @@ ${slip.textSample}
             sbLog('📥 [RESTORE] เริ่มต้นกระบวนการกู้คืนข้อมูลสำรองจาก Google Sheets ➔ Supabase ครบทั้ง 18 ตาราง...', '#fde047');
             showToast('⏳ กำลังกู้คืนข้อมูลเข้า Supabase...', 'info');
 
+            const ALL_18_TABLES = [
+                { table: 'employees', icon: '👥' },
+                { table: 'time_records', icon: '⏰' },
+                { table: 'time_corrections', icon: '✏️' },
+                { table: 'leave_requests', icon: '📋' },
+                { table: 'advance_requests', icon: '💳' },
+                { table: 'payslips', icon: '💰' },
+                { table: 'projects', icon: '🏗️' },
+                { table: 'holidays', icon: '🏖️' },
+                { table: 'announcements', icon: '📢' },
+                { table: 'system_settings', icon: '⚙️' },
+                { table: 'line_chat_state', icon: '💬' },
+                { table: 'line_groups', icon: '👥' },
+                { table: 'line_followers', icon: '👤' },
+                { table: 'face_database', icon: '📸' },
+                { table: 'scanner_mappings', icon: '📟' },
+                { table: 'agent_configs', icon: '🖥️' },
+                { table: 'attendance_raw', icon: '📥' },
+                { table: 'employee_notification_prefs', icon: '🔔' }
+            ];
+
             const t0 = performance.now();
+            let totalRestoredRows = 0;
+
             try {
-                let result = null;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    result = await new Promise((resolve, reject) => {
-                        google.script.run
-                            .withSuccessHandler(resolve)
-                            .withFailureHandler(reject)
-                            .restoreFromSheetsToSupabase();
-                    });
-                } else if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                    // postAction ใช้ fetchWithTimeout และคืนค่า parsed JSON โดยตรง (ไม่ต้องเรียก .json() ซ้ำ)
-                    result = await postAction('restoreFromSheetsToSupabase', {}, { timeout: 120000 });
-                } else {
-                    throw new Error('ไม่สามารถเชื่อมต่อ Server สำหรับกู้คืนข้อมูลได้');
+                for (let i = 0; i < ALL_18_TABLES.length; i++) {
+                    const item = ALL_18_TABLES[i];
+                    if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กู้คืน (${i + 1}/${ALL_18_TABLES.length}) ${item.table}...`;
+
+                    let tableRes = null;
+                    if (typeof google !== 'undefined' && google.script && google.script.run) {
+                        tableRes = await new Promise((resolve) => {
+                            google.script.run
+                                .withSuccessHandler(resolve)
+                                .withFailureHandler(err => resolve({ table: item.table, status: 'error', message: err?.message || err }))
+                                .restoreSingleTable(item.table);
+                        });
+                    } else {
+                        tableRes = await postAction('restoreSingleTable', { table: item.table }, { timeout: 60000 });
+                    }
+
+                    if (tableRes && tableRes.status === 'success') {
+                        const rows = tableRes.restoredRows || 0;
+                        totalRestoredRows += rows;
+                        sbLog(`${item.icon} ตาราง "${item.table}": กู้คืนเรียบร้อย ${rows} แถว`, '#a7f3d0');
+                    } else if (tableRes && tableRes.status === 'skipped') {
+                        sbLog(`⏭️ ตาราง "${item.table}": ข้าม (${tableRes.message || '-'})`, '#94a3b8');
+                    } else if (tableRes && tableRes.status === 'empty') {
+                        sbLog(`📄 ตาราง "${item.table}": ชีตว่าง ไม่มีข้อมูลที่ต้องกู้คืน`, '#94a3b8');
+                    } else {
+                        sbLog(`⚠️ ตาราง "${item.table}": ไม่สำเร็จ (${tableRes?.message || 'Error'})`, '#fbbf24');
+                    }
                 }
 
-                if (!result || result.status !== 'success') {
-                    throw new Error(result ? result.message : 'กู้คืนข้อมูลไม่สำเร็จ');
-                }
-
-                const TABLE_ICONS = {
-                    'employees': '👥', 'time_records': '⏰', 'time_corrections': '✏️',
-                    'leave_requests': '📋', 'advance_requests': '💳', 'payslips': '💰',
-                    'projects': '🏗️', 'holidays': '🏖️', 'announcements': '📢',
-                    'system_settings': '⚙️', 'line_chat_state': '💬', 'line_groups': '👥',
-                    'line_followers': '👤', 'face_database': '📸', 'scanner_mappings': '📟',
-                    'agent_configs': '🖥️', 'attendance_raw': '📥', 'employee_notification_prefs': '🔔'
-                };
-
-                if (Array.isArray(result.results)) {
-                    result.results.forEach(item => {
-                        const icon = TABLE_ICONS[item.table] || '📄';
-                        if (item.status === 'success') {
-                            sbLog(`${icon} ตาราง "${item.table}": กู้คืนเรียบร้อย ${item.restoredRows || 0} แถว (จากชีต "${item.sheet}")`, '#a7f3d0');
-                        } else if (item.status === 'skipped') {
-                            sbLog(`⏭️ ตาราง "${item.table}": ข้าม (${item.message || '-'})`, '#94a3b8');
-                        } else {
-                            sbLog(`⚠️ ตาราง "${item.table}": ไม่สำเร็จ (${item.message || 'Error'})`, '#fbbf24');
-                        }
-                    });
-                }
-
-                const elapsed = Math.round(performance.now() - t0);
-                const msg = result.message || `กู้คืนข้อมูลสำเร็จ (${result.totalRestoredRows || 0} แถว)`;
-                sbLog(`🎉 สรุปผล: ${msg} [${elapsed}ms]`, '#34d399');
+                const elapsedSec = Math.round((performance.now() - t0) / 1000);
+                const msg = `กู้คืนข้อมูล 1:1 ครบทั้ง 18 ตารางสำเร็จ (${totalRestoredRows.toLocaleString()} แถว, ใช้เวลา ${elapsedSec} วิ)`;
+                sbLog(`🎉 สรุปผล: ${msg}`, '#34d399');
                 showToast(`✅ ${msg}`, 'success');
 
                 // โหลดข้อมูลล่าสุดจาก Supabase กลับเข้าหน้าจอ
