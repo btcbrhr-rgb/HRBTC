@@ -18687,6 +18687,82 @@ ${slip.textSample}
             closeAllowanceModal();
         }
 
+        // ⏰ ล้าง Trigger เก่าทั้งหมดแล้วติดตั้ง "ทริกเกอร์ทุกตัวที่ระบบต้องใช้" (One-Click Master Setup)
+        async function triggerSetupAllTriggers() {
+            const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
+
+            // ⚠️ ScriptApp.newTrigger() ต้องการ OAuth scope พิเศษ (script.scriptapp)
+            // ใช้งานได้เฉพาะจาก GAS HtmlService หรือ Apps Script Editor เท่านั้น
+            if (!isGasEnv) {
+                sbLog('⚠️ [TRIGGER] การตั้งค่า Trigger ต้องดำเนินการจาก Apps Script Editor โดยตรง', '#fbbf24');
+                sbLog('📋 วิธีติดตั้ง Trigger:', '#a7f3d0');
+                sbLog('  1. เปิด Apps Script Editor (script.google.com)', '#94a3b8');
+                sbLog('  2. เลือกฟังก์ชัน "setupAllSystemTriggers" ใน dropdown', '#94a3b8');
+                sbLog('  3. กดปุ่ม ▷ Run เพื่อติดตั้ง Trigger ทั้งหมดทันที', '#94a3b8');
+
+                const goToEditor = confirm(
+                    '⚠️ การตั้งค่า Trigger ต้องทำจาก Apps Script Editor\n\n' +
+                    'เหตุผล: ScriptApp.newTrigger() ต้องการสิทธิ์พิเศษที่ External Web App ไม่มี\n\n' +
+                    'วิธีง่ายที่สุด:\n' +
+                    '  1. เปิด Apps Script Editor (script.google.com)\n' +
+                    '  2. เลือกฟังก์ชัน "setupAllSystemTriggers"\n' +
+                    '  3. กด ▷ Run\n\n' +
+                    'กด OK เพื่อเปิด Apps Script Editor'
+                );
+                if (goToEditor) window.open('https://script.google.com', '_blank');
+                return;
+            }
+
+            const confirmed = confirm(
+                '⚙️ ติดตั้งทริกเกอร์ระบบทั้งหมด (Master Trigger Setup)?\n\n' +
+                '• ระบบจะล้าง Trigger เก่าและติดตั้งใหม่ครบทุกตัว\n' +
+                '  1. 📊 สำรองข้อมูลลง Sheets (ทุกวัน 18:00 น.)\n' +
+                '  2. 🔔 แจ้งเตือนรออนุมัติ Admin (08:00 น.)\n' +
+                '  3. 📊 สรุปยอดเข้างาน LINE (09:00 น.)\n' +
+                '  4. 💬 LINE Batch (ทุก 10 นาที)\n' +
+                '  5. 👥 เตือนผูกบัญชี LINE (จันทร์ 09:00 น.)\n\n' +
+                'ต้องการดำเนินการต่อหรือไม่?'
+            );
+            if (!confirmed) return;
+
+            const btn = document.getElementById('sb-trigger-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังตั้งค่า...';
+            }
+
+            sbLog('⚙️ [TRIGGER] เริ่มกระบวนการล้างและติดตั้งทริกเกอร์ระบบทั้งหมด...', '#fde047');
+            showToast('⏳ กำลังติดตั้งทริกเกอร์ระบบ...', 'info');
+
+            try {
+                const result = await new Promise((resolve, reject) => {
+                    google.script.run
+                        .withSuccessHandler(resolve)
+                        .withFailureHandler(reject)
+                        .setupAllSystemTriggers();
+                });
+
+                if (!result || result.status !== 'success') {
+                    throw new Error(result ? result.message : 'ตั้งค่า Trigger ไม่สำเร็จ');
+                }
+
+                const msg = result.message || `ติดตั้ง Trigger ครบทั้ง ${result.installedCount || 0} ตัวเรียบร้อย`;
+                sbLog(`🎉 ${msg}`, '#34d399');
+                if (Array.isArray(result.triggers)) {
+                    result.triggers.forEach(t => sbLog(`  ✅ ${t}`, '#a7f3d0'));
+                }
+                showToast(`✅ ${msg}`, 'success');
+            } catch (err) {
+                sbLog(`❌ เกิดข้อผิดพลาดในการตั้ง Trigger: ${err.message || err}`, '#f87171');
+                showToast(`❌ ตั้งค่า Trigger ไม่สำเร็จ: ${err.message || err}`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> ⚙️ ตั้งค่าทริกเกอร์ระบบทั้งหมด';
+                }
+            }
+        }
+
         // Batch Status Change Buttons
         function batchSetStatus(status) {
             const dayData = attendanceData[selectedDateStr];
