@@ -4773,11 +4773,11 @@
                                             title="กู้คืนข้อมูลสำรองจาก Google Sheets กลับเข้า Supabase ครบทั้ง 18 ตาราง">
                                             <i class="fa-solid fa-cloud-arrow-up"></i> กู้คืนข้อมูลเข้า Supabase (จาก Sheets)
                                         </button>
-                                        <!-- Setup Trigger button (Reset & Recreate) -->
-                                        <button id="sb-trigger-btn" onclick="triggerSetupNightlyTrigger()"
+                                        <!-- Setup All System Triggers button (Reset & Recreate All) -->
+                                        <button id="sb-trigger-btn" onclick="triggerSetupAllTriggers()"
                                             class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold shadow-sm transition-all"
-                                            title="ล้างทริกเกอร์เก่าทั้งหมดแล้วตั้งค่าทริกเกอร์สำรองข้อมูลอัตโนมัติทุกคืนช่วง 02:00 น.">
-                                            <i class="fa-solid fa-clock-rotate-left"></i> ตั้งทริกเกอร์ตี 2
+                                            title="ล้างทริกเกอร์เก่าทั้งหมดและติดตั้งทริกเกอร์อัตโนมัติครบทุกตัวที่ระบบต้องใช้ (สำรองข้อมูลตี 2, สรุปยอด, แจ้งเตือน)">
+                                            <i class="fa-solid fa-clock-rotate-left"></i> ⚙️ ตั้งค่าทริกเกอร์ระบบทั้งหมด
                                         </button>
                                         <button onclick="testSupabaseConnection()" id="sb-test-btn"
                                             class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
@@ -20678,12 +20678,17 @@ ${slip.textSample}
             }
         }
 
-        // ⏰ ล้าง Trigger เก่าทั้งหมดแล้วตั้งค่า Trigger สำรองข้อมูลอัตโนมัติรอบใหม่ (Reset & Setup)
-        async function triggerSetupNightlyTrigger() {
+        // ⏰ ล้าง Trigger เก่าทั้งหมดแล้วติดตั้ง "ทริกเกอร์ทุกตัวที่ระบบต้องใช้" (One-Click Master Setup)
+        async function triggerSetupAllTriggers() {
             const confirmed = confirm(
-                '⏰ ติดตั้ง Trigger สำรองข้อมูลอัตโนมัติ (ตี 2)?\n\n' +
+                '⚙️ ติดตั้งทริกเกอร์ระบบทั้งหมด (Master Trigger Setup)?\n\n' +
                 '• ระบบจะค้นหาและล้าง Trigger เก่าที่ค้างอยู่ทั้งหมด\n' +
-                '• แล้วสร้าง Time-driven Trigger ใหม่ที่จะรันสำรองข้อมูลอัตโนมัติทุกคืนช่วง 02:00 น.\n\n' +
+                '• แล้วติดตั้งทริกเกอร์สำคัญของระบบครบทุกตัว:\n' +
+                '  1. 📊 สำรองข้อมูลลง Sheets ครบ 18 ตาราง (ทุกวันหลัง 17:00 น. / ช่วง 18:00 น.)\n' +
+                '  2. 🔔 แจ้งเตือนรายการรออนุมัติให้ Admin (ทุกเช้า 08:00 น.)\n' +
+                '  3. 📊 สรุปยอดเข้างานส่ง LINE กลุ่ม (ทุกเช้า 09:00 น.)\n' +
+                '  4. 💬 ส่งคิวแจ้งเตือน LINE Batch (ทุก 10 นาที)\n' +
+                '  5. 👥 เตือนผู้ติดตามผูกบัญชี LINE (ทุกวันจันทร์ 09:00 น.)\n\n' +
                 'ต้องการดำเนินการต่อหรือไม่?'
             );
             if (!confirmed) return;
@@ -20694,8 +20699,8 @@ ${slip.textSample}
                 btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังตั้งค่า...';
             }
 
-            sbLog('⏰ [TRIGGER] เริ่มกระบวนการล้าง Trigger เก่าและตั้งค่า Trigger สำรองข้อมูลรอบใหม่...', '#fde047');
-            showToast('⏳ กำลังติดตั้ง Trigger...', 'info');
+            sbLog('⚙️ [TRIGGER] เริ่มกระบวนการล้างและติดตั้งทริกเกอร์ระบบทั้งหมด...', '#fde047');
+            showToast('⏳ กำลังติดตั้งทริกเกอร์ระบบ...', 'info');
 
             try {
                 let result = null;
@@ -20704,13 +20709,13 @@ ${slip.textSample}
                         google.script.run
                             .withSuccessHandler(resolve)
                             .withFailureHandler(reject)
-                            .setupNightlyBackupTrigger();
+                            .setupAllSystemTriggers();
                     });
                 } else if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
                     const resp = await fetchWithTimeout(SERVER_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'setupNightlyBackupTrigger' })
+                        body: JSON.stringify({ action: 'setupAllSystemTriggers' })
                     }, 60000);
                     result = await resp.json();
                 } else {
@@ -20721,8 +20726,11 @@ ${slip.textSample}
                     throw new Error(result ? result.message : 'ตั้งค่า Trigger ไม่สำเร็จ');
                 }
 
-                const msg = result.message || 'ติดตั้ง Trigger สำรองข้อมูลทุกคืนเรียบร้อย';
-                sbLog(`🎉 ${msg} (ลบของเก่าไป ${result.deletedOldTriggersCount || 0} รายการ)`, '#34d399');
+                const msg = result.message || `ติดตั้ง Trigger ครบทั้ง ${result.installedCount || 0} ตัวเรียบร้อย`;
+                sbLog(`🎉 ${msg}`, '#34d399');
+                if (Array.isArray(result.triggers)) {
+                    result.triggers.forEach(t => sbLog(`  ✅ ${t}`, '#a7f3d0'));
+                }
                 showToast(`✅ ${msg}`, 'success');
             } catch (err) {
                 sbLog(`❌ เกิดข้อผิดพลาดในการตั้ง Trigger: ${err.message || err}`, '#f87171');
@@ -20730,7 +20738,7 @@ ${slip.textSample}
             } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> ตั้งทริกเกอร์ตี 2';
+                    btn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> ⚙️ ตั้งค่าทริกเกอร์ระบบทั้งหมด';
                 }
             }
         }
