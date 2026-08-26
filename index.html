@@ -4763,8 +4763,15 @@
                                     <div class="flex flex-wrap items-center gap-2 pt-1">
                                         <!-- One-way Backup button (Supabase -> Sheets) -->
                                         <button id="sb-backup-btn" onclick="triggerSupabaseMigration()"
-                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold shadow-sm transition-all">
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold shadow-sm transition-all"
+                                            title="สำรองข้อมูลทั้งหมดจาก Supabase ลง Google Sheets (One-Way Backup)">
                                             <i class="fa-solid fa-cloud-arrow-down"></i> สำรองข้อมูลลง Sheets ทันที
+                                        </button>
+                                        <!-- Manual Restore button (Sheets -> Supabase) -->
+                                        <button id="sb-restore-btn" onclick="triggerSupabaseRestore()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold shadow-sm transition-all"
+                                            title="กู้คืนข้อมูลสำรองจาก Google Sheets กลับเข้า Supabase ครบทั้ง 18 ตาราง">
+                                            <i class="fa-solid fa-cloud-arrow-up"></i> กู้คืนข้อมูลเข้า Supabase (จาก Sheets)
                                         </button>
                                         <button onclick="testSupabaseConnection()" id="sb-test-btn"
                                             class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
@@ -20568,6 +20575,100 @@ ${slip.textSample}
             } finally {
                 isMigrationRunning = false;
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> สำรองข้อมูลลง Sheets ทันที'; }
+            }
+        }
+
+        // 📥 กู้คืนข้อมูลจาก Google Sheets ➔ Supabase (Manual Restore)
+        let isRestoreRunning = false;
+        async function triggerSupabaseRestore() {
+            if (isRestoreRunning || isMigrationRunning) {
+                showToast('⚠️ กำลังดำเนินการจัดการข้อมูลอยู่แล้ว กรุณารอสักครู่...', 'warning');
+                return;
+            }
+
+            const confirmed = confirm(
+                '⚠️ ยืนยันการกู้คืนข้อมูล (Restore to Supabase)?\n\n' +
+                '• ระบบจะอ่านข้อมูลสำรองทั้งหมด 18 ตารางจาก Google Sheets\n' +
+                '• แล้วส่งไป Upsert เข้า Supabase เพื่อกู้คืนฐานข้อมูล\n\n' +
+                'ต้องการดำเนินการต่อหรือไม่?'
+            );
+            if (!confirmed) return;
+
+            isRestoreRunning = true;
+            const btn = document.getElementById('sb-restore-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังกู้คืนข้อมูล...';
+            }
+
+            sbLog('📥 [RESTORE] เริ่มต้นกระบวนการกู้คืนข้อมูลสำรองจาก Google Sheets ➔ Supabase ครบทั้ง 18 ตาราง...', '#fde047');
+            showToast('⏳ กำลังกู้คืนข้อมูลเข้า Supabase...', 'info');
+
+            const t0 = performance.now();
+            try {
+                let result = null;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    result = await new Promise((resolve, reject) => {
+                        google.script.run
+                            .withSuccessHandler(resolve)
+                            .withFailureHandler(reject)
+                            .restoreFromSheetsToSupabase();
+                    });
+                } else if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                    const resp = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'restoreFromSheetsToSupabase' })
+                    }, 120000);
+                    result = await resp.json();
+                } else {
+                    throw new Error('ไม่สามารถเชื่อมต่อ Server สำหรับกู้คืนข้อมูลได้');
+                }
+
+                if (!result || result.status !== 'success') {
+                    throw new Error(result ? result.message : 'กู้คืนข้อมูลไม่สำเร็จ');
+                }
+
+                const TABLE_ICONS = {
+                    'employees': '👥', 'time_records': '⏰', 'time_corrections': '✏️',
+                    'leave_requests': '📋', 'advance_requests': '💳', 'payslips': '💰',
+                    'projects': '🏗️', 'holidays': '🏖️', 'announcements': '📢',
+                    'system_settings': '⚙️', 'line_chat_state': '💬', 'line_groups': '👥',
+                    'line_followers': '👤', 'face_database': '📸', 'scanner_mappings': '📟',
+                    'agent_configs': '🖥️', 'attendance_raw': '📥', 'employee_notification_prefs': '🔔'
+                };
+
+                if (Array.isArray(result.results)) {
+                    result.results.forEach(item => {
+                        const icon = TABLE_ICONS[item.table] || '📄';
+                        if (item.status === 'success') {
+                            sbLog(`${icon} ตาราง "${item.table}": กู้คืนเรียบร้อย ${item.restoredRows || 0} แถว (จากชีต "${item.sheet}")`, '#a7f3d0');
+                        } else if (item.status === 'skipped') {
+                            sbLog(`⏭️ ตาราง "${item.table}": ข้าม (${item.message || '-'})`, '#94a3b8');
+                        } else {
+                            sbLog(`⚠️ ตาราง "${item.table}": ไม่สำเร็จ (${item.message || 'Error'})`, '#fbbf24');
+                        }
+                    });
+                }
+
+                const elapsed = Math.round(performance.now() - t0);
+                const msg = result.message || `กู้คืนข้อมูลสำเร็จ (${result.totalRestoredRows || 0} แถว)`;
+                sbLog(`🎉 สรุปผล: ${msg} [${elapsed}ms]`, '#34d399');
+                showToast(`✅ ${msg}`, 'success');
+
+                // โหลดข้อมูลล่าสุดจาก Supabase กลับเข้าหน้าจอ
+                if (typeof loadAllData === 'function') {
+                    loadAllData().catch(e => console.warn('Reload after restore error:', e));
+                }
+            } catch (err) {
+                sbLog(`❌ เกิดข้อผิดพลาดในการกู้คืนข้อมูล: ${err.message || err}`, '#f87171');
+                showToast(`❌ กู้คืนข้อมูลไม่สำเร็จ: ${err.message || err}`, 'error');
+            } finally {
+                isRestoreRunning = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> กู้คืนข้อมูลเข้า Supabase (จาก Sheets)';
+                }
             }
         }
 
