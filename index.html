@@ -4773,6 +4773,12 @@
                                             title="กู้คืนข้อมูลสำรองจาก Google Sheets กลับเข้า Supabase ครบทั้ง 18 ตาราง">
                                             <i class="fa-solid fa-cloud-arrow-up"></i> กู้คืนข้อมูลเข้า Supabase (จาก Sheets)
                                         </button>
+                                        <!-- Setup Trigger button (Reset & Recreate) -->
+                                        <button id="sb-trigger-btn" onclick="triggerSetupNightlyTrigger()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold shadow-sm transition-all"
+                                            title="ล้างทริกเกอร์เก่าทั้งหมดแล้วตั้งค่าทริกเกอร์สำรองข้อมูลอัตโนมัติทุกคืนช่วง 02:00 น.">
+                                            <i class="fa-solid fa-clock-rotate-left"></i> ตั้งทริกเกอร์ตี 2
+                                        </button>
                                         <button onclick="testSupabaseConnection()" id="sb-test-btn"
                                             class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-satellite-dish"></i> ทดสอบ Ping
@@ -20668,6 +20674,63 @@ ${slip.textSample}
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> กู้คืนข้อมูลเข้า Supabase (จาก Sheets)';
+                }
+            }
+        }
+
+        // ⏰ ล้าง Trigger เก่าทั้งหมดแล้วตั้งค่า Trigger สำรองข้อมูลอัตโนมัติรอบใหม่ (Reset & Setup)
+        async function triggerSetupNightlyTrigger() {
+            const confirmed = confirm(
+                '⏰ ติดตั้ง Trigger สำรองข้อมูลอัตโนมัติ (ตี 2)?\n\n' +
+                '• ระบบจะค้นหาและล้าง Trigger เก่าที่ค้างอยู่ทั้งหมด\n' +
+                '• แล้วสร้าง Time-driven Trigger ใหม่ที่จะรันสำรองข้อมูลอัตโนมัติทุกคืนช่วง 02:00 น.\n\n' +
+                'ต้องการดำเนินการต่อหรือไม่?'
+            );
+            if (!confirmed) return;
+
+            const btn = document.getElementById('sb-trigger-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังตั้งค่า...';
+            }
+
+            sbLog('⏰ [TRIGGER] เริ่มกระบวนการล้าง Trigger เก่าและตั้งค่า Trigger สำรองข้อมูลรอบใหม่...', '#fde047');
+            showToast('⏳ กำลังติดตั้ง Trigger...', 'info');
+
+            try {
+                let result = null;
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    result = await new Promise((resolve, reject) => {
+                        google.script.run
+                            .withSuccessHandler(resolve)
+                            .withFailureHandler(reject)
+                            .setupNightlyBackupTrigger();
+                    });
+                } else if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                    const resp = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'setupNightlyBackupTrigger' })
+                    }, 60000);
+                    result = await resp.json();
+                } else {
+                    throw new Error('ไม่สามารถเชื่อมต่อ Server สำหรับตั้งค่า Trigger ได้');
+                }
+
+                if (!result || result.status !== 'success') {
+                    throw new Error(result ? result.message : 'ตั้งค่า Trigger ไม่สำเร็จ');
+                }
+
+                const msg = result.message || 'ติดตั้ง Trigger สำรองข้อมูลทุกคืนเรียบร้อย';
+                sbLog(`🎉 ${msg} (ลบของเก่าไป ${result.deletedOldTriggersCount || 0} รายการ)`, '#34d399');
+                showToast(`✅ ${msg}`, 'success');
+            } catch (err) {
+                sbLog(`❌ เกิดข้อผิดพลาดในการตั้ง Trigger: ${err.message || err}`, '#f87171');
+                showToast(`❌ ตั้งค่า Trigger ไม่สำเร็จ: ${err.message || err}`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> ตั้งทริกเกอร์ตี 2';
                 }
             }
         }
