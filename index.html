@@ -13857,9 +13857,14 @@ async function loadAdminEmployees() {
                         <td class="py-2.5 px-2 text-[10px] text-slate-500">${lastHb}</td>
                         <td class="py-2.5 px-2 text-right font-semibold text-brand-deep">${(d.totalRecordsPushed || 0).toLocaleString()}</td>
                         <td class="py-2.5 px-2">
-                            <button onclick="window.deleteScanDevice('${escapeHtml(d.deviceId)}', '${escapeHtml(d.deviceName)}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-semibold" title="ลบเครื่องนี้ออกจากระบบ">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
+                            <div class="flex items-center gap-1">
+                                <button onclick="window.openScanDeviceEditModal(${escapeHtml(JSON.stringify(d))})" class="text-brand-teal hover:text-brand-deep text-[10px] font-semibold" title="แก้ไข config เครื่องสแกน">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="window.deleteScanDevice('${escapeHtml(d.deviceId)}', '${escapeHtml(d.deviceName)}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-semibold" title="ลบเครื่องนี้ออกจากระบบ">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>`;
                     }).join('');
@@ -13998,6 +14003,159 @@ async function loadAdminEmployees() {
                         showToast('❌ ลบไม่สำเร็จ: ' + (res?.message || ''), 'error');
                     }
                 }
+
+                /**
+                 * เปิด Modal แก้ไข config ของเครื่องสแกน (ครบทั้ง 4 ขั้นตอน)
+                 */
+                window.openScanDeviceEditModal = function (device) {
+                    if (document.getElementById('scan-device-modal-container')) return;
+                    const d = typeof device === 'string' ? JSON.parse(device) : device;
+
+                    const html = `
+    <div id="scan-device-modal-container" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-brand-teal"></i> แก้ไข config: ${escapeHtml(d.deviceName || d.deviceId)}
+                </h3>
+                <button onclick="document.getElementById('scan-device-modal-container').remove()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="bg-slate-50 rounded-xl p-4 space-y-3">
+                <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <span class="bg-brand-deep text-white text-[10px] px-2 py-0.5 rounded-full">2</span> เชื่อมต่อเครื่องสแกน
+                </p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">IP Address</label>
+                        <input id="cfg-ip" type="text" value="${escapeHtml(d.ipAddress || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">Port</label>
+                        <input id="cfg-port" type="number" value="${d.port || 4370}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">ชื่อเครื่อง</label>
+                        <input id="cfg-name" type="text" value="${escapeHtml(d.deviceName || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">สาขา / โครงการ</label>
+                        <input id="cfg-branch" type="text" value="${escapeHtml(d.branchCode || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">Serial No.</label>
+                        <input id="cfg-serial" type="text" value="${escapeHtml(d.serialNo || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-500" readonly>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">Model</label>
+                        <input id="cfg-model" type="text" value="${escapeHtml(d.model || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-500" readonly>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 rounded-xl p-4 space-y-3">
+                <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <span class="bg-brand-deep text-white text-[10px] px-2 py-0.5 rounded-full">3</span> ตั้งค่าการทำงาน
+                </p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">Poll Interval (วินาที)</label>
+                        <input id="cfg-poll" type="number" value="${d.pollSeconds || 60}" min="10" max="3600" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">Heartbeat Interval (วินาที)</label>
+                        <input id="cfg-heartbeat" type="number" value="${d.heartbeatSeconds || 120}" min="30" max="600" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-500">วันที่เริ่มดึงข้อมูล</label>
+                        <input id="cfg-startdate" type="date" value="${escapeHtml(d.startFromDate || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
+                    </div>
+                    <div class="flex items-end pb-1">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input id="cfg-autostart" type="checkbox" ${d.autoStartup ? 'checked' : ''} class="w-4 h-4 text-brand-teal rounded border-slate-300 focus:ring-brand-teal">
+                            <span class="text-xs text-slate-600">เริ่มทำงานอัตโนมัติ</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 rounded-xl p-3 text-[10px] text-blue-700 space-y-1">
+                <p><strong>Device ID:</strong> ${escapeHtml(d.deviceId || '-')}</p>
+                <p><strong>Agent Version:</strong> ${escapeHtml(d.agentVersion || '-')} | <strong>OS:</strong> ${escapeHtml(d.osInfo || '-')}</p>
+                <p><strong>Last Heartbeat:</strong> ${d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString('th-TH') : '-'}</p>
+                <p><strong>Records Pushed:</strong> ${(d.totalRecordsPushed || 0).toLocaleString()}</p>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button onclick="window.saveAgentConfig('${escapeHtml(d.deviceId)}')" class="flex-1 py-2.5 bg-brand-deep hover:bg-brand-teal text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึก config
+                </button>
+                <button onclick="document.getElementById('scan-device-modal-container').remove()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all">
+                    ยกเลิก
+                </button>
+            </div>
+        </div>
+    </div>`;
+                    document.body.insertAdjacentHTML('beforeend', html);
+                };
+
+                /**
+                 * บันทึก config ของเครื่องสแกนลง Supabase ผ่าน agentUpdateConfig
+                 */
+                window.saveAgentConfig = async function (deviceId) {
+                    const getVal = (id) => document.getElementById(id)?.value ?? '';
+                    const getNum = (id) => parseInt(getVal(id)) || 0;
+                    const getChk = (id) => document.getElementById(id)?.checked ?? false;
+
+                    const payload = {
+                        action: 'agentUpdateConfig',
+                        deviceId: deviceId,
+                        ipAddress: getVal('cfg-ip'),
+                        port: getNum('cfg-port'),
+                        deviceName: getVal('cfg-name'),
+                        branchCode: getVal('cfg-branch'),
+                        pollSeconds: getNum('cfg-poll'),
+                        heartbeatSeconds: getNum('cfg-heartbeat'),
+                        startFromDate: getVal('cfg-startdate'),
+                        autoStartup: getChk('cfg-autostart'),
+                        adminId: currentEmployeeId
+                    };
+
+                    if (!payload.ipAddress) {
+                        showToast('❌ กรุณาระบุ IP Address', 'error');
+                        return;
+                    }
+                    if (payload.port < 1 || payload.port > 65535) {
+                        showToast('❌ Port ไม่ถูกต้อง', 'error');
+                        return;
+                    }
+
+                    showToast('⏳ กำลังบันทึก config...', 'info');
+                    try {
+                        const res = await fetchWithTimeout(SERVER_API_URL, {
+                            method: 'POST',
+                            body: JSON.stringify(payload),
+                            timeout: 15000
+                        });
+                        if (res?.status === 'success') {
+                            showToast('✅ บันทึก config สำเร็จ (Agent จะดึงไปใช้ภายใน 5 นาที)', 'success');
+                            document.getElementById('scan-device-modal-container')?.remove();
+                            if (typeof window.loadScanDevices === 'function') window.loadScanDevices();
+                        } else {
+                            showToast('❌ บันทึกไม่สำเร็จ: ' + (res?.message || ''), 'error');
+                        }
+                    } catch (err) {
+                        showToast('❌ เกิดข้อผิดพลาด: ' + err.message, 'error');
+                    }
+                };
 
                 /**
                  * ดาวน์โหลด Agent (zip) — สร้าง zip แบบ in-browser
