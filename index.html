@@ -5781,13 +5781,13 @@
                                 <i class="fa-solid fa-camera text-brand-teal"></i>
                                 <h3 class="text-sm font-bold text-slate-800">หน้าสแกนใบหน้า (Kiosk)</h3>
                             </div>
-                            <button onclick="document.getElementById('face-kiosk-iframe').src = document.getElementById('face-kiosk-iframe').src" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-brand-sky text-slate-600 hover:text-brand-deep text-[10px] font-bold transition-all">
+                            <button onclick="loadFaceContent('kiosk')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-brand-sky text-slate-600 hover:text-brand-deep text-[10px] font-bold transition-all">
                                 <i class="fa-solid fa-rotate-right mr-1"></i>รีเฟรช
                             </button>
                         </div>
-                        <p class="text-[11px] text-slate-500 mb-3">หน้าสแกนใบหน้าสำหรับเครื่องตั้ง succession — วางเมาส์บนกล้องเพื่อดูสถานะ</p>
+                        <p class="text-[11px] text-slate-500 mb-3">หน้าสแกนใบหน้าสำหรับเครื่องตั้ง succession — ลงเวลางานอัตโนมัติด้วย Face Recognition</p>
                         <div class="w-full rounded-xl overflow-hidden border border-slate-200" style="height: calc(100vh - 220px); min-height: 500px;">
-                            <iframe id="face-kiosk-iframe" src="about:blank" class="w-full h-full border-0" allow="camera; microphone" loading="lazy"></iframe>
+                            <iframe id="face-kiosk-frame" src="about:blank" class="w-full h-full border-0" allow="camera; microphone" loading="lazy"></iframe>
                         </div>
                     </div>
                 </section>
@@ -5800,13 +5800,13 @@
                                 <i class="fa-solid fa-user-gear text-brand-teal"></i>
                                 <h3 class="text-sm font-bold text-slate-800">ลงทะเบียนใบหน้าพนักงาน</h3>
                             </div>
-                            <button onclick="document.getElementById('face-register-iframe').src = document.getElementById('face-register-iframe').src" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-brand-sky text-slate-600 hover:text-brand-deep text-[10px] font-bold transition-all">
+                            <button onclick="loadFaceContent('register')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-brand-sky text-slate-600 hover:text-brand-deep text-[10px] font-bold transition-all">
                                 <i class="fa-solid fa-rotate-right mr-1"></i>รีเฟรช
                             </button>
                         </div>
                         <p class="text-[11px] text-slate-500 mb-3">ลงทะเบียนใบหน้าพนักงานใหม่หรืออัปเดต — ต้องใช้กล้องเว็บแคม</p>
                         <div class="w-full rounded-xl overflow-hidden border border-slate-200" style="height: calc(100vh - 220px); min-height: 500px;">
-                            <iframe id="face-register-iframe" src="about:blank" class="w-full h-full border-0" allow="camera; microphone" loading="lazy"></iframe>
+                            <iframe id="face-register-frame" src="about:blank" class="w-full h-full border-0" allow="camera; microphone" loading="lazy"></iframe>
                         </div>
                     </div>
                 </section>
@@ -7231,6 +7231,33 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     switchAdminTab('face-kiosk');
                 } else if (pageName === 'register') {
                     switchAdminTab('face-register');
+                }
+            }
+
+            // โหลด Face content เข้า iframe ผ่าน srcdoc (same-origin → กล้องทำงานได้)
+            // ใช้ fetch จาก GAS URL แล้ว inject เข้า iframe โดยไม่ต้อง cross-origin
+            const _faceContentCache = {};
+            async function loadFaceContent(pageType) {
+                const action = pageType === 'kiosk' ? 'kiosk' : 'register';
+                const frameId = pageType === 'kiosk' ? 'face-kiosk-frame' : 'face-register-frame';
+                const iframe = document.getElementById(frameId);
+                if (!iframe) return;
+
+                // ใช้ cache ถ้าเคยโหลดแล้ว (ไม่ fetch ซ้ำ)
+                if (_faceContentCache[action]) {
+                    iframe.srcdoc = _faceContentCache[action];
+                    return;
+                }
+
+                try {
+                    const gasUrl = 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec?action=' + action;
+                    const resp = await fetch(gasUrl);
+                    const html = await resp.text();
+                    _faceContentCache[action] = html;
+                    iframe.srcdoc = html;
+                } catch (err) {
+                    console.error('[loadFaceContent] Failed to load', action, err);
+                    iframe.srcdoc = '<html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#ef4444;"><div style="text-align:center"><h2>❌ ไม่สามารถโหลดหน้าได้</h2><p style="color:#64748b;margin-top:8px">' + err.message + '</p></div></body></html>';
                 }
             }
 
@@ -11827,17 +11854,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } else if (tabId === 'face-kiosk') {
                     titleEl.textContent = "สแกนใบหน้า (Kiosk)";
                     descEl.textContent = "หน้าสแกนใบหน้าสำหรับเครื่องตั้ง succession — ลงเวลางานอัตโนมัติด้วย Face Recognition";
-                    const iframe = document.getElementById('face-kiosk-iframe');
-                    if (iframe && iframe.src === 'about:blank') {
-                        iframe.src = 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec?action=kiosk';
-                    }
+                    loadFaceContent('kiosk');
                 } else if (tabId === 'face-register') {
                     titleEl.textContent = "ลงทะเบียนใบหน้าพนักงาน";
                     descEl.textContent = "บันทึก Face Descriptor ของพนักงานแต่ละคนเพื่อใช้สำหรับการสแกนใบหน้า";
-                    const iframe = document.getElementById('face-register-iframe');
-                    if (iframe && iframe.src === 'about:blank') {
-                        iframe.src = 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec?action=register';
-                    }
+                    loadFaceContent('register');
                 }
             }
 
