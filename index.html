@@ -3379,6 +3379,24 @@
                              </div>
                          </div>
                     </div>
+
+                    <!-- ═══ Reconcile Button Card ═══ -->
+                    <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-bold text-amber-800 flex items-center gap-2">
+                                    <i class="fa-solid fa-rotate text-amber-600"></i>
+                                    Reconcile ข้อมูลเวลา (วันละครั้ง)
+                                </h4>
+                                <p class="text-[11px] text-amber-700 mt-1">ตรวจสอบ attendance_raw ที่ยังไม่ถูกสร้างเป็น time_records แล้ว sync อัตโนมัติ</p>
+                            </div>
+                            <button onclick="manualReconcileAttendance()" id="btn-reconcile-attendance"
+                                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-md shadow-amber-200">
+                                <i class="fa-solid fa-rotate"></i> Reconcile เลย
+                            </button>
+                        </div>
+                        <div id="reconcile-result" class="hidden mt-3 p-3 rounded-xl bg-white/60 border border-amber-100"></div>
+                    </div>
                 </section>
 
                 <!-- SECTION 3: นำเข้าสลิปเงินเดือน (.pdf) -->
@@ -7277,6 +7295,43 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     console.warn('[isPinValid] API check failed:', e);
                     return false;
                 }
+            }
+
+            // 🔄 Manual Reconcile — attendance_raw → time_records
+            async function manualReconcileAttendance() {
+                const btn = document.getElementById('btn-reconcile-attendance');
+                const resultDiv = document.getElementById('reconcile-result');
+                if (!btn) return;
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบ...';
+                resultDiv.className = 'mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200';
+                resultDiv.innerHTML = '🔄 กำลังตรวจสอบ attendance_raw → time_records...';
+                resultDiv.classList.remove('hidden');
+
+                try {
+                    const result = await apiRequest({ action: 'reconcileAttendanceRaw' });
+                    if (result && result.status === 'success') {
+                        const d = result.data || {};
+                        resultDiv.className = 'mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200';
+                        resultDiv.innerHTML = '<p class="text-sm font-bold text-emerald-700">✅ ' + (result.message || 'Reconcile สำเร็จ') + '</p>' +
+                            '<p class="text-xs text-emerald-600 mt-1">' +
+                            'บันทึกใหม่: <strong>' + (d.inserted || 0) + '</strong> · ' +
+                            'อัปเดต: <strong>' + (d.updated || 0) + '</strong> · ' +
+                            'ข้าม: <strong>' + (d.skipped || 0) + '</strong> · ' +
+                            'ผิดพลาด: <strong>' + (d.errors || 0) + '</strong>' +
+                            '</p>';
+                    } else {
+                        resultDiv.className = 'mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200';
+                        resultDiv.innerHTML = '<p class="text-sm font-bold text-rose-700">❌ ' + (result && result.message || 'Reconcile ไม่สำเร็จ') + '</p>';
+                    }
+                } catch (err) {
+                    resultDiv.className = 'mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200';
+                    resultDiv.innerHTML = '<p class="text-sm font-bold text-rose-700">❌ เกิดข้อผิดพลาด: ' + (err.message || err) + '</p>';
+                }
+
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Reconcile เลย';
             }
 
             async function promptPinBeforeAutoLogin(empId) {
