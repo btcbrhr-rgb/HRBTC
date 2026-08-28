@@ -5876,7 +5876,7 @@
                             </div>
                             <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
                                 <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Layout</div>
-                                <div class="text-sm font-bold text-slate-800">2×3 Grid (6 ปุ่ม)</div>
+                                <div class="text-sm font-bold text-slate-800">3×2 Grid (6 ปุ่ม)</div>
                             </div>
                             <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
                                 <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Quota Impact</div>
@@ -5929,14 +5929,27 @@
                             </div>
                         </div>
 
+                        <!-- URL รูป Rich Menu -->
+                        <div class="mb-6">
+                            <h4 class="text-xs font-bold text-slate-600 mb-3"><i class="fa-solid fa-link mr-1.5 text-blue-500"></i>ลิงก์รูป Rich Menu</h4>
+                            <div class="flex gap-2 items-end">
+                                <div class="flex-1">
+                                    <input type="url" id="setting-richMenuImageUrl" placeholder="https://drive.google.com/uc?export=download&id=..."
+                                        class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                </div>
+                                <button onclick="saveRichMenuImageUrl()" class="px-4 py-2.5 rounded-xl bg-brand-teal hover:bg-teal-600 text-white text-xs font-bold transition-all shadow-sm whitespace-nowrap">
+                                    <i class="fa-solid fa-floppy-disk mr-1.5"></i>บันทึกลิงก์
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1.5">ใช้ URL แบบ direct download จาก Google Drive หรือ URL รูป PNG/JPG โดยตรง</p>
+                        </div>
+
                         <!-- วิธีใช้งาน -->
                         <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
                             <h4 class="text-xs font-bold text-blue-800 mb-2"><i class="fa-solid fa-info-circle mr-1"></i>วิธีตั้งค่า Rich Menu</h4>
                             <ol class="text-[11px] text-blue-700 space-y-1.5 list-decimal list-inside">
-                                <li>กดปุ่ม <strong>"ดาวน์โหลด PNG"</strong> ด้านบน → ได้ไฟล์ rich_menu_hrbtc.png</li>
-                                <li>อัปโหลดไฟล์ PNG ขึ้น <strong>Google Drive</strong> (ให้ GAS เข้าถึงได้)</li>
-                                <li>ใน Apps Script Editor → พิมพ์ <code>setupRichMenu()</code> → กด Run</li>
-                                <li>Rich Menu จะปรากฏใน LINE ของพนักงานทันที</li>
+                                <li>กรอก <strong>ลิงก์รูป Rich Menu</strong> ด้านบน → กดบันทึก</li>
+                                <li>กดปุ่ม <strong>"ตั้งค่าใน LINE OA"</strong> → Rich Menu จะถูกตั้งค่าอัตโนมัติ</li>
                             </ol>
                         </div>
                     </div>
@@ -7382,8 +7395,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     textDark: '#1E293B', textSub: '#64748B'
                 };
 
-                // Grid: 2 cols × 3 rows
-                const COLS = 2, ROWS = 3, PAD = 20, GAP = 16;
+                // Grid: 3 cols × 2 rows
+                const COLS = 3, ROWS = 2, PAD = 20, GAP = 16;
                 const cellW = (W - PAD*2 - GAP*(COLS-1)) / COLS;
                 const cellH = (H - PAD*2 - GAP*(ROWS-1)) / ROWS;
 
@@ -7468,6 +7481,41 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     showToast('❌ เกิดข้อผิดพลาด: ' + e.message, 'error');
                 }
             }
+
+            async function saveRichMenuImageUrl() {
+                const url = document.getElementById('setting-richMenuImageUrl').value.trim();
+                if (!url) { showToast('⚠️ กรุณากรอกลิงก์รูป', 'warning'); return; }
+                try {
+                    const res = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'saveSystemSettings',
+                            settings: { richMenuImageUrl: url }
+                        })
+                    });
+                    if (res.status === 'success') {
+                        showToast('✅ บันทึกลิงก์รูปสำเร็จ!', 'success');
+                    } else {
+                        showToast('❌ บันทึกล้มเหลว: ' + res.message, 'error');
+                    }
+                } catch (err) {
+                    showToast('❌ เชื่อมต่อ API ล้มเหลว: ' + err.message, 'error');
+                }
+            }
+
+            function loadRichMenuImageUrl() {
+                try {
+                    fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`)
+                    .then(res => {
+                        if (res.status === 'success' && res.data?.richMenuImageUrl) {
+                            document.getElementById('setting-richMenuImageUrl').value = res.data.richMenuImageUrl;
+                        }
+                    })
+                    .catch(() => {});
+                } catch (e) {}
+            }
+            // เรียกโหลดค่าเมื่อเข้าสู่หน้า Rich Menu
+            setTimeout(loadRichMenuImageUrl, 1000);
 
             // ═══════════════════════════════════════════════════════════════
 
