@@ -169,6 +169,22 @@
       color: #64748B;
     }
 
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(79, 70, 229, 0.08);
+      color: var(--primary);
+      border: 1px solid rgba(79, 70, 229, 0.14);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
     .form-group {
       margin-bottom: 20px;
     }
@@ -517,7 +533,8 @@
   <div class="container">
     <header>
       <h1>🧬 ระบบลงทะเบียนใบหน้าพนักงาน</h1>
-      <p>สแกนใบหน้าครบ 3 มุมมองเพื่อประสิทธิภาพสูงสุดในการรู้จำ</p>
+      <p>Real-time face detection + tracking + pose estimation + capture trigger</p>
+      <div class="status-pill">4-layer face verification</div>
     </header>
 
     <div id="toast" class="status-toast info">กำลังโหลดโมเดลปัญญาประดิษฐ์ (AI Models)... กรุณารอสักครู่</div>
@@ -608,6 +625,7 @@
       face: ''
     };
     let faceScanStableFrames = 0;
+    let lastFaceCenter = null;
     const FACE_SCAN_STABLE_FRAMES = 8;
 
     const DEFAULT_SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
@@ -878,15 +896,92 @@
       descriptorsCollected = { face: null };
       capturedShots = { face: '' };
       faceScanStableFrames = 0;
+      lastFaceCenter = null;
       renderCaptureShots();
       updateStepUI();
-      hudText.textContent = 'กำลังสแกนใบหน้า… ให้ใบหน้าตรงกลางกล้องและอยู่นิ่ง';
+      hudText.textContent = 'กำลังสแกนใบหน้าแบบ real-time… ให้ใบหน้าตรงกลาง กล้องและนิ่งพอ';
 
       // เริ่มสแกนเรียลไทม์
       runFaceTracking();
     }
 
-    // ฟังก์ชันรันกล้องและหาเฟซเวกเตอร์
+    function averagePoint(points) {
+      const total = points.reduce((acc, point) => {
+        acc.x += point.x;
+        acc.y += point.y;
+        return acc;
+      }, { x: 0, y: 0 });
+      return {
+        x: total.x / points.length,
+        y: total.y / points.length
+      };
+    }
+
+    function pointDistance(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function estimateFacePose(detection) {
+      const landmarks = detection.landmarks;
+      if (!landmarks || !landmarks.positions || landmarks.positions.length < 15) {
+        return { yaw: 0, pitch: 0, roll: 0, valid: false };
+      }
+
+      const leftEye = landmarks.getLeftEye();
+      const rightEye = landmarks.getRightEye();
+      const nose = landmarks.getNose();
+      const mouth = landmarks.getMouth();
+
+      const leftEyeCenter = averagePoint(leftEye);
+      const rightEyeCenter = averagePoint(rightEye);
+      const eyeCenter = {
+        x: (leftEyeCenter.x + rightEyeCenter.x) / 2,
+        y: (leftEyeCenter.y + rightEyeCenter.y) / 2
+      };
+      const noseTip = nose[3] || nose[0];
+      const mouthCenter = averagePoint(mouth);
+      const eyeDistance = Math.max(8, pointDistance(leftEyeCenter, rightEyeCenter));
+
+      const yaw = ((noseTip.x - eyeCenter.x) / eyeDistance) * 100;
+      const pitch = ((mouthCenter.y - noseTip.y) / eyeDistance) * 100;
+      const roll = (Math.atan2(rightEyeCenter.y - leftEyeCenter.y, rightEyeCenter.x - leftEyeCenter.x) * 180) / Math.PI;
+
+      return {
+        yaw,
+        pitch,
+        roll,
+        valid: Math.abs(yaw) < 20 && Math.abs(pitch) < 18 && Math.abs(roll) < 22
+      };
+    }
+
+    function evaluateCaptureReadiness(detection, displaySize) {
+      const box = detection.detection.box;
+      const faceCenter = {
+        x: box.x + box.width / 2,
+        y: box.y + box.height / 2
+      };
+      const frameCenter = {
+        x: displaySize.width / 2,
+        y: displaySize.height / 2
+      };
+      const centered =
+        Math.abs(faceCenter.x - frameCenter.x) / displaySize.width < 0.12 &&
+        Math.abs(faceCenter.y - frameCenter.y) / displaySize.height < 0.18;
+
+      const sizeOk = box.width > displaySize.width * 0.18 && box.width < displaySize.width * 0.7;
+      const pose = estimateFacePose(detection);
+      const motionOk = !lastFaceCenter || Math.hypot(faceCenter.x - lastFaceCenter.x, faceCenter.y - lastFaceCenter.y) < 12;
+      lastFaceCenter = faceCenter;
+
+      return {
+        centered,
+        sizeOk,
+        motionOk,
+        pose,
+        ready: centered && sizeOk && motionOk && pose.valid
+      };
+    }
+
     function drawTrackingBox(detection, displaySize) {
       const ctx = canvas.getContext('2d');
       const box = detection.detection.box;
@@ -939,50 +1034,79 @@
     function runFaceTracking() {
       const displaySize = { width: webcam.videoWidth, height: webcam.videoHeight };
       faceapi.matchDimensions(canvas, displaySize);
+      lastFaceCenter = null;
 
       faceDetectionInterval = setInterval(async () => {
         if (!isRegistering) return;
 
-        const detection = await faceapi.detectSingleFace(webcam)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        try {
+          const detection = await faceapi.detectSingleFace(webcam)
+            .withFaceLandmarks()
+            .withFaceDescriptor();
 
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        if (trackingIndicator) {
-          trackingIndicator.style.width = '0px';
-          trackingIndicator.style.height = '0px';
-        }
-
-        if (detection) {
-          updateCapturePreview();
-          const resizedDetections = faceapi.resizeResults(detection, displaySize);
-          faceapi.draw.drawDetections(canvas, resizedDetections);
-          drawTrackingBox(detection, displaySize);
-
-          if (currentStep === 1) {
-            faceScanStableFrames += 1;
-            hudText.textContent = 'กำลังสแกนใบหน้า… ' + Math.min(faceScanStableFrames, FACE_SCAN_STABLE_FRAMES) + '/' + FACE_SCAN_STABLE_FRAMES;
-
-            if (faceScanStableFrames >= FACE_SCAN_STABLE_FRAMES) {
-              descriptorsCollected.face = Array.from(detection.descriptor);
-              capturedShots.face = snapshotFaceFrame();
-              renderCaptureShots();
-              showToast('success', 'สแกนใบหน้าเรียบร้อยแล้ว!');
-
-              isRegistering = false;
-              clearInterval(faceDetectionInterval);
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              hudText.textContent = 'บันทึกใบหน้าสำเร็จ กำลังอัปโหลดข้อมูลเข้าระบบ...';
-              uploadFaceData();
-            }
+          if (trackingIndicator) {
+            trackingIndicator.style.width = '0px';
+            trackingIndicator.style.height = '0px';
           }
-        } else {
+
+          if (detection) {
+            const resizedDetections = faceapi.resizeResults(detection, displaySize);
+            faceapi.draw.drawDetections(canvas, resizedDetections);
+            faceapi.draw.drawFaceLandmarks(canvas, resizedDetections, { drawLines: true, color: 'rgb(56, 189, 248)' });
+            drawTrackingBox(detection, displaySize);
+
+            const readiness = evaluateCaptureReadiness(detection, displaySize);
+            const poseText = readiness.pose.valid ? 'มุมใบหน้า: ปกติ' : `มุมใบหน้า: ${Math.round(readiness.pose.yaw)}° / ${Math.round(readiness.pose.pitch)}°`;
+            const centerText = readiness.centered ? 'ใบหน้าตรงกลาง' : 'เลื่อนใบหน้าเข้าตรงกลาง';
+            const motionText = readiness.motionOk ? 'นิ่งพอ' : 'กำลังขยับ';
+
+            hudText.textContent = `${centerText} • ${poseText} • ${motionText}`;
+
+            if (currentStep === 1) {
+              if (readiness.ready) {
+                faceScanStableFrames += 1;
+              } else {
+                faceScanStableFrames = 0;
+              }
+
+              const progress = Math.min(faceScanStableFrames, FACE_SCAN_STABLE_FRAMES);
+              hudText.textContent = `${centerText} • ${poseText} • ${motionText} • ${progress}/${FACE_SCAN_STABLE_FRAMES}`;
+
+              if (poseGuide) {
+                poseGuide.innerHTML = `<strong>Real-time Face Detection</strong><div style="font-size:11px; opacity:0.9; margin-top:2px;">Tracking: ${centerText} • Pose: ${Math.abs(readiness.pose.yaw).toFixed(1)}° • Stable: ${progress}/${FACE_SCAN_STABLE_FRAMES}</div>`;
+              }
+
+              if (faceScanStableFrames >= FACE_SCAN_STABLE_FRAMES) {
+                descriptorsCollected.face = Array.from(detection.descriptor);
+                capturedShots.face = snapshotFaceFrame();
+                renderCaptureShots();
+                showToast('success', 'ตรวจจับใบหน้าและจับภาพสำเร็จแล้ว');
+
+                isRegistering = false;
+                clearInterval(faceDetectionInterval);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                hudText.textContent = 'บันทึกใบหน้าสำเร็จ กำลังอัปโหลดข้อมูลเข้าระบบ...';
+                uploadFaceData();
+              }
+            }
+          } else {
+            faceScanStableFrames = 0;
+            lastFaceCenter = null;
+            if (poseGuide) {
+              poseGuide.innerHTML = '<strong>Face detection</strong><div style="font-size:11px; opacity:0.9; margin-top:2px;">ไม่พบใบหน้า • กรุณาเลื่อนหน้าเข้าหากล้อง</div>';
+            }
+            hudText.textContent = 'ไม่พบใบหน้าในกล้อง กรุณาเลื่อนใบหน้าเข้ามาใกล้และอยู่ตรงกลาง';
+          }
+        } catch (error) {
+          console.error('Face tracking error:', error);
           faceScanStableFrames = 0;
-          hudText.textContent = 'ไม่พบใบหน้าในกล้อง กรุณาเลื่อนใบหน้าเข้ามาใกล้และอยู่ตรงกลาง';
+          lastFaceCenter = null;
+          hudText.textContent = 'ระบบแยกวิเคราะห์ใบหน้าไม่ชัด กรุณาอยู่นิ่งอีกสักครู่';
         }
-      }, 300);
+      }, 220);
     }
 
     // แสดงขั้นตอน HUD
