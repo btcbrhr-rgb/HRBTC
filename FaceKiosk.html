@@ -614,19 +614,32 @@
         // ดึงโครงการ
         callBackend('getProjectsList')
           .then(function(projRes) {
-            if(projRes.status === 'success') {
+            if (projRes.status === 'success') {
               projectSelect.innerHTML = '';
-              projRes.data.forEach(p => {
+              const projectList = Array.isArray(projRes.data) ? projRes.data : [];
+
+              projectList.forEach((p) => {
+                const projectName = typeof p === 'string'
+                  ? p
+                  : (p['ชื่อโครงการ'] || p.name || p.project_name || p.title || '');
+
+                if (!projectName || !String(projectName).trim()) return;
+
                 const opt = document.createElement('option');
-                opt.value = p['ชื่อโครงการ'] || p.name;
-                opt.textContent = p['ชื่อโครงการ'] || p.name;
+                opt.value = String(projectName).trim();
+                opt.textContent = String(projectName).trim();
                 projectSelect.appendChild(opt);
               });
-              // เซ็ตโครงการที่บันทึกไว้ในอดีต (ถ้ามี)
-              if (lockedProject) {
-                projectSelect.value = lockedProject;
+
+              if (projectSelect.options.length > 0) {
+                projectSelect.value = lockedProject || projectSelect.options[0].value;
               }
+            } else {
+              console.warn('Project list load failed:', projRes.message || projRes);
             }
+          })
+          .catch(function(err) {
+            console.error('getProjectsList error:', err);
           });
 
         // ดึงโมเดลข้อมูลใบหน้า
