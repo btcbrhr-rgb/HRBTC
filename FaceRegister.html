@@ -516,17 +516,40 @@
         .then(function(response) {
           if (response.status === 'success') {
             employeeSelect.innerHTML = '<option value="">-- กรุณาเลือกพนักงาน --</option>';
-            response.data.forEach(function(emp) {
+            const employees = Array.isArray(response.data) ? response.data : [];
+
+            employees.forEach(function(emp) {
               const opt = document.createElement('option');
-              const empId = emp['รหัสพนักงาน'] || emp.empId;
-              const name = emp['ชื่อ-นามสกุล'] || emp.name;
-              const dept = emp['ตำแหน่ง'] || emp.dept || 'ไม่ระบุแผนก';
-              opt.value = empId;
-              opt.textContent = `${empId} - ${name} (${dept})`;
+              const empId =
+                emp['รหัสพนักงาน'] ||
+                emp.emp_id ||
+                emp.employee_id ||
+                emp.empId ||
+                emp.id ||
+                '';
+
+              const name =
+                emp['ชื่อ-นามสกุล'] ||
+                emp.name ||
+                emp.full_name ||
+                emp.employee_name ||
+                'ไม่ระบุชื่อ';
+
+              const dept =
+                emp['ตำแหน่ง'] ||
+                emp.position ||
+                emp.department ||
+                emp.dept ||
+                'ไม่ระบุแผนก';
+
+              if (!empId) return;
+
+              opt.value = String(empId).trim();
+              opt.textContent = `${String(empId).trim()} - ${String(name).trim()} (${String(dept).trim()})`;
               employeeSelect.appendChild(opt);
             });
             employeeSelect.disabled = false;
-            btnStart.disabled = false;
+            btnStart.disabled = employees.length === 0;
           } else {
             showToast('error', 'โหลดรายชื่อพนักงานไม่สำเร็จ: ' + response.message);
           }
