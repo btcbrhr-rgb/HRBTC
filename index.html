@@ -6915,23 +6915,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         );
                     });
 
-                    chan.subscribe((status) => {
-                        console.log('[Realtime] Subscription status:', status);
-                        if (status === 'SUBSCRIBED') {
-                            this._status = 'connected';
-                            this._reconnectAttempts = 0;
-                            this._updateIndicator();
-                            if (typeof logDbActivity === 'function') {
-                                logDbActivity('SYNC', 'Realtime', 'เชื่อมต่อ Real-time Synchronization สำเร็จ (พร้อมรับการอัปเดตทันที)', 'success');
-                            }
-                        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                            this._status = 'disconnected';
-                            this._updateIndicator();
-                            this._scheduleReconnect();
+                    try {
+                        if (typeof chan.subscribe === 'function') {
+                            chan.subscribe();
                         }
-                    });
+                    } catch (error) {
+                        console.warn('[Realtime] subscribe failed, disabling realtime for this session:', error);
+                        this._status = 'disconnected';
+                        this._updateIndicator();
+                        return;
+                    }
 
                     this._channel = chan;
+                    this._status = 'connected';
+                    this._reconnectAttempts = 0;
+                    this._updateIndicator();
+                    if (typeof logDbActivity === 'function') {
+                        logDbActivity('SYNC', 'Realtime', 'เชื่อมต่อ Real-time Synchronization สำเร็จ (พร้อมรับการอัปเดตทันที)', 'success');
+                    }
                 },
 
                 _handleEvent(table, payload) {
