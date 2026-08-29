@@ -74,34 +74,52 @@
       gap: 16px;
     }
 
-    .capture-preview {
-      width: 100%;
-      aspect-ratio: 4 / 3;
+    .capture-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .capture-card {
       background: linear-gradient(135deg, #0f172a, #1f2937);
       border: 1px solid rgba(148, 163, 184, 0.35);
-      border-radius: 18px;
+      border-radius: 14px;
       overflow: hidden;
+      min-height: 130px;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
+      flex-direction: column;
       box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
     }
 
-    .capture-preview img {
+    .capture-card-label {
+      font-size: 11px;
+      color: #cbd5e1;
+      text-align: center;
+      padding: 8px 6px 6px;
+      background: rgba(15, 23, 42, 0.7);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .capture-card img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
       background: #020817;
+      min-height: 90px;
     }
 
-    .capture-placeholder {
+    .capture-card.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #111827, #1f2937);
       color: rgba(255,255,255,0.7);
-      font-size: 14px;
+      font-size: 12px;
       text-align: center;
-      padding: 20px;
-      line-height: 1.5;
+      padding: 8px;
+      line-height: 1.4;
     }
 
     @media(max-width: 860px) {
@@ -488,13 +506,23 @@
           </div>
         </div>
 
-        <div class="capture-preview" aria-label="ภาพที่จับได้จากกล้อง">
-          <img id="capture-preview" alt="ภาพที่จับได้จากกล้อง" style="display:none;" />
-          <div id="capture-placeholder" class="capture-placeholder">ภาพที่จับได้จะปรากฏที่นี่<br>ก่อนกดบันทึก</div>
+        <div class="capture-grid" aria-label="ภาพที่จับได้ตามขั้นตอน 1 2 3">
+          <div class="capture-card" data-slot="straight">
+            <div class="capture-card-label">1. มองตรง</div>
+            <img id="capture-preview-straight" alt="ภาพมองตรง" style="display:none;" />
+          </div>
+          <div class="capture-card" data-slot="left">
+            <div class="capture-card-label">2. หันซ้าย</div>
+            <img id="capture-preview-left" alt="ภาพหันซ้าย" style="display:none;" />
+          </div>
+          <div class="capture-card" data-slot="right">
+            <div class="capture-card-label">3. หันขวา</div>
+            <img id="capture-preview-right" alt="ภาพหันขวา" style="display:none;" />
+          </div>
         </div>
 
         <!-- Action panel -->
-        <div class="actions-panel">
+        <div class="actions-panel" style="margin-top: 18px;">
           <button id="btn-back" class="btn-secondary" onclick="window.history.back()">ย้อนกลับ</button>
           <button id="btn-start" class="btn-primary" disabled onclick="startRegistrationFlow()">
             <span id="btn-text">เริ่มสแกนลงทะเบียน</span>
@@ -512,8 +540,9 @@
     const employeeSelect = document.getElementById('employee-select');
     const btnStart = document.getElementById('btn-start');
     const btnText = document.getElementById('btn-text');
-    const capturePreview = document.getElementById('capture-preview');
-    const capturePlaceholder = document.getElementById('capture-placeholder');
+    const capturePreviewStraight = document.getElementById('capture-preview-straight');
+    const capturePreviewLeft = document.getElementById('capture-preview-left');
+    const capturePreviewRight = document.getElementById('capture-preview-right');
 
     let modelsLoaded = false;
     let localStream = null;
@@ -526,6 +555,11 @@
       straight: null,
       left: null,
       right: null
+    };
+    let capturedShots = {
+      straight: '',
+      left: '',
+      right: ''
     };
 
     const DEFAULT_SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
@@ -709,12 +743,48 @@
       tempCanvas.height = height;
       const ctx = tempCanvas.getContext('2d');
       ctx.drawImage(webcam, 0, 0, width, height);
-      const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9);
-      capturePreview.src = dataUrl;
-      capturePreview.style.display = 'block';
-      if (capturePlaceholder) {
-        capturePlaceholder.style.display = 'none';
+      const liveDataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
+      if (currentStep === 1) {
+        capturePreviewStraight.src = liveDataUrl;
+        capturePreviewStraight.style.display = 'block';
+      } else if (currentStep === 2) {
+        capturePreviewLeft.src = liveDataUrl;
+        capturePreviewLeft.style.display = 'block';
+      } else if (currentStep === 3) {
+        capturePreviewRight.src = liveDataUrl;
+        capturePreviewRight.style.display = 'block';
       }
+    }
+
+    function snapshotFaceFrame() {
+      if (!webcam || !webcam.videoWidth || !webcam.videoHeight) return '';
+      const tempCanvas = document.createElement('canvas');
+      const width = Math.min(webcam.videoWidth, 640);
+      const height = Math.min(webcam.videoHeight, 480);
+      tempCanvas.width = width;
+      tempCanvas.height = height;
+      const ctx = tempCanvas.getContext('2d');
+      ctx.drawImage(webcam, 0, 0, width, height);
+      return tempCanvas.toDataURL('image/jpeg', 0.9);
+    }
+
+    function renderCaptureShots() {
+      const slots = [
+        { key: 'straight', el: capturePreviewStraight },
+        { key: 'left', el: capturePreviewLeft },
+        { key: 'right', el: capturePreviewRight }
+      ];
+
+      slots.forEach(({ key, el }) => {
+        const src = capturedShots[key];
+        if (src) {
+          el.src = src;
+          el.style.display = 'block';
+        } else {
+          el.src = '';
+          el.style.display = 'none';
+        }
+      });
     }
 
     // เริ่ม Flow ลงทะเบียน
@@ -725,7 +795,6 @@
         return;
       }
 
-      updateCapturePreview();
       btnStart.disabled = true;
       employeeSelect.disabled = true;
       isRegistering = true;
@@ -748,6 +817,8 @@
       // รีเซ็ตขั้นตอนสแกน
       currentStep = 1;
       descriptorsCollected = { straight: null, left: null, right: null };
+      capturedShots = { straight: '', left: '', right: '' };
+      renderCaptureShots();
       updateStepUI();
 
       // เริ่มสแกนเรียลไทม์
@@ -800,6 +871,8 @@
             // หน้าตรง (อัตราส่วนจมูกอยู่กึ่งกลางใกล้ 0.5)
             if (poseRatio > 0.43 && poseRatio < 0.57) {
               descriptorsCollected.straight = Array.from(detection.descriptor);
+              capturedShots.straight = snapshotFaceFrame();
+              renderCaptureShots();
               showToast('success', 'เก็บมุมมองหน้าตรงสำเร็จแล้ว!');
               currentStep = 2;
               updateStepUI();
@@ -810,6 +883,8 @@
             // หันซ้าย (จมูกขยับเข้าใกล้ขอบแก้มซ้าย)
             if (poseRatio <= 0.40) {
               descriptorsCollected.left = Array.from(detection.descriptor);
+              capturedShots.left = snapshotFaceFrame();
+              renderCaptureShots();
               showToast('success', 'เก็บมุมมองหันซ้ายสำเร็จแล้ว!');
               currentStep = 3;
               updateStepUI();
@@ -820,6 +895,8 @@
             // หันขวา (จมูกขยับเข้าใกล้ขอบแก้มขวา)
             if (poseRatio >= 0.60) {
               descriptorsCollected.right = Array.from(detection.descriptor);
+              capturedShots.right = snapshotFaceFrame();
+              renderCaptureShots();
               showToast('success', 'เก็บมุมมองหันขวาสำเร็จแล้ว!');
               
               // จบภารกิจสแกนครบ 3 มิติ
