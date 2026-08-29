@@ -518,12 +518,33 @@
     const secPasswordCheck = document.getElementById('sec-password-check');
     const secProjectLock = document.getElementById('sec-project-lock');
     const adminPinInput = document.getElementById('admin-pin-input');
-    // โครงการที่ล็อก — เก็บใน runtime memory (ไม่ใช้ localStorage)
-    let lockedProject = "";
+
+    const KIOSK_DEVICE_ID_KEY = 'hrbtc_face_kiosk_device_id';
+    const KIOSK_PROJECT_KEY = 'hrbtc_face_kiosk_project';
+
+    let kioskDeviceId = '';
+    // โครงการที่ล็อก — เก็บแบบ per browser/device เพื่อให้แต่ละเครื่องมี project ของตัวเอง
+    let lockedProject = localStorage.getItem(KIOSK_PROJECT_KEY) || "";
+
+    function generateKioskDeviceId() {
+      const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const timestampPart = Date.now().toString(36).slice(-4).toUpperCase();
+      return `KIOSK-${timestampPart}-${randomPart}`;
+    }
+
+    function getOrCreateKioskDeviceId() {
+      let id = localStorage.getItem(KIOSK_DEVICE_ID_KEY);
+      if (!id) {
+        id = generateKioskDeviceId();
+        localStorage.setItem(KIOSK_DEVICE_ID_KEY, id);
+      }
+      kioskDeviceId = id;
+      return id;
+    }
 
     function updateProjectUI() {
       if (lockedProject) {
-        activeProjectLabel.textContent = lockedProject;
+        activeProjectLabel.textContent = `${lockedProject} • ${kioskDeviceId || 'KIOSK'}`;
         activeProjectLabel.style.color = '#34D399'; // สีเขียวสว่าง แสดงสถานะล็อกสำเร็จ
       } else {
         activeProjectLabel.textContent = "ยังไม่ได้ล็อกโครงการ (กรุณากดไอคอนฟันเฟืองเพื่อล็อก)";
@@ -595,12 +616,14 @@
         return;
       }
       lockedProject = selectedProj;
+      localStorage.setItem(KIOSK_PROJECT_KEY, lockedProject);
       updateProjectUI();
       closeConfigModal();
     }
 
     // 2. โหลดโมเดลและข้อมูล Database พร้อมกัน
     async function initKiosk() {
+      getOrCreateKioskDeviceId();
       updateProjectUI();
       try {
         loaderStatus.textContent = 'ดาวน์โหลดปัญญาประดิษฐ์จาก Cloud...';
@@ -825,10 +848,10 @@
       
       const payload = {
         empId: empId,
-        deviceId: 'WEB_FACE_KIOSK',
+        deviceId: kioskDeviceId || 'WEB_FACE_KIOSK',
         type: modeSelect.value,
         project: lockedProject || "สำนักงานใหญ่",
-        notes: 'บันทึกเวลาผ่านระบบสแกนใบหน้ากลางส่วนกลาง'
+        notes: `บันทึกเวลาผ่านระบบสแกนใบหน้ากลางส่วนกลาง | kiosk=${kioskDeviceId || 'WEB_FACE_KIOSK'}`
       };
 
       cameraBox.classList.remove('scanning');
