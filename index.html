@@ -7420,8 +7420,34 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // ═══════════════════════════════════════════════════════════════
 
             // โหลด Face content เข้า iframe ผ่าน srcdoc (same-origin → กล้องทำงานได้)
-            // ใช้ fetch จาก GAS URL แล้ว inject เข้า iframe โดยไม่ต้อง cross-origin
+            // ให้ใช้ GitHub-hosted asset เป็นหลัก เพื่อรองรับการโฮสต์บน GitHub Pages / raw GitHub
+            // และ fallback ไปยัง GAS URL เฉพาะกรณีที่ asset ดั้งเดิมไม่พร้อมใช้งาน
             const _faceContentCache = {};
+            const GH_FACE_ASSET_BASE = 'https://raw.githubusercontent.com/btcbrhr-rgb/HRBTC/main';
+            const GH_PAGES_FACE_BASE = 'https://btcbrhr-rgb.github.io/HRBTC';
+            const GAS_FACE_BASE = 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec?action=';
+
+            async function resolveFacePageHtml(pageType) {
+                const fileName = pageType === 'kiosk' ? 'FaceKiosk.html' : 'FaceRegister.html';
+                const candidates = [
+                    GH_PAGES_FACE_BASE + '/' + fileName,
+                    GH_FACE_ASSET_BASE + '/' + fileName,
+                    GAS_FACE_BASE + (pageType === 'kiosk' ? 'kiosk' : 'register')
+                ];
+
+                for (const url of candidates) {
+                    try {
+                        const resp = await fetch(url, { cache: 'no-store' });
+                        if (!resp.ok) continue;
+                        return await resp.text();
+                    } catch (err) {
+                        console.warn('[resolveFacePageHtml] Failed to load from', url, err.message);
+                    }
+                }
+
+                throw new Error('ไม่สามารถโหลดหน้า Face Kiosk/Register จากโฮสต์ GitHub หรือ GAS ได้');
+            }
+
             async function loadFaceContent(pageType) {
                 const action = pageType === 'kiosk' ? 'kiosk' : 'register';
                 const frameId = pageType === 'kiosk' ? 'face-kiosk-frame' : 'face-register-frame';
@@ -7435,9 +7461,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 try {
-                    const gasUrl = 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec?action=' + action;
-                    const resp = await fetch(gasUrl);
-                    const html = await resp.text();
+                    const html = await resolveFacePageHtml(pageType);
                     _faceContentCache[action] = html;
                     iframe.srcdoc = html;
                 } catch (err) {
