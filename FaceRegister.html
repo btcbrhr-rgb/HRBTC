@@ -557,34 +557,18 @@
         <div class="steps-container">
           <div id="hud-step-1" class="step-item active">
             <div class="step-circle">1</div>
-            <div class="step-label">มองตรง</div>
-          </div>
-          <div id="hud-step-2" class="step-item">
-            <div class="step-circle">2</div>
-            <div class="step-label">ซ้ายของภาพ</div>
-          </div>
-          <div id="hud-step-3" class="step-item">
-            <div class="step-circle">3</div>
-            <div class="step-label">ขวาของภาพ</div>
+            <div class="step-label">สแกนใบหน้า</div>
           </div>
         </div>
 
         <div style="font-size:12px; color:#475569; text-align:center; margin-top:-8px; margin-bottom:12px; font-weight:700;">
-          ซ้าย/ขวา = ตามหน้าจอกล้อง
+          ตรวจจับใบหน้าแบบ real-time จากกล้อง
         </div>
 
-        <div class="capture-grid" aria-label="ภาพที่จับได้ตามขั้นตอน 1 2 3">
-          <div class="capture-card" data-slot="straight">
-            <div class="capture-card-label">1. มองตรง</div>
-            <img id="capture-preview-straight" alt="ภาพมองตรง" style="display:none;" />
-          </div>
-          <div class="capture-card" data-slot="left">
-            <div class="capture-card-label">2. หันซ้าย</div>
-            <img id="capture-preview-left" alt="ภาพหันซ้าย" style="display:none;" />
-          </div>
-          <div class="capture-card" data-slot="right">
-            <div class="capture-card-label">3. หันขวา</div>
-            <img id="capture-preview-right" alt="ภาพหันขวา" style="display:none;" />
+        <div class="capture-grid" aria-label="ภาพใบหน้า ที่ได้จากการสแกน">
+          <div class="capture-card" data-slot="face" style="grid-column: 1 / -1; min-height: 170px;">
+            <div class="capture-card-label">ภาพใบหน้าที่สแกนได้</div>
+            <img id="capture-preview-face" alt="ภาพใบหน้าที่สแกนได้" style="display:none;" />
           </div>
         </div>
 
@@ -609,27 +593,22 @@
     const employeeSelect = document.getElementById('employee-select');
     const btnStart = document.getElementById('btn-start');
     const btnText = document.getElementById('btn-text');
-    const capturePreviewStraight = document.getElementById('capture-preview-straight');
-    const capturePreviewLeft = document.getElementById('capture-preview-left');
-    const capturePreviewRight = document.getElementById('capture-preview-right');
+    const capturePreviewFace = document.getElementById('capture-preview-face');
 
     let modelsLoaded = false;
     let localStream = null;
     let faceDetectionInterval = null;
     let isRegistering = false;
-    
-    // สถานะขั้นตอนการเก็บ Vector
-    let currentStep = 0; // 0 = ยังไม่เริ่ม, 1 = มองตรง, 2 = หันซ้าย, 3 = หันขวา
+
+    let currentStep = 0;
     let descriptorsCollected = {
-      straight: null,
-      left: null,
-      right: null
+      face: null
     };
     let capturedShots = {
-      straight: '',
-      left: '',
-      right: ''
+      face: ''
     };
+    let faceScanStableFrames = 0;
+    const FACE_SCAN_STABLE_FRAMES = 8;
 
     const DEFAULT_SERVER_API_URL = "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
     let SERVER_API_URL = DEFAULT_SERVER_API_URL;
@@ -731,48 +710,71 @@
 
     // เริ่มสตรีมกล้อง
     let currentFacingMode = 'user'; // 'user' = front, 'environment' = rear
+
+    function getCameraConstraints() {
+      const baseVideo = {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        aspectRatio: 1.7777777778
+      };
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return { video: true, audio: false };
+      }
+
+      return {
+        video: {
+          ...baseVideo,
+          facingMode: { ideal: currentFacingMode }
+        },
+        audio: false
+      };
+    }
+
     async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('error', 'เบราว์เซอร์นี้ไม่รองรับการเข้าถึงกล้อง');
+        return false;
+      }
+
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
-      
-      // ข้อกำหนดกล้อง (Constraints)
-      let constraints = {
-        video: { facingMode: currentFacingMode },
-        audio: false
-      };
-      
+
+      const primaryConstraints = getCameraConstraints();
+
       try {
-        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        localStream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
       } catch (firstErr) {
-        console.warn("Retrying with fallback constraints due to:", firstErr);
+        console.warn('Camera with facingMode failed, retrying with generic camera fallback:', firstErr);
         try {
-          // Fallback 1: หากขอความละเอียดเฉพาะเจาะจง หรือกล้องหลังตัวนั้นไม่มี ให้ใช้แบบทั่วไป
-          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          localStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+          });
         } catch (secondErr) {
-          console.error("Camera access failed completely:", secondErr);
-          showToast('error', 'ไม่สามารถเข้าถึงกล้องถ่ายภาพได้: ' + secondErr.message);
+          console.error('Camera access failed completely:', secondErr);
+          showToast('error', 'ไม่สามารถเข้าถึงกล้องถ่ายภาพได้: ' + (secondErr.message || 'อุปกรณ์นี้ไม่อนุญาตให้ใช้กล้อง'));
           return false;
         }
       }
 
       try {
         webcam.srcObject = localStream;
-        
-        // กลับภาพเฉพาะกล้องหน้าพนักงาน
+
         if (currentFacingMode === 'user') {
-          webcam.style.transform = "scaleX(-1)";
-          canvas.style.transform = "scaleX(-1)";
+          webcam.style.transform = 'scaleX(-1)';
+          canvas.style.transform = 'scaleX(-1)';
         } else {
-          webcam.style.transform = "none";
-          canvas.style.transform = "none";
+          webcam.style.transform = 'none';
+          canvas.style.transform = 'none';
         }
 
         return new Promise((resolve) => {
           webcam.onloadedmetadata = () => {
-            canvas.width = webcam.videoWidth;
-            canvas.height = webcam.videoHeight;
-            const displaySize = { width: webcam.videoWidth, height: webcam.videoHeight };
+            canvas.width = webcam.videoWidth || 640;
+            canvas.height = webcam.videoHeight || 480;
+            const displaySize = { width: webcam.videoWidth || 640, height: webcam.videoHeight || 480 };
             faceapi.matchDimensions(canvas, displaySize);
             resolve(true);
           };
@@ -813,15 +815,9 @@
       const ctx = tempCanvas.getContext('2d');
       ctx.drawImage(webcam, 0, 0, width, height);
       const liveDataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
-      if (currentStep === 1) {
-        capturePreviewStraight.src = liveDataUrl;
-        capturePreviewStraight.style.display = 'block';
-      } else if (currentStep === 2) {
-        capturePreviewLeft.src = liveDataUrl;
-        capturePreviewLeft.style.display = 'block';
-      } else if (currentStep === 3) {
-        capturePreviewRight.src = liveDataUrl;
-        capturePreviewRight.style.display = 'block';
+      if (capturePreviewFace) {
+        capturePreviewFace.src = liveDataUrl;
+        capturePreviewFace.style.display = 'block';
       }
     }
 
@@ -838,22 +834,16 @@
     }
 
     function renderCaptureShots() {
-      const slots = [
-        { key: 'straight', el: capturePreviewStraight },
-        { key: 'left', el: capturePreviewLeft },
-        { key: 'right', el: capturePreviewRight }
-      ];
-
-      slots.forEach(({ key, el }) => {
-        const src = capturedShots[key];
+      const src = capturedShots.face;
+      if (capturePreviewFace) {
         if (src) {
-          el.src = src;
-          el.style.display = 'block';
+          capturePreviewFace.src = src;
+          capturePreviewFace.style.display = 'block';
         } else {
-          el.src = '';
-          el.style.display = 'none';
+          capturePreviewFace.src = '';
+          capturePreviewFace.style.display = 'none';
         }
-      });
+      }
     }
 
     // เริ่ม Flow ลงทะเบียน
@@ -885,11 +875,12 @@
 
       // รีเซ็ตขั้นตอนสแกน
       currentStep = 1;
-      descriptorsCollected = { straight: null, left: null, right: null };
-      capturedShots = { straight: '', left: '', right: '' };
+      descriptorsCollected = { face: null };
+      capturedShots = { face: '' };
+      faceScanStableFrames = 0;
       renderCaptureShots();
       updateStepUI();
-      hudText.textContent = 'ขั้นที่ 1: มองตรงไปที่กล้อง และอยู่นิ่งตรงกลางกรอบ';
+      hudText.textContent = 'กำลังสแกนใบหน้า… ให้ใบหน้าตรงกลางกล้องและอยู่นิ่ง';
 
       // เริ่มสแกนเรียลไทม์
       runFaceTracking();
@@ -952,7 +943,6 @@
       faceDetectionInterval = setInterval(async () => {
         if (!isRegistering) return;
 
-        // คำนวณตรวจจับใบหน้า
         const detection = await faceapi.detectSingleFace(webcam)
           .withFaceLandmarks()
           .withFaceDescriptor();
@@ -971,64 +961,32 @@
           faceapi.draw.drawDetections(canvas, resizedDetections);
           drawTrackingBox(detection, displaySize);
 
-          // วิเคราะห์ท่าทาง (Head Pose Analysis จากจุดบนใบหน้า)
-          const landmarks = detection.landmarks;
-          const nose = landmarks.getNose();
-          const jawOutline = landmarks.getJawOutline();
-
-          const jawLeft = jawOutline[0];
-          const jawRight = jawOutline[16];
-          const faceWidth = Math.abs(jawRight.x - jawLeft.x);
-          const noseTip = nose[3];
-          const noseToLeftDist = Math.abs(noseTip.x - jawLeft.x);
-          const noseToRightDist = Math.abs(noseTip.x - jawRight.x);
-          const poseRatio = noseToLeftDist / faceWidth;
-
           if (currentStep === 1) {
-            hudText.textContent = 'มองตรง → รอภาพถูกจับอัตโนมัติ';
-            if (poseRatio > 0.43 && poseRatio < 0.57) {
-              descriptorsCollected.straight = Array.from(detection.descriptor);
-              capturedShots.straight = snapshotFaceFrame();
+            faceScanStableFrames += 1;
+            hudText.textContent = 'กำลังสแกนใบหน้า… ' + Math.min(faceScanStableFrames, FACE_SCAN_STABLE_FRAMES) + '/' + FACE_SCAN_STABLE_FRAMES;
+
+            if (faceScanStableFrames >= FACE_SCAN_STABLE_FRAMES) {
+              descriptorsCollected.face = Array.from(detection.descriptor);
+              capturedShots.face = snapshotFaceFrame();
               renderCaptureShots();
-              showToast('success', 'เก็บมุมมองหน้าตรงสำเร็จแล้ว!');
-              currentStep = 2;
-              updateStepUI();
-            }
-          } 
-          else if (currentStep === 2) {
-            hudText.textContent = 'หันซ้าย ⬅️ → รอภาพถูกจับอัตโนมัติ';
-            if (poseRatio <= 0.40) {
-              descriptorsCollected.left = Array.from(detection.descriptor);
-              capturedShots.left = snapshotFaceFrame();
-              renderCaptureShots();
-              showToast('success', 'เก็บมุมมองหันซ้ายสำเร็จแล้ว!');
-              currentStep = 3;
-              updateStepUI();
-            }
-          } 
-          else if (currentStep === 3) {
-            hudText.textContent = 'หันขวา ➡️ → รอภาพถูกจับอัตโนมัติ';
-            if (poseRatio >= 0.60) {
-              descriptorsCollected.right = Array.from(detection.descriptor);
-              capturedShots.right = snapshotFaceFrame();
-              renderCaptureShots();
-              showToast('success', 'เก็บมุมมองหันขวาสำเร็จแล้ว!');
+              showToast('success', 'สแกนใบหน้าเรียบร้อยแล้ว!');
+
               isRegistering = false;
               clearInterval(faceDetectionInterval);
               ctx.clearRect(0, 0, canvas.width, canvas.height);
-              hudText.textContent = 'บันทึกภาพครบแล้ว กำลังอัปโหลดข้อมูลเข้าระบบ...';
+              hudText.textContent = 'บันทึกใบหน้าสำเร็จ กำลังอัปโหลดข้อมูลเข้าระบบ...';
               uploadFaceData();
             }
           }
         } else {
-          hudText.textContent = 'ไม่พบใบหน้าในกรอบสแกน กรุณาจัดระเบียบหน้าให้อยู่ในกล้อง';
+          faceScanStableFrames = 0;
+          hudText.textContent = 'ไม่พบใบหน้าในกล้อง กรุณาเลื่อนใบหน้าเข้ามาใกล้และอยู่ตรงกลาง';
         }
       }, 300);
     }
 
     // แสดงขั้นตอน HUD
     function updateStepUI() {
-      // รีเซ็ต UI ขั้นตอนทั้งหมด
       document.querySelectorAll('.step-item').forEach(item => {
         item.className = 'step-item';
       });
@@ -1036,27 +994,12 @@
       if (currentStep === 1) {
         document.getElementById('hud-step-1').className = 'step-item active';
         if (poseGuide) {
-          poseGuide.innerHTML = '<strong>มองตรง</strong><div style="font-size:11px; opacity:0.9; margin-top:2px;">ภาพจะจับอัตโนมัติเมื่อใบหน้าตรงกลางและนิ่ง</div>';
+          poseGuide.innerHTML = '<strong>สแกนใบหน้า</strong><div style="font-size:11px; opacity:0.9; margin-top:2px;">ให้ใบหน้าตรงกลางกล้องและอยู่นิ่ง</div>';
         }
-      } else if (currentStep === 2) {
+      } else {
         document.getElementById('hud-step-1').className = 'step-item success';
-        document.getElementById('hud-step-2').className = 'step-item active';
         if (poseGuide) {
-          poseGuide.innerHTML = '<strong>หันซ้าย ⬅️</strong><div style="font-size:11px; opacity:0.9; margin-top:2px;">ภาพจะจับอัตโนมัติเมื่อใบหน้าอยู่ทางซ้ายของภาพและนิ่ง</div>';
-        }
-      } else if (currentStep === 3) {
-        document.getElementById('hud-step-1').className = 'step-item success';
-        document.getElementById('hud-step-2').className = 'step-item success';
-        document.getElementById('hud-step-3').className = 'step-item active';
-        if (poseGuide) {
-          poseGuide.innerHTML = '<strong>หันขวา ➡️</strong><div style="font-size:11px; opacity:0.9; margin-top:2px;">ภาพจะจับอัตโนมัติเมื่อใบหน้าอยู่ทางขวาของภาพและนิ่ง</div>';
-        }
-      } else if (currentStep > 3) {
-        document.getElementById('hud-step-1').className = 'step-item success';
-        document.getElementById('hud-step-2').className = 'step-item success';
-        document.getElementById('hud-step-3').className = 'step-item success';
-        if (poseGuide) {
-          poseGuide.innerHTML = '<strong>จับภาพเสร็จแล้ว</strong>กำลังอัปโหลดข้อมูลใบหน้าเข้าสู่ระบบ';
+          poseGuide.innerHTML = '<strong>เสร็จแล้ว</strong><div style="font-size:11px; opacity:0.9; margin-top:2px;">กำลังอัปโหลดข้อมูล</div>';
         }
       }
     }
