@@ -6808,7 +6808,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             currentEmployeeId = "";
-            SERVER_API_URL = SERVER_API_URL || "https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec";
+            // 🔧 SUPABASE-ONLY: ไม่ต้องใช้ Google Apps Script API อีกต่อไป
+            SERVER_API_URL = null; // Disabled — all reads from Supabase directly
 
             // ⚡ SUPABASE — public client config; server config remains an optional override for admin settings
             let SUPABASE_CONFIG = {
@@ -8425,41 +8426,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (typeof logDbActivity === 'function') {
                             logDbActivity('ERROR', 'Supabase', `ดึงข้อมูลพนักงานไม่สำเร็จ: ${supErr.message || supErr}`, 'error');
                         }
-                        console.warn('[loadAllData Supabase fetch error, fallback to GAS]', supErr);
+                        console.error('[loadAllData ⚡ Supabase] ERROR:', supErr.message || supErr);
+                    showToast('\u274c \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e23\u0e48\u0e21\u0e15\u0e48\u0e2d\u0e14\u0e36\u0e49\u0e07\u0e02\u0e49\u0e21\u0e14 \u0e01\u0e33\u0e25\u0e31\u0e07\u0e23\u0e2d\u0e22\u0e23\u0e2b\u0e31\u0e2a\u0e1e\u0e23\u0e49\u0e2d\u0e21 Supabase', 'error');
                     }
                 }
 
-                // 🔄 2. Fallback ไป Google Apps Script (เพิ่ม timeout เป็น 30s ป้องกัน AbortError)
-                try {
-                    const url = `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(currentEmployeeId)}&periodStart=${encodeURIComponent(pStart)}&periodEnd=${encodeURIComponent(pEnd)}`;
-                    
-                    const [res] = await Promise.all([
-                        fetchWithTimeout(url, { timeout: 30000 }).catch(err => {
-                            console.warn('[loadAllData fetchWithTimeout]', err);
-                            return null;
-                        }),
-                        fetchAnnouncements().catch(() => [])
-                    ]);
-
-                    if (res && res.status === 'success' && res.data) {
-                        const d = res.data;
-                        if (Array.isArray(d.projects)) projectsList = d.projects;
-                        if (d.employee) employeeData = d.employee;
-                        if (Array.isArray(d.timeRecords)) timeRecordsList = d.timeRecords;
-                        if (Array.isArray(d.timeCorrections)) timeCorrectionsList = d.timeCorrections;
-                        if (Array.isArray(d.leaveRequests)) leaveRequestsList = d.leaveRequests;
-                        if (Array.isArray(d.advanceRequests)) advanceRequestsList = d.advanceRequests;
-                        if (Array.isArray(d.payslips)) payslipsList = d.payslips;
-                        if (Array.isArray(d.announcements)) setStoredAnnouncements(d.announcements);
-                    }
-
-                    _renderAllViews();
-                    return true;
-                } catch (err) {
-                    console.error('[loadAllData] Error:', err);
-                    _renderAllViews();
-                    return true;
-                }
+                // 🔧 SUPABASE-ONLY: ไม่มี GAS fallback อีกต่อไป
+                console.error('[loadAllData] Supabase failed, no fallback available');
+                showToast('\u274c \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e23\u0e48\u0e21\u0e15\u0e48\u0e2d\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e15\u0e48\u0e2d Supabase \u0e44\u0e21\u0e48\u0e17\u0e49\u0e32\u0e22\u0e02\u0e49\u0e21\u0e14', 'error');
+                _renderAllViews();
+                return false;
             }
 
             function refreshDataInBackground() {
@@ -9278,75 +9254,52 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             };
 
-            // โหลดข้อมูลสำหรับเมนูแอดมินรอไว้ใน Background (Prefetch)
-            // ✅ OPTIMIZED: ใช้ getAdminBulkData (1 call) แทน 5 calls แยก → เร็วขึ้น 3-5x
-            function prefetchAdminData() {
-                if (!currentEmployeeId) return;
+            // 🔧 SUPABASE-ONLY: โหลดข้อมูลแอดมินจาก Supabase ทั้งหมด
+            async function prefetchAdminData() {
+                if (!currentEmployeeId || !supabaseClient) return;
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim().toLowerCase();
                 const isAdmin = (role === 'administrator' || role === 'admin' || role.startsWith('admin:'));
                 if (!isAdmin) return;
 
-                console.log("[Prefetch] Running BATCH background load for Admin Portal...");
+                console.log('[Prefetch ⚡ Supabase] Loading admin data...');
                 const t0 = performance.now();
 
-                tryApiRequest([
-                    `${SERVER_API_URL}?action=getAdminBulkData&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
-                    `${SERVER_API_URL}?action=getAdminBulkData&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
-                ])
-                    .then(res => {
-                        if (res && res.status === 'success' && res.data) {
-                            const d = res.data;
-                            if (d.employees)   AdminDataCache.set('employees', d.employees);
-                            if (d.leaveReqs)   AdminDataCache.set('approvals-leave', d.leaveReqs);
-                            if (d.corrections) AdminDataCache.set('approvals-correction', d.corrections);
-                            if (d.advances)    AdminDataCache.set('approvals-advance', d.advances);
-                            if (d.settings)    AdminDataCache.set('settings', d.settings);
-                            const elapsed = Math.round(performance.now() - t0);
-                            console.log(`[Prefetch] ✅ Admin bulk loaded in ${elapsed}ms`);
-                        } else {
-                            console.warn('[Prefetch] getAdminBulkData failed, falling back to individual calls...');
-                            prefetchAdminDataFallback();
+                try {
+                    const [empRes, leaveRes, corrRes, advRes, settRes] = await Promise.all([
+                        supabaseClient.from('employees').select('*'),
+                        supabaseClient.from('leave_requests').select('*'),
+                        supabaseClient.from('time_corrections').select('*'),
+                        supabaseClient.from('advance_requests').select('*'),
+                        supabaseClient.from('system_settings').select('key_name,default_value')
+                    ]);
+
+                    if (!empRes.error && Array.isArray(empRes.data)) AdminDataCache.set('employees', empRes.data);
+                    if (!leaveRes.error && Array.isArray(leaveRes.data)) AdminDataCache.set('approvals-leave', leaveRes.data);
+                    if (!corrRes.error && Array.isArray(corrRes.data)) AdminDataCache.set('approvals-correction', corrRes.data);
+                    if (!advRes.error && Array.isArray(advRes.data)) AdminDataCache.set('approvals-advance', advRes.data);
+                    if (!settRes.error && Array.isArray(settRes.data)) {
+                        const settingsObj = {};
+                        for (const row of settRes.data) {
+                            const key = (row.key_name || '').trim();
+                            if (!key) continue;
+                            let val = (row.default_value || '').toString().trim();
+                            if (val === '') continue;
+                            if (val === 'true' || val === 'จริง') val = true;
+                            else if (val === 'false' || val === 'เท็จ') val = false;
+                            else if (!isNaN(parseFloat(val))) val = parseFloat(val);
+                            settingsObj[key] = val;
                         }
-                    })
-                    .catch(e => {
-                        console.error('[Prefetch] Batch error, falling back:', e);
-                        prefetchAdminDataFallback();
-                    });
+                        AdminDataCache.set('settings', settingsObj);
+                    }
+
+                    const elapsed = Math.round(performance.now() - t0);
+                    console.log(`[Prefetch ⚡ Supabase] ✅ Admin data loaded in ${elapsed}ms`);
+                } catch (err) {
+                    console.error('[Prefetch] Supabase error:', err);
+                }
             }
 
-            // Fallback: ใช้ individual calls ถ้า batch API ยังไม่ deploy
-            function prefetchAdminDataFallback() {
-                tryApiRequest([
-                    `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
-                    `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
-                ])
-                    .then(res => { if (res?.status === 'success') AdminDataCache.set('employees', res.data); })
-                    .catch(() => {});
-                tryApiRequest([
-                    `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
-                    `${SERVER_API_URL}?action=getLeaveRequests&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
-                ])
-                    .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-leave', res.data); })
-                    .catch(() => {});
-                tryApiRequest([
-                    `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
-                    `${SERVER_API_URL}?action=getTimeCorrections&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
-                ])
-                    .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-correction', res.data); })
-                    .catch(() => {});
-                tryApiRequest([
-                    `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
-                    `${SERVER_API_URL}?action=getAdvanceRequests&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
-                ])
-                    .then(res => { if (res?.status === 'success') AdminDataCache.set('approvals-advance', res.data); })
-                    .catch(() => {});
-                tryApiRequest([
-                    `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`,
-                    `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(String(currentEmployeeId || '').trim())}&adminId=${encodeURIComponent(String(currentEmployeeId || '').trim())}`
-                ])
-                    .then(res => { if (res?.status === 'success') AdminDataCache.set('settings', res.data); })
-                    .catch(() => {});
-            }
+            // Fallback removed — all data loads from Supabase directly
 
             // === 🟢 LOADING STATE HELPERS (Phase B-2) ===
             // helper สร้าง skeleton HTML
@@ -12443,7 +12396,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let adminHolidaysList = [];
             let editingHolidayDate = null;
 
-            /** โหลดข้อมูลวันหยุดของแอดมิน */
+            /** โหลดข้อมูลวันหยุดของแอดมิน (Supabase-First) */
             async function loadAdminHolidays() {
                 const tbody = document.getElementById("admin-holidays-table-body");
                 const countBadge = document.getElementById("holiday-count-badge");
@@ -12453,15 +12406,46 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-slate-400"><i class="fa-solid fa-spinner fa-spin text-brand-teal mr-1"></i> กำลังโหลดข้อมูลวันหยุด...</td></tr>';
 
                 try {
-                    const res = await fetch(SERVER_API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({ action: "getHolidays", empId: currentEmployeeId })
-                    });
-                    const json = await res.json();
+                    let data = null;
 
-                    if (json.status === "success" && Array.isArray(json.data)) {
-                        adminHolidaysList = json.data;
+                    // 🔧 FIX: ใช้ Supabase แทน GAS API ที่ไม่ทำงานแล้ว
+                    if (supabaseClient) {
+                        try {
+                            const sbRes = await supabaseClient.from('holidays').select('date,title,holiday_type,year,created_by').order('date');
+                            if (!sbRes.error && Array.isArray(sbRes.data)) {
+                                data = sbRes.data;
+                                console.log('[loadAdminHolidays ⚡ Supabase] ✓', data.length, 'holidays loaded');
+                            }
+                        } catch (sbErr) {
+                            console.warn('[loadAdminHolidays] Supabase error:', sbErr);
+                        }
+                    }
+
+                    // Fallback: ใช้ holidaysList ที่โหลดจาก loadPublicData แล้ว
+                    if (!data && holidaysList && holidaysList.length > 0) {
+                        data = holidaysList.map(h => ({ date: h.date, title: h.title, holiday_type: h.type || 'นักขัตฤกษ์' }));
+                        console.log('[loadAdminHolidays] Using cached holidaysList:', data.length);
+                    }
+
+                    // Fallback: GAS API (อาจไม่ทำงาน)
+                    if (!data) {
+                        try {
+                            const res = await fetch(SERVER_API_URL, {
+                                method: "POST",
+                                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                                body: JSON.stringify({ action: "getHolidays", empId: currentEmployeeId })
+                            });
+                            const json = await res.json();
+                            if (json.status === "success" && Array.isArray(json.data)) {
+                                data = json.data;
+                            }
+                        } catch (apiErr) {
+                            console.warn('[loadAdminHolidays] GAS API fallback failed:', apiErr);
+                        }
+                    }
+
+                    if (data && data.length > 0) {
+                        adminHolidaysList = data;
 
                         // อัปเดต Dropdown เลือกปี
                         const years = Array.from(new Set(adminHolidaysList.map(h => {
@@ -12558,30 +12542,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (btnSave) btnSave.disabled = true;
 
                 try {
-                    const action = editingHolidayDate ? "editHoliday" : "addHoliday";
-                    const payload = {
-                        action: action,
-                        empId: currentEmployeeId,
-                        adminId: currentEmployeeId,
+                    const yr = date ? String(parseInt(date.substring(0, 4)) + 543) : '';
+                    const sbPayload = [{
                         date: date,
                         title: title,
-                        type: type
-                    };
-                    if (editingHolidayDate) payload.oldDate = editingHolidayDate;
+                        year: yr,
+                        holiday_type: type,
+                        created_by: currentEmployeeId || 'Admin'
+                    }];
 
-                    const res = await fetch(SERVER_API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify(payload)
-                    });
-                    const json = await res.json();
-
-                    if (json.status === "success") {
-                        showToast("✅ " + json.message, "success");
-                        cancelHolidayEdit();
-                        loadAdminHolidays();
+                    // 🔧 FIX: ใช้ Supabase แทน GAS API
+                    if (supabaseClient) {
+                        try {
+                            const sbRes = await supabaseClient.from('holidays').upsert(sbPayload, { onConflict: 'date' });
+                            if (sbRes.error) throw new Error(sbRes.error.message);
+                            showToast(editingHolidayDate ? "✅ แก้ไขวันหยุดสำเร็จ" : "✅ เพิ่มวันหยุดสำเร็จ", "success");
+                            cancelHolidayEdit();
+                            loadAdminHolidays();
+                            // Update holidaysList cache
+                            if (holidaysList) {
+                                const existing = holidaysList.findIndex(h => h.date === date);
+                                const newEntry = { date: date, title: title, type: type };
+                                if (existing >= 0) holidaysList[existing] = newEntry;
+                                else holidaysList.push(newEntry);
+                            }
+                        } catch (sbErr) {
+                            console.error('[saveAdminHoliday] Supabase error:', sbErr);
+                            showToast("❌ บันทึกไม่สำเร็จ: " + (sbErr.message || sbErr), "error");
+                        }
                     } else {
-                        showToast("❌ " + (json.message || "บันทึกไม่สำเร็จ"), "error");
+                        showToast("❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้", "error");
                     }
                 } catch (err) {
                     console.error("[saveAdminHoliday] Error:", err);
@@ -12623,21 +12613,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (btnCancel) btnCancel.classList.add("hidden");
             }
 
-            /** ลบวันหยุด */
+            /** ลบวันหยุด (Supabase-First) */
             async function deleteHoliday(date, name) {
                 if (!confirm(`ต้องการลบวันหยุด "${name}" (${date}) ใช่หรือไม่?`)) return;
                 try {
-                    const res = await fetch(SERVER_API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ action: 'deleteHoliday', empId: currentEmployeeId, adminId: currentEmployeeId, date: date })
-                    });
-                    const json = await res.json();
-                    if (json.status === 'success') {
-                        showToast('✅ ' + json.message, 'success');
-                        loadAdminHolidays();
+                    // 🔧 FIX: ใช้ Supabase แทน GAS API
+                    if (supabaseClient) {
+                        try {
+                            const sbRes = await supabaseClient.from('holidays').delete().eq('date', date);
+                            if (sbRes.error) throw new Error(sbRes.error.message);
+                            showToast('✅ ลบวันหยุดสำเร็จ', 'success');
+                            if (holidaysList) holidaysList = holidaysList.filter(h => h.date !== date);
+                            loadAdminHolidays();
+                        } catch (sbErr) {
+                            console.error('[deleteHoliday] Supabase error:', sbErr);
+                            showToast('❌ ลบไม่สำเร็จ: ' + (sbErr.message || sbErr), 'error');
+                        }
                     } else {
-                        showToast('❌ ' + (json.message || 'ลบไม่สำเร็จ'), 'error');
+                        showToast('❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้', 'error');
                     }
                 } catch (err) {
                     console.error('[deleteHoliday] Error:', err);
@@ -18323,7 +18316,8 @@ ${slip.textSample}
         // Project budgets are loaded from Supabase / API backend or left empty when not available
         const PROJECT_BUDGETS = {};
 
-        const isGoogleScriptEnvironment = typeof google !== 'undefined' && google && google.script && google.script.run;
+        // 🔧 SUPABASE-ONLY: ปิด Google Apps Script environment ทั้งหมด
+        const isGoogleScriptEnvironment = false; // ไม่ใช้ GAS อีกต่อไป
 
         let employees = [];
         let projects = [];
@@ -18568,154 +18562,67 @@ ${slip.textSample}
             select.disabled = false;
         }
 
-        function loadSystemSettingsFromSheet() {
-            return new Promise(resolve => {
-                if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
-                    // 💡 ต้องส่ง empId ของ admin เพื่อผ่าน authorization check
-                    const trimmedEmpId = String(currentEmployeeId || '').trim();
-                    if (!trimmedEmpId) { console.warn('loadSystemSettingsFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
-                    tryApiRequest([
-                        `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(trimmedEmpId)}`,
-                        `${SERVER_API_URL}?action=getSystemSettings&empId=${encodeURIComponent(trimmedEmpId)}&adminId=${encodeURIComponent(trimmedEmpId)}`
-                    ], { timeout: 60000 })
-                        .then(res => {
-                            if (res && res.status === 'success' && res.data) {
-                                systemSettings = Object.assign({}, systemSettings, res.data);
-                            }
-                        })
-                        .catch(err => console.warn('getSystemSettings failed', err))
-                        .finally(() => resolve());
-                    return;
+        async function loadSystemSettingsFromSheet() {
+            // 🔧 SUPABASE-ONLY: โหลด system_settings จาก Supabase โดยตรง
+            if (!supabaseClient) { console.warn('loadSystemSettings: supabaseClient not ready'); return; }
+            try {
+                const { data, error } = await supabaseClient.from('system_settings').select('key_name,default_value');
+                if (error) throw error;
+                if (Array.isArray(data) && data.length > 0) {
+                    for (const row of data) {
+                        const key = (row.key_name || '').toString().trim();
+                        if (!key) continue;
+                        let val = (row.default_value || '').toString().trim();
+                        if (val === '') continue;
+                        if (val === 'true' || val === 'จริง') val = true;
+                        else if (val === 'false' || val === 'เท็จ') val = false;
+                        else if (!isNaN(parseFloat(val))) val = parseFloat(val);
+                        systemSettings[key] = val;
+                    }
+                    console.log('[loadSystemSettings ⚡ Supabase]', data.length, 'settings loaded');
                 }
-                if (!isGoogleScriptEnvironment) {
-                    resolve();
-                    return;
-                }
-                google.script.run
-                    .withSuccessHandler(function(res) {
-                        if (res && (res.status === 'success' || typeof res === 'object')) {
-                            const data = res.data || res;
-                            if (typeof data === 'object') {
-                                systemSettings = Object.assign({}, systemSettings, data);
-                            }
-                        }
-                        resolve();
-                    })
-                    .withFailureHandler(function(err) {
-                        console.warn('getSystemSettings failed', err);
-                        resolve();
-                    })
-                    .getSystemSettings();
-            });
+            } catch (err) {
+                console.error('[loadSystemSettings] Supabase error:', err);
+            }
         }
 
-        function loadEmployeesFromSheet() {
-            return new Promise(resolve => {
-                if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
-                    // 💡 ต้องมี currentEmployeeId เพื่อผ่าน isAdministrator check
-                    const trimmedEmpId = String(currentEmployeeId || '').trim();
-                    if (!trimmedEmpId) { console.warn('loadEmployeesFromSheet: skipped (no currentEmployeeId)'); resolve(); return; }
-                    tryApiRequest([
-                        `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(trimmedEmpId)}`,
-                        `${SERVER_API_URL}?action=getAllEmployees&empId=${encodeURIComponent(trimmedEmpId)}&adminId=${encodeURIComponent(trimmedEmpId)}`
-                    ], { timeout: 60000 })
-                        .then(res => {
-                            if (res && res.status === 'success' && Array.isArray(res.data)) {
-                                employees = res.data.map(mapEmployeeRow).filter(emp => emp.id);
-                            } else {
-                                employees = [];
-                                console.warn('getAllEmployees returned invalid data', res);
-                            }
-                        })
-                        .catch(err => {
-                            console.error('getAllEmployees failed', err);
-                            showLoadError('เกิดข้อผิดพลาดในการดึงข้อมูลพนักงานจากระบบ');
-                            employees = [];
-                        })
-                        .finally(() => resolve());
-                    return;
-                }
-
-                if (!isGoogleScriptEnvironment) {
-                    showLoadError('ไม่พบ Google Apps Script environment เพื่อดึงข้อมูลพนักงาน');
+        async function loadEmployeesFromSheet() {
+            // 🔧 SUPABASE-ONLY: โหลด employees จาก Supabase โดยตรง
+            if (!supabaseClient) { showLoadError('supabaseClient ไม่พร้อมใช้งาน'); employees = []; return; }
+            try {
+                const { data, error } = await supabaseClient.from('employees').select('*');
+                if (error) throw error;
+                if (Array.isArray(data)) {
+                    employees = data.map(mapEmployeeRow).filter(emp => emp.id);
+                    console.log('[loadEmployees ⚡ Supabase]', employees.length, 'employees loaded');
+                } else {
                     employees = [];
-                    resolve();
-                    return;
                 }
-
-                google.script.run
-                    .withSuccessHandler(function(res) {
-                        if (res && res.status === 'success' && Array.isArray(res.data)) {
-                            employees = res.data.map(mapEmployeeRow).filter(emp => emp.id);
-                        } else {
-                            employees = [];
-                            console.warn('adminGetAllEmployees returned invalid data', res);
-                        }
-                        resolve();
-                    })
-                    .withFailureHandler(function(err) {
-                        console.error('adminGetAllEmployees failed', err);
-                        showLoadError('เกิดข้อผิดพลาดในการดึงข้อมูลพนักงานจากระบบ Supabase');
-                        employees = [];
-                        resolve();
-                    })
-                    .adminGetAllEmployees();
-            });
+            } catch (err) {
+                console.error('[loadEmployees] Supabase error:', err);
+                showLoadError('เกิดข้อผิดพลาดในการดึงข้อมูลพนักงานจาก Supabase');
+                employees = [];
+            }
         }
 
-        function loadProjectsFromSheet() {
-            return new Promise(resolve => {
-                if (!isGoogleScriptEnvironment && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined') {
-                    fetchWithTimeout(`${SERVER_API_URL}?action=getProjectsList`, { timeout: 60000 })
-                        .then(res => {
-                            if (res && res.status === 'success' && Array.isArray(res.data)) {
-                                projects = res.data.filter(proj => typeof proj === 'string' && proj.trim()).map(proj => proj.toString().trim());
-                                console.info('loadProjectsFromSheet (REST) - projects:', projects);
-                            } else {
-                                projects = [];
-                            }
-                        })
-                        .catch(err => {
-                            console.error('getProjectsList failed', err);
-                            projects = [];
-                        })
-                        .finally(() => {
-                            updateProjectFilterOptions();
-                            updateModalProjectOptions();
-                            resolve();
-                        });
-                    return;
-                }
-
-                if (!isGoogleScriptEnvironment) {
+        async function loadProjectsFromSheet() {
+            // 🔧 SUPABASE-ONLY: โหลด projects จาก Supabase โดยตรง
+            if (!supabaseClient) { projects = []; updateProjectFilterOptions(); updateModalProjectOptions(); return; }
+            try {
+                const { data, error } = await supabaseClient.from('projects').select('name').neq('status', 'ระงับ');
+                if (error) throw error;
+                if (Array.isArray(data)) {
+                    projects = data.map(p => (p.name || '').toString().trim()).filter(Boolean);
+                    console.log('[loadProjects ⚡ Supabase]', projects.length, 'projects loaded');
+                } else {
                     projects = [];
-                    updateProjectFilterOptions();
-                    updateModalProjectOptions();
-                    resolve();
-                    return;
                 }
-
-                google.script.run
-                    .withSuccessHandler(function(res) {
-                        if (res && res.status === 'success' && Array.isArray(res.data)) {
-                            projects = res.data.filter(proj => typeof proj === 'string' && proj.trim()).map(proj => proj.toString().trim());
-                            console.info('loadProjectsFromSheet (GAS) - projects:', projects);
-                        } else {
-                            projects = [];
-                        }
-                        updateProjectFilterOptions();
-                        updateModalProjectOptions();
-                        resolve();
-                    })
-                    .withFailureHandler(function(err) {
-                        console.error('getProjectsList failed', err);
-                        projects = [];
-                        updateProjectFilterOptions();
-                        updateModalProjectOptions();
-                        resolve();
-                    })
-                    .getProjectsList();
-            });
+            } catch (err) {
+                console.error('[loadProjects] Supabase error:', err);
+                projects = [];
+            }
+            updateProjectFilterOptions();
+            updateModalProjectOptions();
         }
 
         function loadAttendanceRecordsForCycle(start, end) {
