@@ -3668,6 +3668,30 @@
                 </button>
             </div>
 
+            <!-- 🔧 SHARED: Billing Month Selector (ซิงค์ทั้ง 3 Tabs) -->
+            <div class="mt-4 px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">
+                    <i class="fa-solid fa-calendar-days text-brand-teal mr-1"></i> รอบบัญชีและงวดการจ่ายค่าแรง (เฉพาะทั้ง 3 แถบ)
+                </label>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="relative flex-1 min-w-[200px]">
+                        <select id="sharedBillingMonth" onchange="syncAllBillingMonthDropdowns(this.value)" class="billing-month block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:bg-white focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/15 appearance-none transition-all">
+                            <!-- Dynamically generated -->
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                    <button type="button" onclick="goSharedBillingToday()" class="px-4 py-2 bg-brand-sky hover:bg-brand-sky2 text-brand-deep border border-brand-sky2 text-xs font-bold rounded-xl transition shrink-0" title="ไปยังรอบบัญชีปัจจุบัน">
+                        <i class="fa-solid fa-circle-dot mr-1"></i> วันนี้
+                    </button>
+                    <div class="flex items-center gap-1.5 text-xs text-slate-400 font-semibold min-w-max">
+                        <i class="fa-solid fa-calendar-week text-brand-teal"></i>
+                        <span id="sharedBillingCycleDateRange">26 - 25</span>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- Section Title (ย้ายลงมาจากบนสุด ตามคำขอ) -->
@@ -19047,7 +19071,8 @@ ${slip.textSample}
 
         // Initialize billing month dropdown with options from 12 months back to 6 months forward
         function initializeBillingMonthSelector() {
-            const selects = document.querySelectorAll('.billing-month');
+            // 🔧 ต้องเพิ่ม sharedBillingMonth ด้วย
+            const selects = document.querySelectorAll('.billing-month, #sharedBillingMonth');
             if (selects.length === 0) return;
 
             selects.forEach(select => { select.innerHTML = ''; });
@@ -19130,6 +19155,54 @@ ${slip.textSample}
             }
         }
 
+        // 🔧 SYNC: Shared billing month dropdown → ทั้ง 3 tab dropdowns
+        function syncAllBillingMonthDropdowns(selectedMonth) {
+            // 🔧 FIX: อัปเดต billingMonth (Matrix selector) ก่อน เพราะ render ทุก tab อ่านค่าจากตัวนี้
+            const billingMonthSelect = document.getElementById('billingMonth');
+            if (billingMonthSelect && billingMonthSelect.value !== selectedMonth) {
+                billingMonthSelect.value = selectedMonth;
+            }
+            
+            // อัปเดต tab-specific dropdowns
+            const billingMonthSelects = ['costingBillingMonth', 'insightsBillingMonth'];
+            for (const selectId of billingMonthSelects) {
+                const select = document.getElementById(selectId);
+                if (select && select.value !== selectedMonth) {
+                    select.value = selectedMonth;
+                }
+            }
+            
+            // อัปเดต date range display
+            updateBillingCycleDateRange(selectedMonth);
+            
+            // 🔧 FIX: เคลียร์ cache เพื่อบังคับโหลดข้อมูลใหม่ทุกครั้งที่เปลี่ยนรอบบัญชี
+            window.__pcDataCache = {};
+            window.__attendanceCycleCache = null;
+            
+            // 🔧 FIX: Reload ข้อมูลให้ทุก tab ไม่ใช่แค่ tab ที่ active
+            // เรียก generateBillingCycleData() เพื่อโหลดข้อมูลรอบบัญชีใหม่
+            generateBillingCycleData();
+        }
+
+        // 🔧 SYNC: Go to today from shared dropdown
+        function goSharedBillingToday() {
+            const currentBillingMonth = getCurrentBillingMonthValue();
+            const sharedSelect = document.getElementById('sharedBillingMonth');
+            if (sharedSelect) {
+                sharedSelect.value = currentBillingMonth;
+                syncAllBillingMonthDropdowns(currentBillingMonth);
+            }
+        }
+
+        // 🔧 SYNC: Sync individual tab dropdown → shared dropdown
+        // (เรียกจาก generateBillingCycleData, handleCostingBillingChange, handleInsightsBillingChange)
+        function syncSharedBillingMonthFromTab(selectedMonth) {
+            const sharedSelect = document.getElementById('sharedBillingMonth');
+            if (sharedSelect && sharedSelect.value !== selectedMonth) {
+                sharedSelect.value = selectedMonth;
+            }
+        }
+
         // ═══════════════════════════════════════════════════════════════════════
         // 📂 SECTION 4/12: UI NAVIGATION — Tabs, Billing Cycle, Filters
         // ═══════════════════════════════════════════════════════════════════════
@@ -19165,9 +19238,21 @@ ${slip.textSample}
                 renderSummaryMatrix();
             } else if (tabName === 'costing') {
                 document.getElementById('tab-costing').classList.remove('hidden');
+                // 🔧 FIX: ซิงค์ billingMonth ก่อน render เพื่อให้ใช้รอบบัญชีล่าสุด
+                const costingBillingVal = document.getElementById('costingBillingMonth')?.value;
+                if (costingBillingVal) {
+                    const bm = document.getElementById('billingMonth');
+                    if (bm && bm.value !== costingBillingVal) bm.value = costingBillingVal;
+                }
                 renderProjectCosting();
             } else if (tabName === 'insights') {
                 document.getElementById('tab-insights').classList.remove('hidden');
+                // 🔧 FIX: ซิงค์ billingMonth ก่อน render เพื่อให้ใช้รอบบัญชีล่าสุด
+                const insightsBillingVal = document.getElementById('insightsBillingMonth')?.value;
+                if (insightsBillingVal) {
+                    const bm = document.getElementById('billingMonth');
+                    if (bm && bm.value !== insightsBillingVal) bm.value = insightsBillingVal;
+                }
                 renderInsightsDashboard();
             }
         }
@@ -19254,6 +19339,9 @@ ${slip.textSample}
             const selectedMonth = document.getElementById('billingMonth').value;
             updateBillingCycleDateRange(selectedMonth);
             
+            // 🔧 SYNC: อัปเดต shared dropdown ให้ตรงกัน
+            syncSharedBillingMonthFromTab(selectedMonth);
+            
             // 🔧 BUG FIX: เคลียร์ client-side cache เมื่อเปลี่ยนรอบบัญชี
             window.__pcDataCache = {};
             window.__attendanceCycleCache = null;
@@ -19322,15 +19410,28 @@ ${slip.textSample}
 
         function handleCostingBillingChange() {
             const val = document.getElementById('costingBillingMonth').value;
+            // 🔧 FIX: อัปเดต billingMonth (Matrix selector) ด้วย เพราะ render ทุก tab อ่านค่าจากตัวนี้
+            const billingMonthSelect = document.getElementById('billingMonth');
+            if (billingMonthSelect && billingMonthSelect.value !== val) {
+                billingMonthSelect.value = val;
+            }
+            syncSharedBillingMonthFromTab(val);
             syncBillingFilterValues(val);
             updateBillingCycleDateRange(val);
+            window.__pcDataCache = {};
+            window.__attendanceCycleCache = null;
             generateBillingCycleData();
         }
 
         function handleCostingGoToday() {
             const val = getCurrentBillingMonthValue();
+            // 🔧 FIX: ซิงค์ billingMonth selector ด้วย
+            const bm = document.getElementById('billingMonth');
+            if (bm) bm.value = val;
             syncBillingFilterValues(val);
             updateBillingCycleDateRange(val);
+            window.__pcDataCache = {};
+            window.__attendanceCycleCache = null;
             generateBillingCycleData();
         }
 
@@ -19344,15 +19445,28 @@ ${slip.textSample}
 
         function handleInsightsBillingChange() {
             const val = document.getElementById('insightsBillingMonth').value;
+            // 🔧 FIX: อัปเดต billingMonth (Matrix selector) ด้วย เพราะ render ทุก tab อ่านค่าจากตัวนี้
+            const billingMonthSelect = document.getElementById('billingMonth');
+            if (billingMonthSelect && billingMonthSelect.value !== val) {
+                billingMonthSelect.value = val;
+            }
+            syncSharedBillingMonthFromTab(val);
             syncBillingFilterValues(val);
             updateBillingCycleDateRange(val);
+            window.__pcDataCache = {};
+            window.__attendanceCycleCache = null;
             generateBillingCycleData();
         }
 
         function handleInsightsGoToday() {
             const val = getCurrentBillingMonthValue();
+            // 🔧 FIX: ซิงค์ billingMonth selector ด้วย
+            const bm = document.getElementById('billingMonth');
+            if (bm) bm.value = val;
             syncBillingFilterValues(val);
             updateBillingCycleDateRange(val);
+            window.__pcDataCache = {};
+            window.__attendanceCycleCache = null;
             generateBillingCycleData();
         }
 
