@@ -14651,24 +14651,33 @@ container.innerHTML = "";
                     }
 
                     try {
-                        const res = await fetchWithTimeout(SERVER_API_URL, {
-                            method: 'POST',
-                            body: JSON.stringify({ action: 'listDevices', adminId: currentEmployeeId }),
-                            timeout: 20000
-                        });
-
-                        if (!res || res.status !== 'success') {
-                            if (tbody) {
-                                tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ โหลดไม่สำเร็จ: ${escapeHtml(res?.message || 'ไม่ทราบสาเหตุ')}</td></tr>`;
+                        // 🔧 SUPABASE-ONLY: โหลดจาก agent_configs table
+                        let devices = [];
+                        if (supabaseClient) {
+                            const sbRes = await supabaseClient.from('agent_configs').select('*').order('last_heartbeat', { ascending: false });
+                            if (!sbRes.error && Array.isArray(sbRes.data)) {
+                                devices = sbRes.data.map(d => ({
+                                    deviceName: d.device_name || d.device_id,
+                                    branchCode: d.branch_code,
+                                    model: d.model,
+                                    serialNo: d.serial_no,
+                                    ipAddress: d.ip_address,
+                                    port: d.port,
+                                    agentVersion: d.agent_version,
+                                    osInfo: d.os_info,
+                                    status: d.status === 'active' && d.last_heartbeat && (Date.now() - new Date(d.last_heartbeat).getTime() < 300000) ? 'online' : 'offline',
+                                    lastHeartbeat: d.last_heartbeat,
+                                    totalRecordsPushed: d.total_records_pushed || 0
+                                }));
+                                console.log('[loadScanDevices ⚡ Supabase] ✓', devices.length, 'devices');
                             }
-                            return;
                         }
 
-                        const devices = res.data?.devices || [];
                         renderScanDevices(devices);
                         updateScanDeviceBadge(devices);
 
                     } catch (err) {
+                        console.error('[loadScanDevices] Error:', err);
                         if (tbody) {
                             tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ${escapeHtml(err.message || String(err))}</td></tr>`;
                         }
