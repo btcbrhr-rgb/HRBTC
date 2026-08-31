@@ -1677,11 +1677,11 @@
                     </div>
                 </div>
 
-                <!-- ประวัติและกิจกรรมล่าสุดตามรอบบัญชี -->
+                <!-- ประวัติและกิจกรรมล่าสุดของพนักงาน -->
                 <div class="space-y-3">
                     <div class="flex items-center justify-between">
                         <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
-                            <i class="fa-solid fa-list-check text-blue-600"></i> กิจกรรมล่าสุดในรอบบัญชี
+                            <i class="fa-solid fa-list-check text-blue-600"></i> กิจกรรมล่าสุด
                         </h3>
                         <button onclick="navigateTo('calendar')"
                             class="text-xs text-blue-600 hover:underline">ดูปฏิทินทั้งหมด</button>
@@ -10037,21 +10037,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return {};
             }
 
-            // --- ส่วนแสดงประวัติกิจกรรมล่าสุดในหน้าแรก (Phase D-3: merge 3 ประเภท) ---
+            // --- ส่วนแสดงประวัติกิจกรรมล่าสุดในหน้าแรก ---
+            // 🔧 FIX: แสดงกิจกรรมทั้งหมดของพนักงาน (ไม่จำกัดรอบบัญชี)
             function displayActivitiesList() {
                 const listContainer = document.getElementById("home-activities-list");
                 if (!listContainer) return;
                 listContainer.innerHTML = "";
 
-                const currentCycle = getCurrentCycleRange();
-
-                // === 🟢 PHASE D-3: รวม 3 ประเภทกิจกรรมเข้าด้วยกัน ===
+                // === รวม 3 ประเภทกิจกรรมเข้าด้วยกัน (ทั้งหมด ไม่จำกัดรอบบัญชี) ===
                 const allActivities = [];
 
-                // 1. เวลางาน (timeRecords) — เฉพาะรอบบัญชีปัจจุบัน
+                // 1. เวลางาน (timeRecords) — ทั้งหมด
                 (timeRecordsList || []).forEach(rec => {
                     const date = (rec["วันที่"] || "").toString().trim();
-                    if (!date || date < currentCycle.start || date > currentCycle.end) return;
+                    if (!date) return;
                     allActivities.push({
                         type: 'time',
                         date: date,
@@ -10060,12 +10059,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     });
                 });
 
-                // 2. คำขอลา (leaveRequests) — เฉพาะในรอบบัญชี
+                // 2. คำขอลา (leaveRequests) — ทั้งหมด
                 (leaveRequestsList || []).forEach(l => {
                     const start = (l["วันที่เริ่ม"] || "").toString().trim();
-                    const end = (l["วันที่สิ้นสุด"] || start).toString().trim();
                     if (!start) return;
-                    if (start > currentCycle.end || end < currentCycle.start) return;
                     const sortDate = (l["วันที่ส่ง"] || start).toString().trim();
                     allActivities.push({
                         type: 'leave',
@@ -10075,10 +10072,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     });
                 });
 
-                // 3. คำขอเบิกเงิน (advanceRequests) — เฉพาะในรอบบัญชี
+                // 3. คำขอเบิกเงิน (advanceRequests) — ทั้งหมด
                 (advanceRequestsList || []).forEach(a => {
                     const d = (a["วันที่เบิก"] || "").toString().trim();
-                    if (!d || d < currentCycle.start || d > currentCycle.end) return;
+                    if (!d) return;
                     allActivities.push({
                         type: 'advance',
                         date: d,
@@ -10090,7 +10087,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 allActivities.sort((a, b) => b.ts - a.ts);
 
                 if (allActivities.length === 0) {
-                    listContainer.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีกิจกรรมในรอบบัญชีนี้ (${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)})</div>`;
+                    listContainer.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีกิจกรรมล่าสุดในระบบ</div>`;
                     return;
                 }
 
