@@ -8225,6 +8225,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
              * ข้อมูลสาธารณะจะ reuse จาก loadPublicData() ที่โหลดไว้แล้ว
              * ดึงข้อมูลเฉพาะของพนักงาน: timeRecords, timeCorrections, leaveRequests, advanceRequests, payslips
              */
+            // 🔧 OPTIMIZE: Cache keys สำหรับ loadAllData — ป้องกัน fetch ซ้ำ
+            let _lastLoadEmpId = '';
+            let _lastLoadCycleStart = '';
+
             async function loadAllData() {
                 if (!currentEmployeeId) {
                     console.warn('[loadAllData] missing currentEmployeeId');
@@ -8235,18 +8239,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const pStart = currentCycle.start;
                 const pEnd = currentCycle.end;
 
+                // 🔧 OPTIMIZE: ตรวจสอบว่าต้อง fetch ใหม่ทั้งหมดหรือแค่ time_records
+                const cycleChanged = (_lastLoadCycleStart !== pStart);
+                const empChanged = (_lastLoadEmpId !== currentEmployeeId);
+                const fullRefresh = cycleChanged || empChanged || !publicDataLoaded;
+
                 // ⚡ 1. ลองดึงข้อมูลจาก Supabase ก่อน (ความเร็วระดับมิลลิวินาที)
                 // ข้อมูลสาธารณะ (projects, holidays, announcements) reuse จาก loadPublicData() ที่โหลดไว้แล้ว
                 if (supabaseClient) {
                     const tSup0 = performance.now();
                     try {
                         const queries = [
-                            // User-specific data (always fetch)
+                            // User-specific data (always fetch time_records สำหรับ billing cycle ใหม่)
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
-                            supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId),
-                            supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId),
-                            supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId),
-                            supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId)
+                            // 🔧 OPTIMIZE: ไม่ต้อง fetch ซ้ำถ้าแค่เปลี่ยนรอบบัญชี (ไม่เปลี่ยนพนักงาน)
+                            fullRefresh ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
+                            fullRefresh ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
+                            fullRefresh ? supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId) : null,
+                            fullRefresh ? supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId) : null
                         ];
                         // Public data: โหลดเฉพาะเมื่อยังไม่ได้โหลด (reuse จาก loadPublicData)
                         if (!publicDataLoaded || projectsList.length === 0) {
@@ -8281,7 +8291,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }));
                         }
 
-                        if (!cRes.error && Array.isArray(cRes.data)) {
+                        if (cRes && !cRes.error && Array.isArray(cRes.data)) {
                             timeCorrectionsList = cRes.data.map(c => ({
                                 "รหัสพนักงาน": c.emp_id,
                                 "วันที่": c.date,
@@ -8295,7 +8305,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }));
                         }
 
-                        if (!lRes.error && Array.isArray(lRes.data)) {
+                        if (lRes && !lRes.error && Array.isArray(lRes.data)) {
                             leaveRequestsList = lRes.data.map(l => ({
                                 "เลขที่เอกสาร": l.doc_id,
                                 "รหัสพนักงาน": l.emp_id,
@@ -8313,7 +8323,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }));
                         }
 
-                        if (!aRes.error && Array.isArray(aRes.data)) {
+                        if (aRes && !aRes.error && Array.isArray(aRes.data)) {
                             advanceRequestsList = aRes.data.map(a => ({
                                 "รหัสพนักงาน": a.emp_id,
                                 "จำนวนเงิน": a.amount,
@@ -8325,7 +8335,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }));
                         }
 
-                        if (!payRes.error && Array.isArray(payRes.data)) {
+                        if (payRes && !payRes.error && Array.isArray(payRes.data)) {
                             payslipsList = payRes.data.map(p => ({
                                 "รหัสพนักงาน": p.emp_id || '',
                                 "รอบเงินเดือน": p.period || '',
@@ -8376,6 +8386,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (typeof logDbActivity === 'function') {
                             logDbActivity('READ', 'Dashboard', `ดึงข้อมูลส่วนตัวพนักงาน ${currentEmployeeId} (${timeRecordsList.length} เวลางาน, ${leaveRequestsList.length} ลา)`, 'success', Math.round(performance.now() - tSup0));
                         }
+                        // 🔧 OPTIMIZE: อัปเดต cache keys
+                        _lastLoadEmpId = currentEmployeeId;
+                        _lastLoadCycleStart = pStart;
                         _renderAllViews();
                         return true;
                     } catch (supErr) {
@@ -9695,23 +9708,31 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return holidaysList.find(h => h.date === dateStr) || null;
             }
 
-            function isDateEmployeeDayOff(dateStr, empData) {
+            // 🔧 OPTIMIZE: Pre-compute day-off pattern once (ไม่ต้อง parse Date ทุกรอบ)
+            function _getDayOffPattern(empData) {
                 const data = empData || employeeData || {};
-                const rawDayoff = (data["วันหยุดประจําสัปดาห์"] || data["วันหยุดประจำสัปดาห์"] || "").toString().trim() || "อาทิตย์";
+                const raw = (data["วันหยุดประจําสัปดาห์"] || data["วันหยุดประจำสัปดาห์"] || "").toString().trim() || "อาทิตย์";
+                if (raw === "ผู้บริหาร") return { type: 'all' };
+                if (raw === "ทำงานทุกวัน") return { type: 'none' };
+                if (raw === "อาทิตย์") return { type: 'specific', days: new Set([0]) };
+                if (raw === "เสาร์") return { type: 'specific', days: new Set([6]) };
+                if (raw === "เสาร์-อาทิตย์") return { type: 'specific', days: new Set([0, 6]) };
+                const days = new Set();
+                if (raw.includes("อาทิตย์")) days.add(0);
+                if (raw.includes("เสาร์")) days.add(6);
+                if (days.size > 0) return { type: 'specific', days };
+                return { type: 'specific', days: new Set([0]) };
+            }
+
+            function isDateEmployeeDayOff(dateStr, empData) {
                 if (!dateStr) return false;
                 const parts = dateStr.split('-');
                 if (parts.length < 3) return false;
+                const pattern = _getDayOffPattern(empData);
+                if (pattern.type === 'all') return true;
+                if (pattern.type === 'none') return false;
                 const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
-                const day = d.getDay(); // 0 = อาทิตย์, 6 = เสาร์
-
-                if (rawDayoff === "ผู้บริหาร") return true;
-                if (rawDayoff === "ทำงานทุกวัน") return false;
-                if (rawDayoff === "อาทิตย์") return day === 0;
-                if (rawDayoff === "เสาร์") return day === 6;
-                if (rawDayoff === "เสาร์-อาทิตย์") return day === 0 || day === 6;
-                if (rawDayoff.includes("อาทิตย์") && day === 0) return true;
-                if (rawDayoff.includes("เสาร์") && day === 6) return true;
-                return day === 0; // ค่าเริ่มต้นถ้าไม่ระบุ
+                return pattern.days.has(d.getDay());
             }
 
             // helper: รวมและสร้างข้อมูลครบทุกวันในรอบบัญชี (เวลางาน + วันลา + วันหยุด + วันขาดงาน)
@@ -9761,14 +9782,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 });
 
-                // 3. หาวันที่ปัจจุบันเพื่อไม่ให้นับวันในอนาคตเป็นขาดงาน
+                // 3. 🔧 OPTIMIZE: Pre-build holiday Map (O(1) lookup แทน linear search ทุกรอบ)
+                const holidayMap = new Map();
+                if (holidaysList && holidaysList.length > 0) {
+                    holidaysList.forEach(h => {
+                        const hd = (h.date || '').toString().trim();
+                        if (hd && hd >= start && hd <= end) holidayMap.set(hd, h);
+                    });
+                }
+
+                // 4. หาวันที่ปัจจุบันเพื่อไม่ให้นับวันในอนาคตเป็นขาดงาน
                 const todayObj = new Date();
                 const todayY = todayObj.getFullYear();
                 const todayM = String(todayObj.getMonth() + 1).padStart(2, '0');
                 const todayD = String(todayObj.getDate()).padStart(2, '0');
                 const todayStr = `${todayY}-${todayM}-${todayD}`;
 
-                // 4. วนลูปทุกวันในรอบบัญชี [start, end]
+                // 5. วนลูปทุกวันในรอบบัญชี [start, end]
                 const fullRecords = [];
                 let curDate = new Date(start + 'T12:00:00');
                 const stopDate = new Date(end + 'T12:00:00');
@@ -9785,7 +9815,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         fullRecords.push(leaveByDate.get(dateStr));
                     } else {
                         const isDayOff = isDateEmployeeDayOff(dateStr, emp);
-                        const holidayInfo = getHoliday(dateStr);
+                        const holidayInfo = holidayMap.get(dateStr) || null;
                         const isPastOrToday = dateStr <= todayStr;
 
                         if (holidayInfo) {
