@@ -10059,9 +10059,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // helper: ดึง settings อย่างปลอดภัย (fallback ถ้ายังโหลดไม่เสร็จ)
             function safeGetSettings() {
+                // 🔧 FIX: Return the actual systemSettings variable (loaded from server)
+                // ไม่ใช้ window.__systemSettings ที่ไม่เคยถูก set
                 try {
-                    if (window.__systemSettings && typeof window.__systemSettings === 'object') {
-                        return window.__systemSettings;
+                    if (typeof systemSettings === 'object' && systemSettings !== null) {
+                        return systemSettings;
                     }
                 } catch (e) { /* ignore */ }
                 return {};
@@ -10069,14 +10071,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // 🔧 Centralized: คำนวณนาทีสายจากเวลาเข้าจริง + settings
             function _calcLateFromTimeIn(timeInStr) {
+                // 🔧 Centralized: คืนค่าเป็นนาทีสายจริง (ไม่ใช่ penalty points)
+                // ใช้ lateCutoffTimeStr จาก Settings เป็นหลัก
                 if (!timeInStr || timeInStr === '--:--') return 0;
                 const s = safeGetSettings();
                 const cutoff = (s.lateCutoffTimeStr || '08:15').split(':').map(Number);
                 const parts = timeInStr.split(':').map(Number);
                 const cutoffMin = cutoff[0] * 60 + cutoff[1];
                 const inMin = parts[0] * 60 + (parts[1] || 0);
-                if (inMin > cutoffMin) return 15 + (inMin - cutoffMin); // basePenalty 15 + over
-                return 0;
+                return inMin > cutoffMin ? inMin - cutoffMin : 0;
             }
             // 🔧 Centralized: คำนวณ OT จากเวลาออกจริง + settings
             function _calcOtFromTimeOut(timeOutStr) {
@@ -10096,11 +10099,32 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // 🔧 Centralized: คำนวณสถานะจากเวลาเข้า/ออก
             function _calcStatusFromTimes(timeInStr, timeOutStr) {
                 if (timeInStr && timeOutStr) {
+                    const s = safeGetSettings();
                     const late = _calcLateFromTimeIn(timeInStr);
-                    return late > 0 ? 'สาย' : 'ปกติ';
+                    if (late > 0) {
+                        // 🔧 FIX: ใช้ lateHalfDayThreshold จาก Settings
+                        const threshold = parseInt(s.lateHalfDayThreshold) || 240;
+                        // คำนวณนาทีสายจริง (ไม่ใช่ penalty points)
+                        const cutoff = (s.lateCutoffTimeStr || '08:15').split(':').map(Number);
+                        const parts = timeInStr.split(':').map(Number);
+                        const cutoffMin = cutoff[0] * 60 + cutoff[1];
+                        const inMin = parts[0] * 60 + (parts[1] || 0);
+                        const actualLateMin = inMin > cutoffMin ? inMin - cutoffMin : 0;
+                        return actualLateMin >= threshold ? 'สายครึ่งวัน' : 'สาย';
+                    }
+                    return 'ปกติ';
                 } else if (timeInStr && !timeOutStr) return 'MO';
                 else if (!timeInStr && timeOutStr) return 'MI';
                 return 'ขาด';
+            }
+            // 🔧 Centralized: คำนวณหักเงินสาย (บาท)
+            function _calcPenaltyBaht(timeInStr) {
+                if (!timeInStr || timeInStr === '--:--') return 0;
+                const s = safeGetSettings();
+                const lateMin = _calcLateFromTimeIn(timeInStr);
+                if (lateMin <= 0) return 0;
+                const penaltyPerMin = parseFloat(s.latePenaltyPerMinute) || 1.0;
+                return lateMin * penaltyPerMin;
             }
 
             // --- ส่วนแสดงประวัติกิจกรรมล่าสุดในหน้าแรก ---
@@ -18320,10 +18344,39 @@ ${slip.textSample}
             billingCycleStartDay: 26,
             billingCycleEndDay: 25,
             otIntervalMinutes: 30,
+            otIntervalValue: 0.5,
             defaultFoodAllowance: 50,
+            defaultCentralProject: '(00)บุรีรัมย์',
+            latePenaltyPerMinute: 1.0,
+            lateHalfDayThreshold: 240,
             holidayOtRate: 2.0,
             holidayWorkRate: 1.0,
-            latePenaltyPerMinute: 1.0
+            lunchStartTimeStr: '12:00',
+            lunchEndTimeStr: '13:00',
+            halfDayOutLunchMinStr: '12:00',
+            halfDayOutLunchMaxStr: '13:30',
+            halfDayInLunchMinStr: '11:30',
+            halfDayInLunchMaxStr: '13:30',
+            ssoRate: 0.05,
+            ssoMinSalary: 1650,
+            ssoMaxSalary: 17500,
+            includeOTinSSO: false,
+            annualLeaveDays: 10,
+            sickLeaveDays: 30,
+            personalLeaveDays: 3,
+            maternityLeaveDays: 90,
+            maternityLeavePaid: 45,
+            militaryLeaveDays: 60,
+            leaveAccrualRate: 0.0833,
+            leaveCutoff: '25/12',
+            roundSalary: 'none',
+            roundDiligent: 'none',
+            roundTax: 'none',
+            roundPenalty: 'none',
+            roundSSO: 'down',
+            roundNetPay: 'down',
+            roundProvidentFund: 'none',
+            roundWelfare: 'none'
         };
 
         // ═══════════════════════════════════════════════════════════════════════
