@@ -18796,8 +18796,14 @@ ${slip.textSample}
             if (!batchOk && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
                 try {
                     const t0 = performance.now();
+                    
+                    // 🔧 BUG FIX: ส่ง periodStart/periodEnd แทน month เพื่อให้ server cache key แตกต่างกันตามรอบบัญชี
+                    const cycleDates = getBillingCycleDates(currentMonth);
+                    const pStart = cycleDates.length > 0 ? cycleDates[0] : '';
+                    const pEnd = cycleDates.length > 0 ? cycleDates[cycleDates.length - 1] : '';
+                    
                     const res = await fetchWithTimeout(
-                        `${SERVER_API_URL}?action=getProjectCostData&empId=${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : ''}&month=${currentMonth}`,
+                        `${SERVER_API_URL}?action=getProjectCostData&empId=${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : ''}&month=${currentMonth}&periodStart=${encodeURIComponent(pStart)}&periodEnd=${encodeURIComponent(pEnd)}`,
                         { timeout: 60000 }
                     );
                     if (res && res.status === 'success' && res.data) {
@@ -19247,7 +19253,42 @@ ${slip.textSample}
             showMatrixLoadingState();
             const selectedMonth = document.getElementById('billingMonth').value;
             updateBillingCycleDateRange(selectedMonth);
+            
+            // 🔧 BUG FIX: เคลียร์ client-side cache เมื่อเปลี่ยนรอบบัญชี
+            window.__pcDataCache = {};
+            window.__attendanceCycleCache = null;
+            
+            // 🔧 BUG FIX: ดึงข้อมูล Dashboard ใหม่พร้อม periodStart/periodEnd
+            // เพื่อให้ server ใช้ cache key ที่แตกต่างกันตามรอบบัญชี
+            const dates = getBillingCycleDates(selectedMonth);
+            if (dates.length > 0) {
+                const pStart = dates[0];
+                const pEnd = dates[dates.length - 1];
+                
+                // Reload dashboard data with explicit period parameters
+                await reloadDashboardDataWithPeriod(pStart, pEnd);
+            }
+            
             await loadAttendanceForCycle();
+        }
+        
+        // 🔧 Helper: Reload Dashboard Data with explicit billing cycle period
+        async function reloadDashboardDataWithPeriod(periodStart, periodEnd) {
+            if (!currentEmployeeId) return;
+            
+            try {
+                const url = `${SERVER_API_URL}?action=getDashboardData&empId=${encodeURIComponent(currentEmployeeId)}&periodStart=${encodeURIComponent(periodStart)}&periodEnd=${encodeURIComponent(periodEnd)}`;
+                const response = await fetchWithTimeout(url, { timeout: 30000 });
+                
+                if (response && response.status === 'success') {
+                    console.log('[reloadDashboardDataWithPeriod] Successfully reloaded dashboard data for period', { periodStart, periodEnd });
+                } else {
+                    console.warn('[reloadDashboardDataWithPeriod] Unexpected response', response);
+                }
+            } catch (err) {
+                console.warn('[reloadDashboardDataWithPeriod] Error reloading dashboard data', err);
+                // Don't break the UI if dashboard reload fails - continue with attendance load
+            }
         }
 
         // Filter and Project Selector Changes
