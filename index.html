@@ -7098,6 +7098,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // --- ข้อมูลพนักงานและข้อมูลเชิงโครงสร้างปัจจุบัน ---
             let employeeData = {};
             let timeRecordsList = [];
+            let allTimeRecordsList = []; // 🔧 All time records (no billing cycle filter) สำหรับกิจกรรมล่าสุด
             let timeCorrectionsList = [];
             let leaveRequestsList = [];
             let advanceRequestsList = [];
@@ -7891,6 +7892,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 isLoggedIn = false;
                 isAdminMode = false;
                 timeRecordsList = [];
+                allTimeRecordsList = [];
                 leaveRequestsList = [];
                 advanceRequestsList = [];
                 payslipsList = [];
@@ -8252,6 +8254,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const queries = [
                             // User-specific data (always fetch time_records สำหรับ billing cycle ใหม่)
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
+                            // 🔧 FIX: ดึง time_records ทั้งหมด (ไม่ filter cycle) สำหรับกิจกรรมล่าสุด
+                            supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).order('date', { ascending: false }).limit(60),
                             // 🔧 OPTIMIZE: ไม่ต้อง fetch ซ้ำถ้าแค่เปลี่ยนรอบบัญชี (ไม่เปลี่ยนพนักงาน)
                             fullRefresh ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
                             fullRefresh ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
@@ -8275,10 +8279,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             queries.push(null);
                         }
 
-                        const [tRes, cRes, lRes, aRes, payRes, pRes, annRes, holRes] = await Promise.all(queries);
+                        const [tRes, tAllRes, cRes, lRes, aRes, payRes, pRes, annRes, holRes] = await Promise.all(queries);
 
                         if (!tRes.error && Array.isArray(tRes.data)) {
                             timeRecordsList = tRes.data.map(r => ({
+                                "วันที่": r.date,
+                                "รหัสพนักงาน": r.emp_id,
+                                "ชื่อ-นามสกุล": r.emp_name,
+                                "เวลาเข้า": r.time_in,
+                                "เวลาออก": r.time_out,
+                                "นาทีสาย": r.late_minutes || 0,
+                                "ชั่วโมง OT": r.ot_hours || 0,
+                                "สถานะสรุป": r.status || "ปกติ",
+                                "โครงการ": r.project || "-"
+                            }));
+                        }
+                        // 🔧 FIX: ใช้ allTimeRecordsList สำหรับกิจกรรมล่าสุด (ไม่จำกัดรอบบัญชี)
+                        if (tAllRes && !tAllRes.error && Array.isArray(tAllRes.data)) {
+                            allTimeRecordsList = tAllRes.data.map(r => ({
                                 "วันที่": r.date,
                                 "รหัสพนักงาน": r.emp_id,
                                 "ชื่อ-นามสกุล": r.emp_name,
@@ -10047,8 +10065,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // === รวม 3 ประเภทกิจกรรมเข้าด้วยกัน (ทั้งหมด ไม่จำกัดรอบบัญชี) ===
                 const allActivities = [];
 
-                // 1. เวลางาน (timeRecords) — ทั้งหมด
-                (timeRecordsList || []).forEach(rec => {
+                // 1. เวลางาน (timeRecords) — ทั้งหมด (ใช้ allTimeRecordsList ไม่จำกัดรอบบัญชี)
+                (allTimeRecordsList || timeRecordsList || []).forEach(rec => {
                     const date = (rec["วันที่"] || "").toString().trim();
                     if (!date) return;
                     allActivities.push({
