@@ -13017,20 +13017,52 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 async function loadAdminEmployees() {
                 const container = document.getElementById("admin-employees-table-body");
                 if (!container) return;
-                container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500"><i class="fa-solid fa-spinner animate-spin text-brand-teal"></i> ⏳ กำลังดาวน์โหลดข้อมูลพนักงานจากเซิร์ฟเวอร์...</td></tr>`;
+                container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500"><i class="fa-solid fa-spinner animate-spin text-brand-teal"></i> ⏳ กำลังดาวน์โหลดข้อมูลพนักงาน...</td></tr>`;
 
                 try {
-                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`);
-                    if (res.status === 'success') {
-                        adminEmployeesList = res.data;
+                    // 🔧 SUPABASE-ONLY: โหลดจาก Supabase โดยตรง
+                    let data = null;
+
+                    // 1. Supabase primary
+                    if (supabaseClient) {
+                        try {
+                            const sbRes = await supabaseClient.from('employees').select('*');
+                            if (!sbRes.error && Array.isArray(sbRes.data)) {
+                                data = sbRes.data.map(r => ({
+                                    'รหัสพนักงาน': r.emp_id,
+                                    'ชื่อ-นามสกุล': r.name,
+                                    'ตำแหน่ง': r.position,
+                                    'สถานะ': r.status,
+                                    'ชื่อบริษัท': r.company,
+                                    'ชั่วโมงทำงานต่อวัน': r.work_hours_per_day,
+                                    'เบอร์โทรศัพท์': r.phone,
+                                    'สิทธิ์การใช้งาน': r.role,
+                                    'ลิ้งภาพโปรไฟล์': r.avatar_url,
+                                    'วันหยุดประจําสัปดาห์': r.day_off,
+                                    'ฐานเงินเดือน': r.base_salary
+                                }));
+                                console.log('[loadAdminEmployees ⚡ Supabase] ✓', data.length, 'employees');
+                            }
+                        } catch (sbErr) {
+                            console.warn('[loadAdminEmployees] Supabase error:', sbErr);
+                        }
+                    }
+
+                    // 2. Fallback: ใช้ adminEmployeesList ที่โหลดไว้แล้ว
+                    if (!data && adminEmployeesList && adminEmployeesList.length > 0) {
+                        data = adminEmployeesList;
+                        console.log('[loadAdminEmployees] Using cached adminEmployeesList:', data.length);
+                    }
+
+                    if (data) {
+                        adminEmployeesList = data;
                         document.getElementById("admin-emp-count-badge").textContent = `พนักงานทั้งหมด: ${adminEmployeesList.length} คน`;
 
                         if (adminEmployeesList.length === 0) {
                             container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">ไม่พบรายชื่อพนักงานในฐานข้อมูล</td></tr>`;
                             return;
                         }
-
-                        container.innerHTML = "";
+container.innerHTML = "";
                         adminEmployeesList.forEach(emp => {
                             const tr = document.createElement("tr");
                             tr.className = "hr-table-row";
@@ -13462,20 +13494,64 @@ async function loadAdminEmployees() {
                     }
                 }
 
-                // 2. Fallback to Apps Script API (Supabase Backend)
+                // 🔧 SUPABASE-ONLY: โหลดข้อมูลอนุมัติจาก Supabase โดยตรง
                 try {
-                    const [leaveRes, corrRes, advRes] = await Promise.all([
-                        fetchWithTimeout(leaveUrl).catch(err => ({ status: 'error', message: err.message })),
-                        fetchWithTimeout(corrUrl).catch(err => ({ status: 'error', message: err.message })),
-                        fetchWithTimeout(advUrl).catch(err => ({ status: 'error', message: err.message }))
+                    const today = getTodayDateString();
+                    const pendingStatuses = ['รออนุมัติ', 'รอตรวจสอบ', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ'];
+
+                    const [leaveSb, corrSb, advSb] = await Promise.all([
+                        supabaseClient ? supabaseClient.from('leave_requests').select('*') : Promise.resolve({ data: [], error: null }),
+                        supabaseClient ? supabaseClient.from('time_corrections').select('*') : Promise.resolve({ data: [], error: null }),
+                        supabaseClient ? supabaseClient.from('advance_requests').select('*') : Promise.resolve({ data: [], error: null })
                     ]);
 
-                    renderLeave(leaveRes);
-                    renderCorrections(corrRes);
-                    renderAdvance(advRes);
+                    // Map Supabase data to Thai field names format
+                    const leaveData = (!leaveSb.error && Array.isArray(leaveSb.data) ? leaveSb.data : []).map(l => ({
+                        'เลขที่เอกสาร': l.doc_id,
+                        'รหัสพนักงาน': l.emp_id,
+                        'ชื่อ-นามสกุล': l.emp_name || '',
+                        'ประเภทการลา': l.leave_type,
+                        'ระยะเวลา': l.duration,
+                        'วันที่เริ่ม': l.start_date,
+                        'วันที่สิ้นสุด': l.end_date,
+                        'จำนวนวัน': l.days_count,
+                        'เหตุผล': l.reason,
+                        'สถานะ': l.status,
+                        'อนุมัติโดย': l.approved_by,
+                        'หมายเหตุ': l.notes,
+                        'เอกสารแนบ': l.attachments
+                    }));
+
+                    const corrData = (!corrSb.error && Array.isArray(corrSb.data) ? corrSb.data : []).map(c => ({
+                        'รหัสพนักงาน': c.emp_id,
+                        'วันที่': c.date,
+                        'เวลาเข้าใหม่': c.new_time_in,
+                        'เวลาออกใหม่': c.new_time_out,
+                        'เหตุผล': c.reason,
+                        'สถานะ': c.status,
+                        'โครงการ': c.project,
+                        'อนุมัติโดย': c.approved_by,
+                        'หมายเหตุ': c.notes
+                    }));
+
+                    const advData = (!advSb.error && Array.isArray(advSb.data) ? advSb.data : []).map(a => ({
+                        'รหัสพนักงาน': a.emp_id,
+                        'จำนวนเงิน': a.amount,
+                        'วันที่เบิก': a.request_date,
+                        'รอบจ่าย': a.pay_cycle,
+                        'สถานะ': a.status,
+                        'ช่องทางรับเงิน': a.payout_channel,
+                        'หมายเหตุ': a.notes
+                    }));
+
+                    renderLeave({ status: 'success', data: leaveData });
+                    renderCorrections({ status: 'success', data: corrData });
+                    renderAdvance({ status: 'success', data: advData });
                     updateApprovalStatCards();
+                    console.log('[loadAdminApprovals ⚡ Supabase] ✓', leaveData.length, 'leave,', corrData.length, 'corrections,', advData.length, 'advances');
                 } catch (err) {
                     showToast("❌ ซิงค์ข้อมูลคำขออนุมัติล้มเหลว: " + err.message, "error");
+                    console.error('[loadAdminApprovals] Supabase error:', err);
                 }
                 adminApprovalsLoadedOnce = true;
             }
@@ -13558,22 +13634,32 @@ async function loadAdminEmployees() {
                 if (!bodyEl) return;
                 bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic">⏳ กำลังโหลดผลการอนุมัติ...</td></tr>`;
                 try {
-                    const res = await fetchWithTimeout(config[type].url);
-                    if (res.status === 'success') {
-                        const items = res.data.filter(r => r['สถานะ'] && r['สถานะ'] !== 'รออนุมัติ')
+                    // 🔧 SUPABASE-ONLY: โหลดจาก Supabase
+                    let items = [];
+                    if (supabaseClient) {
+                        const tableMap = { leave: 'leave_requests', correction: 'time_corrections', advance: 'advance_requests' };
+                        const fieldMap = {
+                            leave: l => ({ 'เลขที่เอกสาร': l.doc_id, 'รหัสพนักงาน': l.emp_id, 'ชื่อ-นามสกุล': l.emp_name || '', 'ประเภทการลา': l.leave_type, 'วันที่เริ่ม': l.start_date, 'วันที่สิ้นสุด': l.end_date, 'จำนวนวัน': l.days_count, 'เหตุผล': l.reason, 'สถานะ': l.status, 'อนุมัติโดย': l.approved_by, 'หมายเหตุ': l.notes, 'เอกสารแนบ': l.attachments }),
+                            correction: c => ({ 'รหัสพนักงาน': c.emp_id, 'วันที่': c.date, 'เวลาเข้าใหม่': c.new_time_in, 'เวลาออกใหม่': c.new_time_out, 'เหตุผล': c.reason, 'สถานะ': c.status, 'โครงการ': c.project, 'อนุมัติโดย': c.approved_by, 'หมายเหตุ': c.notes }),
+                            advance: a => ({ 'รหัสพนักงาน': a.emp_id, 'จำนวนเงิน': a.amount, 'วันที่เบิก': a.request_date, 'รอบจ่าย': a.pay_cycle, 'สถานะ': a.status, 'เหตุผล': a.reason || a.notes, 'หมายเหตุ': a.notes })
+                        };
+                        const sbRes = await supabaseClient.from(tableMap[type]).select('*');
+                        if (!sbRes.error && Array.isArray(sbRes.data)) {
+                            items = sbRes.data.map(fieldMap[type]);
+                        }
+                    }
+                    const filteredItems = items.filter(r => r['สถานะ'] && r['สถานะ'] !== 'รออนุมัติ')
                             .sort((a, b) => {
                                 if (type === 'leave') {
                                     return compareApprovalDocIdsDescending(a, b);
                                 }
                                 return getApprovalDateValue(type, b) - getApprovalDateValue(type, a);
                             });
-                        if (items.length === 0) {
+                        if (filteredItems.length === 0) {
                             bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
                             return;
                         }
-                        renderRowsInChunks(bodyEl, items.map(req => config[type].buildRow(req)), 'ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้', 6);
-                    } else {
-                        bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ ${escapeHtml(res.message)}</td></tr>`;
+                        renderRowsInChunks(bodyEl, filteredItems.map(req => config[type].buildRow(req)), 'ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้', 6);
                     }
                 } catch (err) {
                     bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาดในการโหลด: ${escapeHtml(err.message)}</td></tr>`;
