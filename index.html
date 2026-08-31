@@ -9960,9 +9960,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         stats.holidayDaysCount++;
                     }
 
-                    // รวมนาทีสาย
-                    const lateMin = parseInt(rec["นาทีสาย"] || 0);
-                    if (lateMin > 0) stats.totalLateMin += lateMin;
+                    // รวมนาทีสาย — คำนวณจากเวลาเข้าจริงถ้า DB ยังเป็น 0
+                    let lateMinVal = parseInt(rec["นาทีสาย"] || 0);
+                    if (lateMinVal === 0) {
+                        const timeInStr = (rec["เวลาเข้า"] || "").toString().trim();
+                        if (timeInStr && timeInStr !== "--:--") {
+                            const _s = (window.__systemSettings || {});
+                            const _cutoff = (_s.lateCutoffTimeStr || "08:15").split(":").map(Number);
+                            const _parts = timeInStr.split(":").map(Number);
+                            const _cutoffMin = _cutoff[0] * 60 + _cutoff[1];
+                            const _inMin = _parts[0] * 60 + (_parts[1] || 0);
+                            if (_inMin > _cutoffMin) {
+                                const _over = _inMin - _cutoffMin;
+                                lateMinVal = 15 + _over; // basePenalty 15 + overMinutes
+                            }
+                        }
+                    }
+                    if (lateMinVal > 0) stats.totalLateMin += lateMinVal;
 
                     // รวม OT
                     const otHrs = parseFloat(rec["ชั่วโมง OT"] || 0);
