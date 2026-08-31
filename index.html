@@ -7229,16 +7229,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function loadProjects() {
+                // 🔧 SUPABASE-ONLY: ใช้ cache จาก loadPublicData หรือ query ใหม่
+                if (projectsList && projectsList.length > 0) {
+                    populateProjectDropdowns();
+                    return;
+                }
                 try {
-                    const response = await fetchWithTimeout(`${SERVER_API_URL}?action=getProjects`);
-                    if (response && response.status === "success") {
-                        projectsList = response.data || [];
+                    if (supabaseClient) {
+                        const { data, error } = await supabaseClient.from('projects').select('*').neq('status', 'ระงับ');
+                        if (!error && Array.isArray(data)) {
+                            projectsList = data;
+                        } else {
+                            projectsList = [];
+                        }
                     } else {
-                        console.warn("Failed to load projects from sheet:", response?.message);
                         projectsList = [];
                     }
                 } catch (e) {
-                    console.error("Error loading projects from sheet:", e);
+                    console.error('[loadProjects] Supabase error:', e);
                     projectsList = [];
                 }
                 populateProjectDropdowns();
@@ -8025,24 +8033,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 closeModal("pin-confirm-modal");
 
                 try {
-                    const res = await fetch(SERVER_API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({
-                            action: "setupPin",
-                            empId: empId,
-                            idCardLast4: idCardLast4,
-                            pin: pin
-                        })
-                    });
-                    const json = await res.json();
-                    if (json.status === "success") {
+                    // 🔧 SUPABASE-ONLY: ตั้งค่า PIN ผ่าน Supabase
+                    if (supabaseClient) {
+                        const sbRes = await supabaseClient.from('employees').update({ pin: pin }).eq('emp_id', empId);
+                        if (sbRes.error) throw new Error(sbRes.error.message);
                         showToast("✅ ตั้งค่า PIN สำเร็จ กำลังเข้าสู่ระบบ...", "success");
                         closeModal("pin-setup-modal");
                         _pendingPinData = null;
                         await handleLoginSuccess(empId);
                     } else {
-                        showToast("❌ " + (json.message || "ตั้งค่า PIN ไม่สำเร็จ"), "error");
+                        showToast("❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้", "error");
                     }
                 } catch (err) {
                     console.error("[confirmAndSavePin] Error:", err);
@@ -8068,17 +8068,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         pinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบ...';
                     }
 
-                    const res = await fetch(SERVER_API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({
-                            action: "verifyPin",
-                            empId: empId,
-                            pin: pin
-                        })
-                    });
-                    const json = await res.json();
-                    if (json.status === "success") {
+                    // 🔧 SUPABASE-ONLY: ตรวจสอบ PIN ผ่าน Supabase
+                    let pinValid = false;
+                    let pinMessage = "รหัส PIN ไม่ถูกต้อง";
+                    if (supabaseClient) {
+                        const sbRes = await supabaseClient.from('employees').select('emp_id,pin').eq('emp_id', empId).single();
+                        if (!sbRes.error && sbRes.data && sbRes.data.pin === pin) {
+                            pinValid = true;
+                        }
+                    }
+                    if (pinValid) {
                         closeModal("pin-login-modal");
                         await handleLoginSuccess(empId);
                     } else {
@@ -8092,7 +8091,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                         closeModal("pin-login-modal");
                         const errReason = document.getElementById("pin-error-reason");
-                        if (errReason) errReason.textContent = json.message || "รหัส PIN ไม่ถูกต้อง";
+                        if (errReason) errReason.textContent = pinMessage;
                         showModal("pin-error-modal");
                     }
                 } catch (err) {
@@ -8514,15 +8513,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         console.warn('[fetchAnnouncements Supabase error]', supErr);
                     }
                 }
-                try {
-                    const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getAnnouncements&empId=${encodeURIComponent(currentEmployeeId || 'ADMIN')}`, { timeout: 10000 });
-                    if (res && res.status === 'success' && Array.isArray(res.data)) {
-                        setStoredAnnouncements(res.data);
-                        return res.data;
-                    }
-                } catch (err) {
-                    console.warn('[fetchAnnouncements]', err);
-                }
+                // 🔧 SUPABASE-ONLY: ไม่มี GAS fallback
                 return getStoredAnnouncements();
             }
 
@@ -8565,30 +8556,25 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 try {
-                    const res = await fetch(SERVER_API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify({
-                            action: "postAnnouncement",
-                            empId: currentEmployeeId,
-                            adminId: currentEmployeeId,
+                    // 🔧 SUPABASE-ONLY: บันทึกประกาศลง Supabase โดยตรง
+                    if (supabaseClient) {
+                        const sbPayload = {
                             title: title,
-                            date: date || new Date().toISOString().slice(0, 10),
-                            message: message,
-                            author: (employeeData && employeeData["ชื่อ-นามสกุล"]) ? employeeData["ชื่อ-นามสกุล"] : currentEmployeeId,
-                            authorEmpId: currentEmployeeId
-                        })
-                    });
-                    const json = await res.json();
-                    if (json.status === "success") {
-                        showToast("✅ " + json.message, "success");
+                            content: message,
+                            posted_at: date || new Date().toISOString().slice(0, 10),
+                            posted_by: (employeeData && employeeData["ชื่อ-นามสกุล"]) ? employeeData["ชื่อ-นามสกุล"] : currentEmployeeId,
+                            author: currentEmployeeId
+                        };
+                        const sbRes = await supabaseClient.from('announcements').insert([sbPayload]);
+                        if (sbRes.error) throw new Error(sbRes.error.message);
+                        showToast("✅ บันทึกประกาศสำเร็จ", "success");
                         if (titleInput) titleInput.value = "";
                         if (messageInput) messageInput.value = "";
                         await fetchAnnouncements();
                         loadAdminAnnouncements();
                         displayAnnouncements();
                     } else {
-                        showToast("❌ " + (json.message || "บันทึกประกาศไม่สำเร็จ"), "error");
+                        showToast("❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้", "error");
                     }
                 } catch (err) {
                     console.error("[saveAdminAnnouncement] Error:", err);
@@ -10269,26 +10255,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 container.innerHTML = `<div class="text-center py-10"><i class="fa-solid fa-rotate animate-spin text-2xl text-blue-500 block mb-2 mx-auto"></i><span class="text-xs text-slate-500">กำลังเชื่อมต่อฐานข้อมูล...</span></div>`;
 
                 try {
-                    const recordsUrl = `${SERVER_API_URL}?action=getTimeRecords&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
-                    const correctionsUrl = `${SERVER_API_URL}?action=getTimeCorrections&empId=${currentEmployeeId}&periodStart=${start}&periodEnd=${end}`;
-
-                    const [recordsRes, correctionsRes] = await Promise.all([
-                        fetchWithTimeout(recordsUrl),
-                        fetchWithTimeout(correctionsUrl)
+                    // 🔧 SUPABASE-ONLY: โหลดจาก Supabase โดยตรง
+                    const [recRes, corrRes] = await Promise.all([
+                        supabaseClient ? supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', start).lte('date', end) : Promise.resolve({ data: [], error: null }),
+                        supabaseClient ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId).gte('date', start).lte('date', end) : Promise.resolve({ data: [], error: null })
                     ]);
 
-                    if (correctionsRes.status === "success") {
-                        timeCorrectionsList = correctionsRes.data || [];
-                    } else {
-                        timeCorrectionsList = [];
-                    }
+                    timeCorrectionsList = (!corrRes.error && Array.isArray(corrRes.data) ? corrRes.data.map(c => ({
+                        'รหัสพนักงาน': c.emp_id, 'วันที่': c.date, 'เวลาเข้าใหม่': c.new_time_in, 'เวลาออกใหม่': c.new_time_out,
+                        'เหตุผล': c.reason, 'สถานะ': c.status, 'โครงการ': c.project, 'อนุมัติโดย': c.approved_by, 'หมายเหตุ': c.notes
+                    })) : []);
 
-                    if (recordsRes.status === "success") {
-                        const rawTimeRecords = recordsRes.data || [];
+                    if (!recRes.error && Array.isArray(recRes.data)) {
+                        const rawTimeRecords = recRes.data.map(r => ({
+                            'วันที่': r.date, 'รหัสพนักงาน': r.emp_id, 'ชื่อ-นามสกุล': r.emp_name,
+                            'เวลาเข้า': r.time_in, 'เวลาออก': r.time_out, 'นาทีสาย': r.late_minutes || 0,
+                            'ชั่วโมง OT': r.ot_hours || 0, 'สถานะสรุป': r.status, 'โครงการ': r.project
+                        }));
                         const fullRecords = getFullCycleRecords(start, end, rawTimeRecords, leaveRequestsList, employeeData);
                         displayCalendarDays(fullRecords);
                     } else {
-                        showToast("❌ โหลดข้อมูลปฏิทินไม่สำเร็จ: " + recordsRes.message, "error");
+                        showToast("❌ โหลดข้อมูลปฏิทินไม่สำเร็จ", "error");
                     }
                 } catch (err) {
                     showToast("❌ ขัดข้องในการเชื่อมต่อระบบปฏิทิน", "error");
@@ -13166,12 +13153,7 @@ container.innerHTML = "";
                 const adminCycle = getCurrentCycleRange();
                 const adminCycleStart = adminCycle ? adminCycle.start : '';
                 const adminCycleEnd = adminCycle ? adminCycle.end : '';
-                const cycleParams = adminCycleStart && adminCycleEnd
-                    ? `&startDate=${encodeURIComponent(adminCycleStart)}&endDate=${encodeURIComponent(adminCycleEnd)}`
-                    : '';
-                const leaveUrl = `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}${cycleParams}`;
-                const corrUrl = `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}${cycleParams}`;
-                const advUrl = `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}${cycleParams}`;
+                // 🔧 SUPABASE-ONLY: ลบ dead URL variables
 
                 // อัปเดต Label รอบบัญชีในส่วนหัว Admin (ถ้ามี)
                 const adminCycleLabelEl = document.getElementById('admin-cycle-range-label');
