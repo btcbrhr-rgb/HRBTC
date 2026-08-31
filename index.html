@@ -8282,31 +8282,43 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const [tRes, tAllRes, cRes, lRes, aRes, payRes, pRes, annRes, holRes] = await Promise.all(queries);
 
                         if (!tRes.error && Array.isArray(tRes.data)) {
-                            timeRecordsList = tRes.data.map(r => ({
-                                "วันที่": r.date,
-                                "รหัสพนักงาน": r.emp_id,
-                                "ชื่อ-นามสกุล": r.emp_name,
-                                "เวลาเข้า": r.time_in,
-                                "เวลาออก": r.time_out,
-                                "นาทีสาย": r.late_minutes || 0,
-                                "ชั่วโมง OT": r.ot_hours || 0,
-                                "สถานะสรุป": r.status || "ปกติ",
-                                "โครงการ": r.project || "-"
-                            }));
+                            timeRecordsList = tRes.data.map(r => {
+                                const tIn = r.time_in || '';
+                                const tOut = r.time_out || '';
+                                const lateMin = (parseInt(r.late_minutes) || 0) || _calcLateFromTimeIn(tIn);
+                                const otHrs = (parseFloat(r.ot_hours) || 0) || _calcOtFromTimeOut(tOut);
+                                return {
+                                    "วันที่": r.date,
+                                    "รหัสพนักงาน": r.emp_id,
+                                    "ชื่อ-นามสกุล": r.emp_name,
+                                    "เวลาเข้า": tIn,
+                                    "เวลาออก": tOut,
+                                    "นาทีสาย": lateMin,
+                                    "ชั่วโมง OT": otHrs,
+                                    "สถานะสรุป": r.status || _calcStatusFromTimes(tIn, tOut),
+                                    "โครงการ": r.project || "-"
+                                };
+                            });
                         }
                         // 🔧 FIX: ใช้ allTimeRecordsList สำหรับกิจกรรมล่าสุด (ไม่จำกัดรอบบัญชี)
                         if (tAllRes && !tAllRes.error && Array.isArray(tAllRes.data)) {
-                            allTimeRecordsList = tAllRes.data.map(r => ({
-                                "วันที่": r.date,
-                                "รหัสพนักงาน": r.emp_id,
-                                "ชื่อ-นามสกุล": r.emp_name,
-                                "เวลาเข้า": r.time_in,
-                                "เวลาออก": r.time_out,
-                                "นาทีสาย": r.late_minutes || 0,
-                                "ชั่วโมง OT": r.ot_hours || 0,
-                                "สถานะสรุป": r.status || "ปกติ",
-                                "โครงการ": r.project || "-"
-                            }));
+                            allTimeRecordsList = tAllRes.data.map(r => {
+                                const tIn = r.time_in || '';
+                                const tOut = r.time_out || '';
+                                const lateMin = (parseInt(r.late_minutes) || 0) || _calcLateFromTimeIn(tIn);
+                                const otHrs = (parseFloat(r.ot_hours) || 0) || _calcOtFromTimeOut(tOut);
+                                return {
+                                    "วันที่": r.date,
+                                    "รหัสพนักงาน": r.emp_id,
+                                    "ชื่อ-นามสกุล": r.emp_name,
+                                    "เวลาเข้า": tIn,
+                                    "เวลาออก": tOut,
+                                    "นาทีสาย": lateMin,
+                                    "ชั่วโมง OT": otHrs,
+                                    "สถานะสรุป": r.status || _calcStatusFromTimes(tIn, tOut),
+                                    "โครงการ": r.project || "-"
+                                };
+                            });
                         }
 
                         if (cRes && !cRes.error && Array.isArray(cRes.data)) {
@@ -9960,23 +9972,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         stats.holidayDaysCount++;
                     }
 
-                    // รวมนาทีสาย — คำนวณจากเวลาเข้าจริงถ้า DB ยังเป็น 0
-                    let lateMinVal = parseInt(rec["นาทีสาย"] || 0);
-                    if (lateMinVal === 0) {
-                        const timeInStr = (rec["เวลาเข้า"] || "").toString().trim();
-                        if (timeInStr && timeInStr !== "--:--") {
-                            const _s = (window.__systemSettings || {});
-                            const _cutoff = (_s.lateCutoffTimeStr || "08:15").split(":").map(Number);
-                            const _parts = timeInStr.split(":").map(Number);
-                            const _cutoffMin = _cutoff[0] * 60 + _cutoff[1];
-                            const _inMin = _parts[0] * 60 + (_parts[1] || 0);
-                            if (_inMin > _cutoffMin) {
-                                const _over = _inMin - _cutoffMin;
-                                lateMinVal = 15 + _over; // basePenalty 15 + overMinutes
-                            }
-                        }
-                    }
-                    if (lateMinVal > 0) stats.totalLateMin += lateMinVal;
+                    // รวมนาทีสาย (คำนวณจากต้นทางแล้ว)
+                    const lateMin = parseInt(rec["นาทีสาย"] || 0);
+                    if (lateMin > 0) stats.totalLateMin += lateMin;
 
                     // รวม OT
                     const otHrs = parseFloat(rec["ชั่วโมง OT"] || 0);
@@ -10067,6 +10065,42 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 } catch (e) { /* ignore */ }
                 return {};
+            }
+
+            // 🔧 Centralized: คำนวณนาทีสายจากเวลาเข้าจริง + settings
+            function _calcLateFromTimeIn(timeInStr) {
+                if (!timeInStr || timeInStr === '--:--') return 0;
+                const s = safeGetSettings();
+                const cutoff = (s.lateCutoffTimeStr || '08:15').split(':').map(Number);
+                const parts = timeInStr.split(':').map(Number);
+                const cutoffMin = cutoff[0] * 60 + cutoff[1];
+                const inMin = parts[0] * 60 + (parts[1] || 0);
+                if (inMin > cutoffMin) return 15 + (inMin - cutoffMin); // basePenalty 15 + over
+                return 0;
+            }
+            // 🔧 Centralized: คำนวณ OT จากเวลาออกจริง + settings
+            function _calcOtFromTimeOut(timeOutStr) {
+                if (!timeOutStr || timeOutStr === '--:--') return 0;
+                const s = safeGetSettings();
+                const otStart = (s.otStartTimeStr || '17:15').split(':').map(Number);
+                const parts = timeOutStr.split(':').map(Number);
+                const otStartMin = otStart[0] * 60 + otStart[1];
+                const outMin = parts[0] * 60 + (parts[1] || 0);
+                if (outMin > otStartMin) {
+                    const otMin = outMin - otStartMin;
+                    const interval = s.otIntervalMinutes || 30;
+                    return Math.ceil(otMin / interval) * interval / 60;
+                }
+                return 0;
+            }
+            // 🔧 Centralized: คำนวณสถานะจากเวลาเข้า/ออก
+            function _calcStatusFromTimes(timeInStr, timeOutStr) {
+                if (timeInStr && timeOutStr) {
+                    const late = _calcLateFromTimeIn(timeInStr);
+                    return late > 0 ? 'สาย' : 'ปกติ';
+                } else if (timeInStr && !timeOutStr) return 'MO';
+                else if (!timeInStr && timeOutStr) return 'MI';
+                return 'ขาด';
             }
 
             // --- ส่วนแสดงประวัติกิจกรรมล่าสุดในหน้าแรก ---
@@ -15503,7 +15537,7 @@ async function loadAdminEmployees() {
                     records.forEach(r => {
                         const status = (r['สถานะสรุป'] || r['status'] || '').toString().trim();
                         const timeIn = r['เวลาเข้า'] || r['time_in'] || '';
-                        const lateMin = parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0;
+                        const lateMin = (parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0) || _calcLateFromTimeIn(r['เวลาเข้า'] || r.time_in || '');
                         const otHrs = parseFloat(r['ชั่วโมง OT'] || r['ot_hours'] || 0) || 0;
                         totalDays++;
                         if (status === 'ย' || status === 'นข') return;
@@ -15531,7 +15565,7 @@ async function loadAdminEmployees() {
                         const timeIn = (r.time_in || r['เวลาเข้า'] || r.timeIn || '').toString().trim();
                         const timeOut = (r.time_out || r['เวลาออก'] || r.timeOut || '').toString().trim();
                         const status = (r.status || r['สถานะสรุป'] || r['สถานะ'] || '').toString().trim();
-                        const late = (r.late_minutes != null ? r.late_minutes : (r['นาทีสาย'] || r.lateMinutes || 0));
+                        const late = (parseInt(r.late_minutes || r['นาทีสาย'] || r.lateMinutes || 0) || 0) || _calcLateFromTimeIn(timeIn);
                         const ot = (r.ot_hours != null ? r.ot_hours : (r['ชั่วโมง OT'] || r.otHours || 0));
                         const project = (r.project_in || r.project || r['โครงการ (เข้า)'] || r['โครงการ'] || '').toString().trim();
                         const matchKey = (empId.toUpperCase() + '|' + date);
@@ -18382,7 +18416,7 @@ ${slip.textSample}
                 timeIn: (row['เวลาเข้า'] || row['timeIn'] || '').toString().trim(),
                 timeOut: (row['เวลาออก'] || row['timeOut'] || '').toString().trim(),
                 ot: parseFloatOrZero(row['ชั่วโมง OT'] || row['OT'] || row['ot']),
-                penalty: parseFloatOrZero(row['นาทีสาย'] || row['late_minutes'] || row['lateMinutes'] || row['late']),
+                penalty: (parseFloatOrZero(row['นาทีสาย'] || row['late_minutes'] || row['lateMinutes'] || row['late']) || 0) || _calcLateFromTimeIn(row['เวลาเข้า'] || row['timeIn'] || row['time_in'] || ''),
                 project,
                 food: parseFloatOrZero(row['ค่าข้าว'] || row['food'] || row['meal'] || 0),
                 trip: parseFloatOrZero(row['ค่าเที่ยว'] || row['trip'] || row['transport'] || 0),
@@ -18747,8 +18781,9 @@ ${slip.textSample}
                                 empId: (raw.emp_id || '').toString().trim(),
                                 date: (raw.date || '').toString().trim(),
                                 timeIn: raw.time_in || '', timeOut: raw.time_out || '',
-                                status: raw.status || 'ปกติ', late: parseInt(raw.late_minutes) || 0,
-                                penalty: parseInt(raw.late_minutes) || 0,
+                                status: raw.status || _calcStatusFromTimes(raw.time_in || '', raw.time_out || ''),
+                                late: (parseInt(raw.late_minutes) || 0) || _calcLateFromTimeIn(raw.time_in || ''),
+                                penalty: (parseInt(raw.late_minutes) || 0) || _calcLateFromTimeIn(raw.time_in || ''),
                                 ot: parseFloat(raw.ot_hours) || 0, project: raw.project_in || '',
                                 source: raw.source || ''
                             };
