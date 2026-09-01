@@ -8285,8 +8285,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             timeRecordsList = tRes.data.map(r => {
                                 const tIn = r.time_in || '';
                                 const tOut = r.time_out || '';
-                                const lateMin = (parseInt(r.late_minutes) || 0) || _calcLateFromTimeIn(tIn);
-                                const otHrs = (parseFloat(r.ot_hours) || 0) || _calcOtFromTimeOut(tOut);
+                                // 🔧 FIX: ใช้ค่าจาก DB โดยตรง ไม่คำนวณใหม่
+                                const lateMin = parseInt(r.late_minutes) || 0;
+                                const otHrs = parseFloat(r.ot_hours) || 0;
                                 return {
                                     "วันที่": r.date,
                                     "รหัสพนักงาน": r.emp_id,
@@ -8295,8 +8296,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     "เวลาออก": tOut,
                                     "นาทีสาย": lateMin,
                                     "ชั่วโมง OT": otHrs,
-                                    "สถานะสรุป": r.status || _calcStatusFromTimes(tIn, tOut),
-                                    "โครงการ": r.project || "-"
+                                    "สถานะสรุป": r.status || '',
+                                    "โครงการ": r.project || r.project_in || "-",
+                                    // 🔧 เพิ่ม column ที่ขาด
+                                    "ค่าอาหาร": parseFloat(r.food_allowance) || 0,
+                                    "เบี้ยเลี้ยง": parseFloat(r.shift_allowance) || 0,
+                                    "อื่นๆ": parseFloat(r.other_allowance) || 0,
+                                    "โครงการเข้า": r.project_in || '',
+                                    "โครงการออก": r.project_out || '',
+                                    "แก้ไขแล้ว": r.is_edited || false,
+                                    "ที่มา": r.source || '',
+                                    "หมายเหตุ": r.notes || '',
+                                    // raw columns สำหรับ debug
+                                    "_raw": r
                                 };
                             });
                         }
@@ -8305,18 +8317,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             allTimeRecordsList = tAllRes.data.map(r => {
                                 const tIn = r.time_in || '';
                                 const tOut = r.time_out || '';
-                                const lateMin = (parseInt(r.late_minutes) || 0) || _calcLateFromTimeIn(tIn);
-                                const otHrs = (parseFloat(r.ot_hours) || 0) || _calcOtFromTimeOut(tOut);
                                 return {
                                     "วันที่": r.date,
                                     "รหัสพนักงาน": r.emp_id,
                                     "ชื่อ-นามสกุล": r.emp_name,
                                     "เวลาเข้า": tIn,
                                     "เวลาออก": tOut,
-                                    "นาทีสาย": lateMin,
-                                    "ชั่วโมง OT": otHrs,
-                                    "สถานะสรุป": r.status || _calcStatusFromTimes(tIn, tOut),
-                                    "โครงการ": r.project || "-"
+                                    "นาทีสาย": parseInt(r.late_minutes) || 0,
+                                    "ชั่วโมง OT": parseFloat(r.ot_hours) || 0,
+                                    "สถานะสรุป": r.status || '',
+                                    "โครงการ": r.project || r.project_in || '-'
                                 };
                             });
                         }
@@ -15538,7 +15548,8 @@ container.innerHTML = "";
                                     .lte('date', endStr)
                                     .order('date', { ascending: true })
                                     .then(({ data, error }) => {
-                                        if (!error && Array.isArray(data)) {
+                                        // 🔧 FIX: ไม่เก็บ empty array ลง cache (เพราะ [] เป็น truthy ทำให้ selectYearlyMonth คิดว่ามีข้อมูลแล้ว)
+                                        if (!error && Array.isArray(data) && data.length > 0) {
                                             yearlyMonthDataCache[cacheKey] = data;
                                         }
                                     }).catch(() => {})
@@ -15581,44 +15592,29 @@ container.innerHTML = "";
 
                     tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลเดือน ' + THAI_MONTHS_FULL[month - 1] + '...</td></tr>';
 
-                    // ✅ Supabase-First: ดึงตรงจาก Supabase (ไม่ผ่าน GAS → เร็วกว่า 5-10x)
+                    // ✅ Supabase-First: ดึงตรงจาก time_records (ไม่ผ่าน GAS)
                     try {
                         if (supabaseClient) {
+                            // 🔧 FIX: ค้นหาทุกคน (ไม่ filter emp_id) เพื่อแสดงข้อมูลทั้งหมด
                             const { data, error } = await supabaseClient
                                 .from('time_records')
                                 .select('*')
                                 .gte('date', startStr)
                                 .lte('date', endStr)
                                 .order('date', { ascending: true });
-                            if (!error && Array.isArray(data) && data.length > 0) {
-                                yearlyMonthDataCache[cacheKey] = data;
-                                renderYearlyMonthTable(data, month, year);
-                                return;
-                            }
+                            if (error) throw error;
+                            yearlyMonthDataCache[cacheKey] = data || [];
+                            renderYearlyMonthTable(data || [], month, year);
+                            console.log(`[YearlyOverview] ${THAI_MONTHS_FULL[month-1]}: ${data?.length || 0} records loaded`);
+                            return;
                         }
                     } catch (sbErr) {
-                        console.warn('[YearlyOverview] Supabase query failed, falling back to GAS:', sbErr.message);
+                        console.warn('[YearlyOverview] Supabase query failed:', sbErr.message);
                     }
 
-                    // Fallback: ใช้ GAS API (ช้ากว่า)
-                    try {
-                        const billingM = month + 1 > 12 ? 1 : month + 1;
-                        const billingY = month + 1 > 12 ? year + 1 : year;
-                        const billingMonthVal = `${billingY}-${String(billingM).padStart(2, '0')}`;
-                        const res = await fetchWithTimeout(
-                            `${SERVER_API_URL}?action=getProjectCostData&empId=${currentEmployeeId}&month=${billingMonthVal}`,
-                            { timeout: 30000 }
-                        );
-                        if (res && res.status === 'success' && res.data && Array.isArray(res.data.attendance)) {
-                            yearlyMonthDataCache[cacheKey] = res.data.attendance;
-                            renderYearlyMonthTable(res.data.attendance, month, year);
-                        } else {
-                            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลเวลางานเดือนนี้</td></tr>';
-                        }
-                    } catch (e) {
-                        console.warn('[YearlyOverview] Load failed:', e.message);
-                        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-rose-400 italic">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
-                    }
+                    // 🔧 SUPABASE-ONLY: ไม่มี GAS fallback
+                    yearlyMonthDataCache[cacheKey] = [];
+                    renderYearlyMonthTable([], month, year);
                 }
 
                 function renderYearlyMonthTable(records, month, year) {
@@ -15766,8 +15762,11 @@ container.innerHTML = "";
 
                     try {
                         // ใช้ reapplyTimeCorrection (admin direct edit) หรือ submitTimeCorrection
-                        const timeInNew = updates.timeIn || rec['เวลาเข้า'] || '08:00:00';
-                        const timeOutNew = updates.timeOut || rec['เวลาออก'] || '17:00:00';
+                        // 🔧 FIX: ใช้ systemSettings แทน hardcoded
+                        const _workStart = (systemSettings.workStartTimeStr || '08:00') + ':00';
+                        const _workEnd = (systemSettings.workEndTimeStr || '17:00') + ':00';
+                        const timeInNew = updates.timeIn || rec['เวลาเข้า'] || _workStart;
+                        const timeOutNew = updates.timeOut || rec['เวลาออก'] || _workEnd;
                         const reason = `Admin แก้ไขข้อมูลเวลางาน (เดือน ${THAI_MONTHS_SHORT[yearlySelectedMonth - 1]})`;
 
                         // ส่งคำขอแก้ไขเวลา (auto-approve โดย admin)
@@ -19750,16 +19749,19 @@ ${slip.textSample}
             const timeOutInput = document.getElementById('modalTimeOut');
             const latePanel = document.getElementById('modalLateInputGroup');
 
+            // 🔧 FIX: ใช้ systemSettings แทน hardcoded '08:00'/'17:00'
+            const _modalWorkStart = systemSettings.workStartTimeStr || '08:00';
+            const _modalWorkEnd = systemSettings.workEndTimeStr || '17:00';
             if (status === 'L') {
                 if (latePanel) latePanel.classList.remove('hidden'); else console.warn('modalLateInputGroup element not found');
-                if (timeInInput) timeInInput.value = '08:00'; else console.warn('modalTimeIn element not found');
-                if (timeOutInput) timeOutInput.value = '17:00'; else console.warn('modalTimeOut element not found');
+                if (timeInInput) timeInInput.value = _modalWorkStart; else console.warn('modalTimeIn element not found');
+                if (timeOutInput) timeOutInput.value = _modalWorkEnd; else console.warn('modalTimeOut element not found');
                 try { updateTimeBasedOnLate(); } catch (e) { console.warn('updateTimeBasedOnLate failed', e); }
             } else {
                 if (latePanel) latePanel.classList.add('hidden');
                 if (['W', 'B+', 'H+', 'S+', 'นข'].includes(status)) {
-                    if (timeInInput) timeInInput.value = '08:00';
-                    if (timeOutInput) timeOutInput.value = '17:00';
+                    if (timeInInput) timeInInput.value = _modalWorkStart;
+                    if (timeOutInput) timeOutInput.value = _modalWorkEnd;
                 } else {
                     if (timeInInput) timeInInput.value = '';
                     if (timeOutInput) timeOutInput.value = '';
@@ -20052,8 +20054,8 @@ ${slip.textSample}
                 if (dayData[emp.id]) {
                     dayData[emp.id].status = status;
                     if (status === 'W') {
-                        dayData[emp.id].timeIn = '08:00';
-                        dayData[emp.id].timeOut = '17:00';
+                        dayData[emp.id].timeIn = systemSettings.workStartTimeStr || '08:00';
+                        dayData[emp.id].timeOut = systemSettings.workEndTimeStr || '17:00';
                     } else if (status === 'A') {
                         dayData[emp.id].timeIn = '';
                         dayData[emp.id].timeOut = '';
