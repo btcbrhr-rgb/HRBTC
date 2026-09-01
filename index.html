@@ -9726,12 +9726,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const name = employeeData["ชื่อ-นามสกุล"] || "ไม่พบชื่อ";
                 const id = employeeData["รหัสพนักงาน"] || currentEmployeeId;
                 const element = document.getElementById("header-emp-info");
-
-                if (activePage === "home") {
-                    element.textContent = "ยินดีต้อนรับ";
-                } else {
-                    element.textContent = `${name} (${id})`;
-                }
+                if (!element) return;
+                element.textContent = `${name} (${id})`;
             }
 
             // helper: ตรวจสอบวันหยุดประจำสัปดาห์ของพนักงาน
@@ -17786,7 +17782,10 @@ ${slip.textSample}
                         var parts = startDateStr.split(/[-/]/);
                         var start;
                         if (parts.length === 3) {
-                            start = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                            var year = parseInt(parts[0]);
+                            // แปลง พ.ศ. → ค.ศ. (ถ้าปี > 2500 ให้ถือว่าเป็น พ.ศ.)
+                            if (year > 2500) year -= 543;
+                            start = new Date(year, parseInt(parts[1]) - 1, parseInt(parts[2]));
                         } else {
                             start = new Date(startDateStr);
                         }
