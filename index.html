@@ -1697,21 +1697,17 @@
                     </div>
                 </div>
 
-                <!-- ประวัติและกิจกรรมล่าสุดของพนักงาน -->
-                <div class="space-y-3">
+                <!-- 🆕 กิจกรรมล่าสุด (Timeline Style) -->
+                <div class="space-y-2.5 pb-2">
                     <div class="flex items-center justify-between">
-                        <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
-                            <i class="fa-solid fa-list-check text-blue-600"></i> กิจกรรมล่าสุด
-                        </h3>
-                        <button onclick="navigateTo('calendar')"
-                            class="text-xs text-blue-600 hover:underline">ดูปฏิทินทั้งหมด</button>
+                        <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-clock-rotate-left text-blue-500"></i> กิจกรรมล่าสุด</h3>
+                        <button onclick="navigateTo('calendar')" class="text-[10px] text-blue-600 font-semibold cursor-pointer">ดูทั้งหมด →</button>
                     </div>
-
-                    <div id="home-activities-list" class="space-y-2.5">
+                    <div id="home-activities-list" class="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden">
                         <!-- โหลดรายการกิจกรรมที่นี่ -->
                         <div class="text-center py-6 text-slate-400 text-xs">
                             <i class="fa-solid fa-circle-notch animate-spin text-lg text-blue-500 mb-2 block"></i>
-                            กำลังโหลดประวัติเวลางานในรอบปัจจุบัน...
+                            กำลังโหลดกิจกรรมล่าสุด...
                         </div>
                     </div>
                 </div>
@@ -11148,6 +11144,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // หมายเหตุ: ฟังก์ชัน escapeHtml ถูกประกาศไว้ที่บรรทัดต้นๆ ของไฟล์แล้ว (line ~4265)
             // ลบ duplicate ออก เพื่อหลีกเลี่ยงการ overwrite และลด dead code
 
+            // --- 🆕 Advance Lock Status Toggle ---
+            function setAdvanceStatus(status) {
+                var lockedDate = document.getElementById('advance-locked-date');
+                var lockedUsed = document.getElementById('advance-locked-used');
+                var formOpen = document.getElementById('advance-form-open');
+                if (lockedDate) lockedDate.classList.add('hidden');
+                if (lockedUsed) lockedUsed.classList.add('hidden');
+                if (formOpen) formOpen.classList.add('hidden');
+                if (status === 'locked-date' && lockedDate) lockedDate.classList.remove('hidden');
+                else if (status === 'locked-used' && lockedUsed) lockedUsed.classList.remove('hidden');
+                else if (status === 'open' && formOpen) formOpen.classList.remove('hidden');
+            }
+
+            function checkAdvanceLockStatus() {
+                var now = new Date();
+                var dayOfMonth = now.getDate();
+                var usedThisMonth = advanceRequestsList.filter(function(r) {
+                    var d = new Date(r.request_date || r.created_at);
+                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() &&
+                        (r.status || '').indexOf('ไม่อนุมัติ') === -1 && (r.status || '').indexOf('ปฏิเสธ') === -1;
+                }).length;
+                if (dayOfMonth > 14) {
+                    setAdvanceStatus('locked-date');
+                } else if (usedThisMonth >= 1) {
+                    setAdvanceStatus('locked-used');
+                } else {
+                    setAdvanceStatus('open');
+                }
+            }
+
             // --- ส่วนเบิกเงินเดือนล่วงหน้า ---
             function displayAdvanceHistory() {
                 const container = document.getElementById("advance-history-list");
@@ -11797,6 +11823,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const targetSection = document.getElementById(`page-${target}`);
                 if (targetSection) {
                     targetSection.classList.remove("hidden");
+                }
+
+                // 🆕 Hide/show header for attendance and profile pages
+                const appHeader = document.querySelector('header');
+                const mainEl = document.querySelector('main');
+                if (target === 'attendance' || target === 'profile') {
+                    if (appHeader) appHeader.style.display = 'none';
+                    if (mainEl) { mainEl.style.padding = '0'; mainEl.style.overflow = 'auto'; }
+                } else {
+                    if (appHeader) appHeader.style.display = '';
+                    if (mainEl) { mainEl.style.padding = ''; mainEl.style.overflow = ''; }
                 }
 
                 if (target === "home") {
@@ -17613,26 +17650,64 @@ ${slip.textSample}
                 function populateProfileUI(data) {
                     currentProfileData = data;
 
-                    // Update read-only fields
-                    document.getElementById("profile-emp-id").value = data["รหัสพนักงาน"] || "";
-                    document.getElementById("profile-name").value = data["ชื่อ-นามสกุล"] || "";
-                    document.getElementById("profile-position").value = data["ตำแหน่ง"] || "";
-                    document.getElementById("profile-start-date").value = formatDateForInput(data["วันที่เริ่มงาน"]);
-                    document.getElementById("profile-id-card").value = data["เลขบัตรประชาชน"] || "";
-                    document.getElementById("profile-status").value = data["สถานะ"] || "";
-                    document.getElementById("profile-dayoff").value = data["วันหยุดประจําสัปดาห์"] || "";
-                    document.getElementById("profile-company").value = data["ชื่อบริษัท"] || "";
-                    document.getElementById("profile-bank").value = data["ธนาคาร"] || "";
-                    document.getElementById("profile-bank-branch").value = data["สาขาธนาคาร"] || "";
-                    document.getElementById("profile-bank-account").value = data["หมายเลขบัญชี"] || "";
+                    // Helper: set value or textContent
+                    function setField(id, val) {
+                        var el = document.getElementById(id);
+                        if (!el) return;
+                        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+                            el.value = val;
+                        } else {
+                            el.textContent = val || '...';
+                        }
+                    }
 
-                    // Update editable fields
-                    document.getElementById("profile-phone").value = data["เบอร์โทรศัพท์"] || "";
-                    document.getElementById("profile-address").value = data["ที่อยู่"] || "";
-                    document.getElementById("profile-birthdate").value = formatDateForInput(data["วันเดือนปีเกิด"]);
+                    var empId = data["รหัสพนักงาน"] || data.emp_id || '';
+                    var name = data["ชื่อ-นามสกุล"] || data.name || '';
+                    var position = data["ตำแหน่ง"] || data.position || '';
+                    var status = data["สถานะ"] || data.status || '';
+                    var company = data["ชื่อบริษัท"] || data.company || '';
+                    var startDate = data["วันที่เริ่มงาน"] || data.start_date || '';
+                    var dayOff = data["วันหยุดประจําสัปดาห์"] || data.day_off || '';
+                    var phone = data["เบอร์โทรศัพท์"] || data.phone || '';
+                    var address = data["ที่อยู่"] || data.address || '';
+                    var birthdate = data["วันเดือนปีเกิด"] || data.birth_date || '';
+                    var idCard = data["เลขบัตรประชาชน"] || data.id_card || '';
+                    var bank = data["ธนาคาร"] || data.bank || '';
+                    var bankBranch = data["สาขาธนาคาร"] || data.bank_branch || '';
+                    var bankAccount = data["หมายเลขบัญชี"] || data.bank_account || '';
+
+                    // Card display elements
+                    setField('profile-emp-id', empId);
+                    setField('profile-name', name);
+                    setField('profile-id-card', idCard);
+                    setField('profile-birthdate', birthdate);
+                    setField('profile-phone', phone);
+                    setField('profile-address', address);
+                    setField('profile-position', position);
+                    setField('profile-status', status);
+                    setField('profile-company', company);
+                    setField('profile-start-date', startDate);
+                    setField('profile-dayoff', dayOff);
+                    setField('profile-bank', bank);
+                    setField('profile-bank-branch', bankBranch);
+                    setField('profile-bank-account', bankAccount);
+
+                    // Avatar card display
+                    var displayNameEl = document.getElementById('profile-display-name');
+                    var displayPositionEl = document.getElementById('profile-display-position');
+                    var displayStatusEl = document.getElementById('profile-display-status');
+                    var displayAgeEl = document.getElementById('profile-display-age');
+                    if (displayNameEl) displayNameEl.textContent = name || '...';
+                    if (displayPositionEl) displayPositionEl.textContent = (position || '...') + ' · ' + empId;
+                    if (displayStatusEl) displayStatusEl.textContent = status || '...';
+                    if (displayAgeEl) displayAgeEl.textContent = 'อายุงาน ' + (calculateWorkAge(startDate) || '...');
+
+                    // Work age in detail section
+                    var workAgeEl = document.getElementById('profile-work-age');
+                    if (workAgeEl) workAgeEl.textContent = calculateWorkAge(startDate) || '...';
 
                     // Update profile photo
-                    const photoUrl = convertDriveUrl(data["ลิ้งภาพโปรไฟล์"]);
+                    var photoUrl = convertDriveUrl(data["ลิ้งภาพโปรไฟล์"] || data.avatar_url);
                     if (photoUrl) {
                         document.getElementById("profile-avatar").src = photoUrl;
                     }
