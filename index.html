@@ -10199,32 +10199,63 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     if (act.type === 'time') {
                         const rec = act.data;
-                        const timeIn = rec["เวลาเข้า"] || "--:--";
-                        const timeOut = rec["เวลาออก"] || "--:--";
+                        const timeIn = rec["เวลาเข้า"] || '';
+                        const timeOut = rec["เวลาออก"] || '';
                         const status = rec["สถานะสรุป"] || "ปกติ";
-                        const projectIn = rec["โครงการ (เข้า)"] || "ไม่ได้ระบุ";
+                        const projectIn = rec["โครงการเข้า"] || rec["โครงการออก"] || rec["โครงการ"] || '';
                         const otHrs = parseFloat(rec["ชั่วโมง OT"] || 0);
                         const lateMin = parseInt(rec["นาทีสาย"] || 0);
 
                         icon = 'fa-business-time';
-                        iconBg = 'bg-blue-50 text-blue-600';
-                        title = `${formatThaiDate(act.date)}`;
-                        subtitle = `${projectIn}${otHrs > 0 ? ` • OT ${otHrs.toFixed(1)} ชม.` : ''}${lateMin > 0 ? ` • สาย ${lateMin} นาที` : ''}`;
-                        rightLabel = `${timeIn}-${timeOut}`;
 
-                        if (status === "สาย" || status === "มาสาย") {
-                            badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
-                            badgeText = "สาย";
-                        } else if (status.includes("ขาด") || status === "A") {
+                        // 🆕 Title = บอกสถานะชัดเจน, Subtitle = วันที่ + โครงการ
+                        if (!timeIn && !timeOut) {
+                            // ไม่ได้ลงเวลาเลย (ขาดงาน)
+                            iconBg = 'bg-rose-50 text-rose-600';
+                            title = 'ไม่ได้ลงเวลา';
+                            subtitle = formatThaiDate(act.date);
+                            rightLabel = '--:--';
                             badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
-                            badgeText = "ขาดงาน";
-                        } else if (status.includes("ลา")) {
-                            badgeClass = "bg-brand-sky text-brand-deep border-brand-sky2";
-                            badgeText = status;
-                        } else if (status.includes("หยุด") || status === "พร" || status === "H") {
-                            badgeClass = "bg-slate-50 text-slate-600 border-slate-200";
-                            badgeText = "วันหยุด";
+                            badgeText = "ไม่ได้ลง";
+                        } else if (timeIn && !timeOut) {
+                            // ลงเวลาเข้า แต่ยังไม่ออก
+                            iconBg = 'bg-emerald-50 text-emerald-600';
+                            title = 'ลงเวลาเข้างาน';
+                            subtitle = formatThaiDate(act.date) + (projectIn ? ' · ' + projectIn : '');
+                            rightLabel = timeIn;
+                            if (status === "สาย" || status === "มาสาย") {
+                                badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+                                badgeText = "สาย";
+                            } else {
+                                badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                badgeText = "ปกติ";
+                            }
+                        } else if (timeIn && timeOut) {
+                            // ลงเวลาครบเข้า-ออก
+                            iconBg = 'bg-blue-50 text-blue-600';
+                            title = 'ลงเวลาเข้างาน - ออกงาน';
+                            subtitle = formatThaiDate(act.date) + (projectIn ? ' · ' + projectIn : '');
+                            if (otHrs > 0) subtitle += ` · OT ${otHrs.toFixed(1)} ชม.`;
+                            if (lateMin > 0) subtitle += ` · สาย ${lateMin} นาที`;
+                            rightLabel = `${timeIn}-${timeOut}`;
+                            if (status === "สาย" || status === "มาสาย") {
+                                badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+                                badgeText = "สาย";
+                            } else if (status.includes("ขาด") || status === "A") {
+                                badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+                                badgeText = "ขาดงาน";
+                            } else if (status.includes("หยุด") || status === "พร" || status === "H") {
+                                badgeClass = "bg-slate-50 text-slate-600 border-slate-200";
+                                badgeText = "วันหยุด";
+                            } else {
+                                badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                badgeText = "ปกติ";
+                            }
                         } else {
+                            iconBg = 'bg-blue-50 text-blue-600';
+                            title = formatThaiDate(act.date);
+                            subtitle = projectIn || '';
+                            rightLabel = `${timeIn}-${timeOut}`;
                             badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
                             badgeText = "ปกติ";
                         }
@@ -10519,7 +10550,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     // ส่วนท้ายการ์ด
-                    let footerLeft = `<span class="text-[10px] text-slate-400">โครงการ: ${rec["โครงการ (เข้า)"] || "ปกติ"}</span>`;
+                    let footerLeft = `<span class="text-[10px] text-slate-400">โครงการ: ${rec["โครงการเข้า"] || rec["โครงการ"] || rec["project_in"] || rec["project"] || '-'}</span>`;
                     if (isLeaveDay) {
                         footerLeft = `<span class="text-[10px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i>ติดต่อฝ่ายบุคคลเพื่อยกเลิกการลา</span>`;
                     } else if (isDayOff) {
@@ -11736,7 +11767,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (parts.length >= 3 && parts[0].length === 4) {
                     const day = parseInt(parts[2]);
                     const month = months[parseInt(parts[1]) - 1];
-                    const year = parseInt(parts[0]) + 543;
+                    let year = parseInt(parts[0]);
+                    // แปลง ค.ศ. → พ.ศ. (ถ้าปี < 2500 ให้ถือว่าเป็น ค.ศ.)
+                    if (year < 2500) year += 543;
                     return `${day} ${month} ${year}`;
                 }
                 // Format 2: raw Date toString like "Mon Jun 01 2026 10:38:21 GMT+0700"
@@ -15756,7 +15789,7 @@ container.innerHTML = "";
                         const status = (r.status || r['สถานะสรุป'] || r['สถานะ'] || '').toString().trim();
                         const late = (parseInt(r.late_minutes || r['นาทีสาย'] || r.lateMinutes || 0) || 0) || _calcLateFromTimeIn(timeIn);
                         const ot = (r.ot_hours != null ? r.ot_hours : (r['ชั่วโมง OT'] || r.otHours || 0));
-                        const project = (r.project_in || r.project || r['โครงการ (เข้า)'] || r['โครงการ'] || '').toString().trim();
+                        const project = (r.project_in || r.project || r['โครงการเข้า'] || r['โครงการ'] || '').toString().trim();
                         const matchKey = (empId.toUpperCase() + '|' + date);
                         const isEdited = (
                             r.is_edited === true || r.is_edited === 'true' || r.is_edited === 1 || 
@@ -15879,7 +15912,7 @@ container.innerHTML = "";
                                 date: date,
                                 timeInNew: timeInNew,
                                 timeOutNew: timeOutNew,
-                                project: rec['โครงการ (เข้า)'] || rec['project_in'] || '',
+                                project: rec['โครงการเข้า'] || rec['โครงการ'] || rec['project_in'] || rec['project'] || '',
                                 reason: reason
                             })
                         });
