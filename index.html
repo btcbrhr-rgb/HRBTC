@@ -16836,6 +16836,7 @@ ${slip.textSample}
                     document.getElementById("pdf-btn-upload").disabled = true;
 
                     let successCount = 0;
+                    let replaceCount = 0;
                     let failCount = 0;
                     const failDetails = [];
 
@@ -16858,6 +16859,7 @@ ${slip.textSample}
                             const gasBaseUrl = 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec';
                             const gasPayload = {
                                 action: 'uploadPayslipFile',
+                                adminId: currentEmployeeId,
                                 empId: slip.empId,
                                 month: slip.month,
                                 netAmount: slip.netAmount,
@@ -16871,6 +16873,7 @@ ${slip.textSample}
 
                             if (res && res.status === 'success') {
                                 successCount++;
+                                if (res.replaced) replaceCount++;
                             } else {
                                 failCount++;
                                 const message = (res && res.message) || 'GAS upload failed';
@@ -16885,7 +16888,7 @@ ${slip.textSample}
                         }
                     }
 
-                    const statusText = `เสร็จสิ้น! อัปโหลดผ่าน ${successCount} · ล้มเหลว ${failCount}`;
+                    const statusText = `เสร็จสิ้น! สำเร็จ ${successCount}${replaceCount > 0 ? ' (แทนที่ ' + replaceCount + ')' : ''} · ล้มเหลว ${failCount}`;
                     document.getElementById("pdf-parse-status").textContent = statusText;
                     document.getElementById("pdf-parse-progress").style.width = "100%";
 
@@ -16901,7 +16904,8 @@ ${slip.textSample}
                         }
                     }
 
-                    showToast(`🎉 จัดการสลิปเรียบร้อย: โอนเข้าระบบสำเร็จ ${successCount} รายการ · ล้มเหลว ${failCount} รายการ`, "success");
+                    const replacedMsg = replaceCount > 0 ? ` (${replaceCount} รายการถูกแทนที่)` : '';
+                    showToast(`🎉 จัดการสลิปเรียบร้อย: สำเร็จ ${successCount} รายการ${replacedMsg} · ล้มเหลว ${failCount} รายการ`, "success");
 
                     // ล้างไฟล์ออกจากสเตท
                     selectedPdfBuffer = null;
