@@ -16397,19 +16397,59 @@ container.innerHTML = "";
 
                     // ดึงรายชื่อพนักงานทั้งหมดมาช่วยทำ Auto-match
                     if (adminEmployeesList.length === 0) {
-                        try {
-                            const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`);
-                            if (empRes.status === 'success') {
-                                adminEmployeesList = empRes.data;
-                            }
-                        } catch (e) { }
+                        // 🆕 Supabase mode: ใช้ supabaseClient โดยตรง
+                        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                            try {
+                                const { data, error } = await supabaseClient
+                                    .from('employees')
+                                    .select('emp_id, name, id_card');
+                                if (!error && data) {
+                                    adminEmployeesList = data.map(r => ({
+                                        'รหัสพนักงาน': r.emp_id,
+                                        'ชื่อ-นามสกุล': r.name,
+                                        'เลขบัตรประชาชน': r.id_card || ''
+                                    }));
+                                }
+                            } catch (e) { console.warn('[PDF] Supabase employee load failed:', e); }
+                        }
+                        // Fallback: ใช้ SERVER_API_URL ถ้ามี
+                        if (adminEmployeesList.length === 0 && SERVER_API_URL) {
+                            try {
+                                const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getAllEmployees&empId=${currentEmployeeId}`);
+                                if (empRes.status === 'success') {
+                                    adminEmployeesList = empRes.data;
+                                }
+                            } catch (e) { }
+                        }
                     }
 
                     try {
-                        // 🛡️ Safety check: ตรวจสอบว่า PDF libraries โหลดสำเร็จ
+                        // 🛡️ Safety check + Dynamic loading: ตรวจสอบและโหลด PDF libraries ถ้ายังไม่มี
                         if (typeof pdfjsLib === 'undefined' || typeof PDFLib === 'undefined') {
-                            showToast("❌ ไม่สามารถโหลด PDF library ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต", "error");
-                            return;
+                            document.getElementById("pdf-parse-status").textContent = "กำลังโหลด PDF libraries...";
+                            showToast("⏳ กำลังโหลด PDF libraries จาก CDN...", "info");
+                            try {
+                                await new Promise((resolve, reject) => {
+                                    const script1 = document.createElement('script');
+                                    script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                                    script1.onload = () => {
+                                        if (typeof pdfjsLib !== 'undefined') {
+                                            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                                        }
+                                        const script2 = document.createElement('script');
+                                        script2.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+                                        script2.onload = resolve;
+                                        script2.onerror = reject;
+                                        document.head.appendChild(script2);
+                                    };
+                                    script1.onerror = reject;
+                                    document.head.appendChild(script1);
+                                });
+                            } catch (loadErr) {
+                                showToast("❌ ไม่สามารถโหลด PDF library จาก CDN ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต", "error");
+                                console.error('Failed to load PDF libraries:', loadErr);
+                                return;
+                            }
                         }
                         // Clone the original ArrayBuffer for each library to avoid a
                         // "Cannot perform Construct on a detached ArrayBuffer" error when
@@ -16576,35 +16616,49 @@ container.innerHTML = "";
 
                         if (idsToValidate.length > 0) {
                             try {
-                                const validationResult = await fetchWithTimeout(SERVER_API_URL, {
-                                    method: "POST",
-                                    body: JSON.stringify({
-                                        action: "validatePayslipEmployees",
-                                        empIds: idsToValidate,
-                                        adminId: currentEmployeeId
-                                    })
-                                });
-
-                                if (validationResult && validationResult.success && validationResult.data) {
-                                    // สร้าง map ของ ID -> ชื่อ
-                                    const nameMap = {};
-                                    validationResult.data.forEach(item => {
-                                        nameMap[item.id] = item.name;
+                                // 🆕 Supabase mode: validate โดยตรง
+                                if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                                    const { data: validEmps, error: valErr } = await supabaseClient
+                                        .from('employees')
+                                        .select('emp_id, name')
+                                        .in('emp_id', idsToValidate);
+                                    if (!valErr && validEmps) {
+                                        const nameMap = {};
+                                        validEmps.forEach(e => { nameMap[e.emp_id] = e.name; });
+                                        parsedPayslips.forEach(slip => {
+                                            if (nameMap[slip.empId]) {
+                                                slip.empName = nameMap[slip.empId];
+                                                slip.status = 'MATCHED';
+                                                matchedCount++;
+                                                unmatchedCount--;
+                                            }
+                                        });
+                                    }
+                                } else if (SERVER_API_URL) {
+                                    // Fallback: ใช้ SERVER_API_URL
+                                    const validationResult = await fetchWithTimeout(SERVER_API_URL, {
+                                        method: "POST",
+                                        body: JSON.stringify({
+                                            action: "validatePayslipEmployees",
+                                            empIds: idsToValidate,
+                                            adminId: currentEmployeeId
+                                        })
                                     });
-
-                                    // อัพเดต parsedPayslips ด้วยชื่อที่ได้จาก backend
-                                    parsedPayslips.forEach(slip => {
-                                        if (nameMap[slip.empId]) {
-                                            slip.empName = nameMap[slip.empId];
-                                            slip.status = 'MATCHED';
-                                            matchedCount++;
-                                            unmatchedCount--;
-                                        }
-                                    });
+                                    if (validationResult && validationResult.success && validationResult.data) {
+                                        const nameMap = {};
+                                        validationResult.data.forEach(item => { nameMap[item.id] = item.name; });
+                                        parsedPayslips.forEach(slip => {
+                                            if (nameMap[slip.empId]) {
+                                                slip.empName = nameMap[slip.empId];
+                                                slip.status = 'MATCHED';
+                                                matchedCount++;
+                                                unmatchedCount--;
+                                            }
+                                        });
+                                    }
                                 }
                             } catch (err) {
                                 console.warn('Batch validation failed:', err);
-                                // ถ้า validation ผิดพลาด ก็ใช้ข้อมูลจากขั้นตอนแรกต่อไป
                             }
                         }
 
