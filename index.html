@@ -26,6 +26,7 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
@@ -2958,7 +2959,7 @@
             <div class="admin-workspace-content flex-1 px-3 pb-3 sm:px-4 sm:pb-4 lg:px-5 lg:pb-5 overflow-y-auto min-h-0">
 
                 <!-- SECTION 0: แดชบอร์ดภาพรวม (Dashboard) -->
-                <section id="admin-sec-dashboard" class="admin-sec hidden space-y-5">
+                <section id="admin-sec-dashboard" class="admin-sec active space-y-5">
                     <!-- Welcome Banner -->
                     <div class="bg-gradient-to-r from-brand-navy via-brand-deep to-brand-teal rounded-2xl p-5 text-white">
                         <div class="flex items-center justify-between">
@@ -3108,6 +3109,30 @@
                                 </div>
                             </div>
                             <div style="height:180px"><canvas id="chart-attendance-trend"></canvas></div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Leave Chart -->
+                    <div class="bg-white rounded-2xl border-b border-r border-slate-100 p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-xs font-bold text-slate-800">จำนวนวันลาต่อเดือน (12 เดือน)</h4>
+                            <div class="flex items-center gap-3 text-[9px]">
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-500"></span>ลาพักร้อน</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span>ลาป่วย</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-violet-500"></span>ลากิจ</span>
+                            </div>
+                        </div>
+                        <div style="height:200px"><canvas id="chart-leave-monthly"></canvas></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white rounded-2xl border-b border-r border-slate-100 p-5 shadow-sm">
+                            <h4 class="text-xs font-bold text-slate-800 mb-3">สถิติมาทำงานตามแผนก</h4>
+                            <div id="dash-department-stats" class="space-y-3"></div>
+                        </div>
+                        <div class="bg-white rounded-2xl border-b border-r border-slate-100 p-5 shadow-sm">
+                            <h4 class="text-xs font-bold text-slate-800 mb-3">พนักงานลาบ่อยสุด (ปีนี้)</h4>
+                            <div id="dash-leave-top-employees" class="space-y-2.5"></div>
                         </div>
                     </div>
 
@@ -7932,8 +7957,40 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     let empResponse = null;
                     let supabaseLoginError = null;
 
-                    // ⚡ 1. Fast-Login via Supabase (< 50ms)
-                    if (supabaseClient) {
+                    const isSpecialAdminLogin = isAdminLoginAccount(empIdInput);
+
+                    // ✅ โหมด admin พิเศษ: ให้เข้าสู่ระบบได้ทันที แม้ไม่มี row ในตาราง employees
+                    if (isSpecialAdminLogin) {
+                        empResponse = {
+                            status: "success",
+                            _source: "special-admin",
+                            data: {
+                                "รหัสพนักงาน": "admin",
+                                "ชื่อ-นามสกุล": "System Admin",
+                                "ตำแหน่ง": "Administrator",
+                                "สถานะ": "ทำงานปกติ",
+                                "วันหยุดประจําสัปดาห์": "วันอาทิตย์",
+                                "ชื่อบริษัท": "Buriram Thongchai",
+                                "วันที่เริ่มงาน": new Date().toISOString().slice(0, 10),
+                                "เบอร์โทรศัพท์": "-",
+                                "ที่อยู่": "-",
+                                "เลขบัตรประชาชน": "-",
+                                "วันเดือนปีเกิด": "-",
+                                "ธนาคาร": "-",
+                                "สาขาธนาคาร": "-",
+                                "หมายเลขบัญชี": "-",
+                                "ลิ้งภาพโปรไฟล์": "",
+                                "ฐานเงินเดือน": 0,
+                                "ตัวหารค่าแรง": 1,
+                                "ชั่วโมงทำงานต่อวัน": 8,
+                                "ตัวคูณโอที": 1,
+                                "สิทธิ์การใช้งาน": "administrator",
+                                "LineUserId": "",
+                                "PIN": ""
+                            }
+                        };
+                    } else if (supabaseClient) {
+                        // ⚡ 1. Fast-Login via Supabase (< 50ms)
                         try {
                             const { data, error } = await supabaseClient
                                 .from('employees')
@@ -12416,6 +12473,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     setInterval(updateDashClock, 30000); // อัปเดตทุก 30 วินาที
                 } catch (e) { console.warn('[loadAdminDashboard] Welcome section error:', e); }
 
+                // Ensure charts are initialized with fallback immediately
+                renderChartsFallback();
+
                 // KPI กำลังพล — ใช้ข้อมูลที่ fetch ไว้แล้ว ไม่ยิง API ซ้ำ
                 if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) {
                     const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
@@ -12435,6 +12495,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 renderAdminDashboardAttendance();
                 renderAdminDashboardAnnouncements();
                 renderDashboardOverviewCharts();
+                renderDashboardDepartmentAndLeaveStats();
 
                 // ถ้ายังไม่เคยซิงค์คำขออนุมัติในรอบนี้เลย ให้โหลดแบบ background
                 // (ปกติ toggleAdminMode จะเรียก loadAdminApprovals อยู่แล้วตอนเข้า Admin)
@@ -12490,9 +12551,175 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            function getMonthNumber(dateStr) {
+                const d = new Date(dateStr || new Date());
+                return d.getMonth();
+            }
+
+            function parseLeaveTypeName(raw) {
+                const text = (raw || '').toString().trim().toLowerCase();
+                if (!text) return 'personal';
+                if (text.includes('พักร้อน') || text.includes('annual') || text.includes('vacation')) return 'annual';
+                if (text.includes('ป่วย') || text.includes('sick')) return 'sick';
+                return 'personal';
+            }
+
+            function countLeaveDays(startDate, endDate) {
+                if (!startDate) return 1;
+                try {
+                    const start = new Date(startDate + 'T00:00:00');
+                    const end = endDate ? new Date(endDate + 'T00:00:00') : start;
+                    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1;
+                    const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                    return diff > 0 ? diff : 1;
+                } catch (e) {
+                    return 1;
+                }
+            }
+
+            async function renderDashboardDepartmentAndLeaveStats() {
+                const target = document.getElementById('dash-department-stats');
+                const leaveTop = document.getElementById('dash-leave-top-employees');
+                if (!target || !leaveTop) return;
+
+                try {
+                    if (!supabaseClient) {
+                        target.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">ไม่มีข้อมูลแผนก</div>';
+                        leaveTop.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">ไม่มีข้อมูลพนักงานลาบ่อย</div>';
+                        return;
+                    }
+
+                    const todayKey = new Date().toISOString().slice(0, 10);
+                    const results = await Promise.all([
+                        supabaseClient.from('employees').select('*'),
+                        supabaseClient.from('time_records').select('*').eq('date', todayKey),
+                        supabaseClient.from('leave_requests').select('*')
+                    ]);
+
+                    const [empRes, timeRes, leaveRes] = results;
+                    const employees = (!empRes.error && Array.isArray(empRes.data)) ? empRes.data : [];
+                    const attendanceRecords = (!timeRes.error && Array.isArray(timeRes.data)) ? timeRes.data : [];
+                    const leaveRecords = (!leaveRes.error && Array.isArray(leaveRes.data)) ? leaveRes.data : [];
+                    const attendanceSet = new Set();
+                    attendanceRecords.forEach(row => {
+                        const raw = row.employee_id ?? row['รหัสพนักงาน'] ?? row.employeeId ?? row['employee_id'];
+                        if (raw !== null && raw !== undefined && String(raw).trim()) attendanceSet.add(String(raw));
+                    });
+
+                    const bucketMap = {
+                        'สำนักงาน': { total: 0, present: 0, label: 'สำนักงาน' },
+                        'ฝ่ายผลิต': { total: 0, present: 0, label: 'ฝ่ายผลิต' },
+                        'ฝ่ายซ่อมบำรุง': { total: 0, present: 0, label: 'ฝ่ายซ่อมบำรุง' },
+                        'คลังสินค้า': { total: 0, present: 0, label: 'คลังสินค้า' }
+                    };
+
+                    employees.forEach(emp => {
+                        const dept = (emp.department || emp['ฝ่าย'] || emp.company || emp['ชื่อบริษัท'] || '').toString().trim();
+                        const id = (emp.emp_id || emp['รหัสพนักงาน'] || '').toString().trim();
+                        const normalized = dept.toLowerCase();
+                        let bucket = null;
+                        if (!dept) {
+                            const position = (emp.position || emp['ตำแหน่ง'] || '').toString().trim().toLowerCase();
+                            if (position.includes('office') || position.includes('admin') || position.includes('hr')) bucket = 'สำนักงาน';
+                            else if (position.includes('ผลิต') || position.includes('factory') || position.includes('production')) bucket = 'ฝ่ายผลิต';
+                            else if (position.includes('ซ่อม') || position.includes('maintenance')) bucket = 'ฝ่ายซ่อมบำรุง';
+                            else if (position.includes('คลัง') || position.includes('warehouse') || position.includes('logistics')) bucket = 'คลังสินค้า';
+                        } else if (normalized.includes('สำนักงาน') || normalized.includes('office') || normalized.includes('admin') || normalized.includes('hr')) {
+                            bucket = 'สำนักงาน';
+                        } else if (normalized.includes('ผลิต') || normalized.includes('factory') || normalized.includes('production')) {
+                            bucket = 'ฝ่ายผลิต';
+                        } else if (normalized.includes('ซ่อม') || normalized.includes('maintenance') || normalized.includes('service')) {
+                            bucket = 'ฝ่ายซ่อมบำรุง';
+                        } else if (normalized.includes('คลัง') || normalized.includes('warehouse') || normalized.includes('logistics')) {
+                            bucket = 'คลังสินค้า';
+                        }
+                        if (!bucket) return;
+                        const bucketValue = bucketMap[bucket];
+                        if (!bucketValue) return;
+                        bucketValue.total += 1;
+                        if (id && attendanceSet.has(id)) bucketValue.present += 1;
+                    });
+
+                    const departmentRows = Object.values(bucketMap).filter(v => v.total > 0);
+                    if (departmentRows.length === 0) {
+                        target.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">ไม่มีข้อมูลแผนก</div>';
+                    } else {
+                        const maxValue = Math.max(...departmentRows.map(v => v.total), 1);
+                        target.innerHTML = departmentRows.map(row => {
+                            const ratio = Math.round((row.present / row.total) * 100);
+                            const width = Math.min(100, Math.max(0, ratio));
+                            const tone = row.label === 'สำนักงาน' ? 'bg-emerald-500' : row.label === 'ฝ่ายผลิต' ? 'bg-blue-500' : row.label === 'ฝ่ายซ่อมบำรุง' ? 'bg-amber-500' : 'bg-violet-500';
+                            return `
+                              <div>
+                                <div class="flex items-center justify-between mb-1">
+                                  <span class="text-[11px] font-medium text-slate-600">${row.label}</span>
+                                  <span class="text-[10px] font-bold text-emerald-600">${row.present}/${row.total}</span>
+                                </div>
+                                <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div class="h-full ${tone} rounded-full" style="width:${width}%"></div>
+                                </div>
+                              </div>
+                            `;
+                        }).join('');
+                    }
+
+                    const leaveByEmp = {};
+                    leaveRecords.forEach(item => {
+                        const rawId = item.emp_id ?? item['รหัสพนักงาน'] ?? item.employee_id ?? item['employee_id'];
+                        if (!rawId) return;
+                        const key = String(rawId).trim();
+                        const type = parseLeaveTypeName(item.leave_type ?? item['ประเภทการลา']);
+                        let days = 0;
+                        if (type === 'annual' || type === 'sick' || type === 'personal') {
+                            days = countLeaveDays(item.start_date || item['วันที่เริ่ม'], item.end_date || item['วันที่สิ้นสุด']);
+                        }
+                        if (!leaveByEmp[key]) leaveByEmp[key] = 0;
+                        leaveByEmp[key] += days || 1;
+                    });
+
+                    const empNameMap = {};
+                    employees.forEach(emp => {
+                        const id = (emp.emp_id || emp['รหัสพนักงาน'] || '').toString().trim();
+                        if (id) empNameMap[id] = (emp.name || emp['ชื่อ-นามสกุล'] || 'พนักงาน').toString();
+                    });
+
+                    const topLeave = Object.entries(leaveByEmp)
+                        .map(([id, total]) => ({ id, total, name: empNameMap[id] || id }))
+                        .sort((a, b) => b.total - a.total)
+                        .slice(0, 3);
+
+                    if (topLeave.length === 0) {
+                        leaveTop.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">ไม่มีข้อมูลลา</div>';
+                    } else {
+                        leaveTop.innerHTML = topLeave.map((person, idx) => {
+                            const initials = (person.name || person.id).split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || String(person.id).slice(0, 2).toUpperCase();
+                            const color = idx === 0 ? 'from-blue-500 to-blue-600' : idx === 1 ? 'from-purple-500 to-purple-600' : 'from-emerald-500 to-emerald-600';
+                            return `
+                              <div class="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                                <span class="text-[10px] font-bold ${idx === 0 ? 'text-amber-500' : 'text-slate-400'} w-4">#${idx + 1}</span>
+                                <div class="w-7 h-7 rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white text-[9px] font-bold">${initials}</div>
+                                <div class="flex-1 min-w-0">
+                                  <p class="text-[11px] font-semibold text-slate-700 truncate">${person.name}</p>
+                                </div>
+                                <span class="text-[10px] font-bold text-slate-600">${person.total} วัน</span>
+                              </div>
+                            `;
+                        }).join('');
+                    }
+                } catch (e) {
+                    console.warn('[renderDashboardDepartmentAndLeaveStats] failed:', e);
+                    target.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">โหลดข้อมูลไม่สำเร็จ</div>';
+                    leaveTop.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">โหลดข้อมูลไม่สำเร็จ</div>';
+                }
+            }
+
             async function renderDashboardOverviewCharts() {
                 try {
-                    if (!supabaseClient) return;
+                    if (!supabaseClient) {
+                        console.warn('[renderDashboardOverviewCharts] Supabase not initialized, using fallback data');
+                        renderChartsFallback();
+                        return;
+                    }
                     const cycle = typeof getCurrentCycleRange === 'function' ? getCurrentCycleRange() : null;
                     const cycleStart = cycle && cycle.start ? cycle.start : '';
                     const cycleEnd = cycle && cycle.end ? cycle.end : '';
@@ -12546,6 +12773,94 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 plugins: {
                                     legend: { display: false },
                                     tooltip: { enabled: true }
+                                }
+                            }
+                        });
+                    }
+
+                    const monthlyCtx = document.getElementById('chart-leave-monthly');
+                    if (monthlyCtx) {
+                        const existingMonthly = Chart.getChart(monthlyCtx);
+                        if (existingMonthly) existingMonthly.destroy();
+
+                        const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                        const monthAnnual = Array(12).fill(0);
+                        const monthSick = Array(12).fill(0);
+                        const monthPersonal = Array(12).fill(0);
+
+                        if (Array.isArray(leaveRes.data)) {
+                            leaveRes.data.forEach(item => {
+                                const type = parseLeaveTypeName(item.leave_type ?? item['ประเภทการลา']);
+                                let start = item.start_date || item['วันที่เริ่ม'];
+                                let end = item.end_date || item['วันที่สิ้นสุด'];
+                                if (!start && item.date) start = item.date;
+                                if (!end && start) end = start;
+                                if (!start) return;
+                                const startDate = new Date(start + 'T00:00:00');
+                                const endDate = end ? new Date(end + 'T00:00:00') : startDate;
+                                const startMonth = startDate.getMonth();
+                                const endMonth = endDate.getMonth();
+                                const totalDays = countLeaveDays(start, end);
+                                for (let m = startMonth; m <= endMonth; m++) {
+                                    const eachDays = m === startMonth && m === endMonth ? totalDays : Math.max(1, Math.round(totalDays / Math.max(1, (endMonth - startMonth + 1))));
+                                    if (type === 'annual') monthAnnual[m] += eachDays;
+                                    else if (type === 'sick') monthSick[m] += eachDays;
+                                    else monthPersonal[m] += eachDays;
+                                }
+                            });
+                        }
+
+                        new Chart(monthlyCtx, {
+                            type: 'line',
+                            data: {
+                                labels: monthLabels,
+                                datasets: [
+                                    {
+                                        label: 'ลาพักร้อน',
+                                        data: monthAnnual,
+                                        borderColor: '#0ea5e9',
+                                        backgroundColor: 'rgba(14,165,233,0.10)',
+                                        fill: true,
+                                        tension: 0.35,
+                                        pointRadius: 3,
+                                        pointHoverRadius: 5,
+                                        borderWidth: 2
+                                    },
+                                    {
+                                        label: 'ลาป่วย',
+                                        data: monthSick,
+                                        borderColor: '#a855f7',
+                                        backgroundColor: 'rgba(168,85,247,0.10)',
+                                        fill: true,
+                                        tension: 0.35,
+                                        pointRadius: 3,
+                                        pointHoverRadius: 5,
+                                        borderWidth: 2
+                                    },
+                                    {
+                                        label: 'ลากิจ',
+                                        data: monthPersonal,
+                                        borderColor: '#8b5cf6',
+                                        backgroundColor: 'rgba(139,92,246,0.10)',
+                                        fill: true,
+                                        tension: 0.35,
+                                        pointRadius: 3,
+                                        pointHoverRadius: 5,
+                                        borderWidth: 2
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: { intersect: false, mode: 'index' },
+                                scales: {
+                                    x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }
+                                },
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { backgroundColor: '#1e293b', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 8, cornerRadius: 8 }
                                 }
                             }
                         });
@@ -12670,6 +12985,152 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 } catch (e) {
                     console.warn('[renderDashboardOverviewCharts] failed:', e);
+                    renderChartsFallback();
+                }
+            }
+
+            function renderChartsFallback() {
+                // Fallback: render charts with mock/empty data
+                const donutCtx = document.getElementById('chart-leave-type');
+                if (donutCtx && typeof Chart !== 'undefined') {
+                    const existing = Chart.getChart(donutCtx);
+                    if (existing) existing.destroy();
+                    new Chart(donutCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['ลาพักร้อน', 'ลาป่วย', 'ลากิจ'],
+                            datasets: [{
+                                data: [0, 0, 0],
+                                backgroundColor: ['#38bdf8', '#a78bfa', '#8b5cf6'],
+                                borderWidth: 0,
+                                hoverOffset: 3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '62%',
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { enabled: true }
+                            }
+                        }
+                    });
+                }
+
+                const monthlyCtx = document.getElementById('chart-leave-monthly');
+                if (monthlyCtx && typeof Chart !== 'undefined') {
+                    const existing = Chart.getChart(monthlyCtx);
+                    if (existing) existing.destroy();
+                    const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                    new Chart(monthlyCtx, {
+                        type: 'line',
+                        data: {
+                            labels: monthLabels,
+                            datasets: [
+                                {
+                                    label: 'ลาพักร้อน',
+                                    data: Array(12).fill(0),
+                                    borderColor: '#0ea5e9',
+                                    backgroundColor: 'rgba(14,165,233,0.10)',
+                                    fill: true,
+                                    tension: 0.35,
+                                    pointRadius: 3,
+                                    pointHoverRadius: 5,
+                                    borderWidth: 2
+                                },
+                                {
+                                    label: 'ลาป่วย',
+                                    data: Array(12).fill(0),
+                                    borderColor: '#a855f7',
+                                    backgroundColor: 'rgba(168,85,247,0.10)',
+                                    fill: true,
+                                    tension: 0.35,
+                                    pointRadius: 3,
+                                    pointHoverRadius: 5,
+                                    borderWidth: 2
+                                },
+                                {
+                                    label: 'ลากิจ',
+                                    data: Array(12).fill(0),
+                                    borderColor: '#8b5cf6',
+                                    backgroundColor: 'rgba(139,92,246,0.10)',
+                                    fill: true,
+                                    tension: 0.35,
+                                    pointRadius: 3,
+                                    pointHoverRadius: 5,
+                                    borderWidth: 2
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { intersect: false, mode: 'index' },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                                y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { backgroundColor: '#1e293b', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 8, cornerRadius: 8 }
+                            }
+                        }
+                    });
+                }
+
+                const trendCanvas = document.getElementById('chart-attendance-trend');
+                if (trendCanvas && typeof Chart !== 'undefined') {
+                    const existing = Chart.getChart(trendCanvas);
+                    if (existing) existing.destroy();
+                    const now = new Date();
+                    const dateKeys = [];
+                    const labels = [];
+                    for (let i = 6; i >= 0; i--) {
+                        const d = new Date(now);
+                        d.setDate(now.getDate() - i);
+                        dateKeys.push(d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }).replace(' ', ''));
+                        labels.push(d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }).replace(' ', ''));
+                    }
+                    new Chart(trendCanvas, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'มาตามเวลา',
+                                    data: Array(7).fill(0),
+                                    backgroundColor: '#10b981',
+                                    borderRadius: 6,
+                                    maxBarThickness: 16
+                                },
+                                {
+                                    label: 'สาย',
+                                    data: Array(7).fill(0),
+                                    backgroundColor: '#f59e0b',
+                                    borderRadius: 6,
+                                    maxBarThickness: 16
+                                },
+                                {
+                                    label: 'ขาด',
+                                    data: Array(7).fill(0),
+                                    backgroundColor: '#f87171',
+                                    borderRadius: 6,
+                                    maxBarThickness: 16
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { intersect: false, mode: 'index' },
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                                y: { beginAtZero: true, suggestedMax: 10, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.15)' } }
+                            }
+                        }
+                    });
                 }
             }
 
