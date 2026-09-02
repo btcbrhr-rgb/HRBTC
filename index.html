@@ -26,6 +26,7 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
@@ -2998,12 +2999,14 @@
                         <div class="bg-white rounded-xl border border-slate-200/80 p-3.5 shadow-xs hover:shadow-sm transition-all">
                             <div class="flex items-center gap-2.5">
                                 <div class="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center shadow-xs shrink-0">
-                                    <i class="fa-solid fa-bullhorn text-white text-sm"></i>
+                                    <i class="fa-solid fa-chart-line text-white text-sm"></i>
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">ประกาศ</p>
-                                    <p id="dash-kpi-announcements" class="text-xl font-black text-emerald-600 leading-tight">0</p>
-                                    <p id="dash-kpi-announcements-sub" class="text-[9px] text-slate-400 font-semibold truncate">ข่าวสารล่าสุด</p>
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">มาทำงานวันนี้</p>
+                                    <p id="dash-kpi-attendance" class="text-xl font-black text-emerald-600 leading-tight">38<span class="text-sm text-slate-400">/45</span></p>
+                                    <div class="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden w-24">
+                                        <div id="dash-kpi-attendance-bar" class="h-full bg-emerald-500 rounded-full" style="width:84%"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3075,7 +3078,140 @@
                         </div>
                     </div>
 
-                    <!-- Row 3: ประกาศข่าวสารล่าสุด -->
+                    <!-- Row 3: Charts: Donut + Attendance Trend -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-xs font-bold text-slate-800">สัดส่วนประเภทลา (เดือนนี้)</h4>
+                                <span id="dash-chart-leave-total" class="text-[10px] text-slate-400 font-medium">15 วัน</span>
+                            </div>
+                            <div class="flex items-center justify-center" style="height:180px">
+                                <canvas id="chart-leave-type"></canvas>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 mt-3">
+                                <div class="text-center">
+                                    <div class="w-2 h-2 rounded-full bg-sky-500 mx-auto mb-1"></div>
+                                    <p class="text-[9px] text-slate-500">ลาพักร้อน</p>
+                                    <p id="dash-stat-vacation" class="text-xs font-bold text-slate-700">8</p>
+                                </div>
+                                <div class="text-center">
+                                    <div class="w-2 h-2 rounded-full bg-purple-500 mx-auto mb-1"></div>
+                                    <p class="text-[9px] text-slate-500">ลาป่วย</p>
+                                    <p id="dash-stat-sick" class="text-xs font-bold text-slate-700">5</p>
+                                </div>
+                                <div class="text-center">
+                                    <div class="w-2 h-2 rounded-full bg-violet-500 mx-auto mb-1"></div>
+                                    <p class="text-[9px] text-slate-500">ลากิจ</p>
+                                    <p id="dash-stat-business" class="text-xs font-bold text-slate-700">2</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs lg:col-span-2">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-xs font-bold text-slate-800">แนวโน้มการมาทำงาน 7 วันล่าสุด</h4>
+                                <div class="flex items-center gap-3 text-[9px]">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>มาตามเวลา</span>
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>สาย</span>
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span>ขาด</span>
+                                </div>
+                            </div>
+                            <div style="height:180px">
+                                <canvas id="chart-attendance-trend"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 4: Full Width Monthly Leave Line Chart -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-xs font-bold text-slate-800">จำนวนวันลาต่อเดือน (12 เดือน)</h4>
+                            <div class="flex items-center gap-3 text-[9px]">
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-500"></span>ลาพักร้อน</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span>ลาป่วย</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-violet-500"></span>ลากิจ</span>
+                            </div>
+                        </div>
+                        <div style="height:200px">
+                            <canvas id="chart-leave-monthly"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Row 5: Department Stats + Top Leaves -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+                            <h4 class="text-xs font-bold text-slate-800 mb-3">สถิติมาทำงานตามแผนก</h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[11px] font-medium text-slate-600">สำนักงาน</span>
+                                        <span class="text-[10px] font-bold text-emerald-600">12/12</span>
+                                    </div>
+                                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500 rounded-full" style="width:100%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[11px] font-medium text-slate-600">ฝ่ายผลิต</span>
+                                        <span class="text-[10px] font-bold text-emerald-600">18/20</span>
+                                    </div>
+                                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500 rounded-full" style="width:90%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[11px] font-medium text-slate-600">ฝ่ายซ่อมบำรุง</span>
+                                        <span class="text-[10px] font-bold text-amber-600">5/8</span>
+                                    </div>
+                                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-amber-500 rounded-full" style="width:62.5%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-[11px] font-medium text-slate-600">คลังสินค้า</span>
+                                        <span class="text-[10px] font-bold text-emerald-600">3/5</span>
+                                    </div>
+                                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500 rounded-full" style="width:60%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+                            <h4 class="text-xs font-bold text-slate-800 mb-3">พนักงานลาบ่อยสุด (ปีนี้)</h4>
+                            <div class="space-y-2.5">
+                                <div class="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                                    <span class="text-[10px] font-bold text-amber-500 w-4">#1</span>
+                                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-[9px] font-bold">สช</div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-[11px] font-semibold text-slate-700 truncate">สมชาย ใจดี</p>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-slate-600">12 วัน</span>
+                                </div>
+                                <div class="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                                    <span class="text-[10px] font-bold text-slate-400 w-4">#2</span>
+                                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-[9px] font-bold">นภ</div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-[11px] font-semibold text-slate-700 truncate">นภา สดใส</p>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-slate-600">8 วัน</span>
+                                </div>
+                                <div class="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                                    <span class="text-[10px] font-bold text-slate-400 w-4">#3</span>
+                                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white text-[9px] font-bold">วช</div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-[11px] font-semibold text-slate-700 truncate">วิชัย รักงาน</p>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-slate-600">6 วัน</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 6: ประกาศข่าวสารล่าสุด -->
                     <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
                         <div class="flex items-center justify-between mb-3">
                             <div class="flex items-center gap-2">
@@ -3083,8 +3219,11 @@
                                     <i class="fa-solid fa-bullhorn text-sm"></i>
                                 </span>
                                 <div>
-                                    <h4 class="text-xs font-bold text-slate-800">ประกาศข่าวสารล่าสุด</h4>
-                                    <p class="text-[10px] text-slate-400">แสดงบนหน้าแรกของแอปพนักงาน</p>
+                                    <div class="flex items-center gap-2">
+                                        <h4 class="text-xs font-bold text-slate-800">ประกาศข่าวสารล่าสุด</h4>
+                                        <span id="dash-kpi-announcements" class="inline-flex items-center justify-center min-w-[1.2rem] h-4 px-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">0</span>
+                                    </div>
+                                    <p id="dash-kpi-announcements-sub" class="text-[10px] text-slate-400">แสดงบนหน้าแรกของแอปพนักงาน</p>
                                 </div>
                             </div>
                             <button onclick="switchAdminTab('announcements')" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-brand-sky text-brand-deep border border-slate-200 hover:border-brand-sky text-[10px] font-bold transition-all">
@@ -12409,6 +12548,190 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            function getEmployeeInitials(name) {
+                if (!name) return 'พน';
+                const parts = name.trim().split(/\s+/);
+                if (parts.length >= 2) return (parts[0][0] || '') + (parts[1][0] || '');
+                return name.slice(0, 2);
+            }
+
+            function getAvatarGradient(name) {
+                const gradients = [
+                    'from-blue-500 to-blue-600',
+                    'from-purple-500 to-purple-600',
+                    'from-emerald-500 to-emerald-600',
+                    'from-amber-500 to-amber-600',
+                    'from-rose-500 to-rose-600',
+                    'from-teal-500 to-teal-600',
+                    'from-cyan-500 to-cyan-600',
+                    'from-indigo-500 to-indigo-600'
+                ];
+                let hash = 0;
+                for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                return gradients[Math.abs(hash) % gradients.length];
+            }
+
+            window.adminDashboardCharts = {};
+            function initAdminDashboardCharts() {
+                if (typeof Chart === 'undefined') return;
+
+                // 1. Leave Type Donut Chart
+                const leaveCanvas = document.getElementById('chart-leave-type');
+                if (leaveCanvas) {
+                    if (window.adminDashboardCharts['leaveType']) window.adminDashboardCharts['leaveType'].destroy();
+                    const vCount = Number(document.getElementById('dash-stat-vacation')?.textContent || 8);
+                    const sCount = Number(document.getElementById('dash-stat-sick')?.textContent || 5);
+                    const bCount = Number(document.getElementById('dash-stat-business')?.textContent || 2);
+                    window.adminDashboardCharts['leaveType'] = new Chart(leaveCanvas, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['ลาพักร้อน', 'ลาป่วย', 'ลากิจ'],
+                            datasets: [{
+                                data: [vCount, sCount, bCount],
+                                backgroundColor: ['#0ea5e9', '#a855f7', '#8b5cf6'],
+                                borderWidth: 0,
+                                hoverOffset: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '65%',
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#1e293b',
+                                    titleFont: { size: 11 },
+                                    bodyFont: { size: 11 },
+                                    padding: 8,
+                                    cornerRadius: 8
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // 2. Attendance Trend Line Chart
+                const trendCanvas = document.getElementById('chart-attendance-trend');
+                if (trendCanvas) {
+                    if (window.adminDashboardCharts['attendanceTrend']) window.adminDashboardCharts['attendanceTrend'].destroy();
+                    window.adminDashboardCharts['attendanceTrend'] = new Chart(trendCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'],
+                            datasets: [
+                                {
+                                    label: 'มาตามเวลา',
+                                    data: [36, 38, 37, 39, 38, 0, 0],
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16,185,129,0.1)',
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    borderWidth: 2
+                                },
+                                {
+                                    label: 'สาย',
+                                    data: [3, 2, 4, 1, 2, 0, 0],
+                                    borderColor: '#f59e0b',
+                                    backgroundColor: 'rgba(245,158,11,0.1)',
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    borderWidth: 2
+                                },
+                                {
+                                    label: 'ขาด',
+                                    data: [6, 5, 4, 5, 5, 0, 0],
+                                    borderColor: '#ef4444',
+                                    backgroundColor: 'rgba(239,68,68,0.1)',
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    borderWidth: 2
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { intersect: false, mode: 'index' },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                                y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#1e293b',
+                                    titleFont: { size: 11 },
+                                    bodyFont: { size: 11 },
+                                    padding: 8,
+                                    cornerRadius: 8
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // 3. Monthly Leave Line Chart (12 months)
+                const monthlyCanvas = document.getElementById('chart-leave-monthly');
+                if (monthlyCanvas) {
+                    if (window.adminDashboardCharts['leaveMonthly']) window.adminDashboardCharts['leaveMonthly'].destroy();
+                    window.adminDashboardCharts['leaveMonthly'] = new Chart(monthlyCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
+                            datasets: [
+                                {
+                                    label: 'ลาพักร้อน',
+                                    data: [3, 2, 4, 4, 6, 5, 7, 8, 8, 0, 0, 0],
+                                    borderColor: '#0ea5e9',
+                                    backgroundColor: 'rgba(14,165,233,0.1)',
+                                    fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
+                                },
+                                {
+                                    label: 'ลาป่วย',
+                                    data: [2, 3, 2, 3, 2, 4, 3, 5, 5, 0, 0, 0],
+                                    borderColor: '#a855f7',
+                                    backgroundColor: 'rgba(168,85,247,0.1)',
+                                    fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
+                                },
+                                {
+                                    label: 'ลากิจ',
+                                    data: [1, 1, 2, 1, 2, 1, 2, 2, 2, 0, 0, 0],
+                                    borderColor: '#8b5cf6',
+                                    backgroundColor: 'rgba(139,92,246,0.1)',
+                                    fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { intersect: false, mode: 'index' },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                                y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#1e293b',
+                                    titleFont: { size: 11 },
+                                    bodyFont: { size: 11 },
+                                    padding: 8,
+                                    cornerRadius: 8
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
             // ⚡ แดชบอร์ดภาพรวม (Admin Dashboard)
             function loadAdminDashboard() {
                 const sec = document.getElementById("admin-sec-dashboard");
@@ -12436,23 +12759,37 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // KPI กำลังพล — ใช้ข้อมูลที่ fetch ไว้แล้ว ไม่ยิง API ซ้ำ
                 if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) {
                     const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
-                    document.getElementById("dash-kpi-employees").textContent = adminEmployeesList.length;
-                    document.getElementById("dash-kpi-employees-sub").textContent = `${active} คน กำลังทำงาน`;
+                    const totalEmp = adminEmployeesList.length;
+                    const kpiEmp = document.getElementById("dash-kpi-employees");
+                    const kpiEmpSub = document.getElementById("dash-kpi-employees-sub");
+                    const kpiAtt = document.getElementById("dash-kpi-attendance");
+                    const kpiAttBar = document.getElementById("dash-kpi-attendance-bar");
+                    if (kpiEmp) kpiEmp.textContent = totalEmp;
+                    if (kpiEmpSub) kpiEmpSub.textContent = `${active} คน กำลังทำงาน`;
+                    if (kpiAtt) kpiAtt.innerHTML = `${active}<span class="text-sm text-slate-400">/${totalEmp}</span>`;
+                    if (kpiAttBar && totalEmp > 0) kpiAttBar.style.width = `${Math.round((active / totalEmp) * 100)}%`;
                 } else if (currentEmployeeId) {
                     fetchAdminEmployeeList().then(() => {
                         if (adminActiveTab === 'dashboard' && Array.isArray(adminEmployeesList)) {
                             const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
-                            document.getElementById("dash-kpi-employees").textContent = adminEmployeesList.length;
-                            document.getElementById("dash-kpi-employees-sub").textContent = `${active} คน กำลังทำงาน`;
+                            const totalEmp = adminEmployeesList.length;
+                            const kpiEmp = document.getElementById("dash-kpi-employees");
+                            const kpiEmpSub = document.getElementById("dash-kpi-employees-sub");
+                            const kpiAtt = document.getElementById("dash-kpi-attendance");
+                            const kpiAttBar = document.getElementById("dash-kpi-attendance-bar");
+                            if (kpiEmp) kpiEmp.textContent = totalEmp;
+                            if (kpiEmpSub) kpiEmpSub.textContent = `${active} คน กำลังทำงาน`;
+                            if (kpiAtt) kpiAtt.innerHTML = `${active}<span class="text-sm text-slate-400">/${totalEmp}</span>`;
+                            if (kpiAttBar && totalEmp > 0) kpiAttBar.style.width = `${Math.round((active / totalEmp) * 100)}%`;
                         }
                     }).catch(() => {});
                 }
 
                 renderAdminDashboardPending();
                 renderAdminDashboardAnnouncements();
+                initAdminDashboardCharts();
 
                 // ถ้ายังไม่เคยซิงค์คำขออนุมัติในรอบนี้เลย ให้โหลดแบบ background
-                // (ปกติ toggleAdminMode จะเรียก loadAdminApprovals อยู่แล้วตอนเข้า Admin)
                 if (!adminApprovalsLoadedOnce && typeof loadAdminApprovals === 'function') {
                     loadAdminApprovals();
                 }
@@ -12517,27 +12854,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 listEl.innerHTML = items.map(item => {
                     const empId = item["รหัสพนักงาน"] || 'N/A';
                     const empName = getAdminEmployeeName(empId) || item["ชื่อ-นามสกุล"] || item["name"] || item["employee_name"] || '';
-                    let detail;
+                    const initials = getEmployeeInitials(empName || empId);
+                    const gradient = getAvatarGradient(empName || empId);
+
+                    let badgeHtml;
                     if (type === 'leave') {
-                        const docId = item["เลขที่เอกสาร"] || 'N/A';
                         const typeLabel = item["ประเภทการลา"] || 'ลาพักร้อน';
-                        detail = `<span class="font-bold text-slate-700 truncate">${escapeHtml(docId)}</span><span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(typeLabel)} · ${escapeHtml(String(item["จำนวนวัน"] || '0'))} วัน</span>`;
+                        badgeHtml = `<span class="ml-auto text-[10px] text-sky-600 font-bold shrink-0">${escapeHtml(typeLabel)}</span>`;
                     } else if (type === 'correction') {
-                        detail = `<span class="font-bold text-slate-700 truncate">${formatThaiDate(item["วันที่"])}</span><span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(item["เวลาเข้าใหม่"] || '-')} → ${escapeHtml(item["เวลาออกใหม่"] || '-')}</span>`;
+                        badgeHtml = `<span class="ml-auto text-[10px] text-amber-600 font-bold shrink-0">แก้ไขเวลา</span>`;
                     } else {
                         const amount = Number(item["จำนวนเงิน"] || 0).toLocaleString();
-                        const date = formatThaiDateShort(item["วันที่เบิก"]) || '-';
-                        detail = `<span class="font-bold text-emerald-700 truncate">฿ ${amount}</span><span class="text-[10px] text-slate-400 shrink-0">${date}</span>`;
+                        badgeHtml = `<span class="ml-auto text-[10px] text-indigo-600 font-bold shrink-0">${amount} ฿</span>`;
                     }
+
                     return `
-                        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
-                            <div class="flex items-center gap-2.5 min-w-0">
-                                <span class="inline-flex items-center justify-center min-w-[2.4rem] h-6 px-1.5 rounded-md bg-white border border-slate-200 text-slate-500 text-[10px] font-bold shrink-0 tabular-nums">${escapeHtml(empId)}</span>
-                                <div class="min-w-0 flex flex-col">
-                                    <span class="text-xs font-semibold text-slate-600 truncate">${empName ? escapeHtml(empName) : escapeHtml(empId)}</span>
-                                    <div class="flex items-center gap-2 min-w-0">${detail}</div>
-                                </div>
+                        <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                            <div class="w-6 h-6 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-[8px] font-bold shadow-xs shrink-0">
+                                ${escapeHtml(initials)}
                             </div>
+                            <span class="text-xs font-semibold text-slate-700 truncate">${escapeHtml(empName || empId)}</span>
+                            ${badgeHtml}
                         </div>`;
                 }).join('');
             }
@@ -13482,35 +13819,66 @@ container.innerHTML = "";
                             const days = req["จำนวนวัน"] || "0";
                             const reason = req["เหตุผล"] || "-";
                             const attachment = req["เอกสารแนบ"] || "";
-                            let attachHtml = `<span class="text-slate-500 italic">ไม่มีแนบ</span>`;
+                            let attachHtml = `<span class="text-slate-400 text-[11px] italic">ไม่มีแนบ</span>`;
                             if (attachment && attachment !== 'N/A') {
-                                attachHtml = `<button onclick="openDriveFile('${attachment}')" class="text-brand-teal hover:text-brand-deep font-semibold flex items-center gap-1"><i class="fa-solid fa-paperclip"></i> ดูเอกสาร</button>`;
+                                attachHtml = `<button onclick="openDriveFile('${attachment}')" class="text-brand-teal hover:text-brand-deep font-semibold flex items-center gap-1 text-xs"><i class="fa-solid fa-paperclip"></i> ดูเอกสาร</button>`;
                             }
+
+                            let urgencyClass = "urgency-low";
                             if (req["วันที่เริ่ม"]) {
                                 const daysUntil = getDaysDifference(req["วันที่เริ่ม"], today);
-                                if (daysUntil === 0) leaveDueToday++;
-                                else if (daysUntil === 1) leaveDueIn1++;
-                                else if (daysUntil === 3) leaveDueIn3++;
-                                else if (daysUntil === 5) leaveDueIn5++;
+                                if (daysUntil === 0) { leaveDueToday++; urgencyClass = "urgency-high"; }
+                                else if (daysUntil <= 1) { leaveDueIn1++; urgencyClass = "urgency-high"; }
+                                else if (daysUntil <= 3) { leaveDueIn3++; urgencyClass = "urgency-medium"; }
+                                else if (daysUntil <= 5) { leaveDueIn5++; urgencyClass = "urgency-low"; }
                             }
+
                             const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
-                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
+                            const initials = getEmployeeInitials(empName || empId);
+                            const gradient = getAvatarGradient(empName || empId);
+                            
+                            // Leave Type Badge Style
+                            let typeBadgeClass = "bg-sky-50 text-sky-700 border-sky-200";
+                            let typeIcon = "fa-umbrella-beach";
+                            if (type.includes('ป่วย')) {
+                                typeBadgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+                                typeIcon = "fa-thermometer-half";
+                            } else if (type.includes('กิจ')) {
+                                typeBadgeClass = "bg-violet-50 text-violet-700 border-violet-200";
+                                typeIcon = "fa-clipboard-list";
+                            }
+
                             return `
-                <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" class="hr-table-row">
+                <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" class="approval-card ${urgencyClass}">
                   <td><input type="checkbox" class="leave-checkbox" data-doc-id="${escapeHtml(docId)}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleLeaveItem(this)"></td>
-                  <td><span class="font-bold text-brand-deep">${docId}</span></td>
-                  <td>${empDisplay}</td>
-                  <td><span class="badge badge-info">${type}</span></td>
-                  <td style="color:#64748b">${range}</td>
-                  <td style="text-align:center"><span class="font-bold text-slate-800">${days}</span> <span style="color:#94a3b8;font-size:10px">วัน</span></td>
-                  <td><span class="truncate" style="max-width:160px;display:inline-block;color:#94a3b8" title="${escapeHtml(reason)}">${escapeHtml(reason)}</span></td>
+                  <td>
+                    <div class="flex flex-col gap-0.5">
+                      <span class="text-[10px] font-bold text-slate-700">${escapeHtml(docId)}</span>
+                      <span class="text-[9px] text-slate-400">${escapeHtml(formatThaiDateShort(req["วันที่ส่ง"] || req["วันที่เริ่ม"]))}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-[10px] font-bold shadow-xs shrink-0">
+                        ${escapeHtml(initials)}
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(empName || empId)}</p>
+                        <p class="text-[10px] text-slate-400">${escapeHtml(empId)}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${typeBadgeClass} border"><i class="fa-solid ${typeIcon} text-[8px]"></i> ${escapeHtml(type)}</span></td>
+                  <td><div class="text-[11px] font-medium text-slate-700">${range}</div></td>
+                  <td class="text-center"><span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">${days}</span></td>
+                  <td class="max-w-[180px]"><p class="text-[11px] text-slate-600 truncate" title="${escapeHtml(reason)}">${escapeHtml(reason)}</p></td>
                   <td>${attachHtml}</td>
                   <td><span class="badge badge-pending">⏳ รออนุมัติ</span></td>
                   <td style="text-align:right">
-                    <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
-                      <button onclick='printLeaveRecord(${safeJson(req)})' class="tbl-btn tbl-btn-print"><i class="fa-solid fa-print"></i> พิมพ์</button>
-                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="tbl-btn tbl-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
-                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="tbl-btn tbl-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                    <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                      <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                      <button onclick='printLeaveRecord(${safeJson(req)})' class="action-btn action-btn-print" title="พิมพ์ใบลา"><i class="fa-solid fa-print"></i> พิมพ์</button>
                     </div>
                   </td>
                 </tr>`;
@@ -13550,30 +13918,44 @@ container.innerHTML = "";
                             const newIn = req["เวลาเข้าใหม่"] || "-";
                             const newOut = req["เวลาออกใหม่"] || "-";
                             const reason = req["เหตุผล"] || "-";
+
+                            let urgencyClass = "urgency-low";
                             if (req["วันที่"]) {
                                 const daysUntil = getDaysDifference(req["วันที่"], today);
-                                if (daysUntil === 0) corrDueToday++;
-                                else if (daysUntil === 1) corrDueIn1++;
-                                else if (daysUntil === 3) corrDueIn3++;
-                                else if (daysUntil === 5) corrDueIn5++;
+                                if (daysUntil === 0) { corrDueToday++; urgencyClass = "urgency-high"; }
+                                else if (daysUntil <= 1) { corrDueIn1++; urgencyClass = "urgency-high"; }
+                                else if (daysUntil <= 3) { corrDueIn3++; urgencyClass = "urgency-medium"; }
+                                else if (daysUntil <= 5) { corrDueIn5++; urgencyClass = "urgency-low"; }
                             }
                             const rowKey = `${empId}::${req["วันที่"]}`;
                             const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
-                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
+                            const initials = getEmployeeInitials(empName || empId);
+                            const gradient = getAvatarGradient(empName || empId);
+
                             return `
-                <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(rowKey)}" class="hr-table-row">
+                <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(rowKey)}" class="approval-card ${urgencyClass}">
                   <td><input type="checkbox" class="correction-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleCorrectionItem(this)"></td>
-                  <td>${empDisplay}</td>
-                  <td style="color:#64748b">${formatThaiDate(req["วันที่ส่ง"]) || "-"}</td>
-                  <td style="color:#475569;font-weight:600">${date}</td>
-                  <td><span class="font-bold" style="color:#059669">${newIn}</span></td>
-                  <td><span class="font-bold" style="color:#059669">${newOut}</span></td>
-                  <td><span class="truncate" style="max-width:180px;display:inline-block;color:#94a3b8" title="${escapeHtml(reason)}">${escapeHtml(reason)}</span></td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-[10px] font-bold shadow-xs shrink-0">
+                        ${escapeHtml(initials)}
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(empName || empId)}</p>
+                        <p class="text-[10px] text-slate-400">${escapeHtml(empId)}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="text-slate-500 text-[11px]">${formatThaiDate(req["วันที่ส่ง"]) || "-"}</td>
+                  <td><div class="text-[11px] font-semibold text-slate-700">${date}</div></td>
+                  <td class="text-center"><span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">${newIn}</span></td>
+                  <td class="text-center"><span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">${newOut}</span></td>
+                  <td class="max-w-[180px]"><p class="text-[11px] text-slate-600 truncate" title="${escapeHtml(reason)}">${escapeHtml(reason)}</p></td>
                   <td><span class="badge badge-pending">⏳ รออนุมัติ</span></td>
                   <td style="text-align:right">
-                    <div style="display:flex;gap:4px;justify-content:flex-end">
-                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="tbl-btn tbl-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
-                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="tbl-btn tbl-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                      <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                     </div>
                   </td>
                 </tr>`;
@@ -13614,29 +13996,48 @@ container.innerHTML = "";
                             const cycle = req["รอบจ่าย"] || "-";
                             const channel = req["ช่องทางรับเงิน"] || "-";
                             const status = req["สถานะ"] || "รออนุมัติ";
+
+                            let urgencyClass = "urgency-low";
                             if (req["วันที่เบิก"]) {
                                 const daysUntil = getDaysDifference(req["วันที่เบิก"], today);
-                                if (daysUntil === 0) advDueToday++;
-                                else if (daysUntil === 1) advDueIn1++;
-                                else if (daysUntil === 3) advDueIn3++;
-                                else if (daysUntil === 5) advDueIn5++;
+                                if (daysUntil === 0) { advDueToday++; urgencyClass = "urgency-high"; }
+                                else if (daysUntil <= 1) { advDueIn1++; urgencyClass = "urgency-high"; }
+                                else if (daysUntil <= 3) { advDueIn3++; urgencyClass = "urgency-medium"; }
+                                else if (daysUntil <= 5) { advDueIn5++; urgencyClass = "urgency-low"; }
                             }
                             const rowKey = `${empId}::${req["วันที่เบิก"]}::${req["จำนวนเงิน"]}`;
                             const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
-                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
+                            const initials = getEmployeeInitials(empName || empId);
+                            const gradient = getAvatarGradient(empName || empId);
+
                             return `
-                <tr data-approval-row-type="advance" data-approval-row-key="${escapeHtml(rowKey)}" class="hr-table-row">
+                <tr data-approval-row-type="advance" data-approval-row-key="${escapeHtml(rowKey)}" class="approval-card ${urgencyClass}">
                   <td><input type="checkbox" class="advance-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)"></td>
-                  <td>${empDisplay}</td>
-                  <td><span class="font-bold" style="color:#059669;font-size:13px">${amount}</span></td>
-                  <td style="color:#64748b">${date}</td>
-                  <td style="color:#475569">${cycle}</td>
-                  <td style="color:#475569;font-weight:500">${channel}</td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-[10px] font-bold shadow-xs shrink-0">
+                        ${escapeHtml(initials)}
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(empName || empId)}</p>
+                        <p class="text-[10px] text-slate-400">${escapeHtml(empId)}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="text-right"><span class="text-xs font-bold text-indigo-700 tabular-nums">${amount} ฿</span></td>
+                  <td><div class="text-[11px] font-medium text-slate-700">${date}</div></td>
+                  <td class="text-[11px] text-slate-600">${cycle}</td>
+                  <td>
+                    <div class="flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <i class="fa-solid fa-building-columns text-slate-400 text-[10px]"></i>
+                      <span>${channel}</span>
+                    </div>
+                  </td>
                   <td><span class="badge badge-pending">⏳ ${status}</span></td>
                   <td style="text-align:right">
-                    <div style="display:flex;gap:4px;justify-content:flex-end">
-                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="tbl-btn tbl-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
-                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="tbl-btn tbl-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                      <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                     </div>
                   </td>
                 </tr>`;
@@ -13801,21 +14202,30 @@ container.innerHTML = "";
                         buildRow: req => {
                             const status = req['สถานะ'] || '-';
                             const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
+                            const empId = req['รหัสพนักงาน'] || 'N/A';
+                            const empName = req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '';
+                            const initials = getEmployeeInitials(empName || empId);
+                            const gradient = getAvatarGradient(empName || empId);
                             return `
-              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
+              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50 transition-colors">
                 <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['เลขที่เอกสาร'] || 'N/A')}</td>
-                <td class="py-3 text-slate-600">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
-                <td class="py-3 text-slate-700">${escapeHtml(req['ประเภทการลา'] || 'N/A')}</td>
+                <td class="py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-[9px] font-bold shadow-xs shrink-0">${escapeHtml(initials)}</div>
+                    <span class="text-xs font-semibold text-slate-700">${escapeHtml(empName || empId)}</span>
+                  </div>
+                </td>
+                <td class="py-3 text-slate-700 font-medium">${escapeHtml(req['ประเภทการลา'] || 'N/A')}</td>
                 <td class="py-3 text-slate-500">${escapeHtml(formatThaiDateShort(req['วันที่เริ่ม']) + ' - ' + formatThaiDateShort(req['วันที่สิ้นสุด']))}</td>
-                <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
-                                <td class="py-3 text-slate-600 max-w-[240px]" title="${escapeHtml(req['เหตุผล'] || '')}">
-                                    <div class="flex items-center justify-between gap-3">
-                                        <div class="truncate text-slate-600">${escapeHtml(req['เหตุผล'] || '-')}</div>
-                                        <div class="flex-shrink-0">
-                                            <button onclick='printLeaveRecord(${safeJson(req["เลขที่เอกสาร"] || req["เลขที่"] || req.docId || req.documentId || req.doc_no || req.document_no || "")})' class="px-2 py-1 bg-slate-500 text-white rounded text-xs">พิมพ์</button>
-                                        </div>
-                                    </div>
-                                </td>
+                <td class="py-3"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${approved ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}">${approved ? '<i class="fa-solid fa-check text-[8px]"></i>' : '<i class="fa-solid fa-xmark text-[8px]"></i>'} ${escapeHtml(status)}</span></td>
+                <td class="py-3 text-slate-600 max-w-[240px]" title="${escapeHtml(req['เหตุผล'] || '')}">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="truncate text-slate-600">${escapeHtml(req['เหตุผล'] || '-')}</div>
+                        <div class="flex-shrink-0">
+                            <button onclick='printLeaveRecord(${safeJson(req["เลขที่เอกสาร"] || req["เลขที่"] || req.docId || req.documentId || req.doc_no || req.document_no || "")})' class="action-btn action-btn-print py-1 px-2 text-[11px]"><i class="fa-solid fa-print"></i> พิมพ์</button>
+                        </div>
+                    </div>
+                </td>
               </tr>
             `;
                         }
@@ -13827,13 +14237,22 @@ container.innerHTML = "";
                         buildRow: req => {
                             const status = req['สถานะ'] || '-';
                             const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
+                            const empId = req['รหัสพนักงาน'] || 'N/A';
+                            const empName = req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '';
+                            const initials = getEmployeeInitials(empName || empId);
+                            const gradient = getAvatarGradient(empName || empId);
                             return `
-              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
-                <td class="py-3 font-semibold text-slate-700">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
+              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50 transition-colors">
+                <td class="py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-[9px] font-bold shadow-xs shrink-0">${escapeHtml(initials)}</div>
+                    <span class="text-xs font-semibold text-slate-700">${escapeHtml(empName || empId)}</span>
+                  </div>
+                </td>
                 <td class="py-3 text-slate-600">${escapeHtml(formatThaiDate(req['วันที่']))}</td>
                 <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาเข้าใหม่'] || '-')}</td>
                 <td class="py-3 text-emerald-600 font-semibold">${escapeHtml(req['เวลาออกใหม่'] || '-')}</td>
-                <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
+                <td class="py-3"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${approved ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}">${approved ? '<i class="fa-solid fa-check text-[8px]"></i>' : '<i class="fa-solid fa-xmark text-[8px]"></i>'} ${escapeHtml(status)}</span></td>
                 <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">
                     <div class="flex items-center justify-between gap-2">
                         <div class="truncate text-slate-600">${escapeHtml(req['เหตุผล'] || '-')}</div>
@@ -13851,13 +14270,22 @@ container.innerHTML = "";
                         buildRow: req => {
                             const status = req['สถานะ'] || '-';
                             const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
+                            const empId = req['รหัสพนักงาน'] || 'N/A';
+                            const empName = req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '';
+                            const initials = getEmployeeInitials(empName || empId);
+                            const gradient = getAvatarGradient(empName || empId);
                             return `
-              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
-                <td class="py-3 font-semibold text-slate-700">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
-                <td class="py-3 text-emerald-600 font-bold">${Number(req['จำนวนเงิน'] || 0).toLocaleString()}</td>
+              <tr class="border-b border-slate-100 text-xs hover:bg-slate-50 transition-colors">
+                <td class="py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-[9px] font-bold shadow-xs shrink-0">${escapeHtml(initials)}</div>
+                    <span class="text-xs font-semibold text-slate-700">${escapeHtml(empName || empId)}</span>
+                  </div>
+                </td>
+                <td class="py-3 text-indigo-700 font-bold">${Number(req['จำนวนเงิน'] || 0).toLocaleString()} ฿</td>
                 <td class="py-3 text-slate-600">${escapeHtml(formatThaiDate(req['วันที่เบิก']))}</td>
                 <td class="py-3 text-slate-500">${escapeHtml(req['รอบจ่าย'] || '-')}</td>
-                <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
+                <td class="py-3"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${approved ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}">${approved ? '<i class="fa-solid fa-check text-[8px]"></i>' : '<i class="fa-solid fa-xmark text-[8px]"></i>'} ${escapeHtml(status)}</span></td>
                 <td class="py-3 text-slate-600 max-w-[240px] truncate" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</td>
               </tr>
             `;
