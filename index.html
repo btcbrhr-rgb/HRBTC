@@ -4651,7 +4651,12 @@
                         </div>
 
                         <div id="admin-leave-results">
-                            <div class="flex justify-between items-center">
+                            <div class="border-t border-slate-200 bg-slate-50/60 px-4 py-2.5 flex items-center gap-2">
+                                <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wide">ผลการอนุมัติล่าสุด</h4>
+                                <span class="text-[10px] text-slate-400 font-medium">• แสดงอัตโนมัติหลังอนุมัติ/ปฏิเสธ</span>
+                            </div>
+                            <div class="hidden flex justify-between items-center">
                                 <div>
                                     <h4 class="text-sm font-semibold text-slate-700">ผลการอนุมัติคำขอลา</h4>
                                     <p class="text-xs text-slate-500">ดูคำขอที่อนุมัติหรือปฏิเสธแล้ว</p>
@@ -4660,7 +4665,7 @@
                                     class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
                                     <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
                             </div>
-                            <div class="hr-table-search-bar">
+                            <div class="hidden hr-table-search-bar">
                                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
                                 <input type="text" placeholder="ค้นหา..." oninput="hrTableFilter('admin-approval-results-leave-body', this.value, 'leave-results-count')" aria-label="ค้นหาผลอนุมัติใบลา">
                                 <span class="row-count" id="leave-results-count"></span>
@@ -13342,8 +13347,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const tabResultsBtn = document.getElementById(`admin-${type}-tab-results`);
 
                 if (pendingEl && resultsEl) {
-                    pendingEl.classList.toggle('hidden', tab !== 'pending');
-                    resultsEl.classList.toggle('hidden', tab !== 'results');
+                    if (type === 'leave') {
+                        pendingEl.classList.remove('hidden');
+                        resultsEl.classList.remove('hidden');
+                    } else {
+                        pendingEl.classList.toggle('hidden', tab !== 'pending');
+                        resultsEl.classList.toggle('hidden', tab !== 'results');
+                    }
                 }
 
                 if (tabPendingBtn && tabResultsBtn) {
@@ -13358,6 +13368,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 if (tab === 'pending') {
                     loadAdminApprovals();
+                    if (type === 'leave') loadAdminApprovalResults('leave');
                 } else {
                     loadAdminApprovalResults(type);
                 }
@@ -14208,6 +14219,8 @@ container.innerHTML = "";
                         const pending = leaveRes.data.filter(r => r["สถานะ"] === 'รออนุมัติ')
                             .sort(compareApprovalDocIdsDescending);
                         leavePendingCount = pending.length;
+                        const pendingSection = document.getElementById('admin-leave-pending');
+                        if (pendingSection) pendingSection.classList.toggle('hidden', pending.length === 0);
                         const rows = pending.map(req => {
                             const docId = req["เลขที่เอกสาร"] || "N/A";
                             const empId = req["รหัสพนักงาน"] || "N/A";
@@ -14216,21 +14229,22 @@ container.innerHTML = "";
                             const days = req["จำนวนวัน"] || "0";
                             const reason = req["เหตุผล"] || "-";
                             const attachment = req["เอกสารแนบ"] || "";
+                            let urgencyClass = 'urgency-low';
                             let attachHtml = `<span class="text-slate-500 italic">ไม่มีแนบ</span>`;
                             if (attachment && attachment !== 'N/A') {
                                 attachHtml = `<button onclick="openDriveFile('${attachment}')" class="text-brand-teal hover:text-brand-deep font-semibold flex items-center gap-1"><i class="fa-solid fa-paperclip"></i> ดูเอกสาร</button>`;
                             }
                             if (req["วันที่เริ่ม"]) {
                                 const daysUntil = getDaysDifference(req["วันที่เริ่ม"], today);
-                                if (daysUntil === 0) leaveDueToday++;
-                                else if (daysUntil === 1) leaveDueIn1++;
-                                else if (daysUntil === 3) leaveDueIn3++;
-                                else if (daysUntil === 5) leaveDueIn5++;
+                                if (daysUntil === 0) { leaveDueToday++; urgencyClass = 'urgency-high'; }
+                                else if (daysUntil === 1) { leaveDueIn1++; urgencyClass = 'urgency-medium'; }
+                                else if (daysUntil === 3) { leaveDueIn3++; urgencyClass = 'urgency-medium'; }
+                                else if (daysUntil === 5) { leaveDueIn5++; urgencyClass = 'urgency-medium'; }
                             }
                             const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
                             const empDisplay = getAdminEmployeeDisplay(empId, empName);
                             return `
-                <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" class="hr-table-row">
+                <tr data-approval-row-type="leave" data-approval-row-key="${escapeHtml(docId)}" class="hr-table-row approval-card ${urgencyClass}">
                   <td><input type="checkbox" class="leave-checkbox" data-doc-id="${escapeHtml(docId)}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleLeaveItem(this)"></td>
                   <td><span class="font-bold text-brand-deep">${docId}</span></td>
                   <td>${empDisplay}</td>
@@ -14535,19 +14549,13 @@ container.innerHTML = "";
                             const approved = status.includes('ไม่') ? false : status.includes('อนุมัติ');
                             return `
               <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
-                <td class="py-3 font-semibold text-slate-700">${escapeHtml(req['เลขที่เอกสาร'] || 'N/A')}</td>
-                <td class="py-3 text-slate-600">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
-                <td class="py-3 text-slate-700">${escapeHtml(req['ประเภทการลา'] || 'N/A')}</td>
-                <td class="py-3 text-slate-500">${escapeHtml(formatThaiDateShort(req['วันที่เริ่ม']) + ' - ' + formatThaiDateShort(req['วันที่สิ้นสุด']))}</td>
-                <td class="py-3"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
-                                <td class="py-3 text-slate-600 max-w-[240px]" title="${escapeHtml(req['เหตุผล'] || '')}">
-                                    <div class="flex items-center justify-between gap-3">
-                                        <div class="truncate text-slate-600">${escapeHtml(req['เหตุผล'] || '-')}</div>
-                                        <div class="flex-shrink-0">
-                                            <button onclick='printLeaveRecord(${safeJson(req["เลขที่เอกสาร"] || req["เลขที่"] || req.docId || req.documentId || req.doc_no || req.document_no || "")})' class="px-2 py-1 bg-slate-500 text-white rounded text-xs">พิมพ์</button>
-                                        </div>
-                                    </div>
-                                </td>
+                <td class="py-2.5 font-semibold text-slate-700">${escapeHtml(req['เลขที่เอกสาร'] || 'N/A')}</td>
+                <td class="py-2.5 text-slate-600">${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
+                <td class="py-2.5 text-slate-700"><span class="badge badge-info">${escapeHtml(req['ประเภทการลา'] || 'N/A')}</span></td>
+                <td class="py-2.5 text-slate-500">${escapeHtml(formatThaiDateShort(req['วันที่เริ่ม']) + ' - ' + formatThaiDateShort(req['วันที่สิ้นสุด']))}</td>
+                <td class="py-2.5 text-center font-bold text-slate-700">${escapeHtml(req['จำนวนวัน'] || '0')}</td>
+                <td class="py-2.5"><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${approved ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}"><i class="fa-solid ${approved ? 'fa-check' : 'fa-xmark'} text-[8px]"></i> ${escapeHtml(status)}</span></td>
+                <td class="py-2.5 text-slate-500 max-w-[240px]" title="${escapeHtml(req['หมายเหตุ'] || req['เหตุผล'] || '')}">${escapeHtml(req['หมายเหตุ'] || req['เหตุผล'] || '-')}</td>
               </tr>
             `;
                         }
@@ -14599,7 +14607,7 @@ container.innerHTML = "";
 
                 const bodyEl = document.getElementById(config[type].bodyId);
                 if (!bodyEl) return;
-                bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 italic">⏳ กำลังโหลดผลการอนุมัติ...</td></tr>`;
+                bodyEl.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500 italic">⏳ กำลังโหลดผลการอนุมัติ...</td></tr>`;
                 try {
                     // 🔧 SUPABASE-ONLY: โหลดจาก Supabase
                     let items = [];
@@ -14623,12 +14631,12 @@ container.innerHTML = "";
                                 return getApprovalDateValue(type, b) - getApprovalDateValue(type, a);
                             });
                     if (filteredItems.length === 0) {
-                        bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
+                        bodyEl.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
                         return;
                     }
                     renderRowsInChunks(bodyEl, filteredItems.map(req => config[type].buildRow(req)), 'ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้', 6);
                 } catch (err) {
-                    bodyEl.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาดในการโหลด: ${escapeHtml(err.message)}</td></tr>`;
+                    bodyEl.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาดในการโหลด: ${escapeHtml(err.message)}</td></tr>`;
                 }
             }
 
