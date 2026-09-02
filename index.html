@@ -3100,4 +3100,319 @@
     </div>
 </section>
 
->
+<!-- JavaScript Functions -->
+<script>
+// ═══ AUTHENTICATION & LOGIN ═══
+function handleLogin(event) {
+    event.preventDefault();
+    const empId = document.getElementById('login-emp-id').value.trim();
+    
+    if (!empId) {
+        alert('กรุณากรอกรหัสพนักงาน');
+        return;
+    }
+    
+    // Simulate login - replace with actual auth logic
+    localStorage.setItem('empId', empId);
+    localStorage.setItem('isLoggedIn', 'true');
+    
+    // Redirect to dashboard or main section
+    window.location.href = window.location.href + '#dashboard';
+    
+    // Reload to update UI
+    setTimeout(() => window.location.reload(), 100);
+}
+
+function handleLogout() {
+    localStorage.removeItem('empId');
+    localStorage.removeItem('isLoggedIn');
+    window.location.href = window.location.href.split('#')[0];
+    window.location.reload();
+}
+
+// ═══ ADMIN TAB NAVIGATION ═══
+function switchAdminTab(tabId) {
+    // Hide all admin sections
+    document.querySelectorAll('.admin-sec').forEach(sec => {
+        sec.classList.remove('active');
+    });
+    
+    // Deactivate all menu buttons
+    document.querySelectorAll('.admin-menu-btn').forEach(btn => {
+        btn.classList.remove('menu-active');
+    });
+    
+    // Show selected section
+    const section = document.getElementById('admin-sec-' + tabId);
+    if (section) {
+        section.classList.add('active');
+    }
+    
+    // Activate corresponding menu button
+    const button = document.querySelector('[data-tab="' + tabId + '"]');
+    if (button) {
+        button.classList.add('menu-active');
+    }
+    
+    // Update page title
+    const titles = {
+        'dashboard': 'ภาพรวม',
+        'approve-leave': 'อนุมัติใบลา',
+        'approve-correction': 'อนุมัติแก้ไขเวลา',
+        'approve-advance': 'อนุมัติเบิกเงินสำรอง',
+        'project-cost': 'ต้นทุนโครงการ',
+        'import-time': 'นำเข้าเวลา',
+        'import-payslip': 'นำเข้าสลิป',
+        'announcements': 'ประกาศ',
+        'holidays': 'วันหยุด',
+        'employees': 'พนักงาน',
+        'settings': 'ตั้งค่า',
+        'scan-devices': 'อุปกรณ์สแกน',
+        'face-kiosk': 'เครื่อง Kiosk',
+        'face-register': 'ลงทะเบียนใบหน้า'
+    };
+    
+    const pageTitle = document.querySelector('[data-page-title]');
+    if (pageTitle && titles[tabId]) {
+        pageTitle.textContent = titles[tabId];
+    }
+}
+
+function toggleAdminMobileSidebar(open) {
+    const sidebar = document.getElementById('admin-sidebar');
+    if (sidebar) {
+        if (open) {
+            sidebar.classList.remove('-translate-x-full');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+        }
+    }
+}
+
+// ═══ MODAL & APPROVAL FUNCTIONS ═══
+function openModal(type, docId, empName, detail, action) {
+    const modal = document.getElementById('approval-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalContent = document.getElementById('modal-content');
+    
+    if (!modal) return;
+    
+    // Set modal content based on type and action
+    const actionType = action === 'อนุมัติ' ? 'approve' : 'reject';
+    const icon = actionType === 'approve' ? '<i class="fa-solid fa-check text-green-500 text-2xl"></i>' : '<i class="fa-solid fa-xmark text-red-500 text-2xl"></i>';
+    const title = actionType === 'approve' ? 'ยืนยันการอนุมัติ' : 'ยืนยันการปฏิเสธ';
+    
+    modalTitle.innerHTML = `
+        <div class="flex items-center gap-3">
+            ${icon}
+            <div>
+                <p class="font-bold">${title}</p>
+                <p class="text-sm font-normal text-slate-500 mt-0.5">${type === 'leave' ? 'ใบลา' : type === 'correction' ? 'แก้ไขเวลา' : 'เบิกเงิน'}</p>
+            </div>
+        </div>
+    `;
+    
+    modalContent.innerHTML = `
+        <div class="space-y-4">
+            <div class="bg-slate-50 p-4 rounded-lg">
+                <p class="text-xs text-slate-500 uppercase font-bold mb-1">รายละเอียด</p>
+                <p class="font-semibold text-slate-800">${empName}</p>
+                <p class="text-sm text-slate-600 mt-1">รหัส: ${docId}</p>
+                <p class="text-sm text-slate-600">${detail}</p>
+            </div>
+            
+            <div>
+                <label class="text-xs font-bold text-slate-600 uppercase mb-2 block">หมายเหตุ (ถ้ามี)</label>
+                <textarea id="approval-note" class="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none" rows="3" placeholder="เขียนหมายเหตุเพิ่มเติม..."></textarea>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="closeModal()" class="flex-1 px-4 py-2.5 rounded-lg border-2 border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors">ยกเลิก</button>
+                <button onclick="submitApproval('${actionType}', '${docId}', '${type}')" class="flex-1 px-4 py-2.5 rounded-lg ${actionType === 'approve' ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-red-500 hover:bg-red-600 text-white'} font-semibold transition-colors">
+                    ${actionType === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ'}
+                </button>
+            </div>
+        </div>
+    `;
+    
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+}
+
+function closeModal() {
+    const modal = document.getElementById('approval-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+}
+
+function submitApproval(action, docId, type) {
+    const note = document.getElementById('approval-note').value;
+    
+    // Log the action (replace with actual API call)
+    console.log({
+        action: action,
+        docId: docId,
+        type: type,
+        note: note,
+        timestamp: new Date()
+    });
+    
+    const message = action === 'approve' 
+        ? 'อนุมัติสำเร็จ!' 
+        : 'ปฏิเสธสำเร็จ!';
+    
+    alert(message);
+    closeModal();
+}
+
+// ═══ UTILITY FUNCTIONS ═══
+function formatDate(date) {
+    return new Date(date).toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('th-TH', {
+        style: 'currency',
+        currency: 'THB'
+    }).format(amount);
+}
+
+// ═══ CHART.JS INITIALIZATION ═══
+function initCharts() {
+    // Chart: Leave Type Distribution
+    const ctxLeaveType = document.getElementById('chart-leave-type');
+    if (ctxLeaveType) {
+        new Chart(ctxLeaveType, {
+            type: 'doughnut',
+            data: {
+                labels: ['ลาพักร้อน', 'ลาป่วย', 'ลากิจส่วนตัว'],
+                datasets: [{
+                    data: [12, 8, 3],
+                    backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                    borderColor: '#fff',
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { font: { size: 12, family: "'IBM Plex Sans Thai'" } }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Chart: Attendance Trend
+    const ctxAttendance = document.getElementById('chart-attendance-trend');
+    if (ctxAttendance) {
+        new Chart(ctxAttendance, {
+            type: 'line',
+            data: {
+                labels: ['จ.ส.ค.', 'ศ.ส.ค.', 'ม.ค.', 'พ.ค.', 'พฤ.ค.', 'ศ.ค.', 'ส.ค.'],
+                datasets: [
+                    {
+                        label: 'มาปกติ',
+                        data: [38, 39, 40, 38, 39, 37, 38],
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'มาสาย',
+                        data: [3, 2, 2, 3, 1, 4, 2],
+                        borderColor: '#F59E0B',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'ขาดงาน',
+                        data: [2, 2, 1, 2, 3, 2, 3],
+                        borderColor: '#EF4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+    
+    // Chart: Leave Monthly Trend
+    const ctxLeaveMonthly = document.getElementById('chart-leave-monthly');
+    if (ctxLeaveMonthly) {
+        new Chart(ctxLeaveMonthly, {
+            type: 'line',
+            data: {
+                labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
+                datasets: [
+                    {
+                        label: 'ลาพักร้อน',
+                        data: [12, 10, 14, 11, 13, 12, 15, 12, 14, 11, 13, 12],
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'ลาป่วย',
+                        data: [3, 2, 4, 2, 3, 2, 2, 3, 4, 2, 3, 2],
+                        borderColor: '#F59E0B',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Set first tab as active
+    const firstTab = document.querySelector('.admin-menu-btn');
+    if (firstTab) {
+        const tabName = firstTab.getAttribute('data-tab') || 'dashboard';
+        switchAdminTab(tabName);
+    }
+    
+    // Initialize charts
+    if (typeof Chart !== 'undefined') {
+        initCharts();
+    }
+});
+
+// Close modal when clicking outside
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('approval-modal');
+    if (modal && e.target === modal) {
+        closeModal();
+    }
+});
+</script>
+
+</html>
