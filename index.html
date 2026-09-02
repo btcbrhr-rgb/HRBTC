@@ -12297,7 +12297,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     showToast("🛠️ เข้าสู่โหมดผู้ดูแลระบบ (เต็มหน้าจอ)", "info");
                     switchAdminTab(adminActiveTab);
-                    if (!adminApprovalsLoadedOnce) loadAdminApprovals();
+                    
+                    // Load approvals and dashboard data
+                    if (!adminApprovalsLoadedOnce) {
+                        loadAdminApprovals().then(() => {
+                            // Reload dashboard after approvals load
+                            if (adminActiveTab === 'dashboard') loadAdminDashboard();
+                        }).catch(() => {
+                            // Reload dashboard even if approvals fail
+                            if (adminActiveTab === 'dashboard') loadAdminDashboard();
+                        });
+                    } else if (adminActiveTab === 'dashboard') {
+                        loadAdminDashboard();
+                    }
                 } else {
                     toggleAdminMobileSidebar(false);
                     adminContainer.classList.add("hidden");
@@ -12473,35 +12485,44 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     setInterval(updateDashClock, 30000); // อัปเดตทุก 30 วินาที
                 } catch (e) { console.warn('[loadAdminDashboard] Welcome section error:', e); }
 
-                // Ensure charts are initialized with fallback immediately
+                // Render fallback charts first to ensure they display
                 renderChartsFallback();
 
-                // KPI กำลังพล — ใช้ข้อมูลที่ fetch ไว้แล้ว ไม่ยิง API ซ้ำ
-                if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) {
-                    const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
-                    document.getElementById("dash-kpi-employees").textContent = adminEmployeesList.length;
-                    document.getElementById("dash-kpi-employees-sub").textContent = `${active} คน กำลังทำงาน`;
-                } else if (currentEmployeeId) {
-                    fetchAdminEmployeeList().then(() => {
-                        if (adminActiveTab === 'dashboard' && Array.isArray(adminEmployeesList)) {
+                // Load data from Supabase - ดึงเฉพาะข้อมูลจริง
+                (async () => {
+                    try {
+                        // Wait for employee list to load
+                        if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) {
+                            console.log('[loadAdminDashboard] adminEmployeesList already loaded:', adminEmployeesList.length);
+                        } else {
+                            console.log('[loadAdminDashboard] Waiting for adminEmployeesList to load...');
+                            await fetchAdminEmployeeList();
+                            console.log('[loadAdminDashboard] adminEmployeesList loaded:', adminEmployeesList.length);
+                        }
+                        
+                        // Update KPI once data is ready
+                        if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) {
                             const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
                             document.getElementById("dash-kpi-employees").textContent = adminEmployeesList.length;
                             document.getElementById("dash-kpi-employees-sub").textContent = `${active} คน กำลังทำงาน`;
                         }
-                    }).catch(() => {});
-                }
 
-                renderAdminDashboardPending();
-                renderAdminDashboardAttendance();
-                renderAdminDashboardAnnouncements();
-                renderDashboardOverviewCharts();
-                renderDashboardDepartmentAndLeaveStats();
+                        // Render all dashboard sections with real data from Supabase
+                        renderAdminDashboardPending();
+                        renderAdminDashboardAttendance();
+                        renderAdminDashboardAnnouncements();
+                        await renderDashboardOverviewCharts();  // ต้องรอให้ Supabase API ตอบกลับ
+                        renderDashboardDepartmentAndLeaveStats();
 
-                // ถ้ายังไม่เคยซิงค์คำขออนุมัติในรอบนี้เลย ให้โหลดแบบ background
-                // (ปกติ toggleAdminMode จะเรียก loadAdminApprovals อยู่แล้วตอนเข้า Admin)
-                if (!adminApprovalsLoadedOnce && typeof loadAdminApprovals === 'function') {
-                    loadAdminApprovals();
-                }
+                    } catch (err) {
+                        console.warn('[loadAdminDashboard] Data loading failed:', err);
+                    }
+
+                    // Load approvals in background
+                    if (!adminApprovalsLoadedOnce && typeof loadAdminApprovals === 'function') {
+                        loadAdminApprovals();
+                    }
+                })();
             }
 
             function getLocalDateKey(dateValue) {
@@ -12715,6 +12736,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             async function renderDashboardOverviewCharts() {
                 try {
+                    console.log('[renderDashboardOverviewCharts] Started, supabaseClient:', typeof supabaseClient, supabaseClient ? 'initialized' : 'null');
+                    
                     if (!supabaseClient) {
                         console.warn('[renderDashboardOverviewCharts] Supabase not initialized, using fallback data');
                         renderChartsFallback();
@@ -12990,31 +13013,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function renderChartsFallback() {
-                // Fallback: render charts with mock/empty data
+                // Fallback: render empty chart canvases (no mock data - wait for real data from Supabase)
+                console.log('[renderChartsFallback] Initializing empty chart canvases');
+                
                 const donutCtx = document.getElementById('chart-leave-type');
                 if (donutCtx && typeof Chart !== 'undefined') {
                     const existing = Chart.getChart(donutCtx);
                     if (existing) existing.destroy();
                     new Chart(donutCtx, {
                         type: 'doughnut',
-                        data: {
-                            labels: ['ลาพักร้อน', 'ลาป่วย', 'ลากิจ'],
-                            datasets: [{
-                                data: [0, 0, 0],
-                                backgroundColor: ['#38bdf8', '#a78bfa', '#8b5cf6'],
-                                borderWidth: 0,
-                                hoverOffset: 3
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            cutout: '62%',
-                            plugins: {
-                                legend: { display: false },
-                                tooltip: { enabled: true }
-                            }
-                        }
+                        data: { labels: ['ลาพักร้อน', 'ลาป่วย', 'ลากิจ'], datasets: [{ data: [], backgroundColor: ['#38bdf8', '#a78bfa', '#8b5cf6'], borderWidth: 0 }] },
+                        options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false } } }
                     });
                 }
 
@@ -13028,54 +13037,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         data: {
                             labels: monthLabels,
                             datasets: [
-                                {
-                                    label: 'ลาพักร้อน',
-                                    data: Array(12).fill(0),
-                                    borderColor: '#0ea5e9',
-                                    backgroundColor: 'rgba(14,165,233,0.10)',
-                                    fill: true,
-                                    tension: 0.35,
-                                    pointRadius: 3,
-                                    pointHoverRadius: 5,
-                                    borderWidth: 2
-                                },
-                                {
-                                    label: 'ลาป่วย',
-                                    data: Array(12).fill(0),
-                                    borderColor: '#a855f7',
-                                    backgroundColor: 'rgba(168,85,247,0.10)',
-                                    fill: true,
-                                    tension: 0.35,
-                                    pointRadius: 3,
-                                    pointHoverRadius: 5,
-                                    borderWidth: 2
-                                },
-                                {
-                                    label: 'ลากิจ',
-                                    data: Array(12).fill(0),
-                                    borderColor: '#8b5cf6',
-                                    backgroundColor: 'rgba(139,92,246,0.10)',
-                                    fill: true,
-                                    tension: 0.35,
-                                    pointRadius: 3,
-                                    pointHoverRadius: 5,
-                                    borderWidth: 2
-                                }
+                                { label: 'ลาพักร้อน', data: [], borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,0.10)', fill: true, tension: 0.35 },
+                                { label: 'ลาป่วย', data: [], borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.10)', fill: true, tension: 0.35 },
+                                { label: 'ลากิจ', data: [], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.10)', fill: true, tension: 0.35 }
                             ]
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: { intersect: false, mode: 'index' },
-                            scales: {
-                                x: { grid: { display: false }, ticks: { font: { size: 9 } } },
-                                y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }
-                            },
-                            plugins: {
-                                legend: { display: false },
-                                tooltip: { backgroundColor: '#1e293b', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 8, cornerRadius: 8 }
-                            }
-                        }
+                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
                     });
                 }
 
@@ -13083,56 +13050,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (trendCanvas && typeof Chart !== 'undefined') {
                     const existing = Chart.getChart(trendCanvas);
                     if (existing) existing.destroy();
-                    const now = new Date();
-                    const dateKeys = [];
-                    const labels = [];
-                    for (let i = 6; i >= 0; i--) {
-                        const d = new Date(now);
-                        d.setDate(now.getDate() - i);
-                        dateKeys.push(d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }).replace(' ', ''));
-                        labels.push(d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }).replace(' ', ''));
-                    }
                     new Chart(trendCanvas, {
                         type: 'bar',
                         data: {
-                            labels: labels,
+                            labels: ['ส.ค.27', 'ส.ค.28', 'ส.ค.29', 'ส.ค.30', 'ส.ค.31', 'ก.ย.1', 'ก.ย.2'],
                             datasets: [
-                                {
-                                    label: 'มาตามเวลา',
-                                    data: Array(7).fill(0),
-                                    backgroundColor: '#10b981',
-                                    borderRadius: 6,
-                                    maxBarThickness: 16
-                                },
-                                {
-                                    label: 'สาย',
-                                    data: Array(7).fill(0),
-                                    backgroundColor: '#f59e0b',
-                                    borderRadius: 6,
-                                    maxBarThickness: 16
-                                },
-                                {
-                                    label: 'ขาด',
-                                    data: Array(7).fill(0),
-                                    backgroundColor: '#f87171',
-                                    borderRadius: 6,
-                                    maxBarThickness: 16
-                                }
+                                { label: 'มาตามเวลา', data: [], backgroundColor: '#10b981', borderRadius: 6 },
+                                { label: 'สาย', data: [], backgroundColor: '#f59e0b', borderRadius: 6 },
+                                { label: 'ขาด', data: [], backgroundColor: '#f87171', borderRadius: 6 }
                             ]
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: { intersect: false, mode: 'index' },
-                            plugins: { legend: { display: false } },
-                            scales: {
-                                x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-                                y: { beginAtZero: true, suggestedMax: 10, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.15)' } }
-                            }
-                        }
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
                     });
                 }
             }
+
+            // ลบ renderChartsWithMockData - ไม่ใช้ mock data
 
             // เรนเดอร์ส่วนรออนุมัติบนแดชบอร์ด (เรียกซ้ำได้เมื่อ loadAdminApprovals เสร็จ)
             function renderAdminDashboardPending() {
