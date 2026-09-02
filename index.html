@@ -3018,11 +3018,14 @@
                         </div>
                         <div class="bg-white rounded-xl border-b border-r border-slate-100 p-3.5 shadow-sm">
                             <div class="flex items-center gap-2.5">
-                                <div class="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm"><i class="fa-solid fa-bullhorn text-white text-sm"></i></div>
-                                <div>
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase">ประกาศ</p>
-                                    <p id="dash-kpi-announcements" class="text-xl font-black text-emerald-600">0</p>
-                                    <p id="dash-kpi-announcements-sub" class="text-[9px] text-slate-500 font-bold">รายการในระบบ</p>
+                                <div class="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm"><i class="fa-solid fa-chart-line text-white text-sm"></i></div>
+                                <div class="w-full min-w-0">
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase">มาทำงานวันนี้</p>
+                                    <p class="text-xl font-black text-emerald-600"><span id="dash-kpi-attendance">0</span><span class="text-sm text-slate-400"> / <span id="dash-kpi-attendance-total">0</span></span></p>
+                                    <p id="dash-kpi-attendance-sub" class="text-[9px] text-emerald-600 font-bold">กำลังโหลด...</p>
+                                    <div class="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div id="dash-kpi-attendance-bar" class="h-full bg-emerald-500 rounded-full" style="width:0%"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -12429,6 +12432,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 renderAdminDashboardPending();
+                renderAdminDashboardAttendance();
                 renderAdminDashboardAnnouncements();
                 renderDashboardOverviewCharts();
 
@@ -12436,6 +12440,45 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // (ปกติ toggleAdminMode จะเรียก loadAdminApprovals อยู่แล้วตอนเข้า Admin)
                 if (!adminApprovalsLoadedOnce && typeof loadAdminApprovals === 'function') {
                     loadAdminApprovals();
+                }
+            }
+
+            async function renderAdminDashboardAttendance() {
+                try {
+                    const attendanceEl = document.getElementById('dash-kpi-attendance');
+                    const totalEl = document.getElementById('dash-kpi-attendance-total');
+                    const subEl = document.getElementById('dash-kpi-attendance-sub');
+                    const barEl = document.getElementById('dash-kpi-attendance-bar');
+
+                    let present = 0;
+                    let total = Array.isArray(adminEmployeesList) ? adminEmployeesList.length : 0;
+
+                    if (supabaseClient) {
+                        const todayKey = new Date().toISOString().slice(0, 10);
+                        const { data, error } = await supabaseClient.from('time_records').select('*').eq('date', todayKey);
+                        if (!error && Array.isArray(data)) {
+                            const employeeIds = new Set();
+                            data.forEach(row => {
+                                const raw = row.employee_id ?? row['รหัสพนักงาน'] ?? row['employeeId'] ?? row.employeeId ?? row['employee_id'];
+                                if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+                                    employeeIds.add(String(raw));
+                                }
+                            });
+                            present = employeeIds.size;
+                        }
+                    }
+
+                    if (!total && currentEmployeeId) {
+                        total = 1;
+                    }
+
+                    const ratio = total > 0 ? Math.round((present / total) * 100) : 0;
+                    if (attendanceEl) attendanceEl.textContent = present;
+                    if (totalEl) totalEl.textContent = total;
+                    if (subEl) subEl.textContent = total > 0 ? `${ratio}% มาทำงานวันนี้` : 'ยังไม่มีข้อมูล';
+                    if (barEl) barEl.style.width = `${Math.max(0, Math.min(100, ratio))}%`;
+                } catch (e) {
+                    console.warn('[renderAdminDashboardAttendance] failed:', e);
                 }
             }
 
