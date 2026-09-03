@@ -17036,13 +17036,14 @@ container.innerHTML = "";
                 }
 
                 function updateAuditSelectedCount() {
-                    const countEl = document.getElementById("leave-audit-selected-count");
                     const applyBtn = document.getElementById("btn-apply-leave-audit");
                     const masterCheckbox = document.getElementById("leave-audit-select-all");
-                    if (countEl) countEl.textContent = selectedAuditItems.size;
-                    if (applyBtn) applyBtn.disabled = selectedAuditItems.size === 0;
-                    if (masterCheckbox && leaveAuditDiscrepancies.length > 0) {
-                        masterCheckbox.checked = selectedAuditItems.size === leaveAuditDiscrepancies.length;
+                    if (applyBtn) {
+                        applyBtn.disabled = selectedAuditItems.size === 0;
+                        applyBtn.innerHTML = `<i class="fa-solid fa-check-double"></i> ปรับปรุงรายการที่เลือก (<span id="leave-audit-selected-count">${selectedAuditItems.size}</span>)`;
+                    }
+                    if (masterCheckbox) {
+                        masterCheckbox.checked = leaveAuditDiscrepancies.length > 0 && selectedAuditItems.size === leaveAuditDiscrepancies.length;
                     }
                 }
 
@@ -17066,38 +17067,42 @@ container.innerHTML = "";
                     let successCount = 0;
                     let errorCount = 0;
 
-                    for (const it of itemsToUpdate) {
-                        try {
-                            const appendNote = `[ระบบปรับสิทธิ์ย้อนหลัง: ${it.oldType} -> ${it.newType}]`;
-                            const newNotes = it.notes ? `${it.notes} ${appendNote}` : appendNote;
+                    try {
+                        for (const it of itemsToUpdate) {
+                            try {
+                                const appendNote = `[ระบบปรับสิทธิ์ย้อนหลัง: ${it.oldType} -> ${it.newType}]`;
+                                const newNotes = it.notes ? `${it.notes} ${appendNote}` : appendNote;
 
-                            const { error } = await supabaseClient
-                                .from('leave_requests')
-                                .update({
-                                    leave_type: it.newType,
-                                    notes: newNotes,
-                                    updated_at: new Date().toISOString()
-                                })
-                                .eq('doc_id', it.docId);
+                                const { error } = await supabaseClient
+                                    .from('leave_requests')
+                                    .update({
+                                        leave_type: it.newType,
+                                        notes: newNotes,
+                                        updated_at: new Date().toISOString()
+                                    })
+                                    .eq('doc_id', it.docId);
 
-                            if (error) {
-                                console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} error:`, error);
+                                if (error) {
+                                    console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} error:`, error);
+                                    errorCount++;
+                                } else {
+                                    successCount++;
+                                }
+                            } catch (e) {
+                                console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} exception:`, e);
                                 errorCount++;
-                            } else {
-                                successCount++;
                             }
-                        } catch (e) {
-                            console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} exception:`, e);
-                            errorCount++;
                         }
-                    }
 
-                    showToast(`✅ ปรับปรุงข้อมูลสำเร็จ ${successCount} รายการ${errorCount > 0 ? ` (ล้มเหลว ${errorCount})` : ''}`, successCount > 0 ? "success" : "error");
+                        showToast(`✅ ปรับปรุงข้อมูลสำเร็จ ${successCount} รายการ${errorCount > 0 ? ` (ล้มเหลว ${errorCount})` : ''}`, successCount > 0 ? "success" : "error");
 
-                    // โหลดการตรวจสอบใหม่ และซิงค์ตารางใบลาหลัก
-                    await runLeaveQuotaAudit();
-                    if (typeof loadAdminApprovals === 'function') {
-                        loadAdminApprovals();
+                        // โหลดการตรวจสอบใหม่ และซิงค์ตารางใบลาหลัก
+                        await runLeaveQuotaAudit();
+                        if (typeof loadAdminApprovals === 'function') {
+                            loadAdminApprovals();
+                        }
+                    } finally {
+                        updateAuditSelectedCount();
                     }
                 }
 
