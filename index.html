@@ -27,6 +27,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
@@ -3743,6 +3744,10 @@
                                     class="flex-1 bg-brand-deep hover:bg-brand-teal text-white text-xs font-semibold py-2.5 rounded-xl transition-all shadow-md shadow-brand-deep/25 disabled:opacity-50 disabled:cursor-not-allowed"
                                     id="txt-save-btn" disabled>บันทึกข้อมูลจริง</button>
                             </div>
+                            <button onclick="openBplusExportModal()"
+                                class="w-full mt-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                                <i class="fa-solid fa-file-excel"></i> ส่งออกข้อมูล Business Plus (เวลางาน / วันลา)
+                            </button>
                             <div id="txt-import-status"
                                 class="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 hidden">
                                 <div class="flex items-center gap-2 mb-2">
@@ -5074,6 +5079,10 @@
                                 <button onclick="openLeaveAuditModal()" title="ตรวจสอบสิทธิ์วันลาย้อนหลังและปรับเป็นไม่รับค่าจ้าง"
                                     class="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm">
                                     <i class="fa-solid fa-clock-rotate-left"></i> ตรวจสอบสิทธิ์ย้อนหลัง
+                                </button>
+                                <button onclick="openBplusExportModal()" title="ส่งออกข้อมูลนำเข้าโปรแกรม Business Plus (เวลางาน / วันลา)"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm">
+                                    <i class="fa-solid fa-file-excel"></i> ส่งออก B-Plus
                                 </button>
                                 <button onclick="loadAdminApprovals()" title="ซิงค์ข้อมูล"
                                     class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] px-3 py-1.5 rounded-lg border-b border-r border-slate-100 transition-all flex items-center gap-1">
@@ -6907,6 +6916,119 @@
                         <i class="fa-solid fa-check-double"></i> ปรับปรุงรายการที่เลือก (<span id="leave-audit-selected-count">0</span>)
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- [MODAL: ส่งออกข้อมูลสำหรับ Business Plus (B-Plus Export)]        -->
+    <!-- =============================================================== -->
+    <div id="admin-bplus-export-modal" class="fixed inset-0 z-[9999] hidden bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in duration-200">
+            <!-- Header -->
+            <div class="px-6 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-lg shadow-inner">
+                        <i class="fa-solid fa-file-excel"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold">ส่งออกข้อมูลสำหรับ Business Plus (B-Plus)</h3>
+                        <p class="text-xs text-emerald-100">สร้างไฟล์ Excel .xlsx รูปแบบ Sheet: BplusData สำหรับนำเข้าโปรแกรมเงินเดือน</p>
+                    </div>
+                </div>
+                <button onclick="closeBplusExportModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 overflow-y-auto space-y-6">
+                <!-- Filter Section: Pay Cycle Range -->
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-calendar-days text-emerald-600"></i> เลือกรอบบัญชีที่ต้องการส่งออก
+                        </span>
+                        <span class="text-[11px] text-slate-500" id="bplus-cycle-label">26 ก.ค. 2026 - 25 ส.ค. 2026</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ตั้งแต่วันที่</label>
+                            <input type="date" id="bplus-export-start" onchange="onBplusCycleChange()"
+                                class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ถึงวันที่</label>
+                            <input type="date" id="bplus-export-end" onchange="onBplusCycleChange()"
+                                class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Cards Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Card 1: Time Records -->
+                    <div class="bg-white border-2 border-slate-200 hover:border-emerald-500/50 rounded-2xl p-5 flex flex-col justify-between transition-all shadow-sm group">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold">
+                                    <i class="fa-solid fa-business-time"></i>
+                                </span>
+                                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">4 คอลัมน์</span>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">นำเข้าเวลางาน.xlsx</h4>
+                                <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                                    เวลารูดบัตรเข้า-ออกของพนักงานทุกคนตามรอบบัญชี (รหัสพนักงาน, วันที่ YYYYMMDD, เวลาเข้า, เวลาออก)
+                                </p>
+                            </div>
+                            <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                <span class="text-slate-500">ข้อมูลพร้อมส่งออก:</span>
+                                <span class="font-bold text-emerald-700" id="bplus-time-count-badge"><i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...</span>
+                            </div>
+                        </div>
+                        <button onclick="exportBplusTimeRecords()" id="btn-export-bplus-time"
+                            class="mt-4 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-file-arrow-down"></i> ดาวน์โหลด นำเข้าเวลางาน.xlsx
+                        </button>
+                    </div>
+
+                    <!-- Card 2: Leave Requests -->
+                    <div class="bg-white border-2 border-slate-200 hover:border-teal-500/50 rounded-2xl p-5 flex flex-col justify-between transition-all shadow-sm group">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-lg font-bold">
+                                    <i class="fa-solid fa-calendar-check"></i>
+                                </span>
+                                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">7 คอลัมน์</span>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-800 group-hover:text-teal-700 transition-colors">นำเข้าวันลา.xlsx</h4>
+                                <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                                    คำขอลาที่อนุมัติแล้ว แตกเป็นรายวัน พร้อมจับคู่รหัสการลาปกติ (2150, 2160, 2140) และรหัสเกินสิทธิ์ไม่รับค่าจ้าง (10036, 10020, 10028)
+                                </p>
+                            </div>
+                            <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                <span class="text-slate-500">ข้อมูลพร้อมส่งออก:</span>
+                                <span class="font-bold text-teal-700" id="bplus-leave-count-badge"><i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...</span>
+                            </div>
+                        </div>
+                        <button onclick="exportBplusLeaveRequests()" id="btn-export-bplus-leave"
+                            class="mt-4 w-full py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-teal-600/20 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-file-arrow-down"></i> ดาวน์โหลด นำเข้าวันลา.xlsx
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <span class="text-[11px] text-slate-500 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-check text-emerald-600"></i> ไฟล์สร้างเสร็จพร้อม Import เข้า Business Plus ทันที
+                </span>
+                <button onclick="closeBplusExportModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
+                    ปิด
+                </button>
             </div>
         </div>
     </div>
@@ -17103,6 +17225,301 @@ container.innerHTML = "";
                         }
                     } finally {
                         updateAuditSelectedCount();
+                    }
+                }
+
+                // ===============================================================
+                // [BUSINESS PLUS (B-PLUS) EXPORT MODULE]
+                // ===============================================================
+
+                function getDefaultBplusCycle() {
+                    const today = new Date();
+                    const day = today.getDate();
+                    let startYear = today.getFullYear();
+                    let startMonth = today.getMonth(); // 0-indexed
+                    let endYear = today.getFullYear();
+                    let endMonth = today.getMonth();
+
+                    if (day >= 26) {
+                        endMonth = startMonth + 1;
+                        if (endMonth > 11) { endMonth = 0; endYear++; }
+                    } else {
+                        startMonth = endMonth - 1;
+                        if (startMonth < 0) { startMonth = 11; startYear--; }
+                    }
+                    const startStr = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-26`;
+                    const endStr = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-25`;
+                    return { startStr, endStr };
+                }
+
+                function getBplusLeaveCode(leaveType) {
+                    const type = (leaveType || '').trim();
+                    const isUnpaid = type.includes('ไม่รับค่าจ้าง') || type.includes('เกินสิทธิ์');
+                    if (type.includes('กิจ')) return isUnpaid ? '10036' : '2150';
+                    if (type.includes('พักร้อน') || type.includes('พักผ่อน')) return isUnpaid ? '10020' : '2160';
+                    if (type.includes('ป่วย')) return isUnpaid ? '10028' : '2140';
+                    if (type.includes('คลอด')) return isUnpaid ? '10037' : '2170';
+                    if (type.includes('บวช')) return isUnpaid ? '10039' : '2180';
+                    if (type.includes('ทหาร')) return isUnpaid ? '10038' : '10004';
+                    return isUnpaid ? '10036' : '2150';
+                }
+
+                async function openBplusExportModal() {
+                    const modal = document.getElementById("admin-bplus-export-modal");
+                    if (!modal) return;
+                    modal.classList.remove("hidden");
+
+                    const startInput = document.getElementById("bplus-export-start");
+                    const endInput = document.getElementById("bplus-export-end");
+                    if (!startInput.value || !endInput.value) {
+                        const { startStr, endStr } = getDefaultBplusCycle();
+                        startInput.value = startStr;
+                        endInput.value = endStr;
+                    }
+                    onBplusCycleChange();
+                }
+
+                function closeBplusExportModal() {
+                    const modal = document.getElementById("admin-bplus-export-modal");
+                    if (modal) modal.classList.add("hidden");
+                }
+
+                function onBplusCycleChange() {
+                    const startVal = document.getElementById("bplus-export-start")?.value;
+                    const endVal = document.getElementById("bplus-export-end")?.value;
+                    const labelEl = document.getElementById("bplus-cycle-label");
+                    if (labelEl && startVal && endVal) {
+                        labelEl.textContent = `${formatThaiDateShort(startVal)} - ${formatThaiDateShort(endVal)}`;
+                    }
+                    loadBplusExportPreview();
+                }
+
+                async function loadBplusExportPreview() {
+                    const startStr = document.getElementById("bplus-export-start")?.value;
+                    const endStr = document.getElementById("bplus-export-end")?.value;
+                    if (!startStr || !endStr) return;
+
+                    const timeBadge = document.getElementById("bplus-time-count-badge");
+                    const leaveBadge = document.getElementById("bplus-leave-count-badge");
+                    if (timeBadge) timeBadge.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...`;
+                    if (leaveBadge) leaveBadge.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...`;
+
+                    try {
+                        // นับจำนวนแถวเวลางาน
+                        const { count: timeCount, error: timeErr } = await supabaseClient
+                            .from('time_records')
+                            .select('*', { count: 'exact', head: true })
+                            .gte('date', startStr)
+                            .lte('date', endStr);
+
+                        if (timeBadge) {
+                            timeBadge.textContent = timeErr ? 'พร้อมส่งออก' : `${(timeCount || 0).toLocaleString()} รายการ`;
+                        }
+
+                        // นับจำนวนใบลา
+                        const { count: leaveCount, error: leaveErr } = await supabaseClient
+                            .from('leave_requests')
+                            .select('*', { count: 'exact', head: true })
+                            .eq('status', 'อนุมัติแล้ว')
+                            .lte('start_date', endStr)
+                            .gte('end_date', startStr);
+
+                        if (leaveBadge) {
+                            leaveBadge.textContent = leaveErr ? 'พร้อมส่งออก' : `${(leaveCount || 0).toLocaleString()} ใบลา`;
+                        }
+                    } catch (e) {
+                        console.error('[loadBplusExportPreview] error:', e);
+                        if (timeBadge) timeBadge.textContent = 'พร้อมส่งออก';
+                        if (leaveBadge) leaveBadge.textContent = 'พร้อมส่งออก';
+                    }
+                }
+
+                async function exportBplusTimeRecords() {
+                    const startStr = document.getElementById("bplus-export-start")?.value;
+                    const endStr = document.getElementById("bplus-export-end")?.value;
+                    if (!startStr || !endStr) {
+                        return showToast("⚠️ กรุณาระบุช่วงวันที่ให้ครบถ้วน", "warning");
+                    }
+
+                    if (typeof XLSX === 'undefined') {
+                        return showToast("❌ ไม่พบโมดูล XLSX กรุณารีเฟรชหน้าเว็บ", "error");
+                    }
+
+                    const btn = document.getElementById("btn-export-bplus-time");
+                    const origHtml = btn ? btn.innerHTML : '';
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> กำลังดึงข้อมูล...`;
+                    }
+
+                    try {
+                        showToast("⏳ กำลังเตรียมไฟล์ นำเข้าเวลางาน.xlsx...", "info");
+
+                        // ดึงข้อมูลเวลางานทั้งหมดในรอบบัญชี
+                        let allRecords = [];
+                        let page = 0;
+                        const pageSize = 1000;
+                        let hasMore = true;
+
+                        while (hasMore) {
+                            const { data, error } = await supabaseClient
+                                .from('time_records')
+                                .select('emp_id, date, time_in, time_out')
+                                .gte('date', startStr)
+                                .lte('date', endStr)
+                                .order('emp_id', { ascending: true })
+                                .order('date', { ascending: true })
+                                .range(page * pageSize, (page + 1) * pageSize - 1);
+
+                            if (error) throw error;
+                            if (data && data.length > 0) {
+                                allRecords = allRecords.concat(data);
+                                if (data.length < pageSize) hasMore = false;
+                                else page++;
+                            } else {
+                                hasMore = false;
+                            }
+                        }
+
+                        if (allRecords.length === 0) {
+                            return showToast("ℹ️ ไม่พบข้อมูลเวลางานในช่วงวันที่เลือก", "warning");
+                        }
+
+                        // สร้างแถวข้อมูลตามเทมเพลต BplusData
+                        const rows = [
+                            ["รหัสพนักงาน", "วันที่", "เวลารูดบัตรครั้งที่ 1", "เวลารูดบัตรครั้งที่ 2"]
+                        ];
+
+                        for (const r of allRecords) {
+                            const yyyymmdd = (r.date || '').replace(/[^0-9]/g, '');
+                            const tIn = r.time_in ? String(r.time_in).slice(0, 5) : '';
+                            const tOut = r.time_out ? String(r.time_out).slice(0, 5) : '';
+                            rows.push([
+                                String(r.emp_id || '').trim(),
+                                yyyymmdd,
+                                tIn,
+                                tOut
+                            ]);
+                        }
+
+                        // สร้าง Excel Workbook ด้วย SheetJS
+                        const ws = XLSX.utils.aoa_to_sheet(rows);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "BplusData");
+
+                        const filename = `นำเข้าเวลางาน_${startStr}_ถึง_${endStr}.xlsx`;
+                        XLSX.writeFile(wb, filename);
+
+                        showToast(`✅ ดาวน์โหลด ${filename} (${allRecords.length} แถว) เรียบร้อยแล้ว`, "success");
+
+                    } catch (err) {
+                        console.error('[exportBplusTimeRecords] error:', err);
+                        showToast(`❌ เกิดข้อผิดพลาดในการส่งออกเวลางาน: ${err.message || err}`, "error");
+                    } finally {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = origHtml;
+                        }
+                    }
+                }
+
+                async function exportBplusLeaveRequests() {
+                    const startStr = document.getElementById("bplus-export-start")?.value;
+                    const endStr = document.getElementById("bplus-export-end")?.value;
+                    if (!startStr || !endStr) {
+                        return showToast("⚠️ กรุณาระบุช่วงวันที่ให้ครบถ้วน", "warning");
+                    }
+
+                    if (typeof XLSX === 'undefined') {
+                        return showToast("❌ ไม่พบโมดูล XLSX กรุณารีเฟรชหน้าเว็บ", "error");
+                    }
+
+                    const btn = document.getElementById("btn-export-bplus-leave");
+                    const origHtml = btn ? btn.innerHTML : '';
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> กำลังดึงข้อมูล...`;
+                    }
+
+                    try {
+                        showToast("⏳ กำลังเตรียมไฟล์ นำเข้าวันลา.xlsx...", "info");
+
+                        // ดึงคำขอลาที่อนุมัติแล้วในช่วงรอบบัญชี
+                        const { data: leaves, error } = await supabaseClient
+                            .from('leave_requests')
+                            .select('*')
+                            .eq('status', 'อนุมัติแล้ว')
+                            .lte('start_date', endStr)
+                            .gte('end_date', startStr)
+                            .order('emp_id', { ascending: true })
+                            .order('start_date', { ascending: true });
+
+                        if (error) throw error;
+                        if (!leaves || leaves.length === 0) {
+                            return showToast("ℹ️ ไม่พบข้อมูลวันลาที่อนุมัติแล้วในช่วงวันที่เลือก", "warning");
+                        }
+
+                        // สร้างแถวข้อมูลตามเทมเพลต BplusData 7 คอลัมน์
+                        const rows = [
+                            ["รหัสพนักงาน", "วันที่ลา", "รหัสกะ", "รหัสผลข้อตกลงเงินหัก", "รหัสลักษณะการรูดบัตร", "วิธีลา", "จำนวนที่ลา"]
+                        ];
+
+                        let totalExportRows = 0;
+
+                        for (const req of leaves) {
+                            const empId = String(req.emp_id || '').trim();
+                            const bplusCode = getBplusLeaveCode(req.leave_type);
+                            const durationText = (req.duration && req.duration.includes('ครึ่ง')) ? req.duration : 'เต็มวัน';
+                            const daysVal = (req.duration && req.duration.includes('ครึ่ง')) ? 0.5 : 1;
+
+                            // แตกวันที่เป็นรายวัน ระหว่าง start_date ถึง end_date
+                            const sDate = new Date(req.start_date);
+                            const eDate = new Date(req.end_date);
+                            const minDate = new Date(startStr);
+                            const maxDate = new Date(endStr);
+
+                            // Clamp ช่วงวันที่ให้อยู่ในรอบบัญชี
+                            const cur = new Date(Math.max(sDate.getTime(), minDate.getTime()));
+                            const endLoop = new Date(Math.min(eDate.getTime(), maxDate.getTime()));
+
+                            while (cur <= endLoop) {
+                                const yyyy = cur.getFullYear();
+                                const mm = String(cur.getMonth() + 1).padStart(2, '0');
+                                const dd = String(cur.getDate()).padStart(2, '0');
+                                const yyyymmdd = `${yyyy}${mm}${dd}`;
+
+                                rows.push([
+                                    empId,
+                                    yyyymmdd,
+                                    "01",       // รหัสกะ
+                                    bplusCode,  // รหัสผลข้อตกลงเงินหัก เช่น 2150 หรือ 10036
+                                    "0",        // รหัสลักษณะการรูดบัตร
+                                    durationText,
+                                    daysVal
+                                ]);
+                                totalExportRows++;
+                                cur.setDate(cur.getDate() + 1);
+                            }
+                        }
+
+                        // สร้าง Excel Workbook ด้วย SheetJS
+                        const ws = XLSX.utils.aoa_to_sheet(rows);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "BplusData");
+
+                        const filename = `นำเข้าวันลา_${startStr}_ถึง_${endStr}.xlsx`;
+                        XLSX.writeFile(wb, filename);
+
+                        showToast(`✅ ดาวน์โหลด ${filename} (${totalExportRows} แถววันลา) เรียบร้อยแล้ว`, "success");
+
+                    } catch (err) {
+                        console.error('[exportBplusLeaveRequests] error:', err);
+                        showToast(`❌ เกิดข้อผิดพลาดในการส่งออกวันลา: ${err.message || err}`, "error");
+                    } finally {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = origHtml;
+                        }
                     }
                 }
 
