@@ -12819,8 +12819,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         // STEP 2: อัปเดต KPI กำลังพล
                         if (Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) {
                             const active = adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก").length;
-                            document.getElementById("dash-kpi-employees").textContent = adminEmployeesList.length;
-                            document.getElementById("dash-kpi-employees-sub").textContent = `${active} คน กำลังทำงาน`;
+                            document.getElementById("dash-kpi-employees").textContent = active;
+                            document.getElementById("dash-kpi-employees-sub").textContent = `${adminEmployeesList.length} คนในระบบ`;
                         }
 
                         // STEP 3: ดึงข้อมูลอนุมัติ (MUST be before renderAdminDashboardPending)
@@ -12842,9 +12842,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         console.log('[loadAdminDashboard] Rendering dashboard sections...');
                         renderAdminDashboardPending();  // Now adminPendingCounts should be populated
                         await renderAdminDashboardAttendance();  // ต้อง await เพราะเป็น async
+                        // ดึงประกาศจาก Supabase ก่อน render เสมอ
+                        await fetchAnnouncements();
                         renderAdminDashboardAnnouncements();
                         await renderDashboardOverviewCharts();  // ดึงข้อมูลจริงจาก Supabase
-                        renderDashboardDepartmentAndLeaveStats();
+                        await renderDashboardDepartmentAndLeaveStats();  // await เพื่อให้แน่ใจว่าโหลดสำเร็จ
                         
                         console.log('[loadAdminDashboard] ✅ Dashboard loaded successfully');
 
@@ -13078,13 +13080,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const cycleStart = cycle && cycle.start ? cycle.start : '';
                     const cycleEnd = cycle && cycle.end ? cycle.end : '';
 
+                    // ดึง time_records 7 วันล่าสุดสำหรับ Attendance Trend
+                    const now7 = new Date();
+                    const sevenDaysAgo = new Date(now7);
+                    sevenDaysAgo.setDate(now7.getDate() - 6);
+                    const sevenDaysAgoKey = getLocalDateKey(sevenDaysAgo);
+                    const todayKey7 = getLocalDateKey(now7);
+                    // ดึง leave_requests ทั้งปีสำหรับ Monthly / Donut Chart
+                    const currentYear = now7.getFullYear();
+                    const yearStart = `${currentYear}-01-01`;
+                    const yearEnd = `${currentYear}-12-31`;
                     const [timeRes, leaveRes] = await Promise.all([
                         supabaseClient.from('time_records').select('*')
-                            .gte('date', cycleStart || '2000-01-01')
-                            .lte('date', cycleEnd || '2100-12-31'),
+                            .gte('date', sevenDaysAgoKey)
+                            .lte('date', todayKey7),
                         supabaseClient.from('leave_requests').select('*')
-                            .gte('start_date', cycleStart || '2000-01-01')
-                            .lte('end_date', cycleEnd || '2100-12-31')
+                            .gte('start_date', yearStart)
+                            .lte('end_date', yearEnd)
                     ]);
 
                     let leaveCounts = { annual: 0, sick: 0, personal: 0 };
@@ -13466,16 +13478,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const accent = accentMap[type] || 'bg-slate-100 text-slate-700 border-slate-200';
                     let detail;
                     let badgeText = type === 'leave' ? 'ลา' : type === 'correction' ? 'แก้ไข' : 'เบิก';
-                    if (type === 'leave' || type === 'correction' || type === 'advance') {
+                    if (type === 'leave') {
                         const docId = item["เลขที่เอกสาร"] || 'N/A';
                         const typeLabel = item["ประเภทการลา"] || 'ลาพักร้อน';
                         detail = `<span class="font-bold text-slate-700 truncate">${escapeHtml(docId)}</span><span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(typeLabel)} · ${escapeHtml(String(item["จำนวนวัน"] || '0'))} วัน</span>`;
                     } else if (type === 'correction') {
-                        detail = `<span class="font-bold text-slate-700 truncate">${formatThaiDate(item["วันที่"])}</span><span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(item["เวลาเข้าใหม่"] || '-')} → ${escapeHtml(item["เวลาออกใหม่"] || '-')}</span>`;
+                        const corrDate = formatThaiDate(item["วันที่"]) || '-';
+                        detail = `<span class="font-bold text-slate-700 truncate">${corrDate}</span><span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(item["เวลาเข้าใหม่"] || '-')} → ${escapeHtml(item["เวลาออกใหม่"] || '-')}</span>`;
                     } else {
+                        // advance
                         const amount = Number(item["จำนวนเงิน"] || 0).toLocaleString();
-                        const date = formatThaiDateShort(item["วันที่เบิก"]) || '-';
-                        detail = `<span class="font-bold text-emerald-700 truncate">฿ ${amount}</span><span class="text-[10px] text-slate-400 shrink-0">${date}</span>`;
+                        const advDate = formatThaiDateShort(item["วันที่เบิก"]) || '-';
+                        detail = `<span class="font-bold text-emerald-700 truncate">฿ ${amount}</span><span class="text-[10px] text-slate-400 shrink-0">${advDate}</span>`;
                     }
                     return `
                         <div class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
