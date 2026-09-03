@@ -13550,32 +13550,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const tabPendingBtn = document.getElementById(`admin-${type}-tab-pending`);
                 const tabResultsBtn = document.getElementById(`admin-${type}-tab-results`);
 
-                if (pendingEl && resultsEl) {
-                    if (type === 'leave') {
-                        pendingEl.classList.remove('hidden');
-                        resultsEl.classList.remove('hidden');
+                // ✅ ผลการอนุมัติแสดงคงที่เสมอ — ไม่ต้อง toggle
+                if (resultsEl) resultsEl.classList.remove('hidden');
+
+                // ✅ รายการรออนุมัติแสดงเฉพาะเมื่อมีข้อมูล (render functions handle visibility via count === 0)
+                //    ไม่ force-toggle pending ที่นี่ ให้ renderLeave/renderCorrections/renderAdvance จัดการเอง
+
+                // Tab button styling (tabs are hidden in UI but keep styling consistent)
+                if (tabPendingBtn && tabResultsBtn) {
+                    if (tab === 'pending') {
+                        tabPendingBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-brand-deep text-brand-deep bg-brand-sky/30 transition-all whitespace-nowrap';
+                        tabResultsBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap';
                     } else {
-                        pendingEl.classList.toggle('hidden', tab !== 'pending');
-                        resultsEl.classList.toggle('hidden', tab !== 'results');
+                        tabPendingBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap';
+                        tabResultsBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-brand-deep text-brand-deep bg-brand-sky/30 transition-all whitespace-nowrap';
                     }
                 }
 
-                if (tabPendingBtn && tabResultsBtn) {
-                if (tab === 'pending') {
-                    tabPendingBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-brand-deep text-brand-deep bg-brand-sky/30 transition-all whitespace-nowrap';
-                    tabResultsBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap';
-                } else {
-                    tabPendingBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap';
-                    tabResultsBtn.className = 'px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-brand-deep text-brand-deep bg-brand-sky/30 transition-all whitespace-nowrap';
-                }
-                }
-
-                if (tab === 'pending') {
-                    loadAdminApprovals();
-                    loadAdminApprovalResults(type);
-                } else {
-                    loadAdminApprovalResults(type);
-                }
+                // ✅ โหลดข้อมูลทั้งสองส่วนเสมอ (pending + results)
+                loadAdminApprovals();
+                loadAdminApprovalResults(type);
             }
 
                         // ═══════════════════════════════════════════════════════════════
