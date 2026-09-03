@@ -12931,6 +12931,88 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+
+            /**
+             * จัดกลุ่มตำแหน่งพนักงานเป็นแผนกอัตโนมัติ (Smart Position-Based Mapping)
+             * เหมาะกับธุรกิจก่อสร้าง (ถนน / สะพาน / โครงสร้างพื้นฐาน) และสำนักงาน
+             * @param {string} position - ตำแหน่งพนักงาน
+             * @returns {string|null} ชื่อแผนก หรือ null ถ้าจัดกลุ่มไม่ได้
+             */
+            function classifyPositionToDepartment(position) {
+                if (!position) return null;
+                const p = position.toString().trim().toLowerCase();
+
+                // ─── สำนักงาน / บริหาร / การเงิน / HR / สนับสนุน ────────────────
+                if (p.includes('ผู้จัดการ') || p.includes('ผจก') || p.includes('manager') ||
+                    p.includes('ผู้อำนวยการ') || p.includes('ผอ') || p.includes('director') ||
+                    p.includes('กรรมการ') || p.includes('ประธาน') || p.includes('ผู้บริหาร') ||
+                    p.includes('hr') || p.includes('บุคคล') || p.includes('ทรัพยากรมนุษย์') || p.includes('แรงงาน') ||
+                    p.includes('บัญชี') || p.includes('account') || p.includes('การเงิน') || p.includes('finance') ||
+                    p.includes('งบประมาณ') || p.includes('ต้นทุน') || p.includes('cost') || p.includes('budget') ||
+                    p.includes('ธุรการ') || p.includes('admin') || p.includes('สำนักงาน') || p.includes('office') ||
+                    p.includes('ประสานงาน') || p.includes('coordinator') || p.includes('เลขา') || p.includes('secretary') ||
+                    p.includes('จัดซื้อ') || p.includes('จัดหา') || p.includes('purchase') || p.includes('procurement') ||
+                    p.includes('ไอที') || p.includes('it ') || p.includes('computer') || p.includes('developer') ||
+                    p.includes('การตลาด') || p.includes('marketing') || p.includes('ประมูล') || p.includes('bid') ||
+                    p.includes('ขาย') || p.includes('sales') || p.includes('สัญญา') || p.includes('contract') ||
+                    p === 'it' || p === 'ผู้บริหาร') {
+                    return 'สำนักงาน';
+                }
+
+                // ─── วิศวกรรม / โครงการ / ออกแบบ / ควบคุมงาน ────────────────────
+                if (p.includes('วิศวกร') || p.includes('engineer') ||
+                    p.includes('สำรวจ') || p.includes('survey') || p.includes('surveyor') ||
+                    p.includes('ออกแบบ') || p.includes('design') || p.includes('drafter') || p.includes('เขียนแบบ') ||
+                    p.includes('โครงการ') || p.includes('project') ||
+                    p.includes('ผู้ควบคุมงาน') || p.includes('site engineer') || p.includes('site manager') ||
+                    p.includes('ตรวจงาน') || p.includes('inspector') || p.includes('inspection') ||
+                    p.includes('ประมาณราคา') || p.includes('estimat') || p.includes('ถอดแบบ') ||
+                    p.includes('qc') || p.includes('qa') || p.includes('ควบคุมคุณภาพ') || p.includes('quality') ||
+                    p.includes('แผนงาน') || p.includes('planner') || p.includes('scheduling') ||
+                    p.includes('cad') || p.includes('bim') || p.includes('gis')) {
+                    return 'วิศวกรรม/โครงการ';
+                }
+
+                // ─── หน้างาน / ก่อสร้าง / แรงงาน ────────────────────────────────
+                if (p.includes('ก่อสร้าง') || p.includes('construction') ||
+                    p.includes('โฟร์แมน') || p.includes('foreman') || p.includes('หัวหน้าหน้างาน') ||
+                    p.includes('หัวหน้างาน') || p.includes('supervisor') ||
+                    p.includes('คนงาน') || p.includes('กรรมกร') || p.includes('แรงงาน') || p.includes('labor') || p.includes('labour') ||
+                    p.includes('ช่างก่อสร้าง') || p.includes('ช่างปูน') || p.includes('ช่างเหล็ก') ||
+                    p.includes('ช่างไม้') || p.includes('ช่างทาสี') || p.includes('ช่างกระเบื้อง') ||
+                    p.includes('ช่างเชื่อม') || p.includes('ช่างประปา') || p.includes('ช่างไฟฟ้า') ||
+                    p.includes('ถนน') || p.includes('สะพาน') || p.includes('road') || p.includes('bridge') ||
+                    p.includes('ดิน') || p.includes('earthwork') || p.includes('ขุด') || p.includes('excavat') ||
+                    p.includes('เทคอนกรีต') || p.includes('concrete') || p.includes('คอนกรีต') ||
+                    p.includes('ยางมะตอย') || p.includes('asphalt') || p.includes('ลาดยาง') ||
+                    p.includes('ตอกเสาเข็ม') || p.includes('pile') || p.includes('ฐานราก') || p.includes('foundation') ||
+                    p.includes('โครงสร้าง') || p.includes('structure') || p.includes('สะพาน') ||
+                    p.includes('ท่อระบายน้ำ') || p.includes('culvert') || p.includes('ระบายน้ำ') ||
+                    p.includes('เสริมเหล็ก') || p.includes('rebar') || p.includes('steel') || p.includes('เหล็ก') ||
+                    p.includes('แบบหล่อ') || p.includes('formwork') || p.includes('นั่งร้าน') || p.includes('scaffold')) {
+                    return 'หน้างาน/ก่อสร้าง';
+                }
+
+                // ─── เครื่องจักร / ยานพาหนะ / ซ่อมบำรุง ────────────────────────
+                if (p.includes('เครื่องจักร') || p.includes('machine') || p.includes('equipment') || p.includes('อุปกรณ์') ||
+                    p.includes('รถ') || p.includes('vehicle') || p.includes('transport') ||
+                    p.includes('คนขับ') || p.includes('พนักงานขับ') || p.includes('driver') ||
+                    p.includes('แบคโฮ') || p.includes('backhoe') || p.includes('excavator') ||
+                    p.includes('รถบรรทุก') || p.includes('truck') || p.includes('dump truck') ||
+                    p.includes('รถปราบดิน') || p.includes('บูลโดเซอร์') || p.includes('bulldozer') ||
+                    p.includes('รถกระบะ') || p.includes('รถเครน') || p.includes('crane') ||
+                    p.includes('รถบด') || p.includes('compactor') || p.includes('roller') ||
+                    p.includes('รถเกรด') || p.includes('grader') || p.includes('paver') ||
+                    p.includes('ซ่อม') || p.includes('maintenance') || p.includes('บำรุง') ||
+                    p.includes('ช่างยนต์') || p.includes('ช่างเครื่อง') || p.includes('mechanic') ||
+                    p.includes('ช่างไฮดรอลิก') || p.includes('hydraulic') ||
+                    p.includes('คลัง') || p.includes('warehouse') || p.includes('สต็อก') || p.includes('stock')) {
+                    return 'เครื่องจักร/ยานพาหนะ';
+                }
+
+                return null; // จัดกลุ่มไม่ได้ — ไม่แสดงใน Widget
+            }
+
             async function renderDashboardDepartmentAndLeaveStats() {
                 const target = document.getElementById('dash-department-stats');
                 const leaveTop = document.getElementById('dash-leave-top-employees');
@@ -12943,66 +13025,61 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return;
                     }
 
-                    const todayKey = new Date().toISOString().slice(0, 10);
-                    const results = await Promise.all([
-                        supabaseClient.from('employees').select('*'),
-                        supabaseClient.from('time_records').select('*').eq('date', todayKey),
-                        supabaseClient.from('leave_requests').select('*')
+                    // ─── ดึงข้อมูลที่ยังขาด (ใช้ adminEmployeesList แทน query ซ้ำ) ───
+                    const todayKey = getLocalDateKey(new Date());
+                    const [timeRes, leaveRes] = await Promise.all([
+                        supabaseClient.from('time_records').select('employee_id').eq('date', todayKey),
+                        supabaseClient.from('leave_requests').select('emp_id,leave_type,start_date,end_date,employee_id')
                     ]);
 
-                    const [empRes, timeRes, leaveRes] = results;
-                    const employees = (!empRes.error && Array.isArray(empRes.data)) ? empRes.data : [];
-                    const attendanceRecords = (!timeRes.error && Array.isArray(timeRes.data)) ? timeRes.data : [];
-                    const leaveRecords = (!leaveRes.error && Array.isArray(leaveRes.data)) ? leaveRes.data : [];
+                    // ─── สร้าง Set รหัสพนักงานที่มาวันนี้ ─────────────────────────
                     const attendanceSet = new Set();
-                    attendanceRecords.forEach(row => {
-                        const raw = row.employee_id ?? row['รหัสพนักงาน'] ?? row.employeeId ?? row['employee_id'];
-                        if (raw !== null && raw !== undefined && String(raw).trim()) attendanceSet.add(String(raw));
-                    });
+                    if (!timeRes.error && Array.isArray(timeRes.data)) {
+                        timeRes.data.forEach(row => {
+                            const raw = row.employee_id ?? row['รหัสพนักงาน'] ?? row.employeeId;
+                            if (raw !== null && raw !== undefined && String(raw).trim()) attendanceSet.add(String(raw).trim());
+                        });
+                    }
 
-                    const bucketMap = {
-                        'สำนักงาน': { total: 0, present: 0, label: 'สำนักงาน' },
-                        'ฝ่ายผลิต': { total: 0, present: 0, label: 'ฝ่ายผลิต' },
-                        'ฝ่ายซ่อมบำรุง': { total: 0, present: 0, label: 'ฝ่ายซ่อมบำรุง' },
-                        'คลังสินค้า': { total: 0, present: 0, label: 'คลังสินค้า' }
-                    };
+                    // ─── จัดกลุ่มพนักงานตามตำแหน่ง (Smart Keyword Mapping) ────────
+                    const employees = Array.isArray(adminEmployeesList) ? adminEmployeesList : [];
+                    const bucketMap = {};
 
                     employees.forEach(emp => {
-                        const dept = (emp.department || emp['ฝ่าย'] || emp.company || emp['ชื่อบริษัท'] || '').toString().trim();
-                        const id = (emp.emp_id || emp['รหัสพนักงาน'] || '').toString().trim();
-                        const normalized = dept.toLowerCase();
-                        let bucket = null;
-                        if (!dept) {
-                            const position = (emp.position || emp['ตำแหน่ง'] || '').toString().trim().toLowerCase();
-                            if (position.includes('office') || position.includes('admin') || position.includes('hr')) bucket = 'สำนักงาน';
-                            else if (position.includes('ผลิต') || position.includes('factory') || position.includes('production')) bucket = 'ฝ่ายผลิต';
-                            else if (position.includes('ซ่อม') || position.includes('maintenance')) bucket = 'ฝ่ายซ่อมบำรุง';
-                            else if (position.includes('คลัง') || position.includes('warehouse') || position.includes('logistics')) bucket = 'คลังสินค้า';
-                        } else if (normalized.includes('สำนักงาน') || normalized.includes('office') || normalized.includes('admin') || normalized.includes('hr')) {
-                            bucket = 'สำนักงาน';
-                        } else if (normalized.includes('ผลิต') || normalized.includes('factory') || normalized.includes('production')) {
-                            bucket = 'ฝ่ายผลิต';
-                        } else if (normalized.includes('ซ่อม') || normalized.includes('maintenance') || normalized.includes('service')) {
-                            bucket = 'ฝ่ายซ่อมบำรุง';
-                        } else if (normalized.includes('คลัง') || normalized.includes('warehouse') || normalized.includes('logistics')) {
-                            bucket = 'คลังสินค้า';
-                        }
-                        if (!bucket) return;
-                        const bucketValue = bucketMap[bucket];
-                        if (!bucketValue) return;
-                        bucketValue.total += 1;
-                        if (id && attendanceSet.has(id)) bucketValue.present += 1;
+                        const id = (emp['รหัสพนักงาน'] || emp.emp_id || '').toString().trim();
+                        // ใช้ทั้ง position จาก emp โดยตรง และ "ตำแหน่ง" จากการ map
+                        const position = (emp['ตำแหน่ง'] || emp.position || '').toString().trim();
+                        const bucket = classifyPositionToDepartment(position);
+                        if (!bucket) return; // ตำแหน่งไม่ match keyword ใดเลย
+
+                        if (!bucketMap[bucket]) bucketMap[bucket] = { total: 0, present: 0, label: bucket };
+                        bucketMap[bucket].total += 1;
+                        if (id && attendanceSet.has(id)) bucketMap[bucket].present += 1;
                     });
 
-                    const departmentRows = Object.values(bucketMap).filter(v => v.total > 0);
+                    // ─── Render กราฟแผนก ──────────────────────────────────────────
+                    const departmentRows = Object.values(bucketMap).filter(v => v.total > 0)
+                        .sort((a, b) => b.total - a.total);
+
+                    const toneMap = {
+                        'สำนักงาน': 'bg-indigo-500',
+                        'วิศวกรรม/โครงการ': 'bg-blue-500',
+                        'หน้างาน/ก่อสร้าง': 'bg-amber-500',
+                        'เครื่องจักร/ยานพาหนะ': 'bg-emerald-500',
+                        'ฝ่ายผลิต': 'bg-blue-500',
+                        'ฝ่ายซ่อมบำรุง': 'bg-amber-500',
+                        'คลังสินค้า': 'bg-violet-500'
+                    };
+                    const defaultTones = ['bg-cyan-500', 'bg-rose-500', 'bg-orange-500', 'bg-teal-500'];
+                    let toneIdx = 0;
+
                     if (departmentRows.length === 0) {
-                        target.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">ไม่มีข้อมูลแผนก</div>';
+                        target.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">ไม่สามารถจัดกลุ่มตำแหน่งได้ — ตรวจสอบชื่อตำแหน่งในระบบ</div>';
                     } else {
-                        const maxValue = Math.max(...departmentRows.map(v => v.total), 1);
                         target.innerHTML = departmentRows.map(row => {
-                            const ratio = Math.round((row.present / row.total) * 100);
+                            const ratio = row.total > 0 ? Math.round((row.present / row.total) * 100) : 0;
                             const width = Math.min(100, Math.max(0, ratio));
-                            const tone = row.label === 'สำนักงาน' ? 'bg-emerald-500' : row.label === 'ฝ่ายผลิต' ? 'bg-blue-500' : row.label === 'ฝ่ายซ่อมบำรุง' ? 'bg-amber-500' : 'bg-violet-500';
+                            const tone = toneMap[row.label] || defaultTones[(toneIdx++) % defaultTones.length];
                             return `
                               <div>
                                 <div class="flex items-center justify-between mb-1">
@@ -13017,24 +13094,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }).join('');
                     }
 
+                    // ─── Top พนักงานลาบ่อย ────────────────────────────────────────
+                    const leaveRecords = (!leaveRes.error && Array.isArray(leaveRes.data)) ? leaveRes.data : [];
                     const leaveByEmp = {};
                     leaveRecords.forEach(item => {
-                        const rawId = item.emp_id ?? item['รหัสพนักงาน'] ?? item.employee_id ?? item['employee_id'];
+                        const rawId = item.emp_id ?? item.employee_id ?? item['รหัสพนักงาน'];
                         if (!rawId) return;
                         const key = String(rawId).trim();
                         const type = parseLeaveTypeName(item.leave_type ?? item['ประเภทการลา']);
-                        let days = 0;
-                        if (type === 'annual' || type === 'sick' || type === 'personal') {
-                            days = countLeaveDays(item.start_date || item['วันที่เริ่ม'], item.end_date || item['วันที่สิ้นสุด']);
-                        }
+                        const days = countLeaveDays(item.start_date || item['วันที่เริ่ม'], item.end_date || item['วันที่สิ้นสุด']);
                         if (!leaveByEmp[key]) leaveByEmp[key] = 0;
                         leaveByEmp[key] += days || 1;
                     });
 
                     const empNameMap = {};
                     employees.forEach(emp => {
-                        const id = (emp.emp_id || emp['รหัสพนักงาน'] || '').toString().trim();
-                        if (id) empNameMap[id] = (emp.name || emp['ชื่อ-นามสกุล'] || 'พนักงาน').toString();
+                        const id = (emp['รหัสพนักงาน'] || emp.emp_id || '').toString().trim();
+                        if (id) empNameMap[id] = (emp['ชื่อ-นามสกุล'] || emp.name || 'พนักงาน').toString();
                     });
 
                     const topLeave = Object.entries(leaveByEmp)
@@ -13066,6 +13142,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     leaveTop.innerHTML = '<div class="py-6 text-center text-slate-400 text-xs italic">โหลดข้อมูลไม่สำเร็จ</div>';
                 }
             }
+
+
 
             async function renderDashboardOverviewCharts() {
                 try {
