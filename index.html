@@ -5267,7 +5267,6 @@
                                                 aria-label="เลือกคำขอแก้ไขเวลาทั้งหมด">
                                         </th>
                                         <th>พนักงาน</th>
-                                        <th>วันที่ส่ง</th>
                                         <th>วันที่ขอแก้ไข</th>
                                         <th>เวลาเข้าใหม่</th>
                                         <th>เวลาออกใหม่</th>
@@ -5277,7 +5276,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="admin-correction-table-body">
-                                    <tr class="tbl-empty-row"><td colspan="9">⏳ กำลังโหลดรายการแก้ไขเวลา...</td></tr>
+                                    <tr class="tbl-empty-row"><td colspan="8">⏳ กำลังโหลดรายการแก้ไขเวลา...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -7508,7 +7507,7 @@ function getApprovalDateValue(type, req) {
     if (!req) return 0;
     const fieldOrder = {
         leave: ['created_at', 'createdAt', 'timestamp', 'วันที่ยื่น', 'วันที่ส่ง', 'วันที่ขอ', 'วันที่เริ่ม', 'start_date'],
-        correction: ['created_at', 'createdAt', 'timestamp', 'วันที่ส่ง', 'วันที่ยื่น', 'วันที่', 'request_date', 'date'],
+        correction: ['date', 'วันที่', 'created_at', 'createdAt', 'timestamp'],
         advance: ['created_at', 'createdAt', 'timestamp', 'วันที่ส่ง', 'วันที่ส่งคำขอ', 'วันที่ยื่น', 'วันที่เบิก', 'request_date']
     };
     const fields = fieldOrder[type] || ['created_at', 'timestamp', 'วันที่ส่ง', 'วันที่'];
@@ -7637,7 +7636,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 const placeholderMap = {
                     leave: { id: "admin-leave-table-body", colspan: 8, message: "ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้" },
-                    correction: { id: "admin-correction-table-body", colspan: 9, message: "ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ" },
+                    correction: { id: "admin-correction-table-body", colspan: 8, message: "ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ" },
                     advance: { id: "admin-advance-table-body", colspan: 8, message: "ไม่มีคำขอเบิกเงินที่รอการอนุมัติ" }
                 };
                 const cfg = placeholderMap[type];
@@ -15960,7 +15959,6 @@ container.innerHTML = "";
 
                         const corrRows = sortedData.map(req => {
                             const empId = req["รหัสพนักงาน"] || "N/A";
-                            const submitDate = req["วันที่ส่ง"] ? formatThaiDate(req["วันที่ส่ง"]) : "-";
                             const date = formatThaiDate(req["วันที่"]);
                             const newIn = req["เวลาเข้าใหม่"] || "-";
                             const newOut = req["เวลาออกใหม่"] || "-";
@@ -16017,7 +16015,6 @@ container.innerHTML = "";
                                 <tr data-approval-row-type="correction" data-approval-row-key="${escapeHtml(rowKey)}" data-approval-status="${escapeHtml(status)}" class="${rowClass}">
                                   <td>${checkboxHtml}</td>
                                   <td>${empDisplay}</td>
-                                  <td style="color:#64748b">${escapeHtml(submitDate)}</td>
                                   <td style="color:#475569;font-weight:600">${escapeHtml(date)}</td>
                                   <td><span class="font-bold" style="color:#059669">${escapeHtml(newIn)}</span></td>
                                   <td><span class="font-bold" style="color:#059669">${escapeHtml(newOut)}</span></td>
@@ -16028,7 +16025,7 @@ container.innerHTML = "";
                         });
 
                         if (correctionContainer) {
-                            renderRowsInChunks(correctionContainer, corrRows, 'ไม่มีรายการคำขอแก้ไขเวลา', 9);
+                            renderRowsInChunks(correctionContainer, corrRows, 'ไม่มีรายการคำขอแก้ไขเวลา', 8);
                         }
                         setStatValue('corr-filter-all-count', `(${corrRows.length})`);
                         setStatValue('correction-pending-count-badge', corrPendingCount);
@@ -16041,7 +16038,7 @@ container.innerHTML = "";
                         setStatValue('correction-pending-count-badge', 0);
                         setStatValue('corr-approved-count-badge', 0);
                         setStatValue('corr-rejected-count-badge', 0);
-                        if (correctionContainer) correctionContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
+                        if (correctionContainer) correctionContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
                         adminPendingCounts.correction = { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 };
                         adminPendingRecent.correction = [];
                     }
@@ -16189,8 +16186,8 @@ container.innerHTML = "";
                                 data: (cRes.data || []).map(c => ({
                                     "รหัสพนักงาน": c.emp_id,
                                     "วันที่": c.date,
-                                    "วันที่ส่ง": c.request_date || c.created_at || c.date,
-                                    "created_at": c.created_at || c.createdAt || c.request_date || c.date,
+                                    "วันที่ส่ง": c.submitted_at || c.created_at || c.date,
+                                    "created_at": c.created_at || c.submitted_at || c.date,
                                     "เวลาเข้าใหม่": c.new_time_in,
                                     "เวลาออกใหม่": c.new_time_out,
                                     "เหตุผล": c.reason,
@@ -16261,8 +16258,8 @@ container.innerHTML = "";
                     const corrData = (!corrSb.error && Array.isArray(corrSb.data) ? corrSb.data : []).map(c => ({
                         'รหัสพนักงาน': c.emp_id,
                         'วันที่': c.date,
-                        'วันที่ส่ง': c.request_date || c.created_at || c.date,
-                        'created_at': c.created_at || c.request_date || c.date,
+                        'วันที่ส่ง': c.submitted_at || c.created_at || c.date,
+                        'created_at': c.created_at || c.submitted_at || c.date,
                         'เวลาเข้าใหม่': c.new_time_in,
                         'เวลาออกใหม่': c.new_time_out,
                         'เหตุผล': c.reason,
@@ -16324,21 +16321,31 @@ container.innerHTML = "";
                     correction: {
                         url: `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`,
                         bodyId: 'admin-correction-table-body',
-                        headers: ['พนักงาน', 'วันที่ส่ง', 'วันที่ขอแก้ไข', 'เวลาเข้าใหม่', 'เวลาออกใหม่', 'เหตุผลชี้แจง', 'สถานะ', 'การจัดการ'],
+                        headers: ['พนักงาน', 'วันที่ขอแก้ไข', 'เวลาเข้าใหม่', 'เวลาออกใหม่', 'เหตุผลชี้แจง', 'สถานะ', 'การจัดการ'],
                         buildRow: req => {
+                            const empId = req['รหัสพนักงาน'] || 'N/A';
                             const status = req['สถานะ'] || '-';
                             const approved = !status.includes('ไม่') && !status.includes('ปฏิเสธ');
+                            const checkboxHtml = approved 
+                                ? `<input type="checkbox" class="correction-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req['วันที่'])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleCorrectionItem(this)">`
+                                : `<span class="text-slate-300 text-xs text-center block">-</span>`;
+                            const actionHtml = approved
+                                ? `<div style="display:flex;gap:4px;justify-content:flex-end">
+                                      <button onclick='reapplyTimeCorrection(${safeJson(req)})' class="action-btn bg-amber-500 hover:bg-amber-600 text-white text-[11px] px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-sm ml-auto" title="ส่งเวลาที่ขอแก้ไปอัปเดตลงประวัติเวลางานใหม่">
+                                          <i class="fa-solid fa-rotate"></i> อัปเดตเวลา
+                                      </button>
+                                   </div>`
+                                : `<span class="text-slate-400 text-xs">-</span>`;
                             return `
               <tr data-approval-status="${escapeHtml(status)}" class="hr-table-row hover:bg-slate-50 transition-colors">
-                <td><span class="text-slate-300 text-xs text-center block">-</span></td>
-                <td>${getAdminEmployeeDisplay(req['รหัสพนักงาน'] || 'N/A', req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
-                <td style="color:#64748b">${escapeHtml(formatThaiDate(req['วันที่ส่ง']) || '-')}</td>
+                <td>${checkboxHtml}</td>
+                <td>${getAdminEmployeeDisplay(empId, req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
                 <td style="color:#475569;font-weight:600">${escapeHtml(formatThaiDate(req['วันที่']))}</td>
                 <td><span class="font-bold" style="color:#059669">${escapeHtml(req['เวลาเข้าใหม่'] || '-')}</span></td>
                 <td><span class="font-bold" style="color:#059669">${escapeHtml(req['เวลาออกใหม่'] || '-')}</span></td>
                 <td><span class="truncate" style="max-width:180px;display:inline-block;color:#94a3b8" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</span></td>
                 <td><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
-                <td style="text-align:right"><span class="text-slate-400 text-xs">-</span></td>
+                <td style="text-align:right">${actionHtml}</td>
               </tr>
             `;
                         }
@@ -16402,14 +16409,16 @@ container.innerHTML = "";
                         const resultsHtml = filteredItems.map(req => config[type].buildRow(req)).join('');
                         bodyEl.insertAdjacentHTML('beforeend', resultsHtml);
                     }
+                    const colSpan = (config[type] && config[type].headers) ? (config[type].headers.length + 1) : 8;
                     // ถ้าไม่มี pending และไม่มี results → แสดง empty state
                     if (filteredItems.length === 0 && !hasPending) {
-                        bodyEl.innerHTML = `<tr class="tbl-empty-row"><td colspan="9" class="py-6 text-center text-slate-500">📋 ไม่มีรายการข้อมูลในระบบขณะนี้</td></tr>`;
+                        bodyEl.innerHTML = `<tr class="tbl-empty-row"><td colspan="${colSpan}" class="py-6 text-center text-slate-500">📋 ไม่มีรายการข้อมูลในระบบขณะนี้</td></tr>`;
                     }
                 } catch (err) {
                     // ไม่ลบ pending rows ถ้าโหลด results ล้มเหลว
                     if (!hasPending) {
-                        bodyEl.innerHTML = `<tr class="tbl-empty-row"><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(err.message || 'เกิดข้อผิดพลาด')}</td></tr>`;
+                        const colSpan = (config[type] && config[type].headers) ? (config[type].headers.length + 1) : 8;
+                        bodyEl.innerHTML = `<tr class="tbl-empty-row"><td colspan="${colSpan}" class="py-6 text-center text-rose-600">❌ ${escapeHtml(err.message || 'เกิดข้อผิดพลาด')}</td></tr>`;
                     }
                 }
             }
