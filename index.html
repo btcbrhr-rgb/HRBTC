@@ -14847,26 +14847,34 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function toggleCorrectionItem(checkbox) {
-                const key = `${checkbox.dataset.empId}::${checkbox.dataset.date}`;
+                const empId = checkbox.dataset.empId;
+                const date = checkbox.dataset.date;
+                if (!empId || !date) return;
+                const key = `${empId}::${date}`;
+                selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
                 if (checkbox.checked) {
-                    selectedCorrectionItems.add({ empId: checkbox.dataset.empId, date: checkbox.dataset.date, key: key });
-                } else {
-                    selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
+                    selectedCorrectionItems.add({ empId, date, key });
                 }
                 updateBatchButtons();
             }
 
             function toggleSelectAllCorrection(selectAllCheckbox) {
                 const checkboxes = document.querySelectorAll('.correction-checkbox');
-                checkboxes.forEach(cb => {
-                    cb.checked = selectAllCheckbox.checked;
-                    const key = `${cb.dataset.empId}::${cb.dataset.date}`;
-                    if (cb.checked) {
-                        selectedCorrectionItems.add({ empId: cb.dataset.empId, date: cb.dataset.date, key: key });
-                    } else {
-                        selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
-                    }
-                });
+                if (!selectAllCheckbox.checked) {
+                    checkboxes.forEach(cb => { cb.checked = false; });
+                    selectedCorrectionItems.clear();
+                } else {
+                    checkboxes.forEach(cb => {
+                        cb.checked = true;
+                        const empId = cb.dataset.empId;
+                        const date = cb.dataset.date;
+                        if (empId && date) {
+                            const key = `${empId}::${date}`;
+                            selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
+                            selectedCorrectionItems.add({ empId, date, key });
+                        }
+                    });
+                }
                 updateBatchButtons();
             }
 
@@ -14998,11 +15006,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     showToast(`❌ เกิดข้อผิดพลาด: ${err.message || err}`, "error");
                 } finally {
                     if (btn) {
-                        btn.disabled = false;
+                        btn.disabled = selectedCorrectionItems.size === 0;
                         btn.innerHTML = origHtml;
                     }
                 }
             }
+            window.batchReapplyCorrection = batchReapplyCorrection;
+            window.reapplyTimeCorrection = reapplyTimeCorrection;
 
             // ═══════════════════════════════════════════════════════════════
             // 🏖️ ระบบจัดการวันหยุดประจำปี (Admin Holidays & PDF Import)
@@ -16559,6 +16569,7 @@ container.innerHTML = "";
                 const rejectLeaveBtn = document.getElementById('batch-reject-leave');
                 const approveCorrectionBtn = document.getElementById('batch-approve-correction');
                 const rejectCorrectionBtn = document.getElementById('batch-reject-correction');
+                const reapplyCorrectionBtn = document.getElementById('batch-reapply-correction');
                 const approveAdvanceBtn = document.getElementById('batch-approve-advance');
                 const rejectAdvanceBtn = document.getElementById('batch-reject-advance');
 
@@ -16573,6 +16584,9 @@ container.innerHTML = "";
                 }
                 if (rejectCorrectionBtn) {
                     rejectCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
+                }
+                if (reapplyCorrectionBtn) {
+                    reapplyCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
                 }
                 if (approveAdvanceBtn) {
                     approveAdvanceBtn.disabled = selectedAdvanceItems.size === 0;
@@ -16619,26 +16633,34 @@ container.innerHTML = "";
 
             // Batch functions for correction
             function toggleCorrectionItem(checkbox) {
-                const key = `${checkbox.dataset.empId}::${checkbox.dataset.date}`;
+                const empId = checkbox.dataset.empId;
+                const date = checkbox.dataset.date;
+                if (!empId || !date) return;
+                const key = `${empId}::${date}`;
+                selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
                 if (checkbox.checked) {
-                    selectedCorrectionItems.add({ empId: checkbox.dataset.empId, date: checkbox.dataset.date, key: key });
-                } else {
-                    selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
+                    selectedCorrectionItems.add({ empId, date, key });
                 }
                 updateBatchButtons();
             }
 
             function toggleSelectAllCorrection(selectAllCheckbox) {
                 const checkboxes = document.querySelectorAll('.correction-checkbox');
-                checkboxes.forEach(cb => {
-                    cb.checked = selectAllCheckbox.checked;
-                    const key = `${cb.dataset.empId}::${cb.dataset.date}`;
-                    if (cb.checked) {
-                        selectedCorrectionItems.add({ empId: cb.dataset.empId, date: cb.dataset.date, key: key });
-                    } else {
-                        selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
-                    }
-                });
+                if (!selectAllCheckbox.checked) {
+                    checkboxes.forEach(cb => { cb.checked = false; });
+                    selectedCorrectionItems.clear();
+                } else {
+                    checkboxes.forEach(cb => {
+                        cb.checked = true;
+                        const empId = cb.dataset.empId;
+                        const date = cb.dataset.date;
+                        if (empId && date) {
+                            const key = `${empId}::${date}`;
+                            selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
+                            selectedCorrectionItems.add({ empId, date, key });
+                        }
+                    });
+                }
                 updateBatchButtons();
             }
 
