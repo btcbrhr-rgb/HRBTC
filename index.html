@@ -13232,45 +13232,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         });
                     }
 
-                    const chartLabels = [];
-                    const chartPresent = [];
-                    const chartLate = [];
-                    const chartAbsent = [];
+                    // ใช้ timeData จาก Supabase query (7 วันล่าสุด) สำหรับ Trend Chart
                     const now = new Date();
-                    for (let i = 6; i >= 0; i--) {
-                        const d = new Date(now);
-                        d.setDate(now.getDate() - i);
-                        const key = getLocalDateKey(d);
-                        const short = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-                        chartLabels.push(short.replace(' ', ''));
-                        chartPresent.push(0);
-                        chartLate.push(0);
-                        chartAbsent.push(0);
-                        if (i === 6) {
-                            // no-op: placeholder filled below
-                        }
-                    }
-
                     const timeData = !timeRes.error && Array.isArray(timeRes.data) ? timeRes.data : [];
-                    timeData.forEach(record => {
-                        const key = (record.date || '').toString();
-                        const idx = chartLabels.findIndex(label => {
-                            const labelDate = new Date(now);
-                            labelDate.setDate(now.getDate() - (chartLabels.length - 1 - chartLabels.indexOf(label)));
-                            return key === getLocalDateKey(labelDate);
-                        });
-                        if (idx < 0) return;
-                        const statusText = (record.status || record['สถานะ'] || '').toString();
-                        const lateMin = Number(record.late_minutes || record['นาทีสาย'] || 0);
-                        const hasTime = !!(record.time_in || record.time_out || record['เวลาเข้า'] || record['เวลาออก']);
-                        if (statusText.includes('ขาด') || (!hasTime && !statusText)) {
-                            chartAbsent[idx] += 1;
-                        } else if (lateMin > 0 || statusText.includes('สาย')) {
-                            chartLate[idx] += 1;
-                        } else {
-                            chartPresent[idx] += 1;
-                        }
-                    });
 
                     const trendCanvas = document.getElementById('chart-attendance-trend');
                     if (trendCanvas) {
@@ -13292,8 +13256,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         });
 
                         timeData.forEach(record => {
-                            const key = (record.date || '').toString();
-                            if (!presentByDate[key]) return;
+                            const key = (record.date || '').toString().trim();
+                            // ใช้ 'in' แทน !value เพราะค่า 0 (falsy) ทำให้ return ออกก่อน
+                            if (!(key in presentByDate)) return;
                             const statusText = (record.status || record['สถานะ'] || '').toString();
                             const lateMin = Number(record.late_minutes || record['นาทีสาย'] || 0);
                             const hasTime = !!(record.time_in || record.time_out || record['เวลาเข้า'] || record['เวลาออก']);
