@@ -3369,7 +3369,7 @@
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                         <div class="bg-white rounded-2xl border-b border-r border-slate-100 p-5 shadow-sm">
                             <div class="flex items-center justify-between mb-3">
-                                <h4 class="text-xs font-bold text-slate-800">สัดส่วนประเภทลา (เดือนนี้)</h4>
+                                <h4 class="text-xs font-bold text-slate-800">สัดส่วนประเภทลา (ปีนี้)</h4>
                                 <span class="text-[10px] text-slate-400 font-medium">ข้อมูลจริง</span>
                             </div>
                             <div class="flex items-center justify-center" style="height:180px">
@@ -12823,19 +12823,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             document.getElementById("dash-kpi-employees-sub").textContent = `${adminEmployeesList.length} คนในระบบ`;
                         }
 
-                        // STEP 3: ดึงข้อมูลอนุมัติ (MUST be before renderAdminDashboardPending)
+                        // STEP 3: ดึงข้อมูลอนุมัติจาก Supabase (MUST be before renderAdminDashboardPending)
                         if (!adminApprovalsLoadedOnce && typeof loadAdminApprovals === 'function') {
-                            console.log('[loadAdminDashboard] Loading approvals...');
-                            await new Promise(resolve => {
-                                const checkApprovals = setInterval(() => {
-                                    if (adminApprovalsLoadedOnce || (adminPendingCounts.leave.total + adminPendingCounts.correction.total + adminPendingCounts.advance.total) > 0) {
-                                        clearInterval(checkApprovals);
-                                        resolve();
-                                    }
-                                }, 100);
-                                loadAdminApprovals();
-                                setTimeout(() => { clearInterval(checkApprovals); resolve(); }, 2000);
-                            });
+                            console.log('[loadAdminDashboard] Loading approvals from Supabase...');
+                            try {
+                                await loadAdminApprovals();
+                            } catch (appErr) {
+                                console.warn('[loadAdminDashboard] loadAdminApprovals error:', appErr);
+                            }
                         }
 
                         // STEP 4: Render all dashboard sections with REAL data from Supabase
@@ -12848,7 +12843,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         await renderDashboardOverviewCharts();  // ดึงข้อมูลจริงจาก Supabase
                         await renderDashboardDepartmentAndLeaveStats();  // await เพื่อให้แน่ใจว่าโหลดสำเร็จ
                         
-                        console.log('[loadAdminDashboard] ✅ Dashboard loaded successfully');
+                        console.log('[loadAdminDashboard] ✅ Dashboard loaded successfully (100% Supabase)');
 
                     } catch (err) {
                         console.warn('[loadAdminDashboard] Data loading failed:', err);
@@ -12874,17 +12869,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const barEl = document.getElementById('dash-kpi-attendance-bar');
 
                     let present = 0;
-                    let total = Array.isArray(adminEmployeesList) ? adminEmployeesList.length : 0;
+                    const activeEmployees = Array.isArray(adminEmployeesList) 
+                        ? adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก")
+                        : [];
+                    let total = activeEmployees.length;
 
                     if (supabaseClient) {
                         const todayKey = getLocalDateKey(new Date());
-                        const { data, error } = await supabaseClient.from('time_records').select('*').eq('date', todayKey);
+                        const { data, error } = await supabaseClient
+                            .from('time_records')
+                            .select('emp_id,status,time_in,time_out')
+                            .eq('date', todayKey);
+
                         if (!error && Array.isArray(data)) {
                             const employeeIds = new Set();
                             data.forEach(row => {
-                                const raw = row.employee_id ?? row['รหัสพนักงาน'] ?? row['employeeId'] ?? row.employeeId ?? row['employee_id'];
+                                const raw = row.emp_id ?? row['รหัสพนักงาน'] ?? row.employee_id;
                                 if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
-                                    employeeIds.add(String(raw));
+                                    employeeIds.add(String(raw).trim());
                                 }
                             });
                             present = employeeIds.size;
@@ -12898,7 +12900,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const ratio = total > 0 ? Math.round((present / total) * 100) : 0;
                     if (attendanceEl) attendanceEl.textContent = present;
                     if (totalEl) totalEl.textContent = total;
-                    if (subEl) subEl.textContent = total > 0 ? `${ratio}% มาทำงานวันนี้` : 'ยังไม่มีข้อมูล';
+                    if (subEl) subEl.textContent = total > 0 ? `${ratio}% มาทำงานวันนี้ (${present}/${total} คน)` : 'ยังไม่มีข้อมูล';
                     if (barEl) barEl.style.width = `${Math.max(0, Math.min(100, ratio))}%`;
                 } catch (e) {
                     console.warn('[renderAdminDashboardAttendance] failed:', e);
@@ -13453,14 +13455,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (trendCanvas && typeof Chart !== 'undefined') {
                     const existing = Chart.getChart(trendCanvas);
                     if (existing) existing.destroy();
+                    const now = new Date();
+                    const dynamicLabels = [];
+                    for (let i = 6; i >= 0; i--) {
+                        const d = new Date(now);
+                        d.setDate(now.getDate() - i);
+                        dynamicLabels.push(d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }).replace(' ', ''));
+                    }
                     new Chart(trendCanvas, {
                         type: 'bar',
                         data: {
-                            labels: ['ส.ค.27', 'ส.ค.28', 'ส.ค.29', 'ส.ค.30', 'ส.ค.31', 'ก.ย.1', 'ก.ย.2'],
+                            labels: dynamicLabels,
                             datasets: [
-                                { label: 'มาตามเวลา', data: [], backgroundColor: '#10b981', borderRadius: 6 },
-                                { label: 'สาย', data: [], backgroundColor: '#f59e0b', borderRadius: 6 },
-                                { label: 'ขาด', data: [], backgroundColor: '#f87171', borderRadius: 6 }
+                                { label: 'มาตามเวลา', data: Array(7).fill(0), backgroundColor: '#10b981', borderRadius: 6 },
+                                { label: 'สาย', data: Array(7).fill(0), backgroundColor: '#f59e0b', borderRadius: 6 },
+                                { label: 'ขาด', data: Array(7).fill(0), backgroundColor: '#f87171', borderRadius: 6 }
                             ]
                         },
                         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
