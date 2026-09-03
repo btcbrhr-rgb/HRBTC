@@ -5248,6 +5248,11 @@
                                     disabled>
                                     <i class="fa-solid fa-xmark mr-1"></i> ปฏิเสธที่เลือก
                                 </button>
+                                <button id="batch-reapply-correction" onclick="batchReapplyCorrection()"
+                                    class="action-btn bg-amber-500 hover:bg-amber-600 text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled>
+                                    <i class="fa-solid fa-rotate mr-1"></i> อัปเดตเวลาที่เลือก
+                                </button>
                             </div>
                         </div>
 
@@ -14740,6 +14745,39 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 setStatValue('adv-stat-today', c.advance?.today ?? 0);
                 setStatValue('adv-stat-soon', (c.advance?.oneDay ?? 0) + (c.advance?.threeDays ?? 0));
             }
+
+            function updateBatchButtons() {
+                const approveLeaveBtn = document.getElementById('batch-approve-leave');
+                const rejectLeaveBtn = document.getElementById('batch-reject-leave');
+                const approveCorrectionBtn = document.getElementById('batch-approve-correction');
+                const rejectCorrectionBtn = document.getElementById('batch-reject-correction');
+                const reapplyCorrectionBtn = document.getElementById('batch-reapply-correction');
+                const approveAdvanceBtn = document.getElementById('batch-approve-advance');
+                const rejectAdvanceBtn = document.getElementById('batch-reject-advance');
+
+                if (approveLeaveBtn) {
+                    approveLeaveBtn.disabled = selectedLeaveItems.size === 0;
+                }
+                if (rejectLeaveBtn) {
+                    rejectLeaveBtn.disabled = selectedLeaveItems.size === 0;
+                }
+                if (approveCorrectionBtn) {
+                    approveCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
+                }
+                if (rejectCorrectionBtn) {
+                    rejectCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
+                }
+                if (reapplyCorrectionBtn) {
+                    reapplyCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
+                }
+                if (approveAdvanceBtn) {
+                    approveAdvanceBtn.disabled = selectedAdvanceItems.size === 0;
+                }
+                if (rejectAdvanceBtn) {
+                    rejectAdvanceBtn.disabled = selectedAdvanceItems.size === 0;
+                }
+            }
+
             function setStatValue(id, val) {
                 const el = document.getElementById(id);
                 if (el && el.textContent !== String(val)) {
@@ -14774,7 +14812,200 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 loadAdminApprovalResults(type);
             }
 
-                        // ═══════════════════════════════════════════════════════════════
+            // Batch functions for advance
+            function toggleAdvanceItem(checkbox) {
+                const key = `${checkbox.dataset.empId}::${checkbox.dataset.date}::${checkbox.dataset.amount}`;
+                if (checkbox.checked) {
+                    selectedAdvanceItems.add({ empId: checkbox.dataset.empId, date: checkbox.dataset.date, amount: checkbox.dataset.amount, key: key });
+                } else {
+                    selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
+                }
+                updateBatchButtons();
+            }
+
+            function toggleSelectAllAdvance(selectAllCheckbox) {
+                const checkboxes = document.querySelectorAll('.advance-checkbox');
+                checkboxes.forEach(cb => {
+                    cb.checked = selectAllCheckbox.checked;
+                    const key = `${cb.dataset.empId}::${cb.dataset.date}::${cb.dataset.amount}`;
+                    if (cb.checked) {
+                        selectedAdvanceItems.add({ empId: cb.dataset.empId, date: cb.dataset.date, amount: cb.dataset.amount, key: key });
+                    } else {
+                        selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
+                    }
+                });
+                updateBatchButtons();
+            }
+
+            function batchApproveAdvance() {
+                if (selectedAdvanceItems.size === 0) return;
+                openBatchDecisionModal('advance', 'approve');
+            }
+
+            function batchRejectAdvance() {
+                if (selectedAdvanceItems.size === 0) return;
+                openBatchDecisionModal('advance', 'reject');
+            }
+
+            function toggleCorrectionItem(checkbox) {
+                const key = `${checkbox.dataset.empId}::${checkbox.dataset.date}`;
+                if (checkbox.checked) {
+                    selectedCorrectionItems.add({ empId: checkbox.dataset.empId, date: checkbox.dataset.date, key: key });
+                } else {
+                    selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
+                }
+                updateBatchButtons();
+            }
+
+            function toggleSelectAllCorrection(selectAllCheckbox) {
+                const checkboxes = document.querySelectorAll('.correction-checkbox');
+                checkboxes.forEach(cb => {
+                    cb.checked = selectAllCheckbox.checked;
+                    const key = `${cb.dataset.empId}::${cb.dataset.date}`;
+                    if (cb.checked) {
+                        selectedCorrectionItems.add({ empId: cb.dataset.empId, date: cb.dataset.date, key: key });
+                    } else {
+                        selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
+                    }
+                });
+                updateBatchButtons();
+            }
+
+            function batchApproveCorrection() {
+                if (selectedCorrectionItems.size === 0) return;
+                openBatchDecisionModal('correction', 'approve');
+            }
+
+            function batchRejectCorrection() {
+                if (selectedCorrectionItems.size === 0) return;
+                openBatchDecisionModal('correction', 'reject');
+            }
+
+            function batchApproveLeave() {
+                if (selectedLeaveItems.size === 0) return;
+                openBatchDecisionModal('leave', 'approve');
+            }
+
+            function batchRejectLeave() {
+                if (selectedLeaveItems.size === 0) return;
+                openBatchDecisionModal('leave', 'reject');
+            }
+
+            async function reapplyTimeCorrection(recordData) {
+                const empId = recordData["รหัสพนักงาน"];
+                const date = recordData["วันที่"];
+                if (!empId || !date) {
+                    showToast("❌ ข้อมูลคำขอไม่ครบถ้วน", "error");
+                    return;
+                }
+
+                const approverSelect = document.getElementById("admin-decision-approver-select");
+                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
+
+                const payload = {
+                    action: "reapplyTimeCorrection",
+                    adminId: currentEmployeeId,
+                    empId,
+                    date,
+                    approvedBy
+                };
+
+                try {
+                    showToast(`⏳ กำลังอัปเดตเวลา ${empId} วันที่ ${formatThaiDate(date)}...`, "info");
+                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                        method: "POST",
+                        body: JSON.stringify(payload),
+                        timeout: 60000
+                    });
+
+                    if (!response || typeof response !== 'object') {
+                        showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
+                        return;
+                    }
+
+                    if (response.status === 'success') {
+                        showToast(`✅ ${response.message}`, "success");
+                        await loadAdminApprovals();
+                        await loadAllData();
+                    } else {
+                        showToast(`❌ ไม่สามารถอัปเดตเวลาได้: ${response.message || 'ไม่ทราบสาเหตุ'}`, "error");
+                    }
+                } catch (err) {
+                    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message || err}`, "error");
+                }
+            }
+
+            async function batchReapplyCorrection() {
+                if (selectedCorrectionItems.size === 0) return;
+                const items = Array.from(selectedCorrectionItems);
+                const total = items.length;
+                const btn = document.getElementById('batch-reapply-correction');
+                const origHtml = btn ? btn.innerHTML : '';
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> กำลังอัปเดต...`;
+                }
+
+                showToast(`⏳ กำลังอัปเดตเวลา ${total} รายการลงประวัติเวลางาน...`, "info");
+                let successCount = 0;
+                let failedCount = 0;
+
+                const approverSelect = document.getElementById("admin-decision-approver-select");
+                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
+
+                try {
+                    for (let i = 0; i < items.length; i++) {
+                        const it = items[i];
+                        try {
+                            const payload = {
+                                action: "reapplyTimeCorrection",
+                                adminId: currentEmployeeId,
+                                empId: it.empId,
+                                date: it.date,
+                                approvedBy
+                            };
+                            const res = await fetchWithTimeout(SERVER_API_URL, {
+                                method: "POST",
+                                body: JSON.stringify(payload),
+                                timeout: 60000
+                            });
+                            if (res && res.status === 'success') {
+                                successCount++;
+                            } else {
+                                failedCount++;
+                            }
+                        } catch (e) {
+                            console.error(`[batchReapplyCorrection] error for ${it.empId} ${it.date}:`, e);
+                            failedCount++;
+                        }
+                    }
+
+                    if (failedCount === 0) {
+                        showToast(`✅ อัปเดตเวลาลงประวัติเรียบร้อยทั้งหมด ${successCount} รายการ`, "success");
+                    } else {
+                        showToast(`⚠️ อัปเดตสำเร็จ ${successCount} รายการ, ล้มเหลว ${failedCount} รายการ`, "warning");
+                    }
+
+                    selectedCorrectionItems.clear();
+                    const selectAllCorrection = document.getElementById('select-all-correction');
+                    if (selectAllCorrection) selectAllCorrection.checked = false;
+                    const correctionCheckboxes = document.querySelectorAll('.correction-checkbox');
+                    correctionCheckboxes.forEach(cb => cb.checked = false);
+                    updateBatchButtons();
+
+                    await loadAdminApprovals();
+                    await loadAllData();
+                } catch (err) {
+                    showToast(`❌ เกิดข้อผิดพลาด: ${err.message || err}`, "error");
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = origHtml;
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════
             // 🏖️ ระบบจัดการวันหยุดประจำปี (Admin Holidays & PDF Import)
             // ═══════════════════════════════════════════════════════════════
 
@@ -15764,12 +15995,22 @@ container.innerHTML = "";
                                       <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                                     </div>`;
                             } else {
-                                if (isApproved) approvedCount++;
-                                else rejectedCount++;
-                                checkboxHtml = `<span class="text-slate-300 text-xs text-center block">-</span>`;
+                                if (isApproved) {
+                                    approvedCount++;
+                                    checkboxHtml = `<input type="checkbox" class="correction-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleCorrectionItem(this)">`;
+                                    actionHtml = `
+                                        <div style="display:flex;gap:4px;justify-content:flex-end">
+                                            <button onclick='reapplyTimeCorrection(${safeJson(req)})' class="action-btn bg-amber-500 hover:bg-amber-600 text-white text-[11px] px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-sm" title="ส่งเวลาที่ขอแก้ไปอัปเดตลงประวัติเวลางานใหม่">
+                                                <i class="fa-solid fa-rotate"></i> อัปเดตเวลา
+                                            </button>
+                                        </div>`;
+                                } else {
+                                    rejectedCount++;
+                                    checkboxHtml = `<span class="text-slate-300 text-xs text-center block">-</span>`;
+                                    actionHtml = `<span class="text-slate-400 text-xs">-</span>`;
+                                }
                                 const badgeClass = isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
                                 statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${badgeClass}">${escapeHtml(status)}</span>`;
-                                actionHtml = `<span class="text-slate-400 text-xs">-</span>`;
                             }
 
                             return `
