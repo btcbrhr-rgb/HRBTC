@@ -236,7 +236,8 @@
         #admin-sec-approve-advance > .bg-white {
             display: flex;
             flex-direction: column;
-            max-height: calc(100vh - 180px);
+            height: calc(100vh - 210px);
+            min-height: 520px;
         }
         /* Pending section = natural height (flex: none) — shows only when items exist */
         #admin-sec-approve-leave #admin-leave-pending,
@@ -726,7 +727,7 @@
             border-color: rgba(187, 247, 208, 0.9);
         }
         .dash-kpi-card.kpi-announce::after { background: #22c55e; }
-        .dash-kpi-card .text-[10px] {
+        .dash-kpi-card .text-\[10px\] {
             letter-spacing: 0.08em;
         }
         .dash-kpi-card .text-3xl {
@@ -4808,19 +4809,13 @@
                     </div>
 
                     <div class="bg-white rounded-2xl border-b border-r border-slate-100 shadow-sm overflow-hidden">
-                        <!-- Compact Header: Title + Tabs + Actions in 1 row -->
-                        <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <!-- Compact Header: Title + Actions in 1 row -->
+                        <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
                             <div class="flex items-center gap-2 flex-1 min-w-0">
                                 <h3 class="text-sm font-bold text-slate-800 whitespace-nowrap">ใบลางาน</h3>
                                 <span id="admin-cycle-range-label" class="hidden">
                                     <i class="fa-solid fa-calendar-alt mr-1"></i>รอบ: กำลังโหลด...
                                 </span>
-                                <div class="hidden flex gap-1 ml-2">
-                                    <button id="admin-leave-tab-pending" onclick="switchApprovalSectionTab('leave','pending')"
-                                        class="px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-brand-deep text-brand-deep bg-brand-sky/30 transition-all whitespace-nowrap">รออนุมัติ</button>
-                                    <button id="admin-leave-tab-results" onclick="switchApprovalSectionTab('leave','results')"
-                                        class="px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap">ผลการอนุมัติ</button>
-                                </div>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 <button onclick="openCreateLeaveByHRModal()"
@@ -4845,64 +4840,63 @@
                             </div>
                         </div>
 
-                        <!-- Divider -->
-                        <div class="hidden border-t border-slate-100"></div>
-
+                        <!-- ┌─────────────────────────────────────┐
+                             │  ผลการอนุมัติแล้ว ← FIRST (flex:1) │  ← แสดงคงที่เสมอ, เต็มพื้นที่
+                             │  (ตาราง overflow-y scrollable)      │
+                             └─────────────────────────────────────┘ -->
                         <div id="admin-leave-results">
-                            <div class="border-t border-slate-200 bg-slate-50/60 px-4 py-2.5 flex items-center gap-2">
-                                <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wide">ผลการอนุมัติล่าสุด</h4>
-                                <span class="text-[10px] text-slate-400 font-medium">• แสดงอัตโนมัติหลังอนุมัติ/ปฏิเสธ</span>
-                            </div>
-                            <div class="hidden flex justify-between items-center">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-slate-700">ผลการอนุมัติคำขอลา</h4>
-                                    <p class="text-xs text-slate-500">ดูคำขอที่อนุมัติหรือปฏิเสธแล้ว</p>
+                            <!-- Results Header + Search -->
+                            <div class="px-4 py-2 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">ผลการอนุมัติแล้ว</h4>
+                                    <span id="leave-results-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">0</span>
                                 </div>
-                                <button onclick="loadAdminApprovalResults('leave')"
-                                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
-                                    <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
+                                <div class="hr-table-search-bar flex-1 max-w-xs mb-0">
+                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                    <input type="text" placeholder="ค้นหาประวัติการลา..." oninput="hrTableFilter('admin-leave-results-table-body', this.value, 'leave-results-count')" aria-label="ค้นหาประวัติใบลา">
+                                    <span class="row-count" id="leave-results-count"></span>
+                                </div>
                             </div>
-                            <div class="hidden hr-table-search-bar">
-                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                <input type="text" placeholder="ค้นหา..." oninput="hrTableFilter('admin-approval-results-leave-body', this.value, 'leave-results-count')" aria-label="ค้นหาผลอนุมัติใบลา">
-                                <span class="row-count" id="leave-results-count"></span>
-                            </div>
+                            <!-- Results Table (overflow-y scrollable) -->
                             <div class="hr-table-wrap overflow-x-auto">
-                                <table class="hr-table" style="min-width:800px">
+                                <table class="hr-table" style="min-width:1000px">
                                     <thead>
                                         <tr>
-                                            <th>เลขที่เอกสาร</th>
+                                            <th>ใบลางาน</th>
                                             <th>พนักงาน</th>
-                                            <th>ประเภทการลา</th>
+                                            <th>ประเภท</th>
                                             <th>ช่วงวันที่</th>
                                             <th style="text-align:center">จำนวนวัน</th>
                                             <th>สถานะ</th>
-                                            <th>หมายเหตุ</th>
+                                            <th>เหตุผล / หมายเหตุ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-approval-results-leave-body">
-                                        <tr class="tbl-empty-row"><td colspan="7">⏳ กำลังดึงข้อมูลผลการอนุมัติใบลา...</td></tr>
+                                    <tbody id="admin-leave-results-table-body">
+                                        <tr class="tbl-empty-row"><td colspan="7">⏳ กำลังโหลดประวัติการอนุมัติ...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
-                        <div id="admin-leave-pending" class="hidden">
-                            <div class="px-4 py-2.5 bg-amber-50/60 border-b border-amber-100">
+                        <!-- ┌─────────────────────────────────────┐
+                             │  รออนุมัติ ← SECOND (flex: none)     │  ← แสดงเฉพาะเมื่อมีรายการ
+                             │  (สูงเท่าที่มีข้อมูลจริง)            │
+                             └─────────────────────────────────────┘ -->
+                        <div id="admin-leave-pending" class="hidden border-t-2 border-amber-200">
+                            <!-- Pending Header + Search/Batch Buttons -->
+                            <div class="px-4 py-2 bg-amber-50/90 border-b border-amber-100 flex items-center justify-between gap-2 shrink-0">
                                 <div class="flex items-center gap-2">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
-                                    <h4 class="text-xs font-bold text-amber-700 uppercase tracking-wide">รออนุมัติ</h4>
-                                    <span id="leave-pending-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">0</span>
+                                    <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                                    <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wide">รออนุมัติ</h4>
+                                    <span id="leave-pending-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">0</span>
                                 </div>
-                            </div>
-                            <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                                <div class="hr-table-search-bar flex-1 mb-0">
-                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                    <input type="text" placeholder="ค้นหาพนักงาน, เลขที่, ประเภทการลา..." oninput="hrTableFilter('admin-leave-table-body', this.value, 'leave-count')" aria-label="ค้นหาใบลา">
-                                    <span class="row-count" id="leave-count"></span>
-                                </div>
-                                <div class="flex gap-1.5 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="hr-table-search-bar mb-0">
+                                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                        <input type="text" placeholder="ค้นหารออนุมัติ..." oninput="hrTableFilter('admin-leave-table-body', this.value, 'leave-count')" aria-label="ค้นหาใบลา">
+                                        <span class="row-count" id="leave-count"></span>
+                                    </div>
                                     <button id="batch-approve-leave" onclick="batchApproveLeave()"
                                         class="action-btn action-btn-approve disabled:opacity-50 disabled:cursor-not-allowed"
                                         disabled>
@@ -4915,6 +4909,7 @@
                                     </button>
                                 </div>
                             </div>
+                            <!-- Pending Table (natural height, scroll if overflow) -->
                             <div class="hr-table-wrap overflow-x-auto">
                                 <table class="hr-table" style="min-width:1000px">
                                     <thead>
@@ -4934,7 +4929,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="admin-leave-table-body">
-                                        <tr class="tbl-empty-row"><td colspan="8">⏳ อยู่ระหว่างการโหลดคำขอลาจากฐานข้อมูล...</td></tr>
+                                        <tr class="tbl-empty-row"><td colspan="8">⏳ กำลังโหลดรายการรออนุมัติ...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -4982,17 +4977,9 @@
 
                     <div class="bg-white rounded-2xl border-b border-r border-slate-100 shadow-sm overflow-hidden">
                         <!-- Compact Header -->
-                        <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
                             <div class="flex items-center gap-2 flex-1 min-w-0">
                                 <h3 class="text-sm font-bold text-slate-800 whitespace-nowrap">แก้ไขเวลาย้อนหลัง</h3>
-                                <div class="hidden flex gap-1 ml-2">
-                                    <button id="admin-correction-tab-pending"
-                                        onclick="switchApprovalSectionTab('correction','pending')"
-                                        class="px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-brand-deep text-brand-deep bg-brand-sky/30 transition-all whitespace-nowrap">รออนุมัติ</button>
-                                    <button id="admin-correction-tab-results"
-                                        onclick="switchApprovalSectionTab('correction','results')"
-                                        class="px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap">ผลการอนุมัติ</button>
-                                </div>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 <button onclick="loadAdminApprovals()" title="ซิงค์ข้อมูล"
@@ -5002,59 +4989,63 @@
                             </div>
                         </div>
 
-                        <div class="hidden border-t border-slate-100"></div>
-
+                        <!-- ┌─────────────────────────────────────┐
+                             │  ผลการอนุมัติแล้ว ← FIRST (flex:1) │  ← แสดงคงที่เสมอ, เต็มพื้นที่
+                             │  (ตาราง overflow-y scrollable)      │
+                             └─────────────────────────────────────┘ -->
                         <div id="admin-correction-results">
-                            <div class="border-t border-slate-200 bg-slate-50/60 px-4 py-2.5 flex items-center gap-2">
-                                <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wide">ผลการอนุมัติล่าสุด</h4>
-                            </div>
-                            <div class="hidden flex justify-between items-center">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-slate-700">ผลการอนุมัติคำขอแก้ไขเวลา</h4>
-                                    <p class="text-xs text-slate-500">ดูคำขอที่อนุมัติหรือปฏิเสธแล้ว</p>
+                            <!-- Results Header + Search -->
+                            <div class="px-4 py-2 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">ผลการอนุมัติแล้ว</h4>
+                                    <span id="correction-results-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">0</span>
                                 </div>
-                                <button onclick="loadAdminApprovalResults('correction')"
-                                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
-                                    <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
+                                <div class="hr-table-search-bar flex-1 max-w-xs mb-0">
+                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                    <input type="text" placeholder="ค้นหาประวัติแก้ไขเวลา..." oninput="hrTableFilter('admin-correction-results-table-body', this.value, 'correction-results-count')" aria-label="ค้นหาประวัติแก้ไขเวลา">
+                                    <span class="row-count" id="correction-results-count"></span>
+                                </div>
                             </div>
-                            <div class="hidden hr-table-search-bar">
-                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                <input type="text" placeholder="ค้นหา..." oninput="hrTableFilter('admin-approval-results-correction-body', this.value, 'correction-results-count')" aria-label="ค้นหาผลอนุมัติแก้ไขเวลา">
-                                <span class="row-count" id="correction-results-count"></span>
-                            </div>
+                            <!-- Results Table (overflow-y scrollable) -->
                             <div class="hr-table-wrap overflow-x-auto">
-                                <table class="hr-table" style="min-width:750px">
+                                <table class="hr-table" style="min-width:900px">
                                     <thead>
                                         <tr>
                                             <th>พนักงาน</th>
+                                            <th>วันที่ส่ง</th>
                                             <th>วันที่ขอแก้ไข</th>
                                             <th>เวลาเข้าใหม่</th>
                                             <th>เวลาออกใหม่</th>
                                             <th>สถานะ</th>
-                                            <th>หมายเหตุ</th>
+                                            <th>เหตุผลชี้แจง</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-approval-results-correction-body">
-                                        <tr class="tbl-empty-row"><td colspan="6">⏳ กำลังดึงข้อมูลผลการอนุมัติแก้ไขเวลา...</td></tr>
+                                    <tbody id="admin-correction-results-table-body">
+                                        <tr class="tbl-empty-row"><td colspan="7">⏳ กำลังโหลดประวัติแก้ไขเวลา...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
-                        <div id="admin-correction-pending" class="hidden">
-                            <div class="px-4 py-2.5 bg-amber-50/60 border-b border-amber-100 flex items-center gap-2">
-                                <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
-                                <h4 class="text-xs font-bold text-amber-700 uppercase tracking-wide">รออนุมัติ</h4>
-                                <span id="correction-pending-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">0</span>
-                            </div>
-                            <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                                <div class="hr-table-search-bar flex-1 mb-0">
-                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                    <input type="text" placeholder="ค้นหาพนักงาน, วันที่, เหตุผล..." oninput="hrTableFilter('admin-correction-table-body', this.value, 'correction-count')" aria-label="ค้นหาคำขอแก้ไขเวลา">
-                                    <span class="row-count" id="correction-count"></span>
+                        <!-- ┌─────────────────────────────────────┐
+                             │  รออนุมัติ ← SECOND (flex: none)     │  ← แสดงเฉพาะเมื่อมีรายการ
+                             │  (สูงเท่าที่มีข้อมูลจริง)            │
+                             └─────────────────────────────────────┘ -->
+                        <div id="admin-correction-pending" class="hidden border-t-2 border-amber-200">
+                            <!-- Pending Header + Search/Batch buttons -->
+                            <div class="px-4 py-2 bg-amber-50/90 border-b border-amber-100 flex items-center justify-between gap-2 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                                    <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wide">รออนุมัติ</h4>
+                                    <span id="correction-pending-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">0</span>
                                 </div>
-                                <div class="flex gap-1.5 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="hr-table-search-bar mb-0">
+                                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                        <input type="text" placeholder="ค้นหารออนุมัติ..." oninput="hrTableFilter('admin-correction-table-body', this.value, 'correction-count')" aria-label="ค้นหาคำขอแก้ไขเวลา">
+                                        <span class="row-count" id="correction-count"></span>
+                                    </div>
                                     <button id="batch-approve-correction" onclick="batchApproveCorrection()"
                                         class="action-btn action-btn-approve disabled:opacity-50 disabled:cursor-not-allowed"
                                         disabled>
@@ -5067,6 +5058,7 @@
                                     </button>
                                 </div>
                             </div>
+                            <!-- Pending Table (natural height, scroll if overflow) -->
                             <div class="hr-table-wrap overflow-x-auto">
                                 <table class="hr-table" style="min-width:900px">
                                     <thead>
@@ -5077,7 +5069,7 @@
                                                     aria-label="เลือกคำขอแก้ไขเวลาทั้งหมด">
                                             </th>
                                             <th>พนักงาน</th>
-                                            <th>วันที่บันทึก</th>
+                                            <th>วันที่ส่ง</th>
                                             <th>วันที่ขอแก้ไข</th>
                                             <th>เวลาเข้าใหม่</th>
                                             <th>เวลาออกใหม่</th>
@@ -5087,7 +5079,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="admin-correction-table-body">
-                                        <tr class="tbl-empty-row"><td colspan="9">⏳ อยู่ระหว่างการโหลดข้อมูลเวลางานจากระบบ...</td></tr>
+                                        <tr class="tbl-empty-row"><td colspan="9">⏳ กำลังโหลดรายการรออนุมัติ...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -5135,17 +5127,9 @@
 
                     <div class="bg-white rounded-2xl border-b border-r border-slate-100 shadow-sm overflow-hidden">
                         <!-- Compact Header -->
-                        <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
                             <div class="flex items-center gap-2 flex-1 min-w-0">
                                 <h3 class="text-sm font-bold text-slate-800 whitespace-nowrap">เบิกเงินสำรอง</h3>
-                                <div class="hidden flex gap-1 ml-2">
-                                    <button id="admin-advance-tab-pending"
-                                        onclick="switchApprovalSectionTab('advance','pending')"
-                                        class="px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-brand-deep text-brand-deep bg-brand-sky/30 transition-all whitespace-nowrap">รออนุมัติ</button>
-                                    <button id="admin-advance-tab-results"
-                                        onclick="switchApprovalSectionTab('advance','results')"
-                                        class="px-3 py-1 text-[11px] font-semibold rounded-md border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap">ผลการอนุมัติ</button>
-                                </div>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 <button onclick="loadAdminApprovals()" title="ซิงค์ข้อมูล"
@@ -5155,59 +5139,63 @@
                             </div>
                         </div>
 
-                        <div class="hidden border-t border-slate-100"></div>
-
+                        <!-- ┌─────────────────────────────────────┐
+                             │  ผลการอนุมัติแล้ว ← FIRST (flex:1) │  ← แสดงคงที่เสมอ, เต็มพื้นที่
+                             │  (ตาราง overflow-y scrollable)      │
+                             └─────────────────────────────────────┘ -->
                         <div id="admin-advance-results">
-                            <div class="border-t border-slate-200 bg-slate-50/60 px-4 py-2.5 flex items-center gap-2">
-                                <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wide">ผลการอนุมัติล่าสุด</h4>
-                            </div>
-                            <div class="hidden flex justify-between items-center">
-                                <div>
-                                    <h4 class="text-sm font-semibold text-slate-700">ผลการอนุมัติเบิกเงิน</h4>
-                                    <p class="text-xs text-slate-500">ดูคำขอที่อนุมัติหรือปฏิเสธแล้ว</p>
+                            <!-- Results Header + Search -->
+                            <div class="px-4 py-2 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">ผลการอนุมัติแล้ว</h4>
+                                    <span id="advance-results-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">0</span>
                                 </div>
-                                <button onclick="loadAdminApprovalResults('advance')"
-                                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-3.5 py-1.5 rounded-lg border border-slate-200 transition-all">
-                                    <i class="fa-solid fa-arrows-rotate mr-1"></i> รีเฟรช</button>
+                                <div class="hr-table-search-bar flex-1 max-w-xs mb-0">
+                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                    <input type="text" placeholder="ค้นหาประวัติเบิกเงิน..." oninput="hrTableFilter('admin-advance-results-table-body', this.value, 'advance-results-count')" aria-label="ค้นหาประวัติคำขอเบิกเงิน">
+                                    <span class="row-count" id="advance-results-count"></span>
+                                </div>
                             </div>
-                            <div class="hidden hr-table-search-bar">
-                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                <input type="text" placeholder="ค้นหา..." oninput="hrTableFilter('admin-approval-results-advance-body', this.value, 'advance-results-count')" aria-label="ค้นหาผลอนุมัติเบิกเงิน">
-                                <span class="row-count" id="advance-results-count"></span>
-                            </div>
+                            <!-- Results Table (overflow-y scrollable) -->
                             <div class="hr-table-wrap overflow-x-auto">
-                                <table class="hr-table" style="min-width:700px">
+                                <table class="hr-table" style="min-width:900px">
                                     <thead>
                                         <tr>
                                             <th>พนักงาน</th>
-                                            <th>จำนวนเงิน</th>
-                                            <th>วันที่ส่ง</th>
-                                            <th>รอบจ่าย</th>
+                                            <th>จำนวนเงินที่เบิก</th>
+                                            <th>วันที่ส่งคำขอ</th>
+                                            <th>รอบบัญชีเรียกชำระ</th>
+                                            <th>บัญชีผู้รับเงิน</th>
                                             <th>สถานะ</th>
-                                            <th>หมายเหตุ</th>
+                                            <th>หมายเหตุ / เหตุผล</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="admin-approval-results-advance-body">
-                                        <tr class="tbl-empty-row"><td colspan="6">⏳ กำลังดึงข้อมูลผลการอนุมัติเบิกเงิน...</td></tr>
+                                    <tbody id="admin-advance-results-table-body">
+                                        <tr class="tbl-empty-row"><td colspan="7">⏳ กำลังโหลดประวัติเบิกเงิน...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
-                        <div id="admin-advance-pending" class="hidden">
-                            <div class="px-4 py-2.5 bg-amber-50/60 border-b border-amber-100 flex items-center gap-2">
-                                <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
-                                <h4 class="text-xs font-bold text-amber-700 uppercase tracking-wide">รออนุมัติ</h4>
-                                <span id="advance-pending-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">0</span>
-                            </div>
-                            <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                                <div class="hr-table-search-bar flex-1 mb-0">
-                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                    <input type="text" placeholder="ค้นหาพนักงาน, จำนวนเงิน, รอบจ่าย..." oninput="hrTableFilter('admin-advance-table-body', this.value, 'advance-count')" aria-label="ค้นหาคำขอเบิกเงิน">
-                                    <span class="row-count" id="advance-count"></span>
+                        <!-- ┌─────────────────────────────────────┐
+                             │  รออนุมัติ ← SECOND (flex: none)     │  ← แสดงเฉพาะเมื่อมีรายการ
+                             │  (สูงเท่าที่มีข้อมูลจริง)            │
+                             └─────────────────────────────────────┘ -->
+                        <div id="admin-advance-pending" class="hidden border-t-2 border-amber-200">
+                            <!-- Pending Header + Search/Batch buttons -->
+                            <div class="px-4 py-2 bg-amber-50/90 border-b border-amber-100 flex items-center justify-between gap-2 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                                    <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wide">รออนุมัติ</h4>
+                                    <span id="advance-pending-count-badge" class="inline-flex items-center justify-center min-w-[1.2rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">0</span>
                                 </div>
-                                <div class="flex gap-1.5 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="hr-table-search-bar mb-0">
+                                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                        <input type="text" placeholder="ค้นหารออนุมัติ..." oninput="hrTableFilter('admin-advance-table-body', this.value, 'advance-count')" aria-label="ค้นหาคำขอเบิกเงิน">
+                                        <span class="row-count" id="advance-count"></span>
+                                    </div>
                                     <button id="batch-approve-advance" onclick="batchApproveAdvance()"
                                         class="action-btn action-btn-approve disabled:opacity-50 disabled:cursor-not-allowed"
                                         disabled>
@@ -5220,6 +5208,7 @@
                                     </button>
                                 </div>
                             </div>
+                            <!-- Pending Table (natural height, scroll if overflow) -->
                             <div class="hr-table-wrap overflow-x-auto">
                                 <table class="hr-table" style="min-width:900px">
                                     <thead>
@@ -5239,7 +5228,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="admin-advance-table-body">
-                                        <tr class="tbl-empty-row"><td colspan="8">⏳ กำลังดึงข้อมูลเบิกเงินสำรองพนักงาน...</td></tr>
+                                        <tr class="tbl-empty-row"><td colspan="8">⏳ กำลังโหลดรายการรออนุมัติ...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -13618,12 +13607,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function switchApprovalSectionTab(type, tab) {
                 const pendingEl = document.getElementById(`admin-${type}-pending`);
-                const resultsEl = document.getElementById(`admin-${type}-results`);
                 const tabPendingBtn = document.getElementById(`admin-${type}-tab-pending`);
                 const tabResultsBtn = document.getElementById(`admin-${type}-tab-results`);
-
-                // ✅ ผลการอนุมัติแสดงคงที่เสมอ — ไม่ต้อง toggle
-                if (resultsEl) resultsEl.classList.remove('hidden');
 
                 // ✅ รายการรออนุมัติแสดงเฉพาะเมื่อมีข้อมูล (render functions handle visibility via count === 0)
                 //    ไม่ force-toggle pending ที่นี่ ให้ renderLeave/renderCorrections/renderAdvance จัดการเอง
@@ -14408,13 +14393,19 @@ container.innerHTML = "";
 
             // จัดการแท็บข้อมูลการอนุมัติ (ลา, แก้ไขเวลา, เบิกเงิน)
             async function loadAdminApprovals() {
-                const leaveContainer = document.getElementById("admin-leave-table-body");
-                const correctionContainer = document.getElementById("admin-correction-table-body");
-                const advanceContainer = document.getElementById("admin-advance-table-body");
+                const leavePendingContainer = document.getElementById("admin-leave-table-body");
+                const leaveResultsContainer = document.getElementById("admin-leave-results-table-body");
+                const correctionPendingContainer = document.getElementById("admin-correction-table-body");
+                const correctionResultsContainer = document.getElementById("admin-correction-results-table-body");
+                const advancePendingContainer = document.getElementById("admin-advance-table-body");
+                const advanceResultsContainer = document.getElementById("admin-advance-results-table-body");
 
-                leaveContainer.innerHTML = `<tr><td colspan="8" class="py-5 text-center text-slate-500 italic">⏳ กำลังซิงค์ข้อมูลใบลาทั้งหมด...</td></tr>`;
-                correctionContainer.innerHTML = `<tr><td colspan="8" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดข้อมูลคำขอแก้ไขเวลา...</td></tr>`;
-                advanceContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ โหลดคำขอเบิกเงินสะสมกลางเดือน...</td></tr>`;
+                if (leavePendingContainer) leavePendingContainer.innerHTML = `<tr><td colspan="8" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดรายการรออนุมัติ...</td></tr>`;
+                if (leaveResultsContainer) leaveResultsContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดประวัติการอนุมัติ...</td></tr>`;
+                if (correctionPendingContainer) correctionPendingContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดรายการรออนุมัติ...</td></tr>`;
+                if (correctionResultsContainer) correctionResultsContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดประวัติแก้ไขเวลา...</td></tr>`;
+                if (advancePendingContainer) advancePendingContainer.innerHTML = `<tr><td colspan="8" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดรายการรออนุมัติ...</td></tr>`;
+                if (advanceResultsContainer) advanceResultsContainer.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 italic">⏳ กำลังโหลดประวัติเบิกเงิน...</td></tr>`;
 
                 const today = getTodayDateString();
                 // ดึงช่วงรอบบัญชีปัจจุบันที่เลือกใน header เพื่อกรองข้อมูลให้ตรงกัน
@@ -14518,24 +14509,70 @@ container.innerHTML = "";
                   <td><input type="checkbox" class="leave-checkbox" data-doc-id="${escapeHtml(docId)}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleLeaveItem(this)"></td>
                   <td><span class="font-bold text-brand-deep">${docId}</span></td>
                   <td>${empDisplay}</td>
-                                    <td><span class="badge badge-info">${type}</span></td>
-                                    <td style="color:#64748b">${range}</td>
-                                    <td style="text-align:center"><span class="font-bold text-slate-800">${days}</span> <span style="color:#94a3b8;font-size:10px">วัน</span></td>
-                                    <td><span class="truncate" style="max-width:160px;display:inline-block;color:#94a3b8" title="${escapeHtml(reason)}">${escapeHtml(reason)}</span></td>
+                  <td><span class="badge badge-info">${type}</span></td>
+                  <td style="color:#64748b">${range}</td>
+                  <td style="text-align:center"><span class="font-bold text-slate-800">${days}</span> <span style="color:#94a3b8;font-size:10px">วัน</span></td>
+                  <td><span class="truncate" style="max-width:160px;display:inline-block;color:#94a3b8" title="${escapeHtml(reason)}">${escapeHtml(reason)}</span></td>
                   <td style="text-align:right">
                     <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
-                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
-                                            <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
-                                            <button onclick='printLeaveRecord(${safeJson(req)})' class="action-btn action-btn-print" title="พิมพ์ใบลา"><i class="fa-solid fa-print"></i> พิมพ์</button>
+                        <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                        <button onclick='openDecisionModal("leave", ${safeJson(req)}, "ไม่อนุมัติ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                        <button onclick='printLeaveRecord(${safeJson(req)})' class="action-btn action-btn-print" title="พิมพ์ใบลา"><i class="fa-solid fa-print"></i> พิมพ์</button>
                     </div>
                   </td>
                 </tr>`;
                         });
-                        renderRowsInChunks(leaveContainer, rows, 'ไม่มีคำขอลาที่รอการอนุมัติในขณะนี้', 10);
+                        // ✅ แสดงผลการอนุมัติ (approved/rejected) ในตารางผลการอนุมัติแล้ว (ด้านบน)
+                        const results = leaveRes.data.filter(r => r["สถานะ"] && r["สถานะ"] !== 'รออนุมัติ')
+                            .sort(compareApprovalDocIdsDescending);
+                        const resultsRows = results.map(req => {
+                            const docId = req["เลขที่เอกสาร"] || "N/A";
+                            const empId = req["รหัสพนักงาน"] || "N/A";
+                            const lvType = req["ประเภทการลา"] || "-";
+                            const range = `${formatThaiDateShort(req["วันที่เริ่ม"])} - ${formatThaiDateShort(req["วันที่สิ้นสุด"])}`;
+                            const days = req["จำนวนวัน"] || "0";
+                            const status = req["สถานะ"] || "-";
+                            const notes = req["หมายเหตุ"] || req["เหตุผล"] || "-";
+                            const isApproved = status.includes('ไม่') ? false : true;
+                            const badgeClass = isApproved ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200';
+                            const badgeIcon = isApproved ? 'fa-check' : 'fa-xmark';
+                            const empName = req["ชื่อ-นามสกุล"] || req["name"] || req['employee_name'] || '';
+                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
+                            return `
+                <tr class="hr-table-row hover:bg-slate-50 transition-colors">
+                  <td><span class="font-bold text-brand-deep">${escapeHtml(docId)}</span></td>
+                  <td>${empDisplay}</td>
+                  <td><span class="badge badge-info">${escapeHtml(lvType)}</span></td>
+                  <td style="color:#64748b">${escapeHtml(range)}</td>
+                  <td style="text-align:center"><span class="font-bold text-slate-700">${escapeHtml(days)}</span> <span style="color:#94a3b8;font-size:10px">วัน</span></td>
+                  <td><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeClass}"><i class="fa-solid ${badgeIcon} text-[8px]"></i> ${escapeHtml(status)}</span></td>
+                  <td style="color:#64748b;font-size:11px" title="${escapeHtml(notes)}">${escapeHtml(notes)}</td>
+                </tr>`;
+                        });
+
+                        if (leavePendingContainer) {
+                            if (rows.length > 0) {
+                                renderRowsInChunks(leavePendingContainer, rows, 'ไม่มีรายการรออนุมัติ', 8);
+                            } else {
+                                leavePendingContainer.innerHTML = '';
+                            }
+                        }
+                        if (leaveResultsContainer) {
+                            if (resultsRows.length > 0) {
+                                renderRowsInChunks(leaveResultsContainer, resultsRows, 'ไม่มีประวัติการอนุมัติใบลา', 7);
+                            } else {
+                                leaveResultsContainer.innerHTML = `<tr class="tbl-empty-row"><td colspan="7" class="py-6 text-center text-slate-400">📋 ยังไม่มีประวัติการอนุมัติใบลา</td></tr>`;
+                            }
+                        }
+                        setStatValue('leave-results-count-badge', results.length);
+                        setStatValue('leave-pending-count-badge', leavePendingCount);
                         adminPendingCounts.leave = { total: leavePendingCount, today: leaveDueToday, oneDay: leaveDueIn1, threeDays: leaveDueIn3, fiveDays: leaveDueIn5 };
                         adminPendingRecent.leave = pending.slice(0, 5);
                     } else {
-                        leaveContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(leaveRes.message || 'โหลดข้อมูลใบลาล้มเหลว')}</td></tr>`;
+                        if (leavePendingContainer) leavePendingContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(leaveRes.message || 'โหลดข้อมูลใบลาล้มเหลว')}</td></tr>`;
+                        if (leaveResultsContainer) leaveResultsContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ โหลดข้อมูลประวัติใบลาไม่สำเร็จ</td></tr>`;
+                        setStatValue('leave-results-count-badge', 0);
+                        setStatValue('leave-pending-count-badge', 0);
                         adminPendingCounts.leave = { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 };
                         adminPendingRecent.leave = [];
                     }
@@ -14595,15 +14632,57 @@ container.innerHTML = "";
                   </td>
                 </tr>`;
                         });
-                        renderRowsInChunks(correctionContainer, rows, 'ไม่มีคำขอแก้ไขเวลาที่รอการอนุมัติ', 9);
-                        adminPendingCounts.correction = { total: corrPendingCount, today: corrDueToday, oneDay: corrDueIn1, threeDays: corrDueIn3, fiveDays: corrDueIn5 };
+                        // ✅ แสดงผลการอนุมัติแก้ไขเวลา ในตารางผลการอนุมัติแล้ว (ด้านบน)
+                        const corrResults = corrRes.data.filter(r => r["สถานะ"] && r["สถานะ"] !== 'รออนุมัติ')
+                            .sort((a, b) => getApprovalDateValue('correction', b) - getApprovalDateValue('correction', a));
+                        const corrResultsRows = corrResults.map(req => {
+                            const empId = req["รหัสพนักงาน"] || "N/A";
+                            const date = formatThaiDate(req["วันที่"]);
+                            const newIn = req["เวลาเข้าใหม่"] || "-";
+                            const newOut = req["เวลาออกใหม่"] || "-";
+                            const status = req["สถานะ"] || "-";
+                            const notes = req["หมายเหตุ"] || req["เหตุผล"] || "-";
+                            const isApproved = !status.includes('ไม่');
+                            const badgeClass = isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+                            const empName = req["ชื่อ-นามสกุล"] || req["name"] || req['employee_name'] || '';
+                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
+                            return `
+                <tr class="hr-table-row hover:bg-slate-50 transition-colors">
+                  <td>${empDisplay}</td>
+                  <td style="color:#64748b">${escapeHtml(formatThaiDate(req["วันที่ส่ง"]) || "-")}</td>
+                  <td style="color:#475569;font-weight:600">${escapeHtml(date)}</td>
+                  <td><span class="font-bold" style="color:#059669">${escapeHtml(newIn)}</span></td>
+                  <td><span class="font-bold" style="color:#059669">${escapeHtml(newOut)}</span></td>
+                  <td><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${badgeClass}">${escapeHtml(status)}</span></td>
+                  <td style="color:#64748b;font-size:11px" title="${escapeHtml(notes)}">${escapeHtml(notes)}</td>
+                </tr>`;
+                        });
+
+                        if (correctionPendingContainer) {
+                            if (rows.length > 0) {
+                                renderRowsInChunks(correctionPendingContainer, rows, 'ไม่มีรายการรออนุมัติ', 9);
+                            } else {
+                                correctionPendingContainer.innerHTML = '';
+                            }
+                        }
+                        if (correctionResultsContainer) {
+                            if (corrResultsRows.length > 0) {
+                                renderRowsInChunks(correctionResultsContainer, corrResultsRows, 'ไม่มีประวัติแก้ไขเวลา', 7);
+                            } else {
+                                correctionResultsContainer.innerHTML = `<tr class="tbl-empty-row"><td colspan="7" class="py-6 text-center text-slate-400">📋 ยังไม่มีประวัติแก้ไขเวลา</td></tr>`;
+                            }
+                        }
+                        setStatValue('correction-results-count-badge', corrResults.length);
                         setStatValue('correction-pending-count-badge', corrPendingCount);
+                        adminPendingCounts.correction = { total: corrPendingCount, today: corrDueToday, oneDay: corrDueIn1, threeDays: corrDueIn3, fiveDays: corrDueIn5 };
                         adminPendingRecent.correction = pending.slice(0, 5);
                     } else {
                         const pendingSection = document.getElementById('admin-correction-pending');
                         if (pendingSection) pendingSection.classList.add('hidden');
+                        setStatValue('correction-results-count-badge', 0);
                         setStatValue('correction-pending-count-badge', 0);
-                        correctionContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
+                        if (correctionPendingContainer) correctionPendingContainer.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ ${escapeHtml(corrRes.message || 'โหลดข้อมูลคำขอแก้ไขเวลาไม่สำเร็จ')}</td></tr>`;
+                        if (correctionResultsContainer) correctionResultsContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ โหลดข้อมูลประวัติแก้ไขเวลาไม่สำเร็จ</td></tr>`;
                         adminPendingCounts.correction = { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 };
                         adminPendingRecent.correction = [];
                     }
@@ -14663,15 +14742,58 @@ container.innerHTML = "";
                   </td>
                 </tr>`;
                         });
-                        renderRowsInChunks(advanceContainer, rows, 'ไม่มีคำขอเบิกเงินที่รอการอนุมัติ', 8);
-                        adminPendingCounts.advance = { total: advPendingCount, today: advDueToday, oneDay: advDueIn1, threeDays: advDueIn3, fiveDays: advDueIn5 };
+                        // ✅ แสดงผลการอนุมัติเบิกเงิน ในตารางผลการอนุมัติแล้ว (ด้านบน)
+                        const advResults = advRes.data.filter(r => r["สถานะ"] && r["สถานะ"] !== 'รออนุมัติ' && r["สถานะ"] !== 'รอตรวจสอบ')
+                            .sort((a, b) => getApprovalDateValue('advance', b) - getApprovalDateValue('advance', a));
+                        const advResultsRows = advResults.map(req => {
+                            const empId = req["รหัสพนักงาน"] || "N/A";
+                            const amount = Number(req["จำนวนเงิน"] || 0).toLocaleString();
+                            const date = formatThaiDate(req["วันที่เบิก"]);
+                            const cycle = req["รอบจ่าย"] || "-";
+                            const channel = req["ช่องทางรับเงิน"] || "-";
+                            const status = req["สถานะ"] || "-";
+                            const notes = req["หมายเหตุ"] || req["เหตุผล"] || "-";
+                            const isApproved = !status.includes('ไม่');
+                            const badgeClass = isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+                            const empName = req["ชื่อ-นามสกุล"] || req["name"] || req['employee_name'] || '';
+                            const empDisplay = getAdminEmployeeDisplay(empId, empName);
+                            return `
+                <tr class="hr-table-row hover:bg-slate-50 transition-colors">
+                  <td>${empDisplay}</td>
+                  <td><span class="font-bold" style="color:#059669;font-size:13px">${escapeHtml(amount)}</span></td>
+                  <td style="color:#64748b">${escapeHtml(date)}</td>
+                  <td style="color:#475569">${escapeHtml(cycle)}</td>
+                  <td style="color:#475569;font-weight:500">${escapeHtml(channel)}</td>
+                  <td><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${badgeClass}">${escapeHtml(status)}</span></td>
+                  <td style="color:#64748b;font-size:11px" title="${escapeHtml(notes)}">${escapeHtml(notes)}</td>
+                </tr>`;
+                        });
+
+                        if (advancePendingContainer) {
+                            if (rows.length > 0) {
+                                renderRowsInChunks(advancePendingContainer, rows, 'ไม่มีรายการรออนุมัติ', 8);
+                            } else {
+                                advancePendingContainer.innerHTML = '';
+                            }
+                        }
+                        if (advanceResultsContainer) {
+                            if (advResultsRows.length > 0) {
+                                renderRowsInChunks(advanceResultsContainer, advResultsRows, 'ไม่มีประวัติการเบิกเงิน', 7);
+                            } else {
+                                advanceResultsContainer.innerHTML = `<tr class="tbl-empty-row"><td colspan="7" class="py-6 text-center text-slate-400">📋 ยังไม่มีประวัติการเบิกเงิน</td></tr>`;
+                            }
+                        }
+                        setStatValue('advance-results-count-badge', advResults.length);
                         setStatValue('advance-pending-count-badge', advPendingCount);
+                        adminPendingCounts.advance = { total: advPendingCount, today: advDueToday, oneDay: advDueIn1, threeDays: advDueIn3, fiveDays: advDueIn5 };
                         adminPendingRecent.advance = pending.slice(0, 5);
                     } else {
                         const pendingSection = document.getElementById('admin-advance-pending');
                         if (pendingSection) pendingSection.classList.add('hidden');
+                        setStatValue('advance-results-count-badge', 0);
                         setStatValue('advance-pending-count-badge', 0);
-                        advanceContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(advRes.message || 'โหลดข้อมูลคำขอเบิกเงินไม่สำเร็จ')}</td></tr>`;
+                        if (advancePendingContainer) advancePendingContainer.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ โหลดข้อมูลคำขอเบิกเงินไม่สำเร็จ</td></tr>`;
+                        if (advanceResultsContainer) advanceResultsContainer.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ โหลดข้อมูลประวัติเบิกเงินไม่สำเร็จ</td></tr>`;
                         adminPendingCounts.advance = { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 };
                         adminPendingRecent.advance = [];
                     }
@@ -14689,9 +14811,9 @@ container.innerHTML = "";
                 if (supabaseClient) {
                     try {
                         const [lRes, cRes, aRes] = await Promise.all([
-                            supabaseClient.from('leave_requests').select('*').in('status', ['รออนุมัติ', 'รอตรวจสอบ', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ']),
-                            supabaseClient.from('time_corrections').select('*').in('status', ['รออนุมัติ', 'รอตรวจสอบ']),
-                            supabaseClient.from('advance_requests').select('*').in('status', ['รออนุมัติ', 'รอตรวจสอบ'])
+                            supabaseClient.from('leave_requests').select('*').order('start_date', { ascending: false }).limit(300),
+                            supabaseClient.from('time_corrections').select('*').order('date', { ascending: false }).limit(300),
+                            supabaseClient.from('advance_requests').select('*').order('request_date', { ascending: false }).limit(300)
                         ]);
 
                         if (!lRes.error && !cRes.error && !aRes.error) {
@@ -14822,7 +14944,7 @@ container.innerHTML = "";
                 const config = {
                     leave: {
                         url: `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`,
-                        bodyId: 'admin-approval-results-leave-body',
+                        bodyId: 'admin-leave-results-table-body',
                         headers: ['เลขที่เอกสาร', 'พนักงาน', 'ประเภทการลา', 'ช่วงวันที่', 'สถานะ', 'หมายเหตุ'],
                         buildRow: req => {
                             const status = req['สถานะ'] || '-';
@@ -14842,7 +14964,7 @@ container.innerHTML = "";
                     },
                     correction: {
                         url: `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`,
-                        bodyId: 'admin-approval-results-correction-body',
+                        bodyId: 'admin-correction-results-table-body',
                         headers: ['รหัสพนักงาน', 'วันที่', 'เวลาเข้าใหม่', 'เวลาออกใหม่', 'สถานะ', 'หมายเหตุ'],
                         buildRow: req => {
                             const status = req['สถานะ'] || '-';
@@ -14866,7 +14988,7 @@ container.innerHTML = "";
                     },
                     advance: {
                         url: `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`,
-                        bodyId: 'admin-approval-results-advance-body',
+                        bodyId: 'admin-advance-results-table-body',
                         headers: ['รหัสพนักงาน', 'จำนวนเงิน', 'วันที่', 'รอบจ่าย', 'สถานะ', 'หมายเหตุ'],
                         buildRow: req => {
                             const status = req['สถานะ'] || '-';
@@ -14887,7 +15009,9 @@ container.innerHTML = "";
 
                 const bodyEl = document.getElementById(config[type].bodyId);
                 if (!bodyEl) return;
-                bodyEl.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500 italic">⏳ กำลังโหลดผลการอนุมัติ...</td></tr>`;
+                // ไม่ลบ pending rows ที่มีอยู่ — append ต่อท้าย
+                const pendingRows = bodyEl.querySelectorAll('tr[data-approval-row-type]');
+                const hasPending = pendingRows.length > 0;
                 try {
                     // 🔧 SUPABASE-ONLY: โหลดจาก Supabase
                     let items = [];
@@ -14910,13 +15034,23 @@ container.innerHTML = "";
                                 }
                                 return getApprovalDateValue(type, b) - getApprovalDateValue(type, a);
                             });
-                    if (filteredItems.length === 0) {
-                        bodyEl.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้</td></tr>`;
-                        return;
+                    // ลบ placeholder row (loading) ถ้ามี
+                    const placeholder = bodyEl.querySelector('.tbl-empty-row');
+                    if (placeholder) placeholder.remove();
+                    if (filteredItems.length > 0) {
+                        // ✅ Append ผลการอนุมัติ ต่อท้าย pending rows
+                        const resultsHtml = filteredItems.map(req => config[type].buildRow(req)).join('');
+                        bodyEl.insertAdjacentHTML('beforeend', resultsHtml);
                     }
-                    renderRowsInChunks(bodyEl, filteredItems.map(req => config[type].buildRow(req)), 'ไม่มีรายการผลการอนุมัติในกลุ่มนี้ขณะนี้', 6);
+                    // ถ้าไม่มี pending และไม่มี results → แสดง empty state
+                    if (filteredItems.length === 0 && !hasPending) {
+                        bodyEl.innerHTML = `<tr class="tbl-empty-row"><td colspan="8" class="py-6 text-center text-slate-500">📋 ไม่มีรายการใบลาในระบบขณะนี้</td></tr>`;
+                    }
                 } catch (err) {
-                    bodyEl.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาดในการโหลด: ${escapeHtml(err.message)}</td></tr>`;
+                    // ไม่ลบ pending rows ถ้าโหลด results ล้มเหลว
+                    if (!hasPending) {
+                        bodyEl.innerHTML = `<tr class="tbl-empty-row"><td colspan="8" class="py-6 text-center text-rose-600">❌ ${escapeHtml(err.message || 'เกิดข้อผิดพลาด')}</td></tr>`;
+                    }
                 }
             }
 
