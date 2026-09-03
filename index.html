@@ -13028,16 +13028,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // ─── ดึงข้อมูลที่ยังขาด (ใช้ adminEmployeesList แทน query ซ้ำ) ───
                     const todayKey = getLocalDateKey(new Date());
                     const [timeRes, leaveRes] = await Promise.all([
-                        supabaseClient.from('time_records').select('employee_id').eq('date', todayKey),
-                        supabaseClient.from('leave_requests').select('emp_id,leave_type,start_date,end_date,employee_id')
+                        supabaseClient.from('time_records').select('emp_id,status,time_in,time_out').eq('date', todayKey),
+                        supabaseClient.from('leave_requests').select('emp_id,leave_type,days_count,start_date,end_date,status')
                     ]);
 
                     // ─── สร้าง Set รหัสพนักงานที่มาวันนี้ ─────────────────────────
                     const attendanceSet = new Set();
                     if (!timeRes.error && Array.isArray(timeRes.data)) {
                         timeRes.data.forEach(row => {
-                            const raw = row.employee_id ?? row['รหัสพนักงาน'] ?? row.employeeId;
-                            if (raw !== null && raw !== undefined && String(raw).trim()) attendanceSet.add(String(raw).trim());
+                            const raw = row.emp_id ?? row.employee_id ?? row['รหัสพนักงาน'] ?? row.employeeId;
+                            if (raw !== null && raw !== undefined && String(raw).trim()) {
+                                attendanceSet.add(String(raw).trim());
+                            }
                         });
                     }
 
@@ -13094,27 +13096,42 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }).join('');
                     }
 
-                    // ─── Top พนักงานลาบ่อย ────────────────────────────────────────
+                    // ─── Top พนักงานลาบ่อย (ปีนี้) ────────────────────────────────
+                    const currentYear = new Date().getFullYear();
                     const leaveRecords = (!leaveRes.error && Array.isArray(leaveRes.data)) ? leaveRes.data : [];
                     const leaveByEmp = {};
                     leaveRecords.forEach(item => {
                         const rawId = item.emp_id ?? item.employee_id ?? item['รหัสพนักงาน'];
                         if (!rawId) return;
                         const key = String(rawId).trim();
-                        const type = parseLeaveTypeName(item.leave_type ?? item['ประเภทการลา']);
-                        const days = countLeaveDays(item.start_date || item['วันที่เริ่ม'], item.end_date || item['วันที่สิ้นสุด']);
+
+                        // กรองเฉพาะปีปัจจุบัน
+                        if (item.start_date && !String(item.start_date).startsWith(String(currentYear))) return;
+
+                        // ไม่นับคำขอที่ถูกปฏิเสธ หรือยกเลิก
+                        const status = String(item.status || '');
+                        if (status.includes('ไม่') || status.includes('ปฏิเสธ') || status.includes('ยกเลิก')) return;
+
+                        const days = Number(item.days_count ?? countLeaveDays(item.start_date || item['วันที่เริ่ม'], item.end_date || item['วันที่สิ้นสุด']) ?? 1);
                         if (!leaveByEmp[key]) leaveByEmp[key] = 0;
-                        leaveByEmp[key] += days || 1;
+                        leaveByEmp[key] += (days > 0 ? days : 1);
                     });
 
                     const empNameMap = {};
                     employees.forEach(emp => {
                         const id = (emp['รหัสพนักงาน'] || emp.emp_id || '').toString().trim();
-                        if (id) empNameMap[id] = (emp['ชื่อ-นามสกุล'] || emp.name || 'พนักงาน').toString();
+                        if (id) empNameMap[id] = (emp['ชื่อ-นามสกุล'] || emp.name || '').toString().trim();
                     });
+                    if (typeof adminEmployeesMap !== 'undefined' && adminEmployeesMap && adminEmployeesMap.forEach) {
+                        adminEmployeesMap.forEach((emp, id) => {
+                            if (id && !empNameMap[id]) {
+                                empNameMap[id] = (emp['ชื่อ-นามสกุล'] || emp.name || '').toString().trim();
+                            }
+                        });
+                    }
 
                     const topLeave = Object.entries(leaveByEmp)
-                        .map(([id, total]) => ({ id, total, name: empNameMap[id] || id }))
+                        .map(([id, total]) => ({ id, total: Math.round(total * 10) / 10, name: empNameMap[id] || id }))
                         .sort((a, b) => b.total - a.total)
                         .slice(0, 3);
 
