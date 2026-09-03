@@ -3470,12 +3470,21 @@
                                     </div>
                                     <p class="text-[11px] text-slate-500 mt-0.5">พนักงานเก่า (>5 ปี): <span id="dash-health-senior-ratio" class="font-bold text-teal-600">0%</span> (<span id="dash-health-senior-count">0</span> คน)</p>
                                 </div>
-                                <div class="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-                                    <div class="flex items-center gap-1.5 text-slate-500">
-                                        <i class="fa-solid fa-user-clock text-amber-500"></i>
-                                        <span>พนักงานทดลองงาน / ใหม่:</span>
+                                <div class="mt-4 pt-3 border-t border-slate-200/60 space-y-2 text-[11px]">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-1.5 text-slate-500">
+                                            <i class="fa-solid fa-user-clock text-amber-500"></i>
+                                            <span>ทดลองงาน / พนักงานใหม่:</span>
+                                        </div>
+                                        <span id="dash-health-probation-count" class="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">0 คน</span>
                                     </div>
-                                    <span id="dash-health-probation-count" class="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">0 คน</span>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-1.5 text-slate-500">
+                                            <i class="fa-solid fa-award text-rose-400"></i>
+                                            <span>เกษียณแล้ว / ใกล้เกษียณ:</span>
+                                        </div>
+                                        <span id="dash-health-retire-count" class="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">0 คน</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -13599,6 +13608,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const seniorRatioEl = document.getElementById('dash-health-senior-ratio');
                     const seniorCountEl = document.getElementById('dash-health-senior-count');
                     const probationCountEl = document.getElementById('dash-health-probation-count');
+                    const retireCountEl = document.getElementById('dash-health-retire-count');
 
                     if (!supabaseClient) return;
 
@@ -13638,6 +13648,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     let countWithTenure = 0;
                     let seniorCount = 0;
                     let probationCount = 0;
+                    let retireCount = 0;    // พนักงานอายุ 55 ปีขึ้นไป (ใกล้/เกินเกษียณ)
+                    const nowYearCard = today.getFullYear();
 
                     activeEmps.forEach(e => {
                         const rawStart = e["วันที่เริ่มงาน"] || e["วันเริ่มงาน"] || e.start_date || '';
@@ -13658,6 +13670,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 }
                             }
                         }
+
+                        // นับพนักงานอายุ 55 ปีขึ้นไป
+                        const rawBirthCard = e["วันเดือนปีเกิด"] || e["วันเกิด"] || e.birth_date || '';
+                        if (rawBirthCard) {
+                            let by = parseInt(String(rawBirthCard).substring(0, 4));
+                            if (!isNaN(by)) {
+                                if (by > 2400) by -= 543;
+                                const age = nowYearCard - by;
+                                if (age >= 55) retireCount++;
+                            }
+                        }
                     });
 
                     const avgTenure = countWithTenure > 0 ? (totalTenureYears / countWithTenure).toFixed(1) : '0';
@@ -13667,6 +13690,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (seniorRatioEl) seniorRatioEl.textContent = `${seniorRatio}%`;
                     if (seniorCountEl) seniorCountEl.textContent = seniorCount;
                     if (probationCountEl) probationCountEl.textContent = `${probationCount} คน`;
+                    if (retireCountEl) retireCountEl.textContent = `${retireCount} คน`;
 
                     // 2. OT และค่าใช้จ่าย OT
                     let totalOtHours = 0;
