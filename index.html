@@ -2134,19 +2134,22 @@
                 </div>
 
                 <!-- Check-in/Check-out Buttons (shown after capture) -->
-                <div id="attendance-buttons" class="shrink-0 bg-white px-4 py-3 grid grid-cols-2 gap-3 hidden">
-                    <button id="btn-attendance-in" onclick="submitAttendance('IN')"
-                        class="btn-press bg-emerald-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-emerald-700 transition-all flex flex-col items-center gap-1">
-                        <i class="fa-solid fa-right-to-bracket text-lg"></i>
-                        <span class="text-sm">เข้างาน</span>
-                        <span class="text-[10px] text-emerald-100 font-normal">เช็คอิน</span>
-                    </button>
-                    <button id="btn-attendance-out" onclick="submitAttendance('OUT')"
-                        class="btn-press bg-rose-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-rose-700 transition-all flex flex-col items-center gap-1">
-                        <i class="fa-solid fa-right-from-bracket text-lg"></i>
-                        <span class="text-sm">ออกงาน</span>
-                        <span class="text-[10px] text-rose-100 font-normal">เช็คเอาท์</span>
-                    </button>
+                <div id="attendance-buttons" class="shrink-0 bg-white px-4 py-3 hidden">
+                    <p id="attendance-punch-hint" class="text-center text-[10px] font-semibold text-slate-500 mb-2"></p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="btn-attendance-in" onclick="submitAttendance('IN')"
+                            class="btn-press bg-emerald-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-emerald-700 transition-all flex flex-col items-center gap-1">
+                            <i class="fa-solid fa-right-to-bracket text-lg"></i>
+                            <span class="text-sm">เข้างาน</span>
+                            <span class="text-[10px] text-emerald-100 font-normal">เช็คอิน</span>
+                        </button>
+                        <button id="btn-attendance-out" onclick="submitAttendance('OUT')"
+                            class="btn-press bg-rose-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:bg-rose-700 transition-all flex flex-col items-center gap-1">
+                            <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                            <span class="text-sm">ออกงาน</span>
+                            <span class="text-[10px] text-rose-100 font-normal">เช็คเอาท์</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Hidden inputs for GPS and photo -->
@@ -2208,6 +2211,56 @@
                             style="flex:2;background:linear-gradient(135deg,#0284c7,#0369a1);color:white;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
                             <i class="fa-solid fa-camera"></i> เริ่มลงทะเบียน
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- Phase 4: Modal ยืนยันตัวตนสแกนใบหน้า (Self-Scan 1:1) -->
+            <!-- ============================================== -->
+            <div id="face-scan-modal" style="display:none;position:fixed;inset:0;z-index:210;background:rgba(15,23,42,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
+                <div class="w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
+                    <!-- Header -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#065f46,#064e3b);color:white;">
+                        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                            <i class="fa-solid fa-user-check" style="color:#6ee7b7;font-size:16px;"></i>
+                            <div style="min-width:0;">
+                                <p style="font-size:13px;font-weight:800;">ยืนยันตัวตนด้วยสแกนใบหน้า</p>
+                                <p id="face-scan-title-sub" style="font-size:9px;color:rgba(255,255,255,0.6);">กำลังเตรียม…</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="closeFaceScanModal()" style="background:rgba(255,255,255,0.12);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px;flex-shrink:0;"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <!-- Camera Stage -->
+                    <div style="position:relative;aspect-ratio:4/4;background:#020617;flex-shrink:0;border-bottom:1px solid #e2e8f0;">
+                        <video id="face-scan-video" autoplay muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+                        <div id="face-scan-progress-wrap" style="display:none;position:absolute;left:12px;right:12px;bottom:12px;background:rgba(0,0,0,0.55);border-radius:10px;padding:8px 12px;backdrop-filter:blur(4px);">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                                <span style="color:#a7f3d0;font-size:10px;font-weight:700;">กำลังสแกน…</span>
+                                <span style="color:rgba(255,255,255,0.7);font-size:10px;">มองตรงกล้อง</span>
+                            </div>
+                            <div style="height:5px;background:rgba(255,255,255,0.2);border-radius:99px;overflow:hidden;">
+                                <div id="face-scan-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#34d399,#fbbf24);transition:width 0.25s;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Body -->
+                    <div style="padding:12px 16px;overflow-y:auto;flex:1;">
+                        <p id="face-scan-status" style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:6px;">กำลังเตรียมระบบยืนยันตัวตน…</p>
+                        <ul style="font-size:10px;color:#64748b;line-height:1.7;list-style:none;padding:0;margin:0;">
+                            <li>• มองตรงกล้อง แล้ว <b>กะพริบตา 1 ครั้ง</b> เมื่อระบบสั่ง (กันการใช้รูปถ่าย)</li>
+                            <li>• ระบบเปรียบเทียบใบหน้ากับที่ลงทะเบียนไว้ แล้วบันทึกเวลาให้อัตโนมัติ</li>
+                            <li>• เก็บเฉพาะ Vector + คะแนน ตาม PDPA ไม่เก็บภาพ</li>
+                        </ul>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
+                        <button type="button" onclick="closeFaceScanModal()"
+                            style="flex:1;background:#e2e8f0;color:#334155;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
+                        <button id="face-scan-retry-btn" type="button" onclick="restartFaceScanAttempt()" style="display:none;flex:1;background:#fef3c7;color:#92400e;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">ลองใหม่อีกครั้ง</button>
                     </div>
                 </div>
             </div>
@@ -10752,6 +10805,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     btnOut.classList.toggle("cursor-not-allowed", hasOut);
                 }
 
+                // Phase 4: แสดง/ซ่อนแถวปุ่มลงเวลา + ข้อความบอกโหมด (สแกนใบหน้า / ถ่ายรูป)
+                const punchRow = document.getElementById("attendance-buttons");
+                const punchHint = document.getElementById("attendance-punch-hint");
+                const canPunch = !(hasIn && hasOut);
+                if (punchRow) punchRow.classList.toggle("hidden", !canPunch);
+                if (punchHint && canPunch) {
+                    const photoTaken = !document.getElementById("photo-preview").classList.contains("hidden");
+                    punchHint.textContent = photoTaken
+                        ? "📸 ถ่ายภาพแล้ว — กดปุ่มเพื่อส่งภาพหลักฐาน"
+                        : "🙂 ไม่ได้ถ่ายรูป — กดปุ่ม = สแกนใบหน้ายืนยันตัวตน (หรือกดวงกลมถ่ายรูปก่อน = วิธีเดิม)";
+                } else if (punchHint) {
+                    punchHint.textContent = "";
+                }
+
                 // 🆕 Update Today Status Banner on home page
                 const bannerText = document.getElementById('today-status-text');
                 const bannerTime = document.getElementById('today-status-time');
@@ -13266,6 +13333,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 preview.src = base64;
                 preview.classList.remove("hidden");
                 video.classList.add("hidden");
+                // Phase 4: ถ่ายรูปแล้ว → อัปเดตข้อความและแสดงแถวปุ่มลงเวลา
+                const punchRowHint = document.getElementById("attendance-punch-hint");
+                if (punchRowHint) punchRowHint.textContent = "📸 ถ่ายภาพแล้ว — กดปุ่มเพื่อส่งภาพหลักฐาน";
+                const punchRowWrap = document.getElementById("attendance-buttons");
+                if (punchRowWrap && punchRowWrap.classList.contains("hidden")) punchRowWrap.classList.remove("hidden");
                 showToast("📸 ถ่ายภาพหลักฐานเรียบร้อย", "success");
             }
 
@@ -13286,7 +13358,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     if (!photoBase64) {
-                        showToast("⚠️ กรุณากดถ่ายรูปภาพก่อนลงเวลาเพื่อความโปร่งใส", "warning");
+                        // Phase 4: ยังไม่ถ่ายรูป → ลงเวลาด้วยการสแกนใบหน้า (Self-Scan 1:1 + Liveness)
+                        openFaceScanPunch(type);
                         return;
                     }
 
@@ -26732,6 +26805,355 @@ async function refreshFaceEnrollStatus() {
         console.warn('[FaceEnroll] status refresh error:', e);
         chip.textContent = '';
     }
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 4: Self-Scan 1:1 — ลงเวลาโดยสแกนใบหน้ายืนยันตัวตน (Liveness Active + GPS)
+// ═══════════════════════════════════════════════════════════════════════════
+// - เรียกจากปุ่ม เข้างาน/ออกงาน เมื่อยังไม่ถ่ายรูป (submitAttendance → openFaceScanPunch)
+// - ขั้นตอน: เจอหน้า → สั่งกะพริบตา (EAR blink = Liveness) → จับ Descriptor → เทียบ 1:1
+//   กับ Vector ที่ลงทะเบียนใน face_database (threshold distance < 0.45 เช่นเดิม Kiosk)
+// - ผ่าน → บันทึกเวลา registerAttendance พร้อม scan_mode='self', liveness_ok, similarity_score,
+//   geofence_result, gps_lat/lng (คอลัมน์ schema เฟส 2)
+// - ไม่ผ่าน/ยังไม่ลงทะเบียน → แนะนำ Enrollment (เฟส 3) หรือวิธีถ่ายรูปเดิม
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FACE_SCAN_MATCH_MAX_DIST = 0.45; // ระยะ euclidean สูงสุดที่ถือว่าเป็นคนเดียวกัน (เดิมจาก Kiosk)
+const FACE_SCAN_EAR_CLOSED = 0.20;     // ค่า EAR (ตา) ต่ำกว่า = หลับตา
+const FACE_SCAN_EAR_OPEN = 0.25;       // ค่า EAR สูงกว่า = ลืมตา
+const FACE_SCAN_TRY_LIMIT_MS = 15000;  // เวลาสูงสุดต่อ 1 รอบพยายาม
+const FACE_SCAN_BLINK_LIMIT_MS = 8000; // เวลารอการกะพริบตา
+
+const faceScanState = {
+    busy: false,
+    type: null,           // 'IN' | 'OUT'
+    stream: null,
+    streamOwned: false,
+    phase: 'idle',        // detect → blink → capture → done
+    timerId: null,
+    startedAt: 0,
+    blinkStartedAt: 0,
+    blinkClosed: false,
+    enrolledDescs: [],
+    gps: null,
+    gpsPromise: null,
+    score: 0
+};
+
+// ─── เปิด modal สแกนหน้าเพื่อลงเวลา (เรียกจาก submitAttendance เมื่อไม่มีรูป) ──
+async function openFaceScanPunch(type) {
+    if (faceScanState.busy) return;
+    if (!currentEmployeeId) { showToast('⚠️ กรุณาเข้าสู่ระบบก่อน', 'warning'); return; }
+    faceScanState.busy = true;
+    faceScanState.type = type;
+    faceScanState.gps = null;
+    faceScanState.gpsPromise = null;
+
+    try {
+        // 1) โหลดโมเดลจดจำใบหน้า (ถ้ายังไม่เคยโหลด)
+        await ensureFaceModels();
+
+        // 2) ตรวจว่าพนักงานลงทะเบียนใบหน้าแล้วหรือยัง
+        let descs = [];
+        try { descs = await getOwnFaceDescriptors(); } catch (e) { descs = []; }
+        if (!descs.length) {
+            showToast('❌ ยังไม่ได้ลงทะเบียนใบหน้า — ระบบจะพาไปลงทะเบียนก่อน', 'warning');
+            openFaceEnrollmentModal();
+            faceScanState.busy = false;
+            return;
+        }
+        faceScanState.enrolledDescs = descs;
+
+        // 3) เปิด modal + กล้องหน้า
+        const modal = enrollEl('face-scan-modal');
+        if (!modal) { showToast('❌ ไม่พบหน้าต่างสแกนใบหน้า', 'error'); faceScanState.busy = false; return; }
+        modal.style.display = 'flex';
+        const sub = enrollEl('face-scan-title-sub');
+        if (sub) sub.textContent = type === 'IN' ? 'ลงเวลาเข้างาน' : 'ลงเวลาออกงาน';
+        enrollEl('face-scan-retry-btn').style.display = 'none';
+        faceScanStatus('กำลังเปิดกล้องหน้า…');
+
+        await startFaceScanCamera();
+        faceScanStatus('มองตรงกล้อง…');
+
+        // 4) ขอ GPS ระหว่างสแกน (ไม่บล็อกการสแกน)
+        faceScanState.gpsPromise = fetchFaceScanGps().then((p) => { faceScanState.gps = p; return p; }).catch(() => null);
+
+        // 5) เริ่มรอบสแกน
+        startFaceScanAttempt();
+    } catch (err) {
+        console.error('[FaceScan] init error:', err);
+        faceScanStatus('❌ เริ่มต้นไม่สำเร็จ: ' + (err && err.message ? err.message : err), '#dc2626');
+        showToast('❌ เริ่มต้นสแกนใบหน้าไม่สำเร็จ', 'error');
+        enrollEl('face-scan-retry-btn').style.display = 'block';
+    }
+}
+
+async function startFaceScanCamera() {
+    const video = enrollEl('face-scan-video');
+    if (!video) throw new Error('ไม่พบกล้อง');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('เบราว์เซอร์ไม่รองรับกล้อง');
+    if (typeof streamRef !== 'undefined' && streamRef && streamRef.active
+        && typeof cameraMode !== 'undefined' && cameraMode === 'user') {
+        faceScanState.stream = streamRef;
+        faceScanState.streamOwned = false;
+    } else {
+        faceScanState.stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        });
+        faceScanState.streamOwned = true;
+    }
+    video.srcObject = faceScanState.stream;
+    await video.play().catch(() => {});
+}
+
+// ─── EAR (Eye Aspect Ratio) จาก landmark 68 จุด ──────────────────────────────
+function faceScanEarFor(points) {
+    const a = Math.hypot(points[1].x - points[5].x, points[1].y - points[5].y);
+    const b = Math.hypot(points[2].x - points[4].x, points[2].y - points[4].y);
+    const c = Math.hypot(points[0].x - points[3].x, points[0].y - points[3].y);
+    return (a + b) / (2 * (c || 1));
+}
+
+function faceScanAvgEar(det) {
+    const pos = det.landmarks.positions;
+    const left = faceScanEarFor(pos.slice(36, 42));
+    const right = faceScanEarFor(pos.slice(42, 48));
+    return (left + right) / 2;
+}
+
+function faceScanStatus(msg, color) {
+    const el = enrollEl('face-scan-status');
+    if (el) { el.textContent = msg; el.style.color = color || '#0f172a'; }
+}
+
+function faceScanProgress(pct) {
+    const wrap = enrollEl('face-scan-progress-wrap');
+    const bar = enrollEl('face-scan-progress-bar');
+    if (wrap) wrap.style.display = 'block';
+    if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+}
+
+// ─── GPS (ไม่บล็อกการลงเวลา — บันทึกเป็น soft audit tag) ─────────────────────
+function fetchFaceScanGps() {
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+            (p) => resolve({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6) }),
+            () => resolve(null),
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+    });
+}
+
+// ─── รอบสแกน: detect → blink → capture → compare ────────────────────────────
+function startFaceScanAttempt() {
+    faceScanState.phase = 'detect';
+    faceScanState.startedAt = performance.now();
+    enrollEl('face-scan-retry-btn').style.display = 'none';
+    faceScanStatus('มองตรงกล้อง…');
+    scheduleFaceScanTick();
+}
+
+function scheduleFaceScanTick() {
+    if (!faceScanState.busy) return;
+    faceScanState.timerId = setTimeout(faceScanTick, 100);
+}
+
+async function faceScanTick() {
+    if (!faceScanState.busy) return;
+    const video = enrollEl('face-scan-video');
+    if (!video || video.readyState < 2 || !window.faceapi) { scheduleFaceScanTick(); return; }
+    const now = performance.now();
+    const elapsed = now - faceScanState.startedAt;
+    if (elapsed > FACE_SCAN_TRY_LIMIT_MS) { faceScanFail('⏱️ หมดเวลาสแกน — ลองใหม่อีกครั้ง'); return; }
+
+    let det = null;
+    try {
+        det = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+            .withFaceLandmarks();
+    } catch (e) { /* ข้ามเฟรม */ }
+    if (!faceScanState.busy) return;
+
+    if (!det) {
+        if (elapsed > 3000) faceScanStatus('ไม่พบใบหน้า — มองตรงกล้องให้เต็มกรอบ', '#d97706');
+        faceScanProgress((elapsed / FACE_SCAN_TRY_LIMIT_MS) * 100);
+        scheduleFaceScanTick();
+        return;
+    }
+
+    const ear = faceScanAvgEar(det);
+
+    if (faceScanState.phase === 'detect') {
+        const sharp = computeFaceSharpness(video, det.detection.box);
+        if (ear >= FACE_SCAN_EAR_OPEN && sharp >= 300) {
+            faceScanState.phase = 'blink';
+            faceScanState.blinkStartedAt = now;
+            faceScanState.blinkClosed = false;
+            faceScanStatus('✅ เจอหน้าแล้ว — กรุณากะพริบตา 1 ครั้ง', '#059669');
+        } else if (sharp < 300 && elapsed > 2500) {
+            faceScanStatus('พบหน้าแต่ภาพเบลอ — อยู่นิ่ง ๆ และให้แสงสว่างพอ', '#d97706');
+        }
+    } else if (faceScanState.phase === 'blink') {
+        if (!faceScanState.blinkClosed && ear <= FACE_SCAN_EAR_CLOSED) faceScanState.blinkClosed = true;
+        if (faceScanState.blinkClosed && ear >= FACE_SCAN_EAR_OPEN) {
+            faceScanState.phase = 'capture';
+            faceScanStatus('✅ ตรวจการกะพริบตาผ่าน — กำลังยืนยันใบหน้า…', '#059669');
+            await faceScanCaptureFrame(4);
+            return;
+        }
+        const blinkElapsed = now - faceScanState.blinkStartedAt;
+        if (blinkElapsed > FACE_SCAN_BLINK_LIMIT_MS) { faceScanFail('😑 ไม่เห็นการกะพริบตา — กะพริบให้ชัด ๆ แล้วลองใหม่อีกครั้ง'); return; }
+        if (blinkElapsed > 4000) faceScanStatus('ยังไม่เห็นการกะพริบตา — กะพริบตา 1 ครั้งนะครับ', '#d97706');
+        faceScanProgress((blinkElapsed / FACE_SCAN_BLINK_LIMIT_MS) * 100);
+        scheduleFaceScanTick();
+        return;
+    }
+    faceScanProgress((elapsed / FACE_SCAN_TRY_LIMIT_MS) * 100);
+    scheduleFaceScanTick();
+}
+
+async function faceScanCaptureFrame(triesLeft) {
+    if (!faceScanState.busy) return;
+    const video = enrollEl('face-scan-video');
+    let det = null;
+    try {
+        det = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+    } catch (e) { /* retry */ }
+    if (!faceScanState.busy) return;
+    if (!det || faceScanAvgEar(det) < FACE_SCAN_EAR_OPEN || computeFaceSharpness(video, det.detection.box) < 300) {
+        if (triesLeft > 0) { setTimeout(() => faceScanCaptureFrame(triesLeft - 1), 250); return; }
+        faceScanFail('จับเฟรมใบหน้าที่ชัดไม่ได้ — ลองใหม่อีกครั้ง');
+        return;
+    }
+    await faceScanCompareDescriptor(Array.from(det.descriptor));
+}
+
+async function faceScanCompareDescriptor(desc) {
+    let best = Infinity;
+    for (const ed of faceScanState.enrolledDescs) {
+        const d = euclideanDistance128(ed, desc);
+        if (d < best) best = d;
+    }
+    const score = Math.round(Math.max(0, 1 - best) * 1000) / 1000; // 1 - distance
+    faceScanState.score = score;
+    if (best > FACE_SCAN_MATCH_MAX_DIST) {
+        faceScanFail('🙅 ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้ — ลองใหม่อีกครั้ง (หรือใช้วิธีถ่ายรูป)');
+        return;
+    }
+    faceScanStatus(`✅ ยืนยันตัวตนผ่าน (ความใกล้เคียง ${score.toFixed(3)}) — กำลังบันทึกเวลา…`, '#059669');
+    await faceScanSubmitPunch(score);
+}
+
+async function faceScanSubmitPunch(score) {
+    if (faceScanState.gpsPromise) {
+        try { await faceScanState.gpsPromise; } catch (e) { /* ignore */ }
+    }
+    const pos = faceScanState.gps;
+    const geoOk = !!(pos && pos.lat != null && pos.lng != null);
+
+    const timeStr = (enrollEl('live-time') && enrollEl('live-time').textContent) || '';
+    const dateStr = new Date().toISOString().split('T')[0];
+    const projectEl = enrollEl('attendance-project-select');
+    const payload = {
+        action: 'registerAttendance',
+        empId: currentEmployeeId,
+        type: faceScanState.type,
+        time: timeStr,
+        date: dateStr,
+        project: (projectEl && projectEl.value) || '',
+        lat: geoOk ? pos.lat : '',
+        lng: geoOk ? pos.lng : '',
+        photo: '',
+        scanMode: 'self',
+        livenessOk: true,
+        similarityScore: score,
+        geofenceResult: geoOk ? 'soft_recorded' : 'no_gps',
+        gpsLat: geoOk ? pos.lat : undefined,
+        gpsLng: geoOk ? pos.lng : undefined
+    };
+    if (typeof getWeeklyDayoffInfo === 'function') {
+        const dayoffInfo = getWeeklyDayoffInfo();
+        if (dayoffInfo && dayoffInfo.holidayAttendance) payload.status = 'พร ทั้นที่';
+    }
+
+    try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (res && res.status === 'success') {
+            showToast(`🎉 ${res.message} (สแกนใบหน้า)`, 'success');
+            faceScanState.busy = false;
+            closeFaceScanModal();
+            // คืนจอแบบเดิม (เหมือนวิธีถ่ายรูป)
+            const preview = enrollEl('photo-preview');
+            if (preview) preview.classList.add('hidden');
+            const vFeed = enrollEl('video-feed');
+            if (vFeed) vFeed.classList.remove('hidden');
+            loadAllData();
+            navigateTo('home');
+        } else {
+            faceScanStatus('❌ บันทึกเวลาไม่สำเร็จ: ' + (res && res.message ? res.message : 'ไม่ทราบสาเหตุ'), '#dc2626');
+            showToast('❌ บันทึกเวลาไม่สำเร็จ: ' + (res && res.message ? res.message : ''), 'error');
+            enrollEl('face-scan-retry-btn').style.display = 'block';
+        }
+    } catch (err) {
+        console.error('[FaceScan] submit error:', err);
+        faceScanStatus('❌ ติดต่อเน็ตเวิร์กไม่สำเร็จ — ลองใหม่อีกครั้ง', '#dc2626');
+        enrollEl('face-scan-retry-btn').style.display = 'block';
+    }
+}
+
+function faceScanFail(msg) {
+    if (faceScanState.timerId) { clearTimeout(faceScanState.timerId); faceScanState.timerId = null; }
+    faceScanState.phase = 'failed';
+    faceScanStatus('❌ ' + msg, '#dc2626');
+    const retry = enrollEl('face-scan-retry-btn');
+    if (retry) retry.style.display = 'block';
+}
+
+function restartFaceScanAttempt() {
+    if (!faceScanState.busy) return;
+    const modal = enrollEl('face-scan-modal');
+    if (!modal || modal.style.display !== 'flex') return;
+    if (faceScanState.timerId) { clearTimeout(faceScanState.timerId); faceScanState.timerId = null; }
+    startFaceScanAttempt();
+}
+
+function closeFaceScanModal() {
+    if (faceScanState.timerId) { clearTimeout(faceScanState.timerId); faceScanState.timerId = null; }
+    faceScanState.busy = false;
+    faceScanState.phase = 'idle';
+    if (faceScanState.streamOwned && faceScanState.stream) {
+        faceScanState.stream.getTracks().forEach((t) => t.stop());
+    }
+    faceScanState.stream = null;
+    faceScanState.streamOwned = false;
+    const video = enrollEl('face-scan-video');
+    if (video) video.srcObject = null;
+    const modal = enrollEl('face-scan-modal');
+    if (modal) modal.style.display = 'none';
+    const retry = enrollEl('face-scan-retry-btn');
+    if (retry) retry.style.display = 'none';
+}
+
+// ─── อ่าน Vector ที่ลงทะเบียนของตัวเองจาก face_database ──────────────────────
+async function getOwnFaceDescriptors() {
+    if (!currentEmployeeId) return [];
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) return [];
+    const { data } = await supabaseClient
+        .from('face_database')
+        .select('face_descriptors')
+        .eq('emp_id', currentEmployeeId)
+        .maybeSingle();
+    return (data && data.face_descriptors) ? parseFaceDescriptors(data.face_descriptors) : [];
 }
 </script>
 </body>
