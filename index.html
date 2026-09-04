@@ -2363,6 +2363,31 @@
             </div>
 
             <!-- ============================================== -->
+            <!-- Phase 6: Modal ดูภาพหลักฐานสแกนใบหน้า (HR เท่านั้น) -->
+            <!-- ============================================== -->
+            <div id="face-evidence-modal" style="display:none;position:fixed;inset:0;z-index:240;background:rgba(2,6,23,0.9);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
+                <div class="w-full max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:white;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <i class="fa-solid fa-image" style="color:#93c5fd;"></i>
+                            <div>
+                                <p style="font-size:13px;font-weight:800;">ภาพหลักฐานสแกนใบหน้า</p>
+                                <p id="face-evidence-caption" style="font-size:9px;color:rgba(255,255,255,0.55);"></p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="document.getElementById('face-evidence-modal').style.display='none'" style="background:rgba(255,255,255,0.12);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px;"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div style="flex:1;overflow-y:auto;padding:12px 16px;">
+                        <div style="background:#0f172a;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:220px;">
+                            <img id="face-evidence-img" src="" alt="ภาพหลักฐาน" style="max-width:100%;max-height:46vh;display:none;">
+                            <p id="face-evidence-empty" style="color:rgba(255,255,255,0.4);font-size:11px;padding:30px;">ไม่มีภาพหลักฐานในช่วงนี้</p>
+                        </div>
+                        <div id="face-evidence-thumbs" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
             <!-- 4. การลา (Leave Requests & Balances) -->
             <!-- ============================================== -->
             <section id="page-leave" class="hidden space-y-4">
@@ -3288,6 +3313,15 @@
                                     <span class="font-semibold">นำเข้าสลิปเงินเดือน (.pdf)</span>
                                 </div>
                             </button>
+                            <button onclick="switchAdminTab('face-logs')" id="admin-menu-face-logs"
+                                class="admin-menu-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left group">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="menu-icon w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-brand-sky text-slate-500 group-hover:text-brand-deep flex items-center justify-center text-xs transition-colors shrink-0">
+                                        <i class="fa-solid fa-fingerprint"></i>
+                                    </span>
+                                    <span class="font-semibold">Log สแกนใบหน้า (HR)</span>
+                                </div>
+                            </button>
                             <button onclick="switchAdminTab('announcements')" id="admin-menu-announcements"
                                 class="admin-menu-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left group">
                                 <div class="flex items-center gap-2.5">
@@ -4149,6 +4183,46 @@
                 <!-- SECTION 2.4: (Removed - project cost embedded panel) -->
 
                 <!-- SECTION 2.5: จัดการเครื่องสแกนนิ้ว -->
+                <section id="admin-sec-face-logs" class="admin-sec hidden space-y-5">
+                    <div id="admlog-stats" class="grid grid-cols-2 sm:grid-cols-5 gap-3"></div>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+                        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+                            <div class="space-y-1">
+                                <label class="block text-[10px] font-bold text-slate-500">จากวันที่</label>
+                                <input type="date" id="admlog-from" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-xs">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="block text-[10px] font-bold text-slate-500">ถึงวันที่</label>
+                                <input type="date" id="admlog-to" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-xs">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="block text-[10px] font-bold text-slate-500">วิธีลงเวลา</label>
+                                <select id="admlog-mode" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-xs bg-white">
+                                    <option value="">ทั้งหมด</option>
+                                    <option value="self">Self (สแกนเอง)</option>
+                                    <option value="manager_face">Manager (สแกนให้)</option>
+                                    <option value="manager_manual">Manager (เลือกชื่อ)</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1 lg:col-span-2">
+                                <label class="block text-[10px] font-bold text-slate-500">ค้นหา ชื่อ / รหัสพนักงาน</label>
+                                <input type="text" id="admlog-search" placeholder="ชื่อ หรือรหัสพนักงาน…" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-xs">
+                            </div>
+                            <button onclick="loadAdminFaceLogs()" class="bg-brand-deep hover:bg-brand-teal text-white text-xs font-bold py-2.5 rounded-xl transition-all">ดูข้อมูล</button>
+                        </div>
+                        <p class="text-[10px] text-slate-400">เฉพาะรายการที่ลงเวลาด้วยสแกนใบหน้า (scan_mode) · ความคล้าย = 1 − ระยะห่าง · ภาพหลักฐานเก็บ 90 วัน แล้วระบบลบอัตโนมัติ (เฉพาะ HR/Admin ดูได้)</p>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800">รายการลงเวลาสแกนใบหน้า</h3>
+                                <p class="text-[10px] text-slate-400" id="admlog-count">0 รายการ</p>
+                            </div>
+                            <button onclick="adminRunCleanupFaceCaptures()" id="admlog-cleanup" class="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 hover:bg-rose-100 transition-all">🗑 ลบภาพหมดอายุ (90 วัน)</button>
+                        </div>
+                        <div id="admlog-body" class="overflow-x-auto"></div>
+                    </div>
+                </section>
                 <section id="admin-sec-scan-devices" class="admin-sec hidden space-y-6">
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -13819,7 +13893,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // แผนที่เมนู id → sub-permission key
                 const menuPermMap = {
                     'dashboard': 'dashboard', 'import-time': 'import', 'import-payslip': 'payslip',
-                    'project-cost': 'calendar', 'scan-devices': 'scan',
+                    'project-cost': 'calendar', 'scan-devices': 'scan', 'face-logs': 'facelogs',
                     'approve-leave': 'leave', 'approve-correction': 'correction', 'approve-advance': 'advance',
                     'announcements': 'announcement', 'employees': 'employees', 'settings': 'settings'
                 };
@@ -13982,7 +14056,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 toggleAdminMobileSidebar(false);
 
                 // ปิดสีปุ่มเมนูเดิมทั้งหมด
-                const menus = ['dashboard', 'import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'announcements', 'holidays', 'employees', 'settings', 'rich-menu'];
+                const menus = ['dashboard', 'import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'announcements', 'holidays', 'employees', 'settings', 'rich-menu'];
                 menus.forEach(m => {
                     const btn = document.getElementById(`admin-menu-${m}`);
                     if (btn) {
@@ -14019,6 +14093,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (typeof loadYearlyAttendanceOverview === 'function') {
                         loadYearlyAttendanceOverview();
                     }
+                } else if (tabId === 'face-logs') {
+                    titleEl.textContent = "Log สแกนใบหน้า (HR)";
+                    descEl.textContent = "ดูรายการลงเวลาที่ผ่านสแกนใบหน้า แยกตามวิธี (self / manager_face / manager_manual) พร้อมคะแนนความคล้าย, Liveness, GPS และภาพหลักฐาน (เก็บ 90 วัน)";
+                    if (typeof loadAdminFaceLogs === 'function') { loadAdminFaceLogs(); } else { console.warn('loadAdminFaceLogs not ready'); }
                 } else if (tabId === 'import-payslip') {
                     titleEl.textContent = "นำเข้าสลิปเงินเดือน (.pdf)";
                     descEl.textContent = "นำเข้าสลิปเงินเดือนพนักงานโดยอัปโหลดไฟล์ PDF รวมแถว เพื่อให้ระบบจำแนกและอัปโหลดเข้าคลังไฟล์รายบุคคล";
@@ -26965,7 +27043,8 @@ const faceScanState = {
     enrolledDescs: [],
     gps: null,
     gpsPromise: null,
-    score: 0
+    score: 0,
+    evidence: null
 };
 
 // ─── เปิด modal สแกนหน้าเพื่อลงเวลา (เรียกจาก submitAttendance เมื่อไม่มีรูป) ──
@@ -26976,6 +27055,7 @@ async function openFaceScanPunch(type) {
     faceScanState.type = type;
     faceScanState.gps = null;
     faceScanState.gpsPromise = null;
+    faceScanState.evidence = null;
 
     try {
         // 1) โหลดโมเดลจดจำใบหน้า (ถ้ายังไม่เคยโหลด)
@@ -27075,6 +27155,24 @@ function fetchFaceScanGps() {
     });
 }
 
+// Phase 6: บันทึกเฟรมขณะสแกนสำเร็จเป็นภาพหลักฐาน (JPEG) ส่งเข้า face_capture_log ผ่าน GAS
+function faceEvidenceJpeg(video) {
+    try {
+        const w = (video && video.videoWidth) || 0;
+        const h = (video && video.videoHeight) || 0;
+        if (!w || !h) return '';
+        const maxW = 520;
+        const scale = Math.min(1, maxW / w);
+        const cw = Math.round(w * scale);
+        const ch = Math.round(h * scale);
+        const c = document.createElement('canvas');
+        c.width = cw;
+        c.height = ch;
+        c.getContext('2d').drawImage(video, 0, 0, cw, ch);
+        return c.toDataURL('image/jpeg', 0.6);
+    } catch (e) { return ''; }
+}
+
 // ─── รอบสแกน: detect → blink → capture → compare ────────────────────────────
 function startFaceScanAttempt() {
     faceScanState.phase = 'detect';
@@ -27159,6 +27257,7 @@ async function faceScanCaptureFrame(triesLeft) {
         faceScanFail('จับเฟรมใบหน้าที่ชัดไม่ได้ — ลองใหม่อีกครั้ง');
         return;
     }
+    faceScanState.evidence = faceEvidenceJpeg(video); // ภาพหลักฐาน (เฟส 6)
     await faceScanCompareDescriptor(Array.from(det.descriptor));
 }
 
@@ -27203,7 +27302,8 @@ async function faceScanSubmitPunch(score) {
         similarityScore: score,
         geofenceResult: geoOk ? 'soft_recorded' : 'no_gps',
         gpsLat: geoOk ? pos.lat : undefined,
-        gpsLng: geoOk ? pos.lng : undefined
+        gpsLng: geoOk ? pos.lng : undefined,
+        faceEvidence: faceScanState.evidence || undefined
     };
     if (typeof getWeeklyDayoffInfo === 'function') {
         const dayoffInfo = getWeeklyDayoffInfo();
@@ -27263,6 +27363,7 @@ function closeFaceScanModal() {
     }
     faceScanState.stream = null;
     faceScanState.streamOwned = false;
+    faceScanState.evidence = null;
     const video = enrollEl('face-scan-video');
     if (video) video.srcObject = null;
     const modal = enrollEl('face-scan-modal');
@@ -27313,7 +27414,8 @@ const mgrState = {
     empList: [],              // พนักงานทั้งหมด (สำหรับ Fallback A/B)
     todayCache: {},           // empId -> { hasIn, hasOut }
     gps: null,
-    gpsPromise: null
+    gpsPromise: null,
+    evidence: null
 };
 
 // ─── เปิด modal ──────────────────────────────────────────────────────────────
@@ -27342,6 +27444,7 @@ async function openFaceManagerModal() {
     mgrState.pendingEmp = null;
     mgrState.gps = null;
     mgrState.gpsPromise = null;
+    mgrState.evidence = null;
     mgrEl('face-manager-result').style.display = 'none';
     mgrEl('face-manager-title-sub').textContent = 'โดย: ' + currentEmployeeId;
     modal.style.display = 'flex';
@@ -27498,6 +27601,7 @@ async function mgrScanTick() {
             return;
         }
         mgrPauseScanning();
+        mgrState.evidence = faceEvidenceJpeg(video); // ภาพหลักฐาน (เฟส 6)
         const rec = mgrState.enrolledMap[bestEmpId];
         const score = Math.round(Math.max(0, 1 - bestDist) * 1000) / 1000;
         mgrState.candidate = { empId: bestEmpId, name: rec.name || bestEmpId, pos: rec.pos || '', score: score };
@@ -27539,7 +27643,9 @@ async function managerConfirmPunch() {
     if (mgrState.matchType === null) { showToast('⚠️ พนักงานนี้ลงเวลาครบแล้ววันนี้', 'warning'); mgrDiscardMatch(); return; }
     const c = mgrState.candidate;
     mgrState.candidate = null;
-    await mgrSubmitPunch(c.empId, 'manager_face', c.score);
+    const ev = mgrState.evidence;
+    mgrState.evidence = null;
+    await mgrSubmitPunch(c.empId, 'manager_face', c.score, ev);
 }
 
 // ─── ยืนยันวันนี้ของพนักงาน (IN/OUT) ────────────────────────────────────────
@@ -27562,7 +27668,7 @@ async function mgrResolvePunchType(empId) {
 }
 
 // ─── บันทึกเวลาให้ลูกน้อง (manager_face / manager_manual) ────────────────────
-async function mgrSubmitPunch(empId, mode, score) {
+async function mgrSubmitPunch(empId, mode, score, evidence) {
     if (mgrState.submitting) return;
     mgrState.submitting = true;
     const emp = mgrState.empList.find((e) => e.empId === empId) || { empId: empId, name: empId, pos: '' };
@@ -27594,7 +27700,8 @@ async function mgrSubmitPunch(empId, mode, score) {
         similarityScore: (mode === 'manager_face' && score != null) ? score : undefined,
         geofenceResult: geoOk ? 'manager_trust' : 'no_gps',
         gpsLat: geoOk ? pos.lat : undefined,
-        gpsLng: geoOk ? pos.lng : undefined
+        gpsLng: geoOk ? pos.lng : undefined,
+        faceEvidence: (mode === 'manager_face' && evidence) ? evidence : undefined
     };
     mgrStatus('กำลังบันทึกเวลาให้ ' + emp.name + '…', '#2563eb');
     try {
@@ -27764,6 +27871,165 @@ function closeFaceManagerModal() {
     if (video) video.srcObject = null;
     const modal = mgrEl('face-manager-modal');
     if (modal) modal.style.display = 'none';
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 6: หน้า HR/Admin ดู Log สแกนใบหน้า (แยก scan_mode + คะแนน/Liveness/GPS/ภาพ)
+// ═══════════════════════════════════════════════════════════════════════════
+// - getFaceScanLogs: รายการ time_records ที่มี scan_mode (self/manager_face/manager_manual)
+// - ภาพหลักฐาน: บันทึกตอนสแกนสำเร็จ (เฟส 4/5 → faceEvidence) เก็บใน face_capture_log
+//   ดูได้ผ่าน action getFaceCaptureLogs (ต้องเป็น Admin เท่านั้น) — ระบบลบภาพครบ 90 วันอัตโนมัติ
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FACE_MODE_META = {
+    self: { label: 'Self · สแกนเอง', color: '#059669', bg: '#d1fae5' },
+    manager_face: { label: 'Manager · สแกนให้', color: '#b45309', bg: '#fef3c7' },
+    manager_manual: { label: 'Manager · เลือกชื่อ', color: '#1d4ed8', bg: '#dbeafe' }
+};
+
+function flEl(id) { return document.getElementById(id); }
+
+function flLocalDateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + dd;
+}
+
+async function loadAdminFaceLogs() {
+    if (!currentEmployeeId) { showToast('⚠️ ยังไม่ได้เข้าสู่ระบบ', 'warning'); return; }
+    const fromEl = flEl('admlog-from'), toEl = flEl('admlog-to');
+    if (fromEl && !fromEl.value) {
+        const now = new Date();
+        fromEl.value = flLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        toEl.value = flLocalDateStr(now);
+    }
+    const payload = {
+        action: 'getFaceScanLogs',
+        adminId: currentEmployeeId,
+        dateFrom: (fromEl && fromEl.value) || '',
+        dateTo: (toEl && toEl.value) || '',
+        scanMode: (flEl('admlog-mode') && flEl('admlog-mode').value) || '',
+        empId: (flEl('admlog-search') && flEl('admlog-search').value.trim()) || ''
+    };
+    const body = flEl('admlog-body');
+    if (body) body.innerHTML = '<p style="padding:24px;text-align:center;font-size:12px;color:#94a3b8;">กำลังโหลด…</p>';
+    try {
+        const res = await fetchWithTimeout(SERVER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+        if (!res || res.status !== 'success') {
+            showToast('❌ โหลด log ไม่สำเร็จ: ' + ((res && res.message) || ''), 'error');
+            return;
+        }
+        renderAdminFaceLogs(res.data);
+    } catch (e) {
+        console.error('[FaceLogs] load err:', e);
+        showToast('❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ', 'error');
+    }
+}
+
+function renderAdminFaceLogs(data) {
+    const rows = (data && data.rows) || [];
+    const empMap = (data && data.empMap) || {};
+    const evCount = (data && data.evCount) || {};
+    const stats = { self: 0, manager_face: 0, manager_manual: 0 };
+    rows.forEach((r) => { if (stats[r.scan_mode] !== undefined) stats[r.scan_mode]++; });
+    flEl('admlog-count').textContent = rows.length + ' รายการ';
+    flEl('admlog-stats').innerHTML =
+        '<div class="bg-white rounded-xl border border-slate-200 p-3 text-center shadow-sm"><p class="text-[9px] text-slate-400 font-bold">ทั้งหมด (สแกนใบหน้า)</p><p class="text-lg font-black text-slate-800">' + rows.length + '</p></div>'
+        + '<div class="bg-white rounded-xl border border-emerald-100 p-3 text-center shadow-sm"><p class="text-[9px] text-emerald-500 font-bold">Self (สแกนเอง)</p><p class="text-lg font-black text-emerald-600">' + stats.self + '</p></div>'
+        + '<div class="bg-white rounded-xl border border-amber-100 p-3 text-center shadow-sm"><p class="text-[9px] text-amber-600 font-bold">Manager สแกนให้</p><p class="text-lg font-black text-amber-600">' + stats.manager_face + '</p></div>'
+        + '<div class="bg-white rounded-xl border border-blue-100 p-3 text-center shadow-sm"><p class="text-[9px] text-blue-600 font-bold">Manager เลือกชื่อ</p><p class="text-lg font-black text-blue-600">' + stats.manager_manual + '</p></div>'
+        + '<div class="bg-white rounded-xl border border-rose-100 p-3 text-center shadow-sm"><p class="text-[9px] text-rose-500 font-bold">มีภาพหลักฐาน</p><p class="text-lg font-black text-rose-600">' + Object.keys(evCount).length + '</p></div>';
+    if (!rows.length) {
+        flEl('admlog-body').innerHTML = '<p style="padding:28px;text-align:center;font-size:12px;color:#94a3b8;">ไม่พบรายการลงเวลาสแกนใบหน้าในช่วงนี้</p>';
+        return;
+    }
+    const head = '<table style="width:100%;border-collapse:collapse;min-width:980px;"><thead><tr style="background:#f8fafc;font-size:10px;color:#64748b;text-align:left;">'
+        + ['วันที่', 'พนักงาน', 'วิธี', 'เวลาเข้า', 'เวลาออก', 'ความคล้าย', 'Liveness', 'ตำแหน่ง GPS', 'หลักฐานภาพ', 'ลงเวลาโดย'].map((h) => '<th style="padding:10px 8px;white-space:nowrap;font-weight:800;">' + h + '</th>').join('')
+        + '</tr></thead><tbody>';
+    const trs = rows.map((r) => {
+        const meta = FACE_MODE_META[r.scan_mode] || { label: r.scan_mode || '—', color: '#475569', bg: '#e2e8f0' };
+        const emp = empMap[r.emp_id] || {};
+        const gpsTxt = (r.gps_lat != null && r.gps_lng != null) ? (+r.gps_lat).toFixed(5) + ', ' + (+r.gps_lng).toFixed(5) : '—';
+        const geoLabel = { manager_trust: 'เชื่อถือหัวหน้า', soft_recorded: 'soft·บันทึก', no_gps: 'ไม่มี GPS', in_geofence: 'ในเขต', outside: 'นอกเขต' }[r.geofence_result] || r.geofence_result || '—';
+        const evBtn = (evCount[r.id] || 0) > 0
+            ? '<button onclick="adminOpenFaceEvidence(\'' + String(r.emp_id).replace(/'/g, '') + '\',\'' + r.date + '\')" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:8px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;">📷 ดู ' + evCount[r.id] + ' ภาพ</button>'
+            : '<span style="color:#cbd5e1;font-size:11px;">—</span>';
+        return '<tr style="border-top:1px solid #f1f5f9;font-size:11px;color:#334155;">'
+            + '<td style="padding:9px 8px;white-space:nowrap;">' + (r.date || '—') + '</td>'
+            + '<td style="padding:9px 8px;white-space:nowrap;"><b>' + (emp.name || r.emp_id) + '</b><br><span style="font-size:9px;color:#94a3b8;">' + (emp.pos || r.emp_id) + '</span></td>'
+            + '<td style="padding:9px 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:9px;font-weight:800;color:' + meta.color + ';background:' + meta.bg + ';white-space:nowrap;">' + meta.label + '</span></td>'
+            + '<td style="padding:9px 8px;white-space:nowrap;">' + (r.time_in || '—') + '</td>'
+            + '<td style="padding:9px 8px;white-space:nowrap;">' + (r.time_out || '—') + '</td>'
+            + '<td style="padding:9px 8px;white-space:nowrap;">' + (r.similarity_score != null ? Math.round(r.similarity_score * 100) + '%' : '—') + '</td>'
+            + '<td style="padding:9px 8px;text-align:center;">' + (r.liveness_ok === true ? '<span style="color:#059669;font-weight:900;">✓</span>' : (r.liveness_ok === false ? '<span style="color:#dc2626;font-weight:900;">✗</span>' : '<span style="color:#cbd5e1;">—</span>')) + '</td>'
+            + '<td style="padding:9px 8px;font-size:9px;"><span style="color:#0f766e;font-weight:700;">' + geoLabel + '</span><br><span style="color:#94a3b8;">' + gpsTxt + '</span></td>'
+            + '<td style="padding:9px 8px;">' + evBtn + '</td>'
+            + '<td style="padding:9px 8px;white-space:nowrap;font-size:10px;">' + (r.created_by || '<span style="color:#94a3b8;">ตัวเอง</span>') + '</td>'
+            + '</tr>';
+    }).join('');
+    flEl('admlog-body').innerHTML = head + trs + '</tbody></table>';
+}
+
+let flEvidenceList = [];
+
+function adminShowEvidenceThumb(idx) {
+    const item = flEvidenceList[idx];
+    const mainImg = flEl('face-evidence-img');
+    if (item && mainImg) mainImg.src = item.image_url || '';
+}
+
+async function adminOpenFaceEvidence(empId, dateStr) {
+    const modal = flEl('face-evidence-modal');
+    if (!modal) return;
+    try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'getFaceCaptureLogs', adminId: currentEmployeeId, empId: empId, date: dateStr })
+        });
+        const imgs = (res && res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+        flEvidenceList = imgs;
+        flEl('face-evidence-caption').textContent = 'พนักงาน ' + empId + ' · วันที่ ' + dateStr + ' · ' + imgs.length + ' ภาพ (เก็บ 90 วัน)';
+        const mainImg = flEl('face-evidence-img');
+        const empty = flEl('face-evidence-empty');
+        const thumbs = flEl('face-evidence-thumbs');
+        if (!imgs.length) {
+            mainImg.style.display = 'none';
+            empty.style.display = 'block';
+            thumbs.innerHTML = '';
+        } else {
+            empty.style.display = 'none';
+            mainImg.src = imgs[0].image_url || '';
+            mainImg.style.display = 'block';
+            thumbs.innerHTML = imgs.map((im, i) => {
+                const label = FACE_MODE_META[im.scan_mode] ? FACE_MODE_META[im.scan_mode].label : (im.scan_mode || '');
+                return '<button type="button" onclick="adminShowEvidenceThumb(' + i + ')" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:6px 8px;font-size:10px;cursor:pointer;display:flex;align-items:center;gap:6px;">📷 ภาพ ' + (i + 1) + ' <span style="color:#94a3b8;">' + (label || '') + '</span></button>';
+            }).join('');
+        }
+        modal.style.display = 'flex';
+    } catch (e) {
+        console.error('[FaceLogs] evidence err:', e);
+        showToast('❌ โหลดภาพหลักฐานไม่สำเร็จ', 'error');
+    }
+}
+
+async function adminRunCleanupFaceCaptures() {
+    if (!confirm('ลบภาพหลักฐานสแกนใบหน้าที่หมดอายุ (ครบ 90 วัน) พร้อมรายการใน face_capture_log?')) return;
+    try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'cleanupFaceCaptures', adminId: currentEmployeeId })
+        });
+        if (res && res.status === 'success') {
+            showToast('🗑 ลบแล้ว: ' + (res.deleted || 0) + ' รายการ / ' + (res.filesTrashed || 0) + ' ไฟล์', 'success');
+            loadAdminFaceLogs();
+        } else {
+            showToast('❌ ' + ((res && res.message) || 'ลบไม่สำเร็จ'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ', 'error');
+    }
 }
 </script>
 </body>
