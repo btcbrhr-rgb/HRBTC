@@ -3830,7 +3830,7 @@
                             </div>
                         </div>
                         <!-- Summary Row -->
-                        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5" id="yearly-overview-summary">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5" id="yearly-overview-summary">
                             <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">
                                 <p class="text-[10px] font-bold text-emerald-600 uppercase">วันทำงานทั้งปี</p>
                                 <p class="text-xl font-bold text-emerald-700 mt-1" id="yov-total-days">-</p>
@@ -3855,10 +3855,6 @@
                                 <p class="text-[10px] font-bold text-brand-deep uppercase">ชั่วโมง OT</p>
                                 <p class="text-xl font-bold text-brand-deep mt-1" id="yov-ot-hours">-</p>
                             </div>
-                            <div class="bg-purple-50 border border-purple-200 p-3 rounded-xl text-center">
-                                <p class="text-[10px] font-bold text-purple-600 uppercase">มีคำขอแก้ไขเวลา</p>
-                                <p class="text-xl font-bold text-purple-700 mt-1" id="yov-correction-days">-</p>
-                            </div>
                         </div>
                         <!-- 12 Month Tabs -->
                         <div class="flex gap-1 overflow-x-auto pb-1 scrollbar-thin" id="yearly-month-tabs"></div>
@@ -3867,16 +3863,9 @@
                             <div class="hr-table-search-bar flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border-b border-slate-200">
                                 <div class="relative flex-1 min-w-[220px]">
                                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                    <input type="text" placeholder="ค้นหารหัสพนักงาน, วันที่, สถานะ, แก้ไขแล้ว..." oninput="hrTableFilter('yearly-attendance-body', this.value, 'yearly-attendance-count')" aria-label="ค้นหาข้อมูลเวลางาน">
+                                    <input type="text" placeholder="ค้นหารหัสพนักงาน, วันที่, สถานะ..." oninput="hrTableFilter('yearly-attendance-body', this.value, 'yearly-attendance-count')" aria-label="ค้นหาข้อมูลเวลางาน">
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <button id="yearly-filter-correction-btn" onclick="toggleYearlyCorrectionFilter()"
-                                        class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-all flex items-center gap-1.5 shadow-sm">
-                                        <i class="fa-solid fa-pen-to-square text-purple-600"></i>
-                                        ดูเฉพาะรายการที่ขอแก้ (<span id="yearly-correction-count">0</span>)
-                                    </button>
-                                    <span class="row-count" id="yearly-attendance-count"></span>
-                                </div>
+                                <span class="row-count" id="yearly-attendance-count"></span>
                             </div>
                             <div class="hr-table-wrap overflow-x-auto overflow-y-auto max-h-[560px] custom-scrollbar border-t border-slate-200">
                                 <table class="hr-table border-separate border-spacing-0">
@@ -17150,7 +17139,7 @@ container.innerHTML = "";
                     if (!empId || empId.length < 3) { nameEl.textContent = '-'; return; }
                     nameEl.textContent = '⏳ กำลังค้นหา...';
                     try {
-                        const res = await postAction('getEmployee', { empId: empId }, { timeout: 6000 });
+                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`, { timeout: 6000 });
                         if (res && res.status === 'success' && res.data) {
                             nameEl.textContent = res.data['ชื่อ-นามสกุล'] || res.data.name || '(ไม่พบชื่อ)';
                         } else {
@@ -17224,7 +17213,7 @@ container.innerHTML = "";
                     const nameEl = document.getElementById('admin-create-leave-empname');
                     if (!nameEl.textContent || nameEl.textContent === '-' || nameEl.textContent.startsWith('❌')) {
                         try {
-                            const empRes = await postAction('getEmployee', { empId: empId });
+                            const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`);
                             if (!empRes || empRes.status !== 'success') {
                                 return showToast('❌ ไม่พบข้อมูลพนักงาน: ' + empId, 'error');
                             }
@@ -17267,7 +17256,9 @@ container.innerHTML = "";
                     }, { buttonId: 'admin-create-leave-submit', activeLabel: 'บันทึกและอนุมัติ', loadingLabel: 'กำลังบันทึก...' });
                 }
 
-                // ===================================================================
+                
+
+// ===================================================================
                 // 📂 ระบบตรวจสอบและปรับปรุงสิทธิ์วันลาย้อนหลัง (Retroactive Leave Quota Audit)
                 // ===================================================================
                 let leaveAuditDiscrepancies = [];
@@ -17489,14 +17480,13 @@ container.innerHTML = "";
                 }
 
                 function updateAuditSelectedCount() {
+                    const countEl = document.getElementById("leave-audit-selected-count");
                     const applyBtn = document.getElementById("btn-apply-leave-audit");
                     const masterCheckbox = document.getElementById("leave-audit-select-all");
-                    if (applyBtn) {
-                        applyBtn.disabled = selectedAuditItems.size === 0;
-                        applyBtn.innerHTML = `<i class="fa-solid fa-check-double"></i> ปรับปรุงรายการที่เลือก (<span id="leave-audit-selected-count">${selectedAuditItems.size}</span>)`;
-                    }
-                    if (masterCheckbox) {
-                        masterCheckbox.checked = leaveAuditDiscrepancies.length > 0 && selectedAuditItems.size === leaveAuditDiscrepancies.length;
+                    if (countEl) countEl.textContent = selectedAuditItems.size;
+                    if (applyBtn) applyBtn.disabled = selectedAuditItems.size === 0;
+                    if (masterCheckbox && leaveAuditDiscrepancies.length > 0) {
+                        masterCheckbox.checked = selectedAuditItems.size === leaveAuditDiscrepancies.length;
                     }
                 }
 
@@ -17520,341 +17510,44 @@ container.innerHTML = "";
                     let successCount = 0;
                     let errorCount = 0;
 
-                    try {
-                        for (const it of itemsToUpdate) {
-                            try {
-                                const appendNote = `[ระบบปรับสิทธิ์ย้อนหลัง: ${it.oldType} -> ${it.newType}]`;
-                                const newNotes = it.notes ? `${it.notes} ${appendNote}` : appendNote;
+                    for (const it of itemsToUpdate) {
+                        try {
+                            const appendNote = `[ระบบปรับสิทธิ์ย้อนหลัง: ${it.oldType} -> ${it.newType}]`;
+                            const newNotes = it.notes ? `${it.notes} ${appendNote}` : appendNote;
 
-                                const { error } = await supabaseClient
-                                    .from('leave_requests')
-                                    .update({
-                                        leave_type: it.newType,
-                                        notes: newNotes,
-                                        updated_at: new Date().toISOString()
-                                    })
-                                    .eq('doc_id', it.docId);
+                            const { error } = await supabaseClient
+                                .from('leave_requests')
+                                .update({
+                                    leave_type: it.newType,
+                                    notes: newNotes,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('doc_id', it.docId);
 
-                                if (error) {
-                                    console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} error:`, error);
-                                    errorCount++;
-                                } else {
-                                    successCount++;
-                                }
-                            } catch (e) {
-                                console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} exception:`, e);
+                            if (error) {
+                                console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} error:`, error);
                                 errorCount++;
-                            }
-                        }
-
-                        showToast(`✅ ปรับปรุงข้อมูลสำเร็จ ${successCount} รายการ${errorCount > 0 ? ` (ล้มเหลว ${errorCount})` : ''}`, successCount > 0 ? "success" : "error");
-
-                        // โหลดการตรวจสอบใหม่ และซิงค์ตารางใบลาหลัก
-                        await runLeaveQuotaAudit();
-                        if (typeof loadAdminApprovals === 'function') {
-                            loadAdminApprovals();
-                        }
-                    } finally {
-                        updateAuditSelectedCount();
-                    }
-                }
-
-                // ===============================================================
-                // [BUSINESS PLUS (B-PLUS) EXPORT MODULE]
-                // ===============================================================
-
-                function getDefaultBplusCycle() {
-                    const today = new Date();
-                    const day = today.getDate();
-                    let startYear = today.getFullYear();
-                    let startMonth = today.getMonth(); // 0-indexed
-                    let endYear = today.getFullYear();
-                    let endMonth = today.getMonth();
-
-                    if (day >= 26) {
-                        endMonth = startMonth + 1;
-                        if (endMonth > 11) { endMonth = 0; endYear++; }
-                    } else {
-                        startMonth = endMonth - 1;
-                        if (startMonth < 0) { startMonth = 11; startYear--; }
-                    }
-                    const startStr = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-26`;
-                    const endStr = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-25`;
-                    return { startStr, endStr };
-                }
-
-                function getBplusLeaveCode(leaveType) {
-                    const type = (leaveType || '').trim();
-                    const isUnpaid = type.includes('ไม่รับค่าจ้าง') || type.includes('เกินสิทธิ์');
-                    if (type.includes('กิจ')) return isUnpaid ? '10036' : '2150';
-                    if (type.includes('พักร้อน') || type.includes('พักผ่อน')) return isUnpaid ? '10020' : '2160';
-                    if (type.includes('ป่วย')) return isUnpaid ? '10028' : '2140';
-                    if (type.includes('คลอด')) return isUnpaid ? '10037' : '2170';
-                    if (type.includes('บวช')) return isUnpaid ? '10039' : '2180';
-                    if (type.includes('ทหาร')) return isUnpaid ? '10038' : '10004';
-                    return isUnpaid ? '10036' : '2150';
-                }
-
-                async function openBplusExportModal() {
-                    const modal = document.getElementById("admin-bplus-export-modal");
-                    if (!modal) return;
-                    modal.classList.remove("hidden");
-
-                    const startInput = document.getElementById("bplus-export-start");
-                    const endInput = document.getElementById("bplus-export-end");
-                    if (!startInput.value || !endInput.value) {
-                        const { startStr, endStr } = getDefaultBplusCycle();
-                        startInput.value = startStr;
-                        endInput.value = endStr;
-                    }
-                    onBplusCycleChange();
-                }
-
-                function closeBplusExportModal() {
-                    const modal = document.getElementById("admin-bplus-export-modal");
-                    if (modal) modal.classList.add("hidden");
-                }
-
-                function onBplusCycleChange() {
-                    const startVal = document.getElementById("bplus-export-start")?.value;
-                    const endVal = document.getElementById("bplus-export-end")?.value;
-                    const labelEl = document.getElementById("bplus-cycle-label");
-                    if (labelEl && startVal && endVal) {
-                        labelEl.textContent = `${formatThaiDateShort(startVal)} - ${formatThaiDateShort(endVal)}`;
-                    }
-                    loadBplusExportPreview();
-                }
-
-                async function loadBplusExportPreview() {
-                    const startStr = document.getElementById("bplus-export-start")?.value;
-                    const endStr = document.getElementById("bplus-export-end")?.value;
-                    if (!startStr || !endStr) return;
-
-                    const timeBadge = document.getElementById("bplus-time-count-badge");
-                    const leaveBadge = document.getElementById("bplus-leave-count-badge");
-                    if (timeBadge) timeBadge.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...`;
-                    if (leaveBadge) leaveBadge.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...`;
-
-                    try {
-                        // นับจำนวนแถวเวลางาน
-                        const { count: timeCount, error: timeErr } = await supabaseClient
-                            .from('time_records')
-                            .select('*', { count: 'exact', head: true })
-                            .gte('date', startStr)
-                            .lte('date', endStr);
-
-                        if (timeBadge) {
-                            timeBadge.textContent = timeErr ? 'พร้อมส่งออก' : `${(timeCount || 0).toLocaleString()} รายการ`;
-                        }
-
-                        // นับจำนวนใบลา
-                        const { count: leaveCount, error: leaveErr } = await supabaseClient
-                            .from('leave_requests')
-                            .select('*', { count: 'exact', head: true })
-                            .eq('status', 'อนุมัติแล้ว')
-                            .lte('start_date', endStr)
-                            .gte('end_date', startStr);
-
-                        if (leaveBadge) {
-                            leaveBadge.textContent = leaveErr ? 'พร้อมส่งออก' : `${(leaveCount || 0).toLocaleString()} ใบลา`;
-                        }
-                    } catch (e) {
-                        console.error('[loadBplusExportPreview] error:', e);
-                        if (timeBadge) timeBadge.textContent = 'พร้อมส่งออก';
-                        if (leaveBadge) leaveBadge.textContent = 'พร้อมส่งออก';
-                    }
-                }
-
-                async function exportBplusTimeRecords() {
-                    const startStr = document.getElementById("bplus-export-start")?.value;
-                    const endStr = document.getElementById("bplus-export-end")?.value;
-                    if (!startStr || !endStr) {
-                        return showToast("⚠️ กรุณาระบุช่วงวันที่ให้ครบถ้วน", "warning");
-                    }
-
-                    if (typeof XLSX === 'undefined') {
-                        return showToast("❌ ไม่พบโมดูล XLSX กรุณารีเฟรชหน้าเว็บ", "error");
-                    }
-
-                    const btn = document.getElementById("btn-export-bplus-time");
-                    const origHtml = btn ? btn.innerHTML : '';
-                    if (btn) {
-                        btn.disabled = true;
-                        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> กำลังดึงข้อมูล...`;
-                    }
-
-                    try {
-                        showToast("⏳ กำลังเตรียมไฟล์ นำเข้าเวลางาน.xlsx...", "info");
-
-                        // ดึงข้อมูลเวลางานทั้งหมดในรอบบัญชี
-                        let allRecords = [];
-                        let page = 0;
-                        const pageSize = 1000;
-                        let hasMore = true;
-
-                        while (hasMore) {
-                            const { data, error } = await supabaseClient
-                                .from('time_records')
-                                .select('emp_id, date, time_in, time_out')
-                                .gte('date', startStr)
-                                .lte('date', endStr)
-                                .order('emp_id', { ascending: true })
-                                .order('date', { ascending: true })
-                                .range(page * pageSize, (page + 1) * pageSize - 1);
-
-                            if (error) throw error;
-                            if (data && data.length > 0) {
-                                allRecords = allRecords.concat(data);
-                                if (data.length < pageSize) hasMore = false;
-                                else page++;
                             } else {
-                                hasMore = false;
+                                successCount++;
                             }
+                        } catch (e) {
+                            console.error(`[applyLeaveAuditBatchUpdate] docId ${it.docId} exception:`, e);
+                            errorCount++;
                         }
+                    }
 
-                        if (allRecords.length === 0) {
-                            return showToast("ℹ️ ไม่พบข้อมูลเวลางานในช่วงวันที่เลือก", "warning");
-                        }
+                    showToast(`✅ ปรับปรุงข้อมูลสำเร็จ ${successCount} รายการ${errorCount > 0 ? ` (ล้มเหลว ${errorCount})` : ''}`, successCount > 0 ? "success" : "error");
 
-                        // สร้างแถวข้อมูลตามเทมเพลต BplusData
-                        const rows = [
-                            ["รหัสพนักงาน", "วันที่", "เวลารูดบัตรครั้งที่ 1", "เวลารูดบัตรครั้งที่ 2"]
-                        ];
-
-                        for (const r of allRecords) {
-                            const yyyymmdd = (r.date || '').replace(/[^0-9]/g, '');
-                            const tIn = r.time_in ? String(r.time_in).slice(0, 5) : '';
-                            const tOut = r.time_out ? String(r.time_out).slice(0, 5) : '';
-                            rows.push([
-                                String(r.emp_id || '').trim(),
-                                yyyymmdd,
-                                tIn,
-                                tOut
-                            ]);
-                        }
-
-                        // สร้าง Excel Workbook ด้วย SheetJS
-                        const ws = XLSX.utils.aoa_to_sheet(rows);
-                        const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, "BplusData");
-
-                        const filename = `นำเข้าเวลางาน_${startStr}_ถึง_${endStr}.xlsx`;
-                        XLSX.writeFile(wb, filename);
-
-                        showToast(`✅ ดาวน์โหลด ${filename} (${allRecords.length} แถว) เรียบร้อยแล้ว`, "success");
-
-                    } catch (err) {
-                        console.error('[exportBplusTimeRecords] error:', err);
-                        showToast(`❌ เกิดข้อผิดพลาดในการส่งออกเวลางาน: ${err.message || err}`, "error");
-                    } finally {
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.innerHTML = origHtml;
-                        }
+                    // โหลดการตรวจสอบใหม่ และซิงค์ตารางใบลาหลัก
+                    await runLeaveQuotaAudit();
+                    if (typeof loadAdminApprovals === 'function') {
+                        loadAdminApprovals();
                     }
                 }
 
-                async function exportBplusLeaveRequests() {
-                    const startStr = document.getElementById("bplus-export-start")?.value;
-                    const endStr = document.getElementById("bplus-export-end")?.value;
-                    if (!startStr || !endStr) {
-                        return showToast("⚠️ กรุณาระบุช่วงวันที่ให้ครบถ้วน", "warning");
-                    }
+                
 
-                    if (typeof XLSX === 'undefined') {
-                        return showToast("❌ ไม่พบโมดูล XLSX กรุณารีเฟรชหน้าเว็บ", "error");
-                    }
-
-                    const btn = document.getElementById("btn-export-bplus-leave");
-                    const origHtml = btn ? btn.innerHTML : '';
-                    if (btn) {
-                        btn.disabled = true;
-                        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> กำลังดึงข้อมูล...`;
-                    }
-
-                    try {
-                        showToast("⏳ กำลังเตรียมไฟล์ นำเข้าวันลา.xlsx...", "info");
-
-                        // ดึงคำขอลาที่อนุมัติแล้วในช่วงรอบบัญชี
-                        const { data: leaves, error } = await supabaseClient
-                            .from('leave_requests')
-                            .select('*')
-                            .eq('status', 'อนุมัติแล้ว')
-                            .lte('start_date', endStr)
-                            .gte('end_date', startStr)
-                            .order('emp_id', { ascending: true })
-                            .order('start_date', { ascending: true });
-
-                        if (error) throw error;
-                        if (!leaves || leaves.length === 0) {
-                            return showToast("ℹ️ ไม่พบข้อมูลวันลาที่อนุมัติแล้วในช่วงวันที่เลือก", "warning");
-                        }
-
-                        // สร้างแถวข้อมูลตามเทมเพลต BplusData 7 คอลัมน์
-                        const rows = [
-                            ["รหัสพนักงาน", "วันที่ลา", "รหัสกะ", "รหัสผลข้อตกลงเงินหัก", "รหัสลักษณะการรูดบัตร", "วิธีลา", "จำนวนที่ลา"]
-                        ];
-
-                        let totalExportRows = 0;
-
-                        for (const req of leaves) {
-                            const empId = String(req.emp_id || '').trim();
-                            const bplusCode = getBplusLeaveCode(req.leave_type);
-                            const durationText = (req.duration && req.duration.includes('ครึ่ง')) ? req.duration : 'เต็มวัน';
-                            const daysVal = (req.duration && req.duration.includes('ครึ่ง')) ? 0.5 : 1;
-
-                            // แตกวันที่เป็นรายวัน ระหว่าง start_date ถึง end_date
-                            const sDate = new Date(req.start_date);
-                            const eDate = new Date(req.end_date);
-                            const minDate = new Date(startStr);
-                            const maxDate = new Date(endStr);
-
-                            // Clamp ช่วงวันที่ให้อยู่ในรอบบัญชี
-                            const cur = new Date(Math.max(sDate.getTime(), minDate.getTime()));
-                            const endLoop = new Date(Math.min(eDate.getTime(), maxDate.getTime()));
-
-                            while (cur <= endLoop) {
-                                const yyyy = cur.getFullYear();
-                                const mm = String(cur.getMonth() + 1).padStart(2, '0');
-                                const dd = String(cur.getDate()).padStart(2, '0');
-                                const yyyymmdd = `${yyyy}${mm}${dd}`;
-
-                                rows.push([
-                                    empId,
-                                    yyyymmdd,
-                                    "01",       // รหัสกะ
-                                    bplusCode,  // รหัสผลข้อตกลงเงินหัก เช่น 2150 หรือ 10036
-                                    "0",        // รหัสลักษณะการรูดบัตร
-                                    durationText,
-                                    daysVal
-                                ]);
-                                totalExportRows++;
-                                cur.setDate(cur.getDate() + 1);
-                            }
-                        }
-
-                        // สร้าง Excel Workbook ด้วย SheetJS
-                        const ws = XLSX.utils.aoa_to_sheet(rows);
-                        const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, "BplusData");
-
-                        const filename = `นำเข้าวันลา_${startStr}_ถึง_${endStr}.xlsx`;
-                        XLSX.writeFile(wb, filename);
-
-                        showToast(`✅ ดาวน์โหลด ${filename} (${totalExportRows} แถววันลา) เรียบร้อยแล้ว`, "success");
-
-                    } catch (err) {
-                        console.error('[exportBplusLeaveRequests] error:', err);
-                        showToast(`❌ เกิดข้อผิดพลาดในการส่งออกวันลา: ${err.message || err}`, "error");
-                    } finally {
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.innerHTML = origHtml;
-                        }
-                    }
-                }
-
-                function closeEmployeeModal() {
+function closeEmployeeModal() {
                     document.getElementById("admin-employee-modal").classList.add("hidden");
                 }
 
@@ -18071,37 +17764,28 @@ container.innerHTML = "";
                 window.loadScanDevices = async function loadScanDevices() {
                     const tbody = document.getElementById('scan-devices-table-body');
                     if (tbody) {
-                        tbody.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500 italic"><i class="fa-solid fa-spinner animate-spin text-brand-teal"></i> กำลังโหลด...</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500 italic"><i class="fa-solid fa-spinner animate-spin text-indigo-500"></i> กำลังโหลด...</td></tr>';
                     }
 
                     try {
-                        // 🔧 SUPABASE-ONLY: โหลดจาก agent_configs table
-                        let devices = [];
-                        if (supabaseClient) {
-                            const sbRes = await supabaseClient.from('agent_configs').select('*').order('last_heartbeat', { ascending: false });
-                            if (!sbRes.error && Array.isArray(sbRes.data)) {
-                                devices = sbRes.data.map(d => ({
-                                    deviceName: d.device_name || d.device_id,
-                                    branchCode: d.branch_code,
-                                    model: d.model,
-                                    serialNo: d.serial_no,
-                                    ipAddress: d.ip_address,
-                                    port: d.port,
-                                    agentVersion: d.agent_version,
-                                    osInfo: d.os_info,
-                                    status: d.status === 'active' && d.last_heartbeat && (Date.now() - new Date(d.last_heartbeat).getTime() < 300000) ? 'online' : 'offline',
-                                    lastHeartbeat: d.last_heartbeat,
-                                    totalRecordsPushed: d.total_records_pushed || 0
-                                }));
-                                console.log('[loadScanDevices ⚡ Supabase] ✓', devices.length, 'devices');
+                        const res = await fetchWithTimeout(SERVER_API_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({ action: 'listDevices', adminId: currentEmployeeId }),
+                            timeout: 20000
+                        });
+
+                        if (!res || res.status !== 'success') {
+                            if (tbody) {
+                                tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ โหลดไม่สำเร็จ: ${escapeHtml(res?.message || 'ไม่ทราบสาเหตุ')}</td></tr>`;
                             }
+                            return;
                         }
 
+                        const devices = res.data?.devices || [];
                         renderScanDevices(devices);
                         updateScanDeviceBadge(devices);
 
                     } catch (err) {
-                        console.error('[loadScanDevices] Error:', err);
                         if (tbody) {
                             tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ${escapeHtml(err.message || String(err))}</td></tr>`;
                         }
@@ -18137,16 +17821,11 @@ container.innerHTML = "";
                         <td class="py-2.5 px-2 text-[10px] font-mono text-slate-600">${escapeHtml(d.ipAddress || '-')}:${d.port || '-'}</td>
                         <td class="py-2.5 px-2 text-[10px] text-slate-500">v${escapeHtml(d.agentVersion || '-')}<br>${escapeHtml(d.osInfo || '')}</td>
                         <td class="py-2.5 px-2 text-[10px] text-slate-500">${lastHb}</td>
-                        <td class="py-2.5 px-2 text-right font-semibold text-brand-deep">${(d.totalRecordsPushed || 0).toLocaleString()}</td>
+                        <td class="py-2.5 px-2 text-right font-semibold text-violet-700">${(d.totalRecordsPushed || 0).toLocaleString()}</td>
                         <td class="py-2.5 px-2">
-                            <div class="flex items-center gap-1">
-                                <button onclick="window.openScanDeviceEditModal(${escapeHtml(JSON.stringify(d))})" class="text-brand-teal hover:text-brand-deep text-[10px] font-semibold" title="แก้ไข config เครื่องสแกน">
-                                    <i class="fa-solid fa-pen"></i>
-                                </button>
-                                <button onclick="window.deleteScanDevice('${escapeHtml(d.deviceId)}', '${escapeHtml(d.deviceName)}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-semibold" title="ลบเครื่องนี้ออกจากระบบ">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
-                            </div>
+                            <button onclick="window.deleteScanDevice('${escapeHtml(d.deviceId)}', '${escapeHtml(d.deviceName)}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-semibold" title="ลบเครื่องนี้ออกจากระบบ">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
                         </td>
                     </tr>`;
                     }).join('');
@@ -18187,7 +17866,7 @@ container.innerHTML = "";
         <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-plus-circle text-brand-teal"></i> เพิ่มเครื่องสแกนนิ้วใหม่
+                    <i class="fa-solid fa-plus-circle text-indigo-600"></i> เพิ่มเครื่องสแกนนิ้วใหม่
                 </h3>
                 <button onclick="document.getElementById('scan-device-modal-container').remove()" class="text-slate-400 hover:text-slate-600">
                     <i class="fa-solid fa-xmark text-lg"></i>
@@ -18196,12 +17875,12 @@ container.innerHTML = "";
 
             <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
                 <p class="font-bold text-slate-700 flex items-center gap-1.5">
-                    <i class="fa-solid fa-circle-info text-brand-teal"></i> ลงทะเบียนด้วยโปรแกรมติดตั้งสำเร็จรูป
+                    <i class="fa-solid fa-circle-info text-indigo-600"></i> ลงทะเบียนด้วยโปรแกรมติดตั้งสำเร็จรูป
                 </p>
                 <p>ระบบใช้สถาปัตยกรรมแบบลงทะเบียนเครื่องอัตโนมัติ (Auto-Registration) เพื่อความง่ายในการตั้งค่า:</p>
                 
-                <div class="bg-brand-sky border border-brand-sky2 rounded-xl p-3 space-y-2 text-xs text-slate-700">
-                    <p class="font-bold text-brand-deep">ขั้นตอนการดำเนินการ:</p>
+                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-2 text-[11px] text-slate-700">
+                    <p class="font-bold text-indigo-800">ขั้นตอนการดำเนินการ:</p>
                     <ol class="list-decimal pl-4 space-y-1.5">
                         <li>นำไฟล์ <code>HRBTC_Setup.exe</code> ไปรันบนเครื่องคอมพิวเตอร์หน้างาน</li>
                         <li>กรอกค่า IP/Serial/รหัสสาขา ของเครื่องสแกนนิ้วในตัวติดตั้ง</li>
@@ -18212,7 +17891,7 @@ container.innerHTML = "";
             </div>
 
             <div class="flex gap-2 pt-2">
-                <button onclick="document.getElementById('scan-device-modal-container').remove(); toggleScanGuideView();" class="flex-1 py-2.5 bg-brand-deep hover:bg-brand-teal text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                <button onclick="document.getElementById('scan-device-modal-container').remove(); toggleScanGuideView();" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
                     <i class="fa-solid fa-book-open"></i> ดูวิธีติดตั้งแบบละเอียด
                 </button>
                 <button onclick="document.getElementById('scan-device-modal-container').remove()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all">
@@ -18251,14 +17930,7 @@ container.innerHTML = "";
                  * ลบเครื่องสแกนออกจากระบบ
                  */
                 window.deleteScanDevice = async function deleteScanDevice(deviceId, deviceName) {
-                    const ok = await adminConfirmDialog({
-                        title: 'ลบเครื่องสแกน',
-                        text: `ต้องการลบเครื่อง "${deviceName}" ออกจากระบบ?\n(เครื่องที่ลบแล้วจะต้องลงทะเบียนใหม่)`,
-                        confirmText: 'ยืนยันลบเครื่อง',
-                        icon: 'warning',
-                        danger: true
-                    });
-                    if (!ok) return;
+                    if (!confirm(`ต้องการลบเครื่อง "${deviceName}" ออกจากระบบ?\n(เครื่องที่ลบแล้วจะต้องลงทะเบียนใหม่)`)) return;
 
                     // ลบผ่าน adminApprove-style: เรียก listDevices ก่อน เพื่อให้ user เห็นการเปลี่ยนแปลง
                     // ใช้ adminSaveSystemSettings หรือเพิ่ม action ใหม่ — เพื่อความง่าย ใช้วิธี clear row
@@ -18285,181 +17957,6 @@ container.innerHTML = "";
                         showToast('❌ ลบไม่สำเร็จ: ' + (res?.message || ''), 'error');
                     }
                 }
-
-                /**
-                 * เปิด Modal แก้ไข config ของเครื่องสแกน (ครบทั้ง 4 ขั้นตอน)
-                 */
-                window.openScanDeviceEditModal = function (device) {
-                    if (document.getElementById('scan-device-modal-container')) return;
-                    const d = typeof device === 'string' ? JSON.parse(device) : device;
-                    console.log('[ScanDevice] Edit modal data:', JSON.stringify(d, null, 2));
-
-                    const html = `
-    <div id="scan-device-modal-container" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6 space-y-4">
-            <div class="flex items-center justify-between">
-                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-pen-to-square text-brand-teal"></i> แก้ไข config: ${escapeHtml(d.deviceName || d.deviceId)}
-                </h3>
-                <button onclick="document.getElementById('scan-device-modal-container').remove()" class="text-slate-400 hover:text-slate-600">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-
-            <div class="bg-slate-50 rounded-xl p-4 space-y-3">
-                <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <span class="bg-brand-deep text-white text-[10px] px-2 py-0.5 rounded-full">1</span> เชื่อมต่อฐานข้อมูล
-                </p>
-                <div>
-                    <label class="text-[10px] font-semibold text-slate-500">Supabase URL</label>
-                    <input id="cfg-sb-url" type="text" value="${escapeHtml(d.supabaseUrl || '')}" placeholder="https://xxx.supabase.co" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                </div>
-                <div>
-                    <label class="text-[10px] font-semibold text-slate-500">Supabase Anon Key</label>
-                    <input id="cfg-sb-key" type="password" value="${escapeHtml(d.supabaseAnonKey || '')}" placeholder="eyJhbGciOiJIUzI1NiIs..." class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                </div>
-            </div>
-
-            <div class="bg-slate-50 rounded-xl p-4 space-y-3">
-                <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <span class="bg-brand-deep text-white text-[10px] px-2 py-0.5 rounded-full">2</span> เชื่อมต่อเครื่องสแกน
-                </p>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">IP Address</label>
-                        <input id="cfg-ip" type="text" value="${escapeHtml(d.ipAddress || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">Port</label>
-                        <input id="cfg-port" type="number" value="${d.port || 4370}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">ชื่อเครื่อง</label>
-                        <input id="cfg-name" type="text" value="${escapeHtml(d.deviceName || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">สาขา / โครงการ</label>
-                        <input id="cfg-branch" type="text" value="${escapeHtml(d.branchCode || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">Serial No.</label>
-                        <input id="cfg-serial" type="text" value="${escapeHtml(d.serialNo || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-500" readonly>
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">Model</label>
-                        <input id="cfg-model" type="text" value="${escapeHtml(d.model || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-500" readonly>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-slate-50 rounded-xl p-4 space-y-3">
-                <p class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <span class="bg-brand-deep text-white text-[10px] px-2 py-0.5 rounded-full">3</span> ตั้งค่าการทำงาน
-                </p>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">Poll Interval (วินาที)</label>
-                        <input id="cfg-poll" type="number" value="${d.pollSeconds || 60}" min="10" max="3600" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">Heartbeat Interval (วินาที)</label>
-                        <input id="cfg-heartbeat" type="number" value="${d.heartbeatSeconds || 120}" min="30" max="600" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-500">วันที่เริ่มดึงข้อมูล</label>
-                        <input id="cfg-startdate" type="date" value="${escapeHtml(d.startFromDate || '')}" class="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal outline-none">
-                    </div>
-                    <div class="flex items-end pb-1">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input id="cfg-autostart" type="checkbox" ${d.autoStartup ? 'checked' : ''} class="w-4 h-4 text-brand-teal rounded border-slate-300 focus:ring-brand-teal">
-                            <span class="text-xs text-slate-600">เริ่มทำงานอัตโนมัติ</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-blue-50 rounded-xl p-3 text-[10px] text-blue-700 space-y-1">
-                <p><strong>Device ID:</strong> ${escapeHtml(d.deviceId || '-')}</p>
-                <p><strong>Agent Version:</strong> ${escapeHtml(d.agentVersion || '-')} | <strong>OS:</strong> ${escapeHtml(d.osInfo || '-')}</p>
-                <p><strong>Last Heartbeat:</strong> ${d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString('th-TH') : '-'}</p>
-                <p><strong>Records Pushed:</strong> ${(d.totalRecordsPushed || 0).toLocaleString()}</p>
-            </div>
-
-            <details class="bg-gray-50 rounded-xl p-3">
-                <summary class="text-[10px] font-bold text-gray-500 cursor-pointer">🔍 Raw Data จาก DB (Debug)</summary>
-                <pre class="mt-2 text-[9px] text-gray-600 overflow-x-auto max-h-32 overflow-y-auto bg-white p-2 rounded border">${escapeHtml(JSON.stringify(d, null, 2))}</pre>
-            </details>
-
-            <div class="flex gap-2 pt-2">
-                <button onclick="window.saveAgentConfig('${escapeHtml(d.deviceId)}')" class="flex-1 py-2.5 bg-brand-deep hover:bg-brand-teal text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-floppy-disk"></i> บันทึก config
-                </button>
-                <button onclick="document.getElementById('scan-device-modal-container').remove()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all">
-                    ยกเลิก
-                </button>
-            </div>
-        </div>
-    </div>`;
-                    document.body.insertAdjacentHTML('beforeend', html);
-                };
-
-                /**
-                 * บันทึก config ของเครื่องสแกนลง Supabase ผ่าน agentUpdateConfig
-                 */
-                window.saveAgentConfig = async function (deviceId) {
-                    const getVal = (id) => document.getElementById(id)?.value ?? '';
-                    const getNum = (id) => parseInt(getVal(id)) || 0;
-                    const getChk = (id) => document.getElementById(id)?.checked ?? false;
-
-                    const payload = {
-                        action: 'agentUpdateConfig',
-                        deviceId: deviceId,
-                        supabaseUrl: getVal('cfg-sb-url'),
-                        supabaseAnonKey: getVal('cfg-sb-key'),
-                        ipAddress: getVal('cfg-ip'),
-                        port: getNum('cfg-port'),
-                        deviceName: getVal('cfg-name'),
-                        branchCode: getVal('cfg-branch'),
-                        pollSeconds: getNum('cfg-poll'),
-                        heartbeatSeconds: getNum('cfg-heartbeat'),
-                        startFromDate: getVal('cfg-startdate'),
-                        autoStartup: getChk('cfg-autostart'),
-                        adminId: currentEmployeeId
-                    };
-
-                    if (!payload.ipAddress) {
-                        showToast('❌ กรุณาระบุ IP Address', 'error');
-                        return;
-                    }
-                    if (payload.port < 1 || payload.port > 65535) {
-                        showToast('❌ Port ไม่ถูกต้อง', 'error');
-                        return;
-                    }
-
-                    showToast('⏳ กำลังบันทึก config...', 'info');
-                    try {
-                        const res = await fetchWithTimeout(SERVER_API_URL, {
-                            method: 'POST',
-                            body: JSON.stringify(payload),
-                            timeout: 15000
-                        });
-                        if (res?.status === 'success') {
-                            showToast('✅ บันทึก config สำเร็จ (Agent จะดึงไปใช้ภายใน 5 นาที)', 'success');
-                            document.getElementById('scan-device-modal-container')?.remove();
-                            if (typeof window.loadScanDevices === 'function') window.loadScanDevices();
-                        } else {
-                            showToast('❌ บันทึกไม่สำเร็จ: ' + (res?.message || ''), 'error');
-                        }
-                    } catch (err) {
-                        showToast('❌ เกิดข้อผิดพลาด: ' + err.message, 'error');
-                    }
-                };
 
                 /**
                  * ดาวน์โหลด Agent (zip) — สร้าง zip แบบ in-browser
@@ -18882,14 +18379,14 @@ container.innerHTML = "";
                     updateTxtImportButtonsState();
                 }
 
+                
+
                 // ═══ ตารางเวลางาน 12 เดือน (Tabbed + Editable) ═══
                 const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
                 const THAI_MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
                 let yearlyMonthDataCache = {}; // { 'YYYY-MM': [records] }
                 let yearlySelectedMonth = null;
                 let approvedCorrectionSet = new Set(); // Set of 'EMPID|YYYY-MM-DD' for approved corrections
-                let yearlyCorrectionsMap = new Map(); // Map of 'EMPID|YYYY-MM-DD' -> correction object
-                let yearlyFilterCorrectionOnly = false;
 
                 function initYearSelector() {
                     const sel = document.getElementById('yearly-overview-year');
@@ -18929,34 +18426,29 @@ container.innerHTML = "";
                     const year = parseInt(document.getElementById('yearly-overview-year')?.value || new Date().getFullYear());
                     yearlyMonthDataCache = {};
                     yearlySelectedMonth = new Date().getMonth() + 1;
-                    ['yov-total-days','yov-present-days','yov-late-days','yov-absent-days','yov-leave-days','yov-ot-hours','yov-correction-days'].forEach(id => {
+                    ['yov-total-days','yov-present-days','yov-late-days','yov-absent-days','yov-leave-days','yov-ot-hours'].forEach(id => {
                         const el = document.getElementById(id); if (el) el.textContent = '-';
                     });
                     renderYearlyMonthTabs(year);
 
-                    // 🔍 โหลดรายการคำขอแก้ไขเวลาทั้งหมด (ทั้ง อนุมัติแล้ว และ รออนุมัติ) มาเตรียมไว้สำหรับ Cross-check
+                    // 🔍 โหลดรายการคำขอแก้ไขเวลาที่อนุมัติแล้วมาเตรียมไว้สำหรับ Cross-check
                     try {
                         if (supabaseClient) {
-                            const { data: corrData, error: corrErr } = await supabaseClient
+                            const { data: corrData } = await supabaseClient
                                 .from('time_corrections')
-                                .select('emp_id, date, status, new_time_in, new_time_out, reason, notes');
-                            if (!corrErr && Array.isArray(corrData)) {
+                                .select('emp_id, date, status')
+                                .in('status', ['อนุมัติแล้ว', 'Approved', 'อนุมัติ']);
+                            if (corrData && Array.isArray(corrData)) {
                                 approvedCorrectionSet.clear();
-                                yearlyCorrectionsMap.clear();
                                 corrData.forEach(c => {
                                     if (c.emp_id && c.date) {
-                                        const key = c.emp_id.toString().trim().toUpperCase() + '|' + c.date.toString().trim();
-                                        yearlyCorrectionsMap.set(key, c);
-                                        const rawStatus = (c.status || '').toString().trim();
-                                        if (rawStatus === 'อนุมัติแล้ว' || rawStatus === 'Approved' || rawStatus === 'อนุมัติ') {
-                                            approvedCorrectionSet.add(key);
-                                        }
+                                        approvedCorrectionSet.add(c.emp_id.toString().trim().toUpperCase() + '|' + c.date.toString().trim());
                                     }
                                 });
                             }
                         }
                     } catch (corrErr) {
-                        console.warn('[YearlyOverview] Failed to load corrections:', corrErr);
+                        console.warn('[YearlyOverview] Failed to load approved corrections:', corrErr);
                     }
 
                     // 1. ⚡ โหลดและแสดงข้อมูลของเดือนปัจจุบันทันทีอัตโนมัติ (Fast Initial Render)
@@ -19012,6 +18504,7 @@ container.innerHTML = "";
                         renderYearlyMonthTable(yearlyMonthDataCache[cacheKey], month, year);
                         return;
                     }
+
                     await loadYearlyMonthRecords(month, year);
                 }
 
@@ -19060,27 +18553,13 @@ container.innerHTML = "";
                     const tbody = document.getElementById('yearly-attendance-body');
                     if (!tbody) return;
 
-                    // อัปเดต summary
-                    let totalDays = 0, totalPresent = 0, totalLate = 0, totalAbsent = 0, totalLeave = 0, totalOT = 0, totalCorrection = 0;
+                    // อัปเดต summary 6 ช่องเดิม
+                    let totalDays = 0, totalPresent = 0, totalLate = 0, totalAbsent = 0, totalLeave = 0, totalOT = 0;
                     records.forEach(r => {
                         const status = (r['สถานะสรุป'] || r['status'] || '').toString().trim();
                         const timeIn = r['เวลาเข้า'] || r['time_in'] || '';
                         const lateMin = (parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0) || _calcLateFromTimeIn(r['เวลาเข้า'] || r.time_in || '');
                         const otHrs = parseFloat(r['ชั่วโมง OT'] || r['ot_hours'] || 0) || 0;
-                        const empId = (r.emp_id || r['รหัสพนักงาน'] || r.empId || '').toString().trim();
-                        const date = (r.date || r['วันที่'] || '').toString().trim();
-                        const matchKey = empId.toUpperCase() + '|' + date;
-                        const corr = yearlyCorrectionsMap.get(matchKey);
-                        const hasCorrection = (
-                            Boolean(corr) ||
-                            r.is_edited === true || r.is_edited === 'true' || r.is_edited === 1 || 
-                            r['แก้ไข'] === true || r['is_edited'] === true ||
-                            (approvedCorrectionSet && approvedCorrectionSet.has(matchKey)) ||
-                            String(r.source || '').includes('แก้ไข') ||
-                            String(r['ที่มา'] || '').includes('แก้ไข') ||
-                            String(r.source || '').includes('Time Correction')
-                        );
-                        if (hasCorrection) totalCorrection++;
 
                         totalDays++;
                         if (status === 'ย' || status === 'นข') return;
@@ -19094,10 +18573,9 @@ container.innerHTML = "";
                     document.getElementById('yov-absent-days').textContent = totalAbsent || '-';
                     document.getElementById('yov-leave-days').textContent = totalLeave || '-';
                     document.getElementById('yov-ot-hours').textContent = totalOT > 0 ? totalOT.toFixed(1) : '-';
-                    const corCountEl = document.getElementById('yov-correction-days');
-                    if (corCountEl) corCountEl.textContent = totalCorrection || '0';
-                    const filterCorCountEl = document.getElementById('yearly-correction-count');
-                    if (filterCorCountEl) filterCorCountEl.textContent = totalCorrection || '0';
+
+                    const countEl = document.getElementById('yearly-attendance-count');
+                    if (countEl) countEl.textContent = `${records.length} รายการ`;
 
                     if (!records || records.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลเวลางานเดือนนี้</td></tr>';
@@ -19109,73 +18587,29 @@ container.innerHTML = "";
                     records.forEach((r, idx) => {
                         const empId = (r.emp_id || r['รหัสพนักงาน'] || r.empId || '').toString().trim();
                         const date = (r.date || r['วันที่'] || '').toString().trim();
-                        const timeIn = (r.time_in || r['เวลาเข้า'] || r.timeIn || '').toString().trim();
-                        const timeOut = (r.time_out || r['เวลาออก'] || r.timeOut || '').toString().trim();
+                        let timeIn = (r.time_in || r['เวลาเข้า'] || r.timeIn || '').toString().trim();
+                        let timeOut = (r.time_out || r['เวลาออก'] || r.timeOut || '').toString().trim();
                         const status = (r.status || r['สถานะสรุป'] || r['สถานะ'] || '').toString().trim();
                         const late = (parseInt(r.late_minutes || r['นาทีสาย'] || r.lateMinutes || 0) || 0) || _calcLateFromTimeIn(timeIn);
                         const ot = (r.ot_hours != null ? r.ot_hours : (r['ชั่วโมง OT'] || r.otHours || 0));
                         const project = (r.project_in || r.project || r['โครงการเข้า'] || r['โครงการ'] || '').toString().trim();
-                        const matchKey = (empId.toUpperCase() + '|' + date);
-                        const corr = yearlyCorrectionsMap.get(matchKey);
 
-                        let corrStatus = null;
-                        if (corr) {
-                            const rawStatus = (corr.status || '').toString().trim();
-                            if (rawStatus === 'อนุมัติแล้ว' || rawStatus === 'Approved' || rawStatus === 'อนุมัติ') {
-                                corrStatus = 'approved';
-                            } else if (rawStatus === 'รออนุมัติ' || rawStatus === 'Pending' || rawStatus === 'รอการอนุมัติ') {
-                                corrStatus = 'pending';
-                            } else if (rawStatus === 'ปฏิเสธ' || rawStatus === 'Rejected') {
-                                corrStatus = 'rejected';
-                            } else {
-                                corrStatus = 'approved';
-                            }
-                        } else if (
+                        // ตรวจสอบว่ารายการนี้มีการขอแก้ไขเวลาหรือไม่
+                        const matchKey = (empId.toUpperCase() + '|' + date);
+                        const corr = (typeof yearlyCorrectionsMap !== 'undefined' && yearlyCorrectionsMap) ? yearlyCorrectionsMap.get(matchKey) : null;
+                        const isEdited = (
                             r.is_edited === true || r.is_edited === 'true' || r.is_edited === 1 || 
                             r['แก้ไข'] === true || r['is_edited'] === true ||
-                            (approvedCorrectionSet && approvedCorrectionSet.has(matchKey)) ||
-                            String(r.source || '').includes('แก้ไข') ||
-                            String(r['ที่มา'] || '').includes('แก้ไข') ||
-                            String(r.source || '').includes('Time Correction')
-                        ) {
-                            corrStatus = 'approved';
-                        }
+                            (typeof approvedCorrectionSet !== 'undefined' && approvedCorrectionSet && approvedCorrectionSet.has(matchKey)) ||
+                            String(r.source || '').includes('Time Correction') ||
+                            String(r.source || '').includes('แก้ไข')
+                        );
 
-                        let rowClass = "group hover:bg-slate-50/80 transition-colors";
                         let corrBadge = '';
-                        let requestedHint = '';
-
-                        if (corrStatus === 'approved') {
-                            // ⚡ ถ้าได้รับอนุมัติแก้ไขแล้ว ให้แสดงเวลาเข้า-เวลาออกตามที่ขอแก้ทันที
-                            if (corr) {
-                                if (corr.new_time_in) timeIn = corr.new_time_in.substring(0, 5);
-                                if (corr.new_time_out) timeOut = corr.new_time_out.substring(0, 5);
-                            }
-                            rowClass = "group bg-violet-50/50 hover:bg-violet-100/70 transition-colors border-l-4 border-l-violet-600 has-correction-row";
-                            const reqTimes = (corr && (corr.new_time_in || corr.new_time_out)) 
-                                ? ` · เวลาที่อนุมัติ: ${(corr.new_time_in || '-').substring(0,5)} - ${(corr.new_time_out || '-').substring(0,5)}` 
-                                : '';
-                            const reqReason = (corr && corr.reason) ? ` · เหตุผล: ${corr.reason}` : '';
-                            const tip = `รายการนี้ได้รับอนุมัติแก้ไขเวลาแล้ว${reqTimes}${reqReason}`;
-                            corrBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-violet-100 text-violet-800 border border-violet-300 shadow-sm cursor-help" title="${escapeHtml(tip)}"><i class="fa-solid fa-circle-check text-[9px] text-violet-600"></i> แก้ไขแล้ว</span>`;
-                            if (corr && (corr.new_time_in || corr.new_time_out)) {
-                                requestedHint = `<span class="text-[9px] text-violet-600 font-medium block" title="${escapeHtml(tip)}">เวลาที่อนุมัติ: ${(corr.new_time_in||'-').substring(0,5)}-${(corr.new_time_out||'-').substring(0,5)}</span>`;
-                            }
-                        } else if (corrStatus === 'pending') {
-                            rowClass = "group bg-amber-50/60 hover:bg-amber-100/80 transition-colors border-l-4 border-l-amber-500 has-correction-row";
-                            const reqTimes = (corr && (corr.new_time_in || corr.new_time_out)) 
-                                ? ` · ขอแก้เป็น: ${(corr.new_time_in || '-').substring(0,5)} - ${(corr.new_time_out || '-').substring(0,5)}` 
-                                : '';
-                            const reqReason = (corr && corr.reason) ? ` · เหตุผล: ${corr.reason}` : '';
-                            const tip = `มีคำขอแก้ไขเวลารออนุมัติ${reqTimes}${reqReason}`;
-                            corrBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-sm animate-pulse cursor-help" title="${escapeHtml(tip)}"><i class="fa-solid fa-clock text-[9px] text-amber-600"></i> รออนุมัติแก้</span>`;
-                            if (corr && (corr.new_time_in || corr.new_time_out)) {
-                                requestedHint = `<span class="text-[9px] text-amber-700 font-medium block" title="${escapeHtml(tip)}">ขอ: ${(corr.new_time_in||'-').substring(0,5)}-${(corr.new_time_out||'-').substring(0,5)}</span>`;
-                            }
-                        } else if (corrStatus === 'rejected') {
-                            rowClass = "group hover:bg-slate-50/80 transition-colors has-correction-row";
-                            const tip = `คำขอแก้ไขเวลาไม่ได้รับการอนุมัติ${corr && corr.notes ? ' (' + corr.notes + ')' : ''}`;
-                            corrBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 shadow-sm cursor-help" title="${escapeHtml(tip)}"><i class="fa-solid fa-circle-xmark text-[9px] text-rose-600"></i> ปฏิเสธแก้</span>`;
+                        if (corr && (corr.status === 'รออนุมัติ' || corr.status === 'Pending')) {
+                            corrBadge = `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title="มีคำขอแก้ไขเวลารออนุมัติ (ขอแก้: ${corr.new_time_in||'-'} - ${corr.new_time_out||'-'})"><i class="fa-solid fa-clock text-[9px]"></i> รอแก้</span>`;
+                        } else if (isEdited || (corr && (corr.status === 'อนุมัติแล้ว' || corr.status === 'Approved'))) {
+                            corrBadge = `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200" title="รายการนี้มีการแก้ไขเวลา"><i class="fa-solid fa-pen-to-square text-[9px]"></i> แก้ไข</span>`;
                         }
 
                         // Status badge color
@@ -19188,10 +18622,10 @@ container.innerHTML = "";
                         else if (status === 'ย' || status === 'นข') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">หยุด</span>';
                         else statusBadge = `<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">${escapeHtml(status)}</span>`;
 
-                        html += `<tr id="yearly-row-${idx}" class="${rowClass}">
+                        html += `<tr id="yearly-row-${idx}" class="group hover:bg-slate-50/80 transition-colors">
                             <td class="text-center font-bold text-brand-deep">${escapeHtml(empId || '-')}</td>
                             <td>
-                                <div class="flex items-center gap-1.5 whitespace-nowrap flex-wrap">
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
                                     <span class="font-medium text-slate-800">${escapeHtml(date)}</span>
                                     ${corrBadge}
                                 </div>
@@ -19200,7 +18634,6 @@ container.innerHTML = "";
                                 <input type="text" value="${escapeHtml(timeIn)}" 
                                     class="yearly-edit-field w-20 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
                                     data-field="timeIn" data-idx="${idx}" placeholder="HH:MM">
-                                ${requestedHint}
                             </td>
                             <td class="text-center">
                                 <input type="text" value="${escapeHtml(timeOut)}"
@@ -19245,14 +18678,6 @@ container.innerHTML = "";
                         </tr>`;
                     });
                     tbody.innerHTML = html;
-
-                    // ปรับสถานะตัวกรอง (ถ้าก่อนหน้านี้เปิดโหมดดูเฉพาะรายการขอแก้)
-                    if (yearlyFilterCorrectionOnly) {
-                        applyYearlyCorrectionFilterVisual(true);
-                    } else {
-                        const countEl = document.getElementById('yearly-attendance-count');
-                        if (countEl) countEl.textContent = `${records.length} รายการ`;
-                    }
                 }
 
                 function toggleYearlyCorrectionFilter() {
@@ -19342,44 +18767,6 @@ container.innerHTML = "";
                             })
                         });
 
-                        // ⚡ Direct Supabase Sync: บันทึกตรงเข้า time_records ทันที
-                        if (supabaseClient) {
-                            try {
-                                const tIn = updates.timeIn ? (updates.timeIn.length === 5 ? updates.timeIn + ':00' : updates.timeIn) : null;
-                                const tOut = updates.timeOut ? (updates.timeOut.length === 5 ? updates.timeOut + ':00' : updates.timeOut) : null;
-                                const updatePayload = {
-                                    emp_id: empId,
-                                    date: date,
-                                    time_in: tIn,
-                                    time_out: tOut,
-                                    status: updates.status || 'ปกติ',
-                                    late_minutes: parseInt(updates.late) || 0,
-                                    ot_hours: parseFloat(updates.ot) || 0,
-                                    is_edited: true,
-                                    source: 'แก้ไขโดย Admin',
-                                    updated_at: new Date().toISOString()
-                                };
-                                const { data: exRec } = await supabaseClient.from('time_records').select('id').eq('emp_id', empId).eq('date', date).limit(1);
-                                if (exRec && exRec.length > 0) {
-                                    await supabaseClient.from('time_records').update(updatePayload).eq('id', exRec[0].id);
-                                } else {
-                                    updatePayload.status_key = 'W';
-                                    await supabaseClient.from('time_records').insert(updatePayload);
-                                }
-                                if (typeof yearlyCorrectionsMap !== 'undefined' && yearlyCorrectionsMap) {
-                                    yearlyCorrectionsMap.set((empId.toUpperCase() + '|' + date), {
-                                        emp_id: empId,
-                                        date: date,
-                                        new_time_in: tIn,
-                                        new_time_out: tOut,
-                                        status: 'อนุมัติแล้ว'
-                                    });
-                                }
-                            } catch (sbErr) {
-                                console.warn('[saveYearlyRecord] Supabase direct update error:', sbErr);
-                            }
-                        }
-
                         if (submitRes && submitRes.status === 'success') {
                             // Auto-approve
                             const approveRes = await fetchWithTimeout(SERVER_API_URL, {
@@ -19397,10 +18784,10 @@ container.innerHTML = "";
                             if (approveRes && approveRes.status === 'success') {
                                 showToast(`บันทึกข้อมูล ${empId} วันที่ ${date} สำเร็จ`, 'success');
                             } else {
-                                showToast(`บันทึกข้อมูลลงฐานข้อมูลเรียบร้อย`, 'success');
+                                showToast(`บันทึกคำขอแก้ไขสำเร็จ แต่การอนุมัติล้มเหลว`, 'warning');
                             }
                         } else {
-                            showToast(`บันทึกข้อมูลลงฐานข้อมูลเรียบร้อย`, 'success');
+                            showToast(submitRes?.message || 'เกิดข้อผิดพลาดในการบันทึก', 'error');
                         }
 
                         // แสดงปุ่มสำเร็จชั่วคราว
