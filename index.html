@@ -2100,13 +2100,18 @@
                         </button>
                     </div>
 
-                    <!-- Phase 3: Face Enrollment Chip (Auto-Capture) -->
-                    <div class="absolute top-[52px] left-0 right-0 z-10 flex justify-center pointer-events-none">
+                    <!-- Phase 3+5: Face Enrollment Chip + Manager-Scan Chip (Auto-Capture) -->
+                    <div class="absolute top-[52px] left-0 right-0 z-10 flex justify-center pointer-events-none" style="gap:8px;">
                         <button id="face-enroll-chip" type="button" onclick="openFaceEnrollmentModal()" title="ลงทะเบียนใบหน้าสำหรับระบบสแกนลงเวลา"
                             style="pointer-events:auto;font-size:10px;color:rgba(255,255,255,0.92);background:rgba(15,23,42,0.55);border:1px solid rgba(255,255,255,0.18);padding:4px 12px;border-radius:20px;backdrop-filter:blur(4px);cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
                             <i class="fa-solid fa-id-card" style="color:#93c5fd;"></i>
                             <span>ตั้งค่าระบบสแกนใบหน้า</span>
                             <span id="face-enroll-chip-status" style="font-weight:700;"></span>
+                        </button>
+                        <button id="face-manager-chip" type="button" onclick="openFaceManagerModal()" title="หัวหน้าสแกนใบหน้าให้ลูกน้อง (1:N)"
+                            style="pointer-events:auto;font-size:10px;color:rgba(255,255,255,0.92);background:rgba(15,23,42,0.55);border:1px solid rgba(255,255,255,0.18);padding:4px 12px;border-radius:20px;backdrop-filter:blur(4px);cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+                            <i class="fa-solid fa-users" style="color:#fcd34d;"></i>
+                            <span>ลงเวลาให้ทีม</span>
                         </button>
                     </div>
 
@@ -2161,7 +2166,7 @@
             <!-- ============================================== -->
             <!-- Phase 3: Modal ลงทะเบียนใบหน้า (Auto-Capture) -->
             <!-- ============================================== -->
-            <div id="face-enroll-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(15,23,42,0.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
+            <div id="face-enroll-modal" style="display:none;position:fixed;inset:0;z-index:230;background:rgba(15,23,42,0.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
                 <div class="w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
                     <!-- Header -->
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:white;">
@@ -2261,6 +2266,98 @@
                         <button type="button" onclick="closeFaceScanModal()"
                             style="flex:1;background:#e2e8f0;color:#334155;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
                         <button id="face-scan-retry-btn" type="button" onclick="restartFaceScanAttempt()" style="display:none;flex:1;background:#fef3c7;color:#92400e;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">ลองใหม่อีกครั้ง</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- Phase 5: Modal ลงเวลาให้ทีม (Manager-Scan 1:N + Fallback A/B) -->
+            <!-- ============================================== -->
+            <div id="face-manager-modal" style="display:none;position:fixed;inset:0;z-index:220;background:rgba(15,23,42,0.86);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
+                <div class="w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
+                    <!-- Header -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#713f12,#422006);color:white;">
+                        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                            <i class="fa-solid fa-users" style="color:#fcd34d;font-size:16px;"></i>
+                            <div style="min-width:0;">
+                                <p style="font-size:13px;font-weight:800;">ลงเวลาให้ทีม (สแกนให้ลูกน้อง)</p>
+                                <p id="face-manager-title-sub" style="font-size:9px;color:rgba(255,255,255,0.6);">กำลังเตรียม…</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="closeFaceManagerModal()" style="background:rgba(255,255,255,0.12);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px;flex-shrink:0;"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <!-- View: สแกนหน้า (ค่าเริ่มต้น) -->
+                    <div id="face-manager-view-scan" style="display:flex;flex-direction:column;min-height:0;flex:1;">
+                        <div style="position:relative;aspect-ratio:4/4;background:#020617;flex-shrink:0;border-bottom:1px solid #e2e8f0;">
+                            <video id="face-manager-video" autoplay muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+                            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+                                <div id="face-manager-scan-ring" style="width:70%;aspect-ratio:1/1;border:2px dashed rgba(252,211,77,0.75);border-radius:50%;box-shadow:0 0 0 9999px rgba(2,6,23,0.25);"></div>
+                            </div>
+                            <div id="face-manager-scanning-label" style="position:absolute;top:8px;left:0;right:0;text-align:center;font-size:10px;color:#fcd34d;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,0.7);">ให้ลูกน้องมองตรงกล้อง…</div>
+                        </div>
+
+                        <!-- ผลการจับคู่ -->
+                        <div id="face-manager-result" style="display:none;padding:12px 16px;background:#fffbeb;border-bottom:1px solid #fde68a;">
+                            <p style="font-size:9px;font-weight:800;color:#b45309;letter-spacing:0.5px;">👤 พบพนักงานตรงกับใบหน้า</p>
+                            <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+                                <div style="width:40px;height:40px;border-radius:50%;background:#fde68a;display:flex;align-items:center;justify-content:center;color:#92400e;font-weight:900;font-size:15px;flex-shrink:0;"><span id="face-manager-avatar"></span></div>
+                                <div style="min-width:0;flex:1;">
+                                    <p style="font-size:13px;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span id="face-manager-match-name"></span></p>
+                                    <p style="font-size:10px;color:#92400e;font-weight:600;"><span id="face-manager-match-pos"></span> · คะแนน <span id="face-manager-match-score"></span></p>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:8px;margin-top:10px;">
+                                <button id="face-manager-confirm-btn" type="button" onclick="managerConfirmPunch()" style="flex:2;background:linear-gradient(135deg,#059669,#047857);color:white;border:none;border-radius:12px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">✅ ยืนยันและบันทึกเวลา</button>
+                                <button type="button" onclick="managerDiscardMatch()" style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:12px;padding:9px;font-size:11px;font-weight:700;cursor:pointer;">↻ สแกนใหม่</button>
+                            </div>
+                        </div>
+
+                        <div style="padding:10px 16px;flex:1;overflow-y:auto;display:flex;flex-direction:column;">
+                            <p id="face-manager-status" style="font-size:11px;font-weight:700;color:#0f172a;">กำลังเตรียม…</p>
+                            <div id="face-manager-fallback" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+                                <p style="font-size:9px;font-weight:800;color:#94a3b8;letter-spacing:0.5px;">ไม่พบใบหน้าในระบบ? ใช้วิธีสำรอง</p>
+                                <button type="button" onclick="managerOpenPickList('A')" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:10px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;text-align:left;">🔎 เลือกจากรายชื่อพนักงาน (วิธี A)</button>
+                                <button type="button" onclick="managerOpenPickList('B')" style="background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc;border-radius:10px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;text-align:left;">🪪 พนักงานใหม่/ยังไม่ลงทะเบียน — ลงทะเบียนใบหน้าให้ + ลงเวลา (วิธี B)</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- View: เลือกจากรายชื่อ -->
+                    <div id="face-manager-view-pick" style="display:none;flex-direction:column;min-height:0;flex:1;">
+                        <div style="padding:10px 16px;border-bottom:1px solid #e2e8f0;">
+                            <p id="face-manager-pick-title" style="font-size:11px;font-weight:800;color:#334155;margin-bottom:6px;">เลือกพนักงาน</p>
+                            <input id="face-manager-search" type="text" placeholder="ค้นหา ชื่อ / รหัสพนักงาน…" oninput="managerRenderPickList()" style="width:100%;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;font-size:12px;">
+                        </div>
+                        <div id="face-manager-list" style="flex:1;overflow-y:auto;padding:8px 12px;"></div>
+                        <div style="padding:8px 16px;border-top:1px solid #e2e8f0;display:flex;gap:8px;">
+                            <button type="button" onclick="managerBackToScan()" style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:10px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;">← กลับไปสแกน</button>
+                        </div>
+                    </div>
+
+                    <!-- View: ยืนยัน (วิธี A ตามรายชื่อ) -->
+                    <div id="face-manager-view-confirm" style="display:none;flex-direction:column;min-height:0;flex:1;">
+                        <div style="padding:14px 16px;flex:1;overflow-y:auto;">
+                            <p style="font-size:9px;font-weight:800;color:#64748b;letter-spacing:0.5px;">👤 พนักงานที่เลือก</p>
+                            <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+                                <div style="width:44px;height:44px;border-radius:50%;background:#e0f2fe;display:flex;align-items:center;justify-content:center;color:#0369a1;font-weight:900;font-size:17px;flex-shrink:0;"><span id="face-manager-confirm-avatar"></span></div>
+                                <div style="min-width:0;">
+                                    <p id="face-manager-confirm-name" style="font-size:14px;font-weight:800;color:#0f172a;"></p>
+                                    <p id="face-manager-confirm-pos" style="font-size:10px;color:#64748b;font-weight:600;"></p>
+                                </div>
+                            </div>
+                            <div id="face-manager-confirm-note" style="margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:8px 10px;font-size:10px;color:#1d4ed8;"></div>
+                            <div style="display:flex;flex-direction:column;gap:7px;margin-top:12px;">
+                                <button id="face-manager-btn-manual" type="button" onclick="managerPickConfirmManual()" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:white;border:none;border-radius:12px;padding:11px;font-size:12px;font-weight:800;cursor:pointer;">✅ ยืนยันลงเวลา (โดยหัวหน้า)</button>
+                                <button id="face-manager-btn-register" type="button" style="display:none;background:linear-gradient(135deg,#0891b2,#0e7490);color:white;border:none;border-radius:12px;padding:11px;font-size:12px;font-weight:800;cursor:pointer;">🪪 ลงทะเบียนใบหน้าให้ + ลงเวลา</button>
+                                <button type="button" onclick="managerBackToPick()" style="background:#f1f5f9;color:#475569;border:none;border-radius:10px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;">← เปลี่ยนคน</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="display:flex;padding:10px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
+                        <button type="button" onclick="closeFaceManagerModal()" style="flex:1;background:#e2e8f0;color:#334155;border:none;border-radius:12px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">ปิด (เสร็จแล้ว)</button>
                     </div>
                 </div>
             </div>
@@ -26385,6 +26482,9 @@ ${slip.textSample}
 const FACE_API_LIB_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
 const FACE_API_MODELS_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
 
+// ตัวเลือกเมื่อหัวหน้าลงทะเบียนใบหน้าให้พนักงานคนอื่น (Fallback B เฟส 5)
+let faceEnrollCtx = null; // { empId, name, onSuccess }
+
 const faceEnrollState = {
     libPromise: null,
     modelsReady: false,
@@ -26557,18 +26657,22 @@ function setEnrollBorder(found) {
 }
 
 // ─── เปิด/ปิด Modal ─────────────────────────────────────────────────────────
-async function openFaceEnrollmentModal() {
+async function openFaceEnrollmentModal(ctx) {
     const modal = enrollEl('face-enroll-modal');
     const startBtn = enrollEl('face-enroll-start-btn');
     if (!modal) return;
     if (modal.style.display === 'flex') return; // เปิดอยู่แล้ว
-    if (!currentEmployeeId) { showToast('⚠️ กรุณาเข้าสู่ระบบก่อนลงทะเบียนใบหน้า', 'warning'); return; }
+    // ctx = { empId, name, onSuccess } — ใช้เมื่อหัวหน้าลงทะเบียนให้ลูกน้อง (Fallback B)
+    const effEmp = (ctx && ctx.empId) ? String(ctx.empId) : (currentEmployeeId || '');
+    if (!effEmp) { showToast('⚠️ กรุณาเข้าสู่ระบบก่อนลงทะเบียนใบหน้า', 'warning'); return; }
+    faceEnrollCtx = (ctx && ctx.empId) ? ctx : null;
 
     modal.style.display = 'flex';
     const nameEl = enrollEl('face-enroll-emp-name');
     if (nameEl) {
-        const nm = (typeof employeeData !== 'undefined' && employeeData) ? (employeeData['ชื่อ-นามสกุล'] || employeeData.name || '') : '';
-        nameEl.textContent = (nm ? nm + ' (' : '') + currentEmployeeId + (nm ? ')' : '');
+        const selfName = (typeof employeeData !== 'undefined' && employeeData) ? (employeeData['ชื่อ-นามสกุล'] || employeeData.name || '') : '';
+        const nm = (faceEnrollCtx && faceEnrollCtx.name) ? faceEnrollCtx.name : selfName;
+        nameEl.textContent = (nm ? nm + ' (' : '') + effEmp + (nm ? ')' : '');
     }
     setEnrollStatus('กำลังเตรียมระบบจดจำใบหน้า…', '#2563eb');
     if (startBtn) startBtn.disabled = true;
@@ -26628,7 +26732,22 @@ function closeFaceEnrollmentModal() {
     const modal = enrollEl('face-enroll-modal');
     if (modal) modal.style.display = 'none';
     setEnrollBorder(false);
+    if (faceEnrollCtx) {
+        // reset ปุ่ม/ข้อความให้พร้อมใช้ลงทะเบียนตัวเองครั้งต่อไป
+        const closeBtn = enrollEl('face-enroll-close-btn');
+        if (closeBtn) closeBtn.textContent = 'ปิด';
+        const startBtn = enrollEl('face-enroll-start-btn');
+        if (startBtn) { startBtn.disabled = false; startBtn.style.opacity = ''; }
+        faceEnrollCtx = null;
+    }
     refreshFaceEnrollStatus();
+    // Fallback B (เฟส 5): ถ้าหัวหน้ายกเลิก modal ลงทะเบียนกลางคัน → กลับไปสแกนต่อ
+    try {
+        if (typeof mgrState !== 'undefined' && mgrState.busy && mgrState.view === 'scan'
+            && mgrEl('face-manager-modal') && mgrEl('face-manager-modal').style.display === 'flex') {
+            mgrStartScanning();
+        }
+    } catch (e) { /* ignore */ }
 }
 
 // ─── เริ่ม/หยุด Auto-Capture ────────────────────────────────────────────────
@@ -26751,14 +26870,16 @@ function finishFaceEnrollmentCapture() {
 async function saveFaceEnrollment(payload, itemCount) {
     const startBtn = enrollEl('face-enroll-start-btn');
     try {
-        const nm = (typeof employeeData !== 'undefined' && employeeData) ? (employeeData['ชื่อ-นามสกุล'] || employeeData.name || '') : '';
+        const effEmp = (faceEnrollCtx && faceEnrollCtx.empId) ? String(faceEnrollCtx.empId) : (currentEmployeeId || '');
+        const selfName = (typeof employeeData !== 'undefined' && employeeData) ? (employeeData['ชื่อ-นามสกุล'] || employeeData.name || '') : '';
+        const nm = (faceEnrollCtx && faceEnrollCtx.name) ? faceEnrollCtx.name : selfName;
         const res = await fetchWithTimeout(SERVER_API_URL, {
             method: 'POST',
             body: JSON.stringify({
                 action: 'saveFaceDescriptor',
-                empId: currentEmployeeId,
+                empId: effEmp,
                 descriptors: payload,
-                updatedBy: nm || currentEmployeeId
+                updatedBy: nm || effEmp
             })
         });
         if (res && res.status === 'success') {
@@ -26767,6 +26888,12 @@ async function saveFaceEnrollment(payload, itemCount) {
             if (startBtn) startBtn.disabled = true;
             const closeBtn = enrollEl('face-enroll-close-btn');
             if (closeBtn) closeBtn.textContent = 'เสร็จสิ้น ✓';
+            if (faceEnrollCtx && typeof faceEnrollCtx.onSuccess === 'function') {
+                // Fallback B: หลังเซฟสำเร็จ ให้หัวหน้าดำเนินการต่อ (ปิด modal + ลงเวลาให้)
+                const cb = faceEnrollCtx.onSuccess;
+                setTimeout(() => { try { cb(); } catch (e) { console.error('[FaceEnroll] onSuccess err', e); } }, 350);
+                return;
+            }
             refreshFaceEnrollStatus();
         } else {
             const msg = (res && res.message) ? res.message : 'ไม่ทราบสาเหตุ';
@@ -27154,6 +27281,489 @@ async function getOwnFaceDescriptors() {
         .eq('emp_id', currentEmployeeId)
         .maybeSingle();
     return (data && data.face_descriptors) ? parseFaceDescriptors(data.face_descriptors) : [];
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 5: Manager-Scan 1:N — ลงเวลาให้ทีม (หัวหน้าสแกนใบหน้าให้ลูกน้อง)
+// ═══════════════════════════════════════════════════════════════════════════
+// - ไม่มีระบบทีม: โหลด Face Vector ของพนักงานที่ลงทะเบียนทั้งหมด (Local Scope) → ค้น 1:N
+// - เจอคนที่คะแนนสูงสุดผ่านเกณฑ์ → ขึ้น Pop-up ให้หัวหน้ายืนยันก่อนบันทึกเสมอ
+// - บันทึก: emp_id=ลูกน้อง, created_by=หัวหน้า, scan_mode = manager_face | manager_manual
+// - Fallback A: เลือกจากรายชื่อ (manual)  ·  Fallback B: ลงทะเบียนใบหน้าให้ ณ จุดนั้น + ลงเวลา
+// - GPS: ยึดตำแหน่งหัวหน้า (Manager-Centric วิธีที่ 2) → geofence_result = manager_trust
+// ═══════════════════════════════════════════════════════════════════════════
+
+const mgrState = {
+    busy: false,
+    submitting: false,
+    view: 'scan',
+    stream: null,
+    streamOwned: false,
+    timerId: null,
+    scanningActive: false,
+    lastScanAt: 0,
+    stableEmpId: null,
+    stableCount: 0,
+    candidate: null,          // { empId, name, pos, score }
+    matchType: null,          // 'IN' | 'OUT' | null (null = ลงเวลาครบแล้ว)
+    pendingMode: 'A',         // 'A' เลือกชื่อ | 'B' ลงทะเบียนให้
+    pendingEmp: null,         // พนักงานที่เลือกจากรายชื่อ
+    enrolledMap: {},          // empId -> { descs: [ [128...] ], name, pos }
+    empList: [],              // พนักงานทั้งหมด (สำหรับ Fallback A/B)
+    todayCache: {},           // empId -> { hasIn, hasOut }
+    gps: null,
+    gpsPromise: null
+};
+
+// ─── เปิด modal ──────────────────────────────────────────────────────────────
+function mgrEl(id) { return document.getElementById(id); }
+
+function mgrStatus(msg, color) {
+    const el = mgrEl('face-manager-status');
+    if (el) { el.textContent = msg; el.style.color = color || '#0f172a'; }
+}
+
+function mgrView(name) {
+    mgrState.view = name;
+    mgrEl('face-manager-view-scan').style.display = name === 'scan' ? 'flex' : 'none';
+    mgrEl('face-manager-view-pick').style.display = name === 'pick' ? 'flex' : 'none';
+    mgrEl('face-manager-view-confirm').style.display = name === 'confirm' ? 'flex' : 'none';
+}
+
+async function openFaceManagerModal() {
+    if (mgrState.busy) return;
+    if (!currentEmployeeId) { showToast('⚠️ กรุณาเข้าสู่ระบบก่อน', 'warning'); return; }
+    const modal = mgrEl('face-manager-modal');
+    if (!modal) return;
+    mgrState.busy = true;
+    mgrState.submitting = false;
+    mgrState.candidate = null;
+    mgrState.pendingEmp = null;
+    mgrState.gps = null;
+    mgrState.gpsPromise = null;
+    mgrEl('face-manager-result').style.display = 'none';
+    mgrEl('face-manager-title-sub').textContent = 'โดย: ' + currentEmployeeId;
+    modal.style.display = 'flex';
+    mgrView('scan');
+    mgrStatus('กำลังเตรียมระบบจดจำใบหน้า…', '#2563eb');
+
+    try {
+        await ensureFaceModels();
+        mgrStatus('กำลังโหลดข้อมูลพนักงาน…');
+        await mgrLoadEmployees();
+        mgrStatus('กำลังเปิดกล้องหน้า…');
+        await mgrStartCamera();
+        mgrState.gpsPromise = fetchFaceScanGps().then((p) => { mgrState.gps = p; return p; }).catch(() => null);
+        mgrStatus('ให้ลูกน้องมองตรงกล้อง… ระบบจะจับคู่ใบหน้าอัตโนมัติ', '#059669');
+        mgrStartScanning();
+    } catch (err) {
+        console.error('[ManagerScan] init error:', err);
+        mgrStatus('❌ เริ่มต้นไม่สำเร็จ: ' + (err && err.message ? err.message : err), '#dc2626');
+        mgrState.busy = false;
+    }
+}
+
+async function mgrStartCamera() {
+    const video = mgrEl('face-manager-video');
+    if (!video) throw new Error('ไม่พบกล้อง');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('เบราว์เซอร์ไม่รองรับกล้อง');
+    if (typeof streamRef !== 'undefined' && streamRef && streamRef.active
+        && typeof cameraMode !== 'undefined' && cameraMode === 'user') {
+        mgrState.stream = streamRef;
+        mgrState.streamOwned = false;
+    } else {
+        mgrState.stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        });
+        mgrState.streamOwned = true;
+    }
+    video.srcObject = mgrState.stream;
+    await video.play().catch(() => {});
+}
+
+async function mgrLoadEmployees() {
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) throw new Error('ยังไม่ได้ตั้งค่า Supabase');
+    const [empRes, faceRes] = await Promise.all([
+        supabaseClient.from('employees').select('emp_id, name, position, status'),
+        supabaseClient.from('face_database').select('emp_id, face_descriptors')
+    ]);
+    const empList = Array.isArray(empRes.data) ? empRes.data : [];
+    const faceRows = Array.isArray(faceRes.data) ? faceRes.data : [];
+    mgrState.enrolledMap = {};
+    const empMeta = {};
+    empList.forEach((e) => {
+        empMeta[e.emp_id] = { name: e.name || '', pos: e.position || '', status: e.status || '' };
+    });
+    faceRows.forEach((r) => {
+        const descs = parseFaceDescriptors(r.face_descriptors);
+        if (descs && descs.length) {
+            const meta = empMeta[r.emp_id] || { name: '', pos: '', status: '' };
+            mgrState.enrolledMap[r.emp_id] = { descs: descs, name: meta.name, pos: meta.pos };
+        }
+    });
+    mgrState.empList = empList.filter((e) => {
+        const st = (e.status || '').trim();
+        return st.indexOf('ลาออก') === -1 && st.indexOf('ออกจาก') === -1;
+    }).map((e) => ({
+        empId: e.emp_id,
+        name: e.name || '',
+        pos: e.position || '',
+        status: e.status || '',
+        enrolled: !!mgrState.enrolledMap[e.emp_id]
+    })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'th'));
+}
+
+// ─── สแกน 1:N ───────────────────────────────────────────────────────────────
+function mgrStartScanning() {
+    if (!mgrState.busy) return;
+    if (mgrState.timerId) { clearTimeout(mgrState.timerId); mgrState.timerId = null; }
+    mgrState.scanningActive = true;
+    mgrState.stableEmpId = null;
+    mgrState.stableCount = 0;
+    mgrEl('face-manager-result').style.display = 'none';
+    scheduleMgrScan();
+}
+
+function mgrPauseScanning() {
+    mgrState.scanningActive = false;
+    if (mgrState.timerId) { clearTimeout(mgrState.timerId); mgrState.timerId = null; }
+}
+
+function scheduleMgrScan() {
+    if (!mgrState.busy || !mgrState.scanningActive) return;
+    mgrState.timerId = setTimeout(mgrScanTick, 200);
+}
+
+async function mgrScanTick() {
+    mgrState.timerId = null;
+    if (!mgrState.busy || !mgrState.scanningActive) return;
+    const video = mgrEl('face-manager-video');
+    if (!video || video.readyState < 2 || !window.faceapi) { scheduleMgrScan(); return; }
+    const now = performance.now();
+    if (now - mgrState.lastScanAt < 180) { scheduleMgrScan(); return; }
+    mgrState.lastScanAt = now;
+
+    let det = null;
+    try {
+        det = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+    } catch (e) { /* skip */ }
+    if (!mgrState.busy || !mgrState.scanningActive) return;
+    if (!det) {
+        if (mgrEl('face-manager-result').style.display !== 'none') { /* มีผลค้าง */ }
+        mgrStatus('ให้ลูกน้องมองตรงกล้อง…', '#059669');
+        scheduleMgrScan();
+        return;
+    }
+    const ear = faceScanAvgEar(det);
+    const sharp = computeFaceSharpness(video, det.detection.box);
+    if (ear < FACE_SCAN_EAR_OPEN || sharp < 300) {
+        mgrStatus(ear < FACE_SCAN_EAR_OPEN ? 'ให้ลูกน้องลืมตามองกล้อง…' : 'ภาพเบลอ — ให้อยู่นิ่ง ๆ และแสงพอ', '#d97706');
+        mgrState.stableCount = 0;
+        scheduleMgrScan();
+        return;
+    }
+
+    // ค้น 1:N ทั่วฐาน (best per employee → global best)
+    const desc = Array.from(det.descriptor);
+    let bestEmpId = null, bestDist = Infinity, secondDist = Infinity;
+    for (const empId in mgrState.enrolledMap) {
+        const rec = mgrState.enrolledMap[empId];
+        let empBest = Infinity;
+        for (const ed of rec.descs) {
+            const d = euclideanDistance128(ed, desc);
+            if (d < empBest) empBest = d;
+        }
+        if (empBest < bestDist) { secondDist = bestDist; bestDist = empBest; bestEmpId = empId; }
+        else if (empBest < secondDist) { secondDist = empBest; }
+    }
+    if (!bestEmpId || bestDist > FACE_SCAN_MATCH_MAX_DIST) {
+        mgrState.stableCount = 0;
+        mgrStatus('ยังไม่พบใบหน้าที่ตรงกับระบบ — ถ้าเป็นพนักงานใหม่ใช้วิธีสำรองด้านล่าง', '#d97706');
+        scheduleMgrScan();
+        return;
+    }
+    if (bestEmpId === mgrState.stableEmpId) mgrState.stableCount++;
+    else { mgrState.stableEmpId = bestEmpId; mgrState.stableCount = 1; }
+
+    if (mgrState.stableCount >= 3) {
+        // กันกรณีหน้าคล้ายกัน 2 คน (ระยะห่างอันดับสองต้องห่างพอ)
+        if (secondDist - bestDist < 0.08) {
+            mgrStatus('พบหลายคนใกล้เคียงกัน — ให้สแกนชัด ๆ หรือเลือกจากรายชื่อด้านล่าง', '#d97706');
+            scheduleMgrScan();
+            return;
+        }
+        mgrPauseScanning();
+        const rec = mgrState.enrolledMap[bestEmpId];
+        const score = Math.round(Math.max(0, 1 - bestDist) * 1000) / 1000;
+        mgrState.candidate = { empId: bestEmpId, name: rec.name || bestEmpId, pos: rec.pos || '', score: score };
+        await mgrShowMatchCard();
+        return;
+    }
+    scheduleMgrScan();
+}
+
+async function mgrShowMatchCard() {
+    const c = mgrState.candidate;
+    if (!c) return;
+    mgrState.matchType = await mgrResolvePunchType(c.empId);
+    mgrEl('face-manager-avatar').textContent = (c.name || '?').trim().charAt(0).toUpperCase();
+    mgrEl('face-manager-match-name').textContent = c.name;
+    mgrEl('face-manager-match-pos').textContent = c.pos || '—';
+    mgrEl('face-manager-match-score').textContent = c.score.toFixed(3);
+    const btn = mgrEl('face-manager-confirm-btn');
+    if (mgrState.matchType === 'IN') btn.innerHTML = '✅ ยืนยัน • ลงเวลาเข้า';
+    else if (mgrState.matchType === 'OUT') btn.innerHTML = '✅ ยืนยัน • ลงเวลาออก';
+    else btn.innerHTML = '⚠️ ลงเวลาครบแล้ววันนี้';
+    mgrEl('face-manager-result').style.display = 'block';
+    mgrStatus('พบพนักงานแล้ว — กรุณาตรวจสอบชื่อแล้วกดยืนยัน', '#92400e');
+}
+
+function mgrDiscardMatch() {
+    mgrState.candidate = null;
+    mgrState.matchType = null;
+    mgrEl('face-manager-result').style.display = 'none';
+    mgrStatus('สแกนใหม่… ให้ลูกน้องมองตรงกล้อง', '#059669');
+    mgrStartScanning();
+}
+
+// ชื่อเรียกจาก onclick ใน markup
+function managerDiscardMatch() { mgrDiscardMatch(); }
+
+async function managerConfirmPunch() {
+    if (!mgrState.candidate) return;
+    if (mgrState.matchType === null) { showToast('⚠️ พนักงานนี้ลงเวลาครบแล้ววันนี้', 'warning'); mgrDiscardMatch(); return; }
+    const c = mgrState.candidate;
+    mgrState.candidate = null;
+    await mgrSubmitPunch(c.empId, 'manager_face', c.score);
+}
+
+// ─── ยืนยันวันนี้ของพนักงาน (IN/OUT) ────────────────────────────────────────
+async function mgrResolvePunchType(empId) {
+    try {
+        if (mgrState.todayCache[empId]) {
+            const t = mgrState.todayCache[empId];
+            return (!t.hasIn) ? 'IN' : (!t.hasOut ? 'OUT' : null);
+        }
+        const dateStr = new Date().toISOString().split('T')[0];
+        const { data } = await supabaseClient.from('time_records')
+            .select('time_in, time_out').eq('emp_id', empId).eq('date', dateStr).maybeSingle();
+        const hasIn = !!(data && data.time_in);
+        const hasOut = !!(data && data.time_out);
+        mgrState.todayCache[empId] = { hasIn: hasIn, hasOut: hasOut };
+        return (!hasIn) ? 'IN' : (!hasOut ? 'OUT' : null);
+    } catch (e) {
+        return 'IN';
+    }
+}
+
+// ─── บันทึกเวลาให้ลูกน้อง (manager_face / manager_manual) ────────────────────
+async function mgrSubmitPunch(empId, mode, score) {
+    if (mgrState.submitting) return;
+    mgrState.submitting = true;
+    const emp = mgrState.empList.find((e) => e.empId === empId) || { empId: empId, name: empId, pos: '' };
+    const type = await mgrResolvePunchType(empId);
+    if (!type) {
+        showToast('⚠️ ' + emp.name + ' ลงเวลาครบแล้ววันนี้', 'warning');
+        mgrState.submitting = false;
+        mgrDiscardMatch();
+        return;
+    }
+    if (mgrState.gpsPromise) { try { await mgrState.gpsPromise; } catch (e) { /* ignore */ } }
+    const pos = mgrState.gps;
+    const geoOk = !!(pos && pos.lat != null && pos.lng != null);
+    const timeStr = (mgrEl('live-time') && mgrEl('live-time').textContent) || new Date().toTimeString().slice(0, 8);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const projectEl = mgrEl('attendance-project-select');
+    const payload = {
+        action: 'registerAttendance',
+        empId: empId,
+        type: type,
+        time: timeStr,
+        date: dateStr,
+        project: (projectEl && projectEl.value) || '',
+        lat: geoOk ? pos.lat : '',
+        lng: geoOk ? pos.lng : '',
+        photo: '',
+        scanMode: mode,
+        createdBy: currentEmployeeId,
+        similarityScore: (mode === 'manager_face' && score != null) ? score : undefined,
+        geofenceResult: geoOk ? 'manager_trust' : 'no_gps',
+        gpsLat: geoOk ? pos.lat : undefined,
+        gpsLng: geoOk ? pos.lng : undefined
+    };
+    mgrStatus('กำลังบันทึกเวลาให้ ' + emp.name + '…', '#2563eb');
+    try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        mgrState.submitting = false;
+        if (res && res.status === 'success') {
+            delete mgrState.todayCache[emp.empId]; // ให้รอบถัดไปอ่าน IN/OUT ล่าสุดจาก DB
+            showToast(`🎉 บันทึกเวลา${type === 'IN' ? 'เข้า' : 'ออก'}ให้ ${emp.name} แล้ว`, 'success');
+            mgrStatus(`✅ บันทึกให้ ${emp.name} แล้ว (${type === 'IN' ? 'เข้า' : 'ออก'}) — สแกนคนถัดไปได้เลย`, '#059669');
+            mgrEl('face-manager-result').style.display = 'none';
+            if (mgrState.view === 'confirm') mgrView('scan');
+            setTimeout(() => { if (mgrState.busy && mgrState.view === 'scan') mgrStartScanning(); }, 600);
+        } else {
+            mgrStatus('❌ บันทึกไม่สำเร็จ: ' + (res && res.message ? res.message : 'ไม่ทราบสาเหตุ'), '#dc2626');
+            showToast('❌ บันทึกไม่สำเร็จ: ' + (res && res.message ? res.message : ''), 'error');
+        }
+    } catch (err) {
+        console.error('[ManagerScan] submit error:', err);
+        mgrState.submitting = false;
+        mgrStatus('❌ ติดต่อเน็ตเวิร์กไม่สำเร็จ — ลองใหม่อีกครั้ง', '#dc2626');
+    }
+}
+
+// ─── Fallback A/B: รายชื่อพนักงาน ───────────────────────────────────────────
+function managerOpenPickList(mode) {
+    if (!mgrState.busy) return;
+    mgrPauseScanning();
+    mgrState.pendingMode = mode;
+    mgrState.pendingEmp = null;
+    mgrEl('face-manager-pick-title').textContent = mode === 'B'
+        ? 'เลือกพนักงานที่จะลงทะเบียนใบหน้าให้ (วิธี B)'
+        : 'เลือกพนักงาน (ยืนยันโดยหัวหน้า — วิธี A)';
+    mgrEl('face-manager-search').value = '';
+    mgrView('pick');
+    mgrRenderPickList();
+}
+
+function managerBackToScan() {
+    mgrState.pendingEmp = null;
+    mgrView('scan');
+    mgrStatus('ให้ลูกน้องมองตรงกล้อง…', '#059669');
+    mgrStartScanning();
+}
+
+function managerBackToPick() {
+    mgrState.pendingEmp = null;
+    mgrEl('face-manager-search').value = '';
+    mgrView('pick');
+    mgrRenderPickList();
+}
+
+function managerRenderPickList() {
+    const box = mgrEl('face-manager-list');
+    const q = (mgrEl('face-manager-search').value || '').trim().toLowerCase();
+    const rows = mgrState.empList.filter((e) => {
+        if (!q) return true;
+        return ((e.name || '') + ' ' + (e.empId || '') + ' ' + (e.pos || '')).toLowerCase().indexOf(q) !== -1;
+    });
+    if (!rows.length) {
+        box.innerHTML = '<p style="font-size:11px;color:#94a3b8;text-align:center;padding:20px 0;">ไม่พบพนักงาน</p>';
+        return;
+    }
+    box.innerHTML = rows.map((e) => {
+        const initial = (e.name || '?').trim().charAt(0).toUpperCase() || '?';
+        const badge = e.enrolled
+            ? '<span style="font-size:9px;font-weight:800;color:#047857;background:#d1fae5;border-radius:99px;padding:2px 8px;">ใบหน้า ✓</span>'
+            : '<span style="font-size:9px;font-weight:800;color:#b45309;background:#fef3c7;border-radius:99px;padding:2px 8px;">ยังไม่มีใบหน้า</span>';
+        return '<button type="button" onclick="managerPickRow(\'' + e.empId.replace(/'/g, '') + '\')" style="width:100%;text-align:left;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:9px 10px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:9px;">'
+            + '<span style="width:34px;height:34px;border-radius:50%;background:#e0f2fe;display:flex;align-items:center;justify-content:center;color:#0369a1;font-weight:900;flex-shrink:0;">' + initial + '</span>'
+            + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12px;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + e.name + ' <span style="color:#94a3b8;font-weight:600;">(' + e.empId + ')</span></span>'
+            + '<span style="display:block;font-size:10px;color:#64748b;">' + (e.pos || '—') + '</span></span>' + badge + '</button>';
+    }).join('');
+}
+
+function managerPickRow(empId) {
+    const emp = mgrState.empList.find((e) => e.empId === empId);
+    if (!emp) return;
+    mgrState.pendingEmp = emp;
+    mgrEl('face-manager-confirm-avatar').textContent = (emp.name || '?').trim().charAt(0).toUpperCase() || '?';
+    mgrEl('face-manager-confirm-name').textContent = emp.name + ' (' + emp.empId + ')';
+    mgrEl('face-manager-confirm-pos').textContent = emp.pos || '—';
+    const type = mgrResolvePunchTypeAsyncLabel(emp.empId);
+    mgrEl('face-manager-btn-manual').textContent = '✅ ยืนยัน • ลงเวลา' + (type === 'IN' ? 'เข้า' : (type === 'OUT' ? 'ออก' : '')) + ' (โดยหัวหน้า)';
+    mgrEl('face-manager-btn-register').style.display = 'none';
+    mgrEl('face-manager-confirm-note').textContent = '';
+    const isPendingB = mgrState.pendingMode === 'B';
+    const showRegister = isPendingB || !emp.enrolled;
+    if (showRegister) {
+        const rb = mgrEl('face-manager-btn-register');
+        rb.style.display = 'block';
+        rb.onclick = () => managerRegisterThenPunch();
+    }
+    mgrView('confirm');
+    mgrRefreshConfirmNote();
+}
+
+function mgrResolvePunchTypeAsyncLabel(empId) {
+    // เติมข้อมูลแบบ async เบา ๆ แล้วรีเฟรชข้อความปุ่ม
+    mgrResolvePunchType(empId).then((t) => {
+        mgrState.pendingType = t;
+        const note = mgrEl('face-manager-confirm-note');
+        if (t === null) {
+            mgrEl('face-manager-btn-manual').textContent = '⚠️ ลงเวลาครบแล้ววันนี้';
+            if (note) note.textContent = 'พนักงานนี้ลงเวลาเข้า-ออกครบแล้ววันนี้';
+        } else {
+            mgrEl('face-manager-btn-manual').textContent = '✅ ยืนยัน • ลงเวลา' + (t === 'IN' ? 'เข้า' : 'ออก') + ' (โดยหัวหน้า)';
+        }
+    });
+    const cached = mgrState.todayCache[empId];
+    if (cached) return (!cached.hasIn) ? 'IN' : (!cached.hasOut ? 'OUT' : null);
+    return 'IN';
+}
+
+function mgrRefreshConfirmNote() {
+    const emp = mgrState.pendingEmp;
+    const note = mgrEl('face-manager-confirm-note');
+    if (!emp) return;
+    const modeTxt = mgrState.pendingMode === 'B'
+        ? 'หัวหน้าจะเป็นคนถ่ายใบหน้าให้ ณ จุดนี้ แล้วจึงลงเวลาให้'
+        : (emp.enrolled
+            ? 'ยืนยันตัวตนโดยหัวหน้า (manual) — บันทึก created_by=' + currentEmployeeId
+            : 'พนักงานนี้ยังไม่มีใบหน้าในระบบ — หัวหน้าจะลงทะเบียนใบหน้าให้ก่อน (วิธี B)');
+    note.textContent = modeTxt;
+}
+
+function managerPickConfirmManual() {
+    const emp = mgrState.pendingEmp;
+    if (!emp) return;
+    mgrState.pendingEmp = null;
+    mgrView('scan');
+    mgrSubmitPunch(emp.empId, 'manager_manual', null);
+}
+
+// Fallback B: ลงทะเบียนใบหน้าให้ (Enrollment แบบ Auto-Capture) → แล้วลงเวลาให้
+function managerRegisterThenPunch() {
+    const emp = mgrState.pendingEmp;
+    if (!emp) return;
+    mgrPauseScanning();
+    // เปิด modal ลงทะเบียน (เฟส 3) ระบุ empId เป้าหมาย + callback หลังสำเร็จ
+    openFaceEnrollmentModal({
+        empId: emp.empId,
+        name: emp.name || emp.empId,
+        onSuccess: () => {
+            closeFaceEnrollmentModal();
+            mgrState.pendingEmp = null;
+            mgrView('scan');
+            mgrSubmitPunch(emp.empId, 'manager_manual', null);
+        }
+    });
+}
+
+function closeFaceManagerModal() {
+    mgrPauseScanning();
+    mgrState.busy = false;
+    mgrState.submitting = false;
+    mgrState.candidate = null;
+    mgrState.pendingEmp = null;
+    if (mgrState.streamOwned && mgrState.stream) {
+        mgrState.stream.getTracks().forEach((t) => t.stop());
+    }
+    mgrState.stream = null;
+    mgrState.streamOwned = false;
+    const video = mgrEl('face-manager-video');
+    if (video) video.srcObject = null;
+    const modal = mgrEl('face-manager-modal');
+    if (modal) modal.style.display = 'none';
 }
 </script>
 </body>
