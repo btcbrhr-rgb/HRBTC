@@ -12283,13 +12283,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (leaveForm) leaveForm.reset();
                         leaveAttachmentBase64 = "";
                         closeSignatureModal();
-                        showLeavePrintChoice(savedLeaveRecord);
 
                         // ⚡ Optimistic UI: นำรายการคำขอลาใหม่แสดงในประวัติทันที 0ms ไม่ต้องรอ network
                         const newDocId = (res.data && res.data.docId) ? res.data.docId : (savedLeaveRecord.doc_id || savedLeaveRecord.docId || 'L-PENDING');
                         const newLeaveItem = {
                             "เลขที่เอกสาร": newDocId,
-                            "รหัสพนักงาน": pendingLeavePayload.empId,
+                            "รหัสพนักงาน": pendingLeavePayload.empId || currentEmployeeId,
                             "ประเภทการลา": pendingLeavePayload.type,
                             "ระยะเวลา": pendingLeavePayload.period || "เต็มวัน",
                             "วันที่เริ่ม": pendingLeavePayload.start,
@@ -12304,6 +12303,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         };
                         leaveRequestsList = [newLeaveItem, ...(leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== newDocId)];
                         displayLeaveHistory();
+
+                        showLeavePrintChoice(newLeaveItem);
 
                         // ⚡ Realtime Broadcast: ส่งสัญญาณบอก Admin ทุกหน้าจอทันทีว่ามีคำขอลาใหม่
                         if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
@@ -12366,16 +12367,83 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return recordOrDoc.docId || recordOrDoc.documentId || recordOrDoc['เลขที่เอกสาร'] || recordOrDoc['เลขที่'] || recordOrDoc['doc_no'] || recordOrDoc['document_no'] || recordOrDoc['id'] || null;
                     })();
 
-                    const url = new URL('leave_template.html', window.location.href);
-
                     if (!docId) {
                         return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
                     }
 
-                    // ข้อมูลใบลาจะถูกดึงจาก server ผ่าน docId (ไม่ใช้ localStorage)
-                    // Template จะเรียก loadDataFromServer(docId) อัตโนมัติ
+                    // ค้นหารายละเอียดใบลาเต็มจาก recordOrDoc หรือ leaveRequestsList
+                    let record = (typeof recordOrDoc === 'object' && recordOrDoc) ? { ...recordOrDoc } : null;
+                    if ((!record || (!record['วันที่เริ่ม'] && !record.start_date)) && typeof leaveRequestsList !== 'undefined' && Array.isArray(leaveRequestsList)) {
+                        const found = leaveRequestsList.find(r => (r['เลขที่เอกสาร'] === docId || r.doc_id === docId || r.docId === docId));
+                        if (found) {
+                            record = { ...found, ...(record || {}) };
+                        }
+                    }
 
-                    // Use only docId in URL (standard flow). Template will fetch the record.
+                    // หาข้อมูลพนักงานประกอบ (รหัส, ชื่อ, ตำแหน่ง, แผนก, เบอร์โทร)
+                    const empId = (record && (record['รหัสพนักงาน'] || record.emp_id || record.empId)) || currentEmployeeId || '';
+                    let empInfo = null;
+                    if (empId && typeof adminEmployeesMap !== 'undefined' && adminEmployeesMap.has && adminEmployeesMap.has(String(empId).trim().toUpperCase())) {
+                        empInfo = adminEmployeesMap.get(String(empId).trim().toUpperCase());
+                    } else if (typeof employeeData === 'object' && employeeData) {
+                        empInfo = employeeData;
+                    }
+
+                    const empName = (record && (record['ชื่อ-นามสกุล'] || record.name || record.employee_name || record.empName)) 
+                        || (empInfo && (empInfo['ชื่อ-นามสกุล'] || empInfo['ชื่อ'] || empInfo.name)) || '';
+                    const empPosition = (empInfo && (empInfo['ตำแหน่ง'] || empInfo.position)) 
+                        || (record && (record['ตำแหน่ง'] || record.position)) || '';
+                    const empDept = (empInfo && (empInfo['ฝ่าย-แผนก'] || empInfo['แผนก'] || empInfo.department || empInfo.company)) 
+                        || (record && (record['แผนก'] || record.department || record.company)) || '';
+                    const empPhone = (empInfo && (empInfo['เบอร์โทร'] || empInfo['เบอร์โทรศัพท์'] || empInfo.phone)) 
+                        || (record && (record['เบอร์โทร'] || record.phone)) || '';
+
+                    const startDate = (record && (record['วันที่เริ่ม'] || record.start_date || record.start || record['วันที่'])) || '';
+                    const endDate = (record && (record['วันที่สิ้นสุด'] || record.end_date || record.end)) || startDate;
+                    const days = (record && (record['จำนวนวัน'] || record.days_count || record.days)) || 1;
+                    const reason = (record && (record['เหตุผล'] || record.reason || record['หมายเหตุ'])) || '';
+                    const leaveType = (record && (record['ประเภทการลา'] || record.leave_type || record.leaveType)) || '';
+                    const signature = (record && (record['ลายมือชื่อ'] || record.signature_url || record.signature)) || '';
+                    const docDate = (record && (record['วันที่ยื่น'] || record.created_at || record.Timestamp || record.submitted_at)) || new Date().toISOString().split('T')[0];
+                    const approver = (record && (record['อนุมัติโดย'] || record.approved_by)) || '';
+                    const status = (record && (record['สถานะ'] || record.status)) || 'รออนุมัติ';
+                    const approvalDate = (record && (record['วันที่อนุมัติ'] || record.approved_at)) || '';
+
+                    const printPayload = {
+                        metadata: {
+                            doc_no: docId,
+                            doc_date: docDate,
+                            employee_signature: signature,
+                            leaveType: leaveType,
+                            approver: approver,
+                            status: status,
+                            approved_at: approvalDate
+                        },
+                        employee: {
+                            name: empName,
+                            id: empId,
+                            position: empPosition,
+                            department: empDept
+                        },
+                        start_date: startDate,
+                        end_date: endDate,
+                        total_days: days,
+                        leave_reason: reason,
+                        contact_no: empPhone,
+                        _leaveType: leaveType,
+                        type: leaveType
+                    };
+
+                    const storageKey = 'print_leave_data_' + docId;
+                    try {
+                        sessionStorage.setItem(storageKey, JSON.stringify(printPayload));
+                        localStorage.setItem(storageKey, JSON.stringify(printPayload));
+                        localStorage.setItem('latest_print_leave_data', JSON.stringify(printPayload));
+                    } catch (err) {
+                        console.warn('Storage write failed', err);
+                    }
+
+                    const url = new URL('leave_template.html', window.location.href);
                     url.searchParams.set('docId', docId);
                     url.searchParams.set('openedFromIndex', '1');
                     if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
@@ -12385,8 +12453,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         url.searchParams.set('adminMode', '1');
                     }
 
-                    const w = window.open(url.toString(), '_blank', 'noopener');
+                    const w = window.open(url.toString(), '_blank');
                     if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                    try {
+                        w.__PRINT_LEAVE_DATA__ = printPayload;
+                    } catch (e) {}
                     w.focus && w.focus();
                 } catch (e) {
                     console.error('printLeaveRecord error', e);
