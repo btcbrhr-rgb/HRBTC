@@ -834,6 +834,106 @@
             }
         }
 
+        function updateLeaveWarning(data) {
+            const warningContainer = document.getElementById('leave_warning');
+            if (!warningContainer) return;
+            warningContainer.innerHTML = '';
+
+            if (data && data.warning_msg) {
+                warningContainer.innerHTML = `⚠️ หมายเหตุ: ${data.warning_msg}`;
+            }
+        }
+
+        /**
+         * Printable Utility & Export Functions
+         */
+        async function prepareAndPrint() {
+            showLoading("กำลังเตรียมพร้อมสำหรับการพิมพ์...");
+            setTimeout(() => {
+                hideLoading();
+                window.print();
+            }, 300);
+        }
+
+        function generatePDF() {
+            const element = document.getElementById('capture-target');
+            if (!element) return;
+            showLoading("กำลังสร้างไฟล์ PDF...");
+
+            // Sync all input values to DOM attributes so html2canvas captures them properly
+            try {
+                element.querySelectorAll('input, textarea, select').forEach(el => {
+                    if (el.type === 'checkbox' || el.type === 'radio') {
+                        if (el.checked) el.setAttribute('checked', 'checked');
+                        else el.removeAttribute('checked');
+                    } else {
+                        el.setAttribute('value', el.value || '');
+                    }
+                });
+            } catch (e) {
+                console.warn('Sync input attributes error:', e);
+            }
+
+            const docNo = (document.getElementById('doc_no') && document.getElementById('doc_no').value) || 'Form';
+            const opt = {
+                margin:       [6, 8, 6, 8],
+                filename:     `Leave_Request_${docNo}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            if (typeof html2pdf !== 'undefined') {
+                html2pdf().set(opt).from(element).save().then(() => {
+                    hideLoading();
+                    showToast("ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว", "success");
+                }).catch(err => {
+                    hideLoading();
+                    console.error("PDF generation failed:", err);
+                    showToast("ไม่สามารถสร้าง PDF ได้ กำลังเปิดหน้าพิมพ์แทน...", "error");
+                    window.print();
+                });
+            } else {
+                hideLoading();
+                window.print();
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `flex items-center space-x-2 px-4 py-2.5 rounded-lg text-xs font-semibold shadow-lg transition transform translate-y-2 opacity-0 text-white ${
+                type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-slate-800'
+            }`;
+            toast.innerHTML = `<span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showLoading(msg = "กำลังโหลด...") {
+            const overlay = document.getElementById('loading-overlay');
+            const txt = document.getElementById('loading-text');
+            if (txt) txt.textContent = msg;
+            if (overlay) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+            }
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+        }
+
         // Auto-initialize Default Date on Load & Load Data
         document.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
