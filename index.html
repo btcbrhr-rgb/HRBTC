@@ -2127,7 +2127,6 @@
                             <button type="button" onclick="kioskConfirmYes()" style="flex:2;background:linear-gradient(135deg,#059669,#047857);color:white;border:none;border-radius:12px;padding:11px;font-size:12px;font-weight:800;cursor:pointer;">✅ ยืนยันและส่งเข้าระบบนำเข้า</button>
                         </div>
                     </div>
-
                     <!-- Top Overlay: Camera label + Switch button -->
                     <div class="absolute top-3 left-3 right-3 flex justify-between items-center z-10">
                         <span id="camera-label" style="font-size:10px;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.3);padding:3px 10px;border-radius:20px;">กล้องหน้า</span>
@@ -26680,6 +26679,7 @@ const faceEnrollState = {
     startedAt: 0,
     pool: [],
     lastNoseMisses: 0,
+    hintShown: false,   // เคยแนะนำให้ขยับหัว/ปรับแสงแล้ว (ไม่สแปม)
     // เฝ้าดูใบหน้า → เริ่ม Auto-Capture เองเมื่อเจอ (ไม่ต้องกดปุ่ม)
     watching: false,
     watchTimerId: null,
@@ -26687,10 +26687,12 @@ const faceEnrollState = {
     watchLastHitAt: 0
 };
 
-const FACE_ENROLL_MAX_DURATION = 3200;  // ms — จ้องกล้องสูงสุด ~3 วินาที
-const FACE_ENROLL_MIN_OK = 1600;        // ms — พอมี 3 มุมต่างกันแล้ว จบไวได้
-const FACE_ENROLL_SHARPNESS_MIN = 400;  // ความคม (variance) ขั้นต่ำ
+const FACE_ENROLL_MAX_DURATION = 3200;   // ms — ระยะแรกของการเก็บเฟรม (ยังไม่จบถ้ายังไม่ครบมุม)
+const FACE_ENROLL_MIN_OK = 1600;         // ms — เริ่มตรวจ "ครบมุม" ได้ตั้งแต่ช่วงนี้
+const FACE_ENROLL_SHARPNESS_MIN = 400;   // ความคม (variance) ขั้นต่ำ
 const FACE_ENROLL_POOL_MAX = 20;
+const FACE_ENROLL_TARGET_COUNT = 3;      // จำนวนมุมที่ต้องการ — เก็บอัตโนมัติจนครบ
+const FACE_ENROLL_SAVE_CAP_MS = 12000;   // ถ้ายังไม่ครบภายในเวลานี้ ให้บันทึกเท่าที่มี (กันค้างตลอดไป)
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -26809,7 +26811,7 @@ function buildEnrollmentItems(pool) {
         if (!chosen.length) { chosen.push(c); continue; }
         let minD = 1;
         for (const x of chosen) { const d = euclideanDistance128(x.d, c.d); if (d < minD) minD = d; }
-        const minReq = chosen.length === 1 ? 0.10 : 0.20;
+        const minReq = chosen.length === 1 ? 0.10 : 0.15; // มุมที่ 3 ผ่อนเกณฑ์ลง (0.20→0.15) ให้ขยับนิดเดียวก็ครบ
         if (minD >= minReq) chosen.push(c);
     }
     if (!chosen.length && sorted.length) chosen.push(sorted[0]);
@@ -26829,7 +26831,7 @@ function setEnrollStatus(msg, color) {
     if (el) { el.textContent = msg; el.style.color = color || '#e2e8f0'; }
 }
 
-function setEnrollProgress(pct, frameCount) {
+function setEnrollProgress(pct, frameCount, angleCount) {
     const wrap = enrollEl('face-enroll-progress-wrap');
     const bar = enrollEl('face-enroll-progress-bar');
     const txt = enrollEl('face-enroll-progress-text');
@@ -26837,7 +26839,7 @@ function setEnrollProgress(pct, frameCount) {
     if (wrap) wrap.style.display = 'flex';
     if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
     if (txt) txt.textContent = Math.round(pct) + '%';
-    if (cnt) cnt.textContent = 'เก็บเฟรม ' + (frameCount || 0);
+    if (cnt) cnt.textContent = 'มุม ' + (angleCount != null ? angleCount : 0) + '/' + FACE_ENROLL_TARGET_COUNT + ' · เฟรม ' + (frameCount || 0);
 }
 
 function setEnrollBorder(found) {
@@ -26963,8 +26965,9 @@ function startFaceEnrollment(fromAuto) {
     faceEnrollState.pool = [];
     faceEnrollState.lastNoseMisses = 0;
     faceEnrollState.startedAt = performance.now();
+    faceEnrollState.hintShown = false;
     if (startBtn) startBtn.disabled = true;
-    setEnrollStatus(fromAuto ? '✅ เจอใบหน้าแล้ว — กำลังเก็บเฟรมอัตโนมัติ (~3 วินาที)…' : 'มองตรงกล้องนิ่ง ๆ … ระบบเก็บเฟรมอัตโนมัติ', '#059669');
+    setEnrollStatus(fromAuto ? '✅ เจอใบหน้าแล้ว — เก็บมุมใบหน้าอัตโนมัติจนครบ ' + FACE_ENROLL_TARGET_COUNT + ' มุม…' : 'มองตรงกล้องนิ่ง ๆ … ระบบเก็บเฟรมอัตโนมัติ', '#059669');
     setEnrollProgress(0, 0);
     setEnrollBorder(false);
     scheduleEnrollSample();
@@ -27191,12 +27194,23 @@ async function sampleEnrollFrame() {
         setEnrollBorder(false);
     }
 
-    const pct = Math.min(100, (elapsed / FACE_ENROLL_MAX_DURATION) * 100);
-    setEnrollProgress(pct, faceEnrollState.pool.length);
-
-    // จบเร็วเมื่อได้ 3 มุมต่างกันแล้ว หรือครบเวลา
+    // ความคืบหน้า = จำนวนมุมที่เก็บได้ vs เป้าหมาย (เก็บอัตโนมัติจนครบ ไม่จบแค่ครบเวลา)
     const items = buildEnrollmentItems(faceEnrollState.pool);
-    if (elapsed >= FACE_ENROLL_MAX_DURATION || (elapsed >= FACE_ENROLL_MIN_OK && items.length >= 3)) {
+    const pct = Math.min(100, (items.length / FACE_ENROLL_TARGET_COUNT) * 100);
+    setEnrollProgress(pct, faceEnrollState.pool.length, items.length);
+
+    // ครบ 3 มุมต่างกันแล้ว → จบการเก็บทันที
+    if (elapsed >= FACE_ENROLL_MIN_OK && items.length >= FACE_ENROLL_TARGET_COUNT) {
+        finishFaceEnrollmentCapture();
+        return;
+    }
+    // ยังไม่ครบ → เก็บต่อ; ครบเวลาแรกแล้วยังไม่ได้มุมเพิ่ม แนะนำผู้ใช้ (ครั้งเดียว)
+    if (elapsed >= FACE_ENROLL_MAX_DURATION && !faceEnrollState.hintShown) {
+        faceEnrollState.hintShown = true;
+        setEnrollStatus('ยังได้แค่ ' + items.length + '/' + FACE_ENROLL_TARGET_COUNT + ' มุม — ขยับศีรษะเล็กน้อย/ปรับแสง ระบบเก็บต่อให้อัตโนมัติ', '#d97706');
+    }
+    // กันค้างตลอดไป: เก็บนานเกินกำหนด → บันทึกเท่าที่มี
+    if (elapsed >= FACE_ENROLL_SAVE_CAP_MS) {
         finishFaceEnrollmentCapture();
         return;
     }
@@ -27217,10 +27231,12 @@ function finishFaceEnrollmentCapture() {
     }
 
     const payload = { version: 2, items: items };
-    if (items.length < 2) {
-        setEnrollStatus('⚠️ ได้เฟรมมุมน้อยเกินไป — ระบบจะบันทึกชุดนี้ แต่แนะนำให้ลองใหม่อีกครั้งเพื่อความแม่นยำ', '#d97706');
+    if (items.length >= FACE_ENROLL_TARGET_COUNT) {
+        setEnrollStatus('🎉 เก็บข้อมูลใบหน้าครบถ้วนแล้ว (' + items.length + ' มุม) — กำลังบันทึก…', '#059669');
+    } else if (items.length < 2) {
+        setEnrollStatus('⚠️ ได้มุมน้อยเกินไป (แค่ ' + items.length + ') — ระบบจะบันทึกชุดนี้ แต่แนะนำลองใหม่อีกครั้ง', '#d97706');
     } else {
-        setEnrollStatus(`✅ สแกนสำเร็จ (${items.length} มุม) — กำลังบันทึก…`, '#059669');
+        setEnrollStatus('✅ สแกนสำเร็จ (' + items.length + '/' + FACE_ENROLL_TARGET_COUNT + ' มุม) — กำลังบันทึก…', '#059669');
     }
     saveFaceEnrollment(payload, items.length);
 }
@@ -27242,8 +27258,8 @@ async function saveFaceEnrollment(payload, itemCount) {
             })
         });
         if (res && res.status === 'success') {
-            setEnrollStatus(`🎉 ลงทะเบียนใบหน้าสำเร็จ (${itemCount} มุม) — ปิดหน้านี้ได้เลย`, '#059669');
-            showToast(`🎉 ลงทะเบียนใบหน้าสำเร็จ (${itemCount} มุม)`, 'success');
+            setEnrollStatus(`🎉 เก็บข้อมูลใบหน้าครบถ้วนแล้ว (${itemCount} มุม) — กด "เสร็จสิ้น" เพื่อปิด`, '#059669');
+            showToast(`🎉 เก็บข้อมูลใบหน้าครบถ้วนแล้ว (${itemCount} มุม)`, 'success');
             playScanBeep('ok');
             if (startBtn) startBtn.disabled = true;
             const closeBtn = enrollEl('face-enroll-close-btn');
@@ -28356,7 +28372,8 @@ const kiosk = {
     blinkAt: 0,
     blinkClosed: false,
     cooldownUntil: 0,      // performance.now() — กันสแกนซ้ำถี่เกิน (90 วิ)
-    lastFaceSeenAt: 0,     // กันสแกนซ้ำโดยไม่หันหน้าออก (ต้องห่าง ≥10 วิ)
+    lastFaceSeenAt: 0,     // เฟรมล่าสุดที่เห็นหน้า (อัปเดตทุกเฟรม)
+    lastPunchAt: 0,        // performance.now() ตอนลงเวลาสำเร็จ — หลังนี้ต้องหันหน้าออก ≥10 วิ ถึงสแกนซ้ำได้
     lastLabel: '',
     enrollPromptUntil: 0,
     gps: null,
@@ -28660,11 +28677,12 @@ async function kioskSubmitRawEvent(desc, score, sharp, evidence) {
         if (res && res.status === 'success') {
             playScanBeep('ok');
             kiosk.cooldownUntil = performance.now() + 90000; // กันสแกนซ้ำ 90 วิ
+            kiosk.lastPunchAt = performance.now();           // เปิดกฎหันหน้าออก ≥10 วิ สำหรับรอบถัดไป
             kiosk.lastLabel = timeStr;
             kioskStatus('✅ ยืนยันแล้ว — บันทึกเวลา ' + timeStr + ' ส่งเข้าระบบนำเข้าเวลา<br><span style="font-size:9px;font-weight:600;">ระบบจะสรุปให้ว่าเป็นเข้า/ออก (รอบอัปเดต 20:00 น.)</span>', 'ok');
             kioskEnrollCard(false);
             setTimeout(kioskStatusHide, 5000);
-            kioskImproveOwnVectors(desc, sharp); // fire-and-forget
+            kioskImproveOwnVectors(desc, sharp); // อัปเดตใบหน้าอัตโนมัติ — เรียกหลังกดยืนยัน+บันทึกสำเร็จเท่านั้น
         } else {
             kioskStatus('❌ บันทึกไม่สำเร็จ: ' + ((res && res.message) ? res.message : 'ไม่ทราบสาเหตุ') + ' — มองกล้องอีกครั้ง', 'err');
         }
@@ -28675,7 +28693,7 @@ async function kioskSubmitRawEvent(desc, score, sharp, evidence) {
     kiosk.submitting = false;
 }
 
-// ─── ผสาน descriptor คุณภาพดีกว่า (เลือกแบบ: เก็บเฉพาะเฟรมที่ดีกว่าของเดิม) ────
+// ─── ผสาน descriptor คุณภาพดีกว่าเข้ากลับ (อัตโนมัติ หลังกดยืนยันลงเวลาสำเร็จเท่านั้น) ──
 async function kioskImproveOwnVectors(desc, sharp) {
     try {
         if (typeof supabaseClient === 'undefined' || !supabaseClient || !currentEmployeeId) return;
@@ -28709,10 +28727,10 @@ async function kioskImproveOwnVectors(desc, sharp) {
         const MAX = 8;
         const candD = Array.from(desc);
         const isDup = items.some((x) => euclideanDistance128(x.d, candD) < 0.25); // ซ้ำเกิน → ข้าม
-        if (isDup) return;
+        if (isDup || !items.length) return;
         const candQ = Math.round(Math.max(0, sharp) * 10) / 10;
         if (items.length < MAX) {
-            items.push({ d: candD, yaw: 0, pitch: 0, quality: candQ });
+            items.push({ d: candD, yaw: 0, pitch: 0, quality: candQ }); // ยังไม่เต็ม → เพิ่มมุมใหม่
         } else {
             // เต็มแล้ว → แทนที่เฟรมคุณภาพแย่ที่สุดเฉพาะเมื่อเฟรมใหม่ดีกว่า
             let worstIdx = 0;
@@ -28848,8 +28866,9 @@ async function kioskLoop() {
             return;
         }
         kiosk.idleHintShown = false;
-        // ต้องหันหน้าออกไปแล้วกลับมาใหม่ (≥10 วิ) ถึงจะสแกนรอบถัดไปได้ — กันกดซ้ำ/เผลอสแกน
-        if (now - kiosk.lastFaceSeenAt < 10000) {
+        // หลังลงเวลาสำเร็จ: ต้องหันหน้าออกไปแล้วกลับมาใหม่ (≥10 วิ) ถึงจะสแกนรอบถัดไปได้ — กันกดซ้ำ/เผลอสแกน
+        // รอบแรก (ยังไม่เคยลงเวลา): ยืนหน้ากล้องได้เลย ระบบจะคำนวณ % แล้วจับภาพอัตโนมัติที่ ≥70%
+        if (kiosk.lastPunchAt && now - kiosk.lastFaceSeenAt < 10000) {
             setTimeout(kioskLoop, 400);
             return;
         }
