@@ -2682,6 +2682,7 @@
 
                     <div class="bg-blue-50 text-blue-800 text-xs p-2.5 rounded-lg">
                         คุณกำลังทำรายการแก้ไขของวันที่: <strong id="correction-date-display">...</strong>
+                        <div id="correction-old-time-display" class="mt-1 text-[11px] text-blue-600 font-medium"></div>
                     </div>
 
                     <!-- Loading indicator -->
@@ -12476,12 +12477,28 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // Reset reason field
                 document.getElementById("correction-reason").value = "";
 
-                // ค้นหาข้อมูลเวลาเดิมจาก timeRecordsList (ข้อมูลที่โหลดไว้แล้ว)
-                const record = (timeRecordsList || []).find(r => r["วันที่"] === dateStr);
+                // 🔒 ตรวจสอบสิทธิ์: พนักงานขอแก้ไขเวลาได้เพียง 1 ครั้งต่อวัน
+                const record = (timeRecordsList || []).find(r => (r["วันที่"] === dateStr || r.date === dateStr));
+                if (record && (record["is_edited"] === true || record.is_edited === true)) {
+                    showToast(`⚠️ วันที่ ${formatThaiDate(dateStr)} เคยได้รับการแก้ไขเวลาแล้ว (สามารถขอแก้ไขได้เพียง 1 ครั้งเท่านั้น)`, "warning");
+                    closeCorrectionModal();
+                    return;
+                }
+
+                const existingCorr = (timeCorrectionsList || []).find(c => (c["วันที่"] === dateStr || c.date === dateStr));
+                if (existingCorr) {
+                    const st = existingCorr["สถานะ"] || existingCorr.status || "รออนุมัติ";
+                    showToast(`⚠️ วันที่ ${formatThaiDate(dateStr)} มีคำขอแก้ไขเวลาอยู่แล้ว (${st}) สามารถขอแก้ไขได้เพียง 1 ครั้งเท่านั้น`, "warning");
+                    closeCorrectionModal();
+                    return;
+                }
+
+                // ค้นหาข้อมูลเวลาเดิมจาก timeRecordsList
+                let inTime = "";
+                let outTime = "";
                 if (record) {
-                    let inTime = record["เวลาเข้า"] || "";
-                    let outTime = record["เวลาออก"] || "";
-                    // Format for input (HH:MM) - ตัด seconds ออกถ้ามี
+                    inTime = record["เวลาเข้า"] || record.time_in || "";
+                    outTime = record["เวลาออก"] || record.time_out || "";
                     if (inTime) {
                         const parts = inTime.split(':');
                         inTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
@@ -12490,16 +12507,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const parts = outTime.split(':');
                         outTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
                     }
-                    // ✅ แสดงเวลาเดิมเป็นค่าเริ่มต้นในช่องแก้ไข
-                    document.getElementById("correction-time-in").value = inTime;
-                    document.getElementById("correction-time-out").value = outTime;
-                    console.log(`[openCorrectionModal] Pre-filled times: IN=${inTime}, OUT=${outTime}`);
-                } else {
-                    // ไม่มีข้อมูลเดิม — ปล่อยให้ field ว่างเพื่อกรอกใหม่
-                    document.getElementById("correction-time-in").value = "";
-                    document.getElementById("correction-time-out").value = "";
-                    console.log(`[openCorrectionModal] No existing record for date: ${dateStr}`);
                 }
+
+                // บันทึกค่าเวลาเดิมไว้ส่งใน payload
+                window._currentCorrectionOldIn = inTime;
+                window._currentCorrectionOldOut = outTime;
+
+                // แสดงเวลาเดิมให้พนักงานเห็นในฟอร์ม
+                const oldDisplay = document.getElementById("correction-old-time-display");
+                if (oldDisplay) {
+                    oldDisplay.innerHTML = (inTime || outTime)
+                        ? `<i class="fa-solid fa-clock-rotate-left mr-1"></i> เวลาเดิมที่บันทึก: <b>เข้า ${inTime || '-'}</b> | <b>ออก ${outTime || '-'}</b>`
+                        : `<i class="fa-solid fa-circle-info mr-1"></i> ไม่มีข้อมูลเวลาเดิมที่บันทึกไว้`;
+                }
+
+                document.getElementById("correction-time-in").value = inTime;
+                document.getElementById("correction-time-out").value = outTime;
+                console.log(`[openCorrectionModal] Pre-filled times: IN=${inTime}, OUT=${outTime}`);
             }
 
             function closeCorrectionModal() {
@@ -12526,6 +12550,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     date: date,
                     timeInNew: inNew || "",
                     timeOutNew: outNew || "",
+                    oldTimeIn: window._currentCorrectionOldIn || "",
+                    oldTimeOut: window._currentCorrectionOldOut || "",
                     project: project,
                     reason: reason
                 };
@@ -14932,16 +14958,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                                 const { data: existingRecs } = await supabaseClient
                                     .from('time_records')
-                                    .select('id, status, status_key, project_in, project_out')
+                                    .select('id, status, status_key, project_in, project_out, time_in, time_out, original_time_in, original_time_out')
                                     .eq('emp_id', empId)
                                     .eq('date', date)
                                     .limit(1);
+
+                                const origIn = (existingRecs && existingRecs[0]) ? (existingRecs[0].original_time_in || existingRecs[0].time_in || c.old_time_in || null) : (c.old_time_in || null);
+                                const origOut = (existingRecs && existingRecs[0]) ? (existingRecs[0].original_time_out || existingRecs[0].time_out || c.old_time_out || null) : (c.old_time_out || null);
 
                                 const updatePayload = {
                                     emp_id: empId,
                                     date: date,
                                     time_in: tIn,
                                     time_out: tOut,
+                                    original_time_in: origIn,
+                                    original_time_out: origOut,
                                     is_edited: true,
                                     source: 'Time Correction',
                                     updated_at: new Date().toISOString()
@@ -16401,8 +16432,14 @@ container.innerHTML = "";
                 <td>${checkboxHtml}</td>
                 <td>${getAdminEmployeeDisplay(empId, req['ชื่อ-นามสกุล'] || req['name'] || req['employee_name'] || '')}</td>
                 <td style="color:#475569;font-weight:600">${escapeHtml(formatThaiDate(req['วันที่']))}</td>
-                <td><span class="font-bold" style="color:#059669">${escapeHtml(req['เวลาเข้าใหม่'] || '-')}</span></td>
-                <td><span class="font-bold" style="color:#059669">${escapeHtml(req['เวลาออกใหม่'] || '-')}</span></td>
+                <td>
+                  ${(req['เวลาเข้าเดิม'] || req['old_time_in']) ? `<span class="line-through text-slate-400 text-xs mr-1">${escapeHtml(req['เวลาเข้าเดิม'] || req['old_time_in'])}</span>➔ ` : ''}
+                  <span class="font-bold" style="color:#059669">${escapeHtml(req['เวลาเข้าใหม่'] || '-')}</span>
+                </td>
+                <td>
+                  ${(req['เวลาออกเดิม'] || req['old_time_out']) ? `<span class="line-through text-slate-400 text-xs mr-1">${escapeHtml(req['เวลาออกเดิม'] || req['old_time_out'])}</span>➔ ` : ''}
+                  <span class="font-bold" style="color:#059669">${escapeHtml(req['เวลาออกใหม่'] || '-')}</span>
+                </td>
                 <td><span class="truncate" style="max-width:180px;display:inline-block;color:#94a3b8" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</span></td>
                 <td><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
                 <td style="text-align:right">${actionHtml}</td>
@@ -16978,16 +17015,21 @@ container.innerHTML = "";
                                         const date = data["วันที่"];
                                         const tIn = data["เวลาเข้าใหม่"] || data["new_time_in"];
                                         const tOut = data["เวลาออกใหม่"] || data["new_time_out"];
+                                        const { data: exRec } = await supabaseClient.from('time_records').select('id, time_in, time_out, original_time_in, original_time_out').eq('emp_id', empId).eq('date', date).limit(1);
+                                        const oldIn = (exRec && exRec[0]) ? (exRec[0].original_time_in || exRec[0].time_in || null) : (data["เวลาเข้าเดิม"] || data["old_time_in"] || null);
+                                        const oldOut = (exRec && exRec[0]) ? (exRec[0].original_time_out || exRec[0].time_out || null) : (data["เวลาออกเดิม"] || data["old_time_out"] || null);
+
                                         const updatePayload = {
                                             emp_id: empId,
                                             date: date,
                                             time_in: tIn ? (tIn.length === 5 ? tIn + ':00' : tIn) : null,
                                             time_out: tOut ? (tOut.length === 5 ? tOut + ':00' : tOut) : null,
+                                            original_time_in: oldIn,
+                                            original_time_out: oldOut,
                                             is_edited: true,
                                             source: 'Time Correction',
                                             updated_at: new Date().toISOString()
                                         };
-                                        const { data: exRec } = await supabaseClient.from('time_records').select('id').eq('emp_id', empId).eq('date', date).limit(1);
                                         if (exRec && exRec.length > 0) {
                                             await supabaseClient.from('time_records').update(updatePayload).eq('id', exRec[0].id);
                                         } else {
@@ -18634,11 +18676,13 @@ function closeEmployeeModal() {
                                 <input type="text" value="${escapeHtml(timeIn)}" 
                                     class="yearly-edit-field w-20 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
                                     data-field="timeIn" data-idx="${idx}" placeholder="HH:MM">
+                                ${(r.original_time_in || (corr && corr.old_time_in)) ? `<div class="text-[9px] text-slate-400 font-mono mt-0.5" title="เวลาเดิมก่อนแก้ไข">เดิม: ${escapeHtml(r.original_time_in || corr.old_time_in)}</div>` : ''}
                             </td>
                             <td class="text-center">
                                 <input type="text" value="${escapeHtml(timeOut)}"
                                     class="yearly-edit-field w-20 text-center text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
                                     data-field="timeOut" data-idx="${idx}" placeholder="HH:MM">
+                                ${(r.original_time_out || (corr && corr.old_time_out)) ? `<div class="text-[9px] text-slate-400 font-mono mt-0.5" title="เวลาเดิมก่อนแก้ไข">เดิม: ${escapeHtml(r.original_time_out || corr.old_time_out)}</div>` : ''}
                             </td>
                             <td class="text-center">
                                 <select class="yearly-edit-field text-xs border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-teal focus:outline-none bg-white"
