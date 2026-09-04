@@ -2166,8 +2166,8 @@
             <!-- ============================================== -->
             <!-- Phase 3: Modal ลงทะเบียนใบหน้า (Auto-Capture) -->
             <!-- ============================================== -->
-            <div id="face-enroll-modal" style="display:none;position:fixed;inset:0;z-index:230;background:rgba(15,23,42,0.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
-                <div class="w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
+            <div id="face-enroll-modal" style="display:none;position:fixed;inset:0;z-index:230;background:#020617;">
+                <div style="width:100%;max-width:520px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:#020617;">
                     <!-- Header -->
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:white;">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0;">
@@ -2181,8 +2181,9 @@
                     </div>
 
                     <!-- Camera Stage -->
-                    <div style="position:relative;aspect-ratio:4/4;background:#020617;flex-shrink:0;border-bottom:1px solid #e2e8f0;">
+                    <div style="position:relative;flex:1;min-height:0;background:#020617;">
                         <video id="face-enroll-video" autoplay muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);transition:box-shadow 0.15s;"></video>
+                        <canvas id="face-enroll-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
                         <!-- Scan progress overlay -->
                         <div id="face-enroll-progress-wrap" style="display:none;position:absolute;left:12px;right:12px;bottom:12px;background:rgba(0,0,0,0.55);border-radius:10px;padding:8px 12px;backdrop-filter:blur(4px);">
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
@@ -2196,20 +2197,20 @@
                     </div>
 
                     <!-- Body -->
-                    <div style="padding:12px 16px;overflow-y:auto;flex:1;">
-                        <p id="face-enroll-status" style="font-size:12px;font-weight:700;color:#0f172a;margin-bottom:6px;">กำลังเตรียมระบบจดจำใบหน้า…</p>
-                        <ul style="font-size:10px;color:#64748b;line-height:1.7;list-style:none;padding:0;margin:0 0 10px 0;">
-                            <li>• มองตรงกล้อง นิ่ง ๆ ประมาณ 3 วินาที — ระบบเก็บเฟรมอัตโนมัติ ไม่ต้องหันหน้า</li>
+                    <div style="padding:10px 14px;flex-shrink:0;max-height:30vh;overflow-y:auto;background:rgba(15,23,42,0.96);border-top:1px solid rgba(255,255,255,0.08);">
+                        <p id="face-enroll-status" style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:6px;">กำลังเตรียมระบบจดจำใบหน้า…</p>
+                        <ul style="font-size:10px;color:#94a3b8;line-height:1.7;list-style:none;padding:0;margin:0 0 10px 0;">
+                            <li>• มองตรงกล้อง — ระบบวาดกรอบใบหน้า (เขียว) แล้ว<b>เริ่มเก็บเฟรมอัตโนมัติ ~3 วินาที</b> ไม่ต้องกดปุ่ม / ไม่ต้องหันหน้า</li>
                             <li>• ต้องอยู่ในที่แสงสว่างพอ หน้าไม่เบลอ</li>
                             <li>• ระบบเก็บเฉพาะ Face Vector (ตัวเลข) ตาม PDPA ไม่เก็บภาพใบหน้าจริง</li>
                         </ul>
-                        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:8px 10px;font-size:10px;color:#1d4ed8;">
-                            พนักงาน: <b id="face-enroll-emp-name" style="color:#0f172a;">—</b>
+                        <div style="background:rgba(56,189,248,0.14);border:1px solid rgba(125,211,252,0.3);border-radius:10px;padding:8px 10px;font-size:10px;color:#7dd3fc;">
+                            พนักงาน: <b id="face-enroll-emp-name" style="color:#f8fafc;">—</b>
                         </div>
                     </div>
 
                     <!-- Footer actions -->
-                    <div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
+                    <div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);background:#0f172a;flex-shrink:0;">
                         <button id="face-enroll-close-btn" type="button" onclick="closeFaceEnrollmentModal()"
                             style="flex:1;background:#e2e8f0;color:#334155;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">ปิด</button>
                         <button id="face-enroll-start-btn" type="button" onclick="startFaceEnrollment()" disabled
@@ -2223,8 +2224,8 @@
             <!-- ============================================== -->
             <!-- Phase 4: Modal ยืนยันตัวตนสแกนใบหน้า (Self-Scan 1:1) -->
             <!-- ============================================== -->
-            <div id="face-scan-modal" style="display:none;position:fixed;inset:0;z-index:210;background:rgba(15,23,42,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
-                <div class="w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
+            <div id="face-scan-modal" style="display:none;position:fixed;inset:0;z-index:210;background:#020617;">
+                <div style="width:100%;max-width:520px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:#020617;">
                     <!-- Header -->
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#065f46,#064e3b);color:white;">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0;">
@@ -2238,8 +2239,9 @@
                     </div>
 
                     <!-- Camera Stage -->
-                    <div style="position:relative;aspect-ratio:4/4;background:#020617;flex-shrink:0;border-bottom:1px solid #e2e8f0;">
+                    <div style="position:relative;flex:1;min-height:0;background:#020617;">
                         <video id="face-scan-video" autoplay muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+                        <canvas id="face-scan-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
                         <div id="face-scan-progress-wrap" style="display:none;position:absolute;left:12px;right:12px;bottom:12px;background:rgba(0,0,0,0.55);border-radius:10px;padding:8px 12px;backdrop-filter:blur(4px);">
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
                                 <span style="color:#a7f3d0;font-size:10px;font-weight:700;">กำลังสแกน…</span>
@@ -2252,9 +2254,9 @@
                     </div>
 
                     <!-- Body -->
-                    <div style="padding:12px 16px;overflow-y:auto;flex:1;">
-                        <p id="face-scan-status" style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:6px;">กำลังเตรียมระบบยืนยันตัวตน…</p>
-                        <ul style="font-size:10px;color:#64748b;line-height:1.7;list-style:none;padding:0;margin:0;">
+                    <div style="padding:10px 14px;flex-shrink:0;max-height:28vh;overflow-y:auto;background:rgba(15,23,42,0.96);border-top:1px solid rgba(255,255,255,0.08);">
+                        <p id="face-scan-status" style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:6px;">กำลังเตรียมระบบยืนยันตัวตน…</p>
+                        <ul style="font-size:10px;color:#94a3b8;line-height:1.7;list-style:none;padding:0;margin:0;">
                             <li>• มองตรงกล้อง แล้ว <b>กะพริบตา 1 ครั้ง</b> เมื่อระบบสั่ง (กันการใช้รูปถ่าย)</li>
                             <li>• ระบบเปรียบเทียบใบหน้ากับที่ลงทะเบียนไว้ แล้วบันทึกเวลาให้อัตโนมัติ</li>
                             <li>• เก็บเฉพาะ Vector + คะแนน ตาม PDPA ไม่เก็บภาพ</li>
@@ -2262,7 +2264,7 @@
                     </div>
 
                     <!-- Footer -->
-                    <div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
+                    <div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);background:#0f172a;flex-shrink:0;">
                         <button type="button" onclick="closeFaceScanModal()"
                             style="flex:1;background:#e2e8f0;color:#334155;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">ยกเลิก</button>
                         <button id="face-scan-retry-btn" type="button" onclick="restartFaceScanAttempt()" style="display:none;flex:1;background:#fef3c7;color:#92400e;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">ลองใหม่อีกครั้ง</button>
@@ -2273,8 +2275,8 @@
             <!-- ============================================== -->
             <!-- Phase 5: Modal ลงเวลาให้ทีม (Manager-Scan 1:N + Fallback A/B) -->
             <!-- ============================================== -->
-            <div id="face-manager-modal" style="display:none;position:fixed;inset:0;z-index:220;background:rgba(15,23,42,0.86);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
-                <div class="w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
+            <div id="face-manager-modal" style="display:none;position:fixed;inset:0;z-index:220;background:#020617;">
+                <div style="width:100%;max-width:520px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:#020617;">
                     <!-- Header -->
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#713f12,#422006);color:white;">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0;">
@@ -2289,8 +2291,9 @@
 
                     <!-- View: สแกนหน้า (ค่าเริ่มต้น) -->
                     <div id="face-manager-view-scan" style="display:flex;flex-direction:column;min-height:0;flex:1;">
-                        <div style="position:relative;aspect-ratio:4/4;background:#020617;flex-shrink:0;border-bottom:1px solid #e2e8f0;">
+                        <div style="position:relative;flex:1;min-height:0;background:#020617;">
                             <video id="face-manager-video" autoplay muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+                            <canvas id="face-manager-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
                             <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
                                 <div id="face-manager-scan-ring" style="width:70%;aspect-ratio:1/1;border:2px dashed rgba(252,211,77,0.75);border-radius:50%;box-shadow:0 0 0 9999px rgba(2,6,23,0.25);"></div>
                             </div>
@@ -2298,23 +2301,23 @@
                         </div>
 
                         <!-- ผลการจับคู่ -->
-                        <div id="face-manager-result" style="display:none;padding:12px 16px;background:#fffbeb;border-bottom:1px solid #fde68a;">
-                            <p style="font-size:9px;font-weight:800;color:#b45309;letter-spacing:0.5px;">👤 พบพนักงานตรงกับใบหน้า</p>
+                        <div id="face-manager-result" style="display:none;padding:10px 14px;background:rgba(180,83,9,0.18);border-top:1px solid rgba(251,191,36,0.3);border-bottom:1px solid rgba(251,191,36,0.3);backdrop-filter:blur(8px);">
+                            <p style="font-size:9px;font-weight:800;color:#fcd34d;letter-spacing:0.5px;">👤 พบพนักงานตรงกับใบหน้า</p>
                             <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
                                 <div style="width:40px;height:40px;border-radius:50%;background:#fde68a;display:flex;align-items:center;justify-content:center;color:#92400e;font-weight:900;font-size:15px;flex-shrink:0;"><span id="face-manager-avatar"></span></div>
                                 <div style="min-width:0;flex:1;">
-                                    <p style="font-size:13px;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span id="face-manager-match-name"></span></p>
-                                    <p style="font-size:10px;color:#92400e;font-weight:600;"><span id="face-manager-match-pos"></span> · คะแนน <span id="face-manager-match-score"></span></p>
+                                    <p style="font-size:13px;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span id="face-manager-match-name"></span></p>
+                                    <p style="font-size:10px;color:#fcd34d;font-weight:600;"><span id="face-manager-match-pos"></span> · คะแนน <span id="face-manager-match-score"></span></p>
                                 </div>
                             </div>
                             <div style="display:flex;gap:8px;margin-top:10px;">
                                 <button id="face-manager-confirm-btn" type="button" onclick="managerConfirmPunch()" style="flex:2;background:linear-gradient(135deg,#059669,#047857);color:white;border:none;border-radius:12px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">✅ ยืนยันและบันทึกเวลา</button>
-                                <button type="button" onclick="managerDiscardMatch()" style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:12px;padding:9px;font-size:11px;font-weight:700;cursor:pointer;">↻ สแกนใหม่</button>
+                                <button type="button" onclick="managerDiscardMatch()" style="flex:1;background:rgba(255,255,255,0.12);color:#e2e8f0;border:none;border-radius:12px;padding:9px;font-size:11px;font-weight:700;cursor:pointer;">↻ สแกนใหม่</button>
                             </div>
                         </div>
 
-                        <div style="padding:10px 16px;flex:1;overflow-y:auto;display:flex;flex-direction:column;">
-                            <p id="face-manager-status" style="font-size:11px;font-weight:700;color:#0f172a;">กำลังเตรียม…</p>
+                        <div style="padding:10px 14px;flex:0 0 auto;max-height:28vh;overflow-y:auto;display:flex;flex-direction:column;background:rgba(15,23,42,0.96);border-top:1px solid rgba(255,255,255,0.08);">
+                            <p id="face-manager-status" style="font-size:11px;font-weight:700;color:#e2e8f0;">กำลังเตรียม…</p>
                             <div id="face-manager-fallback" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
                                 <p style="font-size:9px;font-weight:800;color:#94a3b8;letter-spacing:0.5px;">ไม่พบใบหน้าในระบบ? ใช้วิธีสำรอง</p>
                                 <button type="button" onclick="managerOpenPickList('A')" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:10px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;text-align:left;">🔎 เลือกจากรายชื่อพนักงาน (วิธี A)</button>
@@ -2324,7 +2327,7 @@
                     </div>
 
                     <!-- View: เลือกจากรายชื่อ -->
-                    <div id="face-manager-view-pick" style="display:none;flex-direction:column;min-height:0;flex:1;">
+                    <div id="face-manager-view-pick" style="display:none;flex-direction:column;min-height:0;flex:1;background:#f8fafc;">
                         <div style="padding:10px 16px;border-bottom:1px solid #e2e8f0;">
                             <p id="face-manager-pick-title" style="font-size:11px;font-weight:800;color:#334155;margin-bottom:6px;">เลือกพนักงาน</p>
                             <input id="face-manager-search" type="text" placeholder="ค้นหา ชื่อ / รหัสพนักงาน…" oninput="managerRenderPickList()" style="width:100%;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;font-size:12px;">
@@ -2336,7 +2339,7 @@
                     </div>
 
                     <!-- View: ยืนยัน (วิธี A ตามรายชื่อ) -->
-                    <div id="face-manager-view-confirm" style="display:none;flex-direction:column;min-height:0;flex:1;">
+                    <div id="face-manager-view-confirm" style="display:none;flex-direction:column;min-height:0;flex:1;background:#f8fafc;">
                         <div style="padding:14px 16px;flex:1;overflow-y:auto;">
                             <p style="font-size:9px;font-weight:800;color:#64748b;letter-spacing:0.5px;">👤 พนักงานที่เลือก</p>
                             <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
@@ -26573,7 +26576,12 @@ const faceEnrollState = {
     timerId: null,
     startedAt: 0,
     pool: [],
-    lastNoseMisses: 0
+    lastNoseMisses: 0,
+    // เฝ้าดูใบหน้า → เริ่ม Auto-Capture เองเมื่อเจอ (ไม่ต้องกดปุ่ม)
+    watching: false,
+    watchTimerId: null,
+    watchHits: 0,
+    watchLastHitAt: 0
 };
 
 const FACE_ENROLL_MAX_DURATION = 3200;  // ms — จ้องกล้องสูงสุด ~3 วินาที
@@ -26715,7 +26723,7 @@ function enrollEl(id) { return document.getElementById(id); }
 
 function setEnrollStatus(msg, color) {
     const el = enrollEl('face-enroll-status');
-    if (el) { el.textContent = msg; el.style.color = color || '#0f172a'; }
+    if (el) { el.textContent = msg; el.style.color = color || '#e2e8f0'; }
 }
 
 function setEnrollProgress(pct, frameCount) {
@@ -26786,8 +26794,9 @@ async function openFaceEnrollmentModal(ctx) {
             video.srcObject = stream;
             await video.play().catch(() => {});
         }
-        setEnrollStatus('พร้อมแล้ว — กด “เริ่มลงทะเบียน” แล้วมองตรงกล้อง', '#059669');
-        if (startBtn) startBtn.disabled = false;
+        setEnrollStatus('พร้อมแล้ว — หันหน้าเข้ากล้อง ระบบจะเริ่มเก็บเฟรมอัตโนมัติเมื่อเจอใบหน้า', '#059669');
+        if (startBtn) { startBtn.disabled = false; startBtn.style.opacity = ''; }
+        startEnrollWatch();
     } catch (err) {
         console.error('[FaceEnroll] init error:', err);
         const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
@@ -26800,6 +26809,7 @@ async function openFaceEnrollmentModal(ctx) {
 
 function closeFaceEnrollmentModal() {
     stopFaceEnrollmentCapture();
+    stopEnrollWatch();
     if (faceEnrollState.ownedStream) {
         faceEnrollState.ownedStream.getTracks().forEach((t) => t.stop());
         faceEnrollState.ownedStream = null;
@@ -26829,8 +26839,9 @@ function closeFaceEnrollmentModal() {
 }
 
 // ─── เริ่ม/หยุด Auto-Capture ────────────────────────────────────────────────
-function startFaceEnrollment() {
+function startFaceEnrollment(fromAuto) {
     if (faceEnrollState.active) return;
+    if (faceEnrollState.watching) stopEnrollWatch();
     const video = enrollEl('face-enroll-video');
     const startBtn = enrollEl('face-enroll-start-btn');
     if (!faceEnrollState.modelsReady) {
@@ -26850,7 +26861,7 @@ function startFaceEnrollment() {
     faceEnrollState.lastNoseMisses = 0;
     faceEnrollState.startedAt = performance.now();
     if (startBtn) startBtn.disabled = true;
-    setEnrollStatus('มองตรงกล้องนิ่ง ๆ … ระบบเก็บเฟรมอัตโนมัติ', '#059669');
+    setEnrollStatus(fromAuto ? '✅ เจอใบหน้าแล้ว — กำลังเก็บเฟรมอัตโนมัติ (~3 วินาที)…' : 'มองตรงกล้องนิ่ง ๆ … ระบบเก็บเฟรมอัตโนมัติ', '#059669');
     setEnrollProgress(0, 0);
     setEnrollBorder(false);
     scheduleEnrollSample();
@@ -26861,6 +26872,145 @@ function stopFaceEnrollmentCapture() {
     faceEnrollState.inFlight = false;
     if (faceEnrollState.timerId) { clearTimeout(faceEnrollState.timerId); faceEnrollState.timerId = null; }
     setEnrollBorder(false);
+    clearLiveFaceBox(enrollEl('face-enroll-overlay'));
+}
+
+// ─── วาดกรอบใบหน้าแบบเรียลไทม์บนวิดีโอ (mirror + object-fit:cover) ──────────
+function resizeLiveBoxCanvas(canvas) {
+    if (!canvas || !canvas.clientWidth || !canvas.clientHeight) return false;
+    if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+    return true;
+}
+
+function drawLiveFaceBox(video, canvas, box, color) {
+    if (!canvas || !video) return;
+    if (!resizeLiveBoxCanvas(canvas)) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!box) return;
+    const vw = video.videoWidth || 0, vh = video.videoHeight || 0;
+    if (!vw || !vh) return;
+    // แปลงพิกัดจากเฟรมกล้อง (ยังไม่ mirror) ไปยังจอที่แสดงแบบ mirror + object-fit:cover
+    const scale = Math.max(canvas.width / vw, canvas.height / vh);
+    const offX = (vw * scale - canvas.width) / 2;
+    const offY = (vh * scale - canvas.height) / 2;
+    const x = (vw - box.x - box.width) * scale - offX;
+    const y = box.y * scale - offY;
+    ctx.strokeStyle = color || '#34d399';
+    ctx.lineWidth = Math.max(2, Math.round(canvas.width / 200));
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.rect(x, y, Math.max(2, box.width * scale), Math.max(2, box.height * scale));
+    ctx.stroke();
+}
+
+function clearLiveFaceBox(canvas) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ─── เสียงแจ้งเตือน (Web Audio — ไม่ต้องใช้ไฟล์เสียง) ─────────────────────────
+let _scanBeepCtx = null;
+function scanBeepTone(freq, startAt, durSec, vol) {
+    const ctx = _scanBeepCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(vol, startAt + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + durSec);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(startAt);
+    osc.stop(startAt + durSec + 0.05);
+}
+function playScanBeep(kind) {
+    try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!_scanBeepCtx) _scanBeepCtx = new AC();
+        if (_scanBeepCtx.state === 'suspended') _scanBeepCtx.resume();
+        const t = _scanBeepCtx.currentTime + 0.02;
+        if (kind === 'found') {
+            // พบใบหน้า → เริ่ม Auto-Capture (เสียงสั้น 1 จังหวะ)
+            scanBeepTone(880, t, 0.15, 0.14);
+        } else if (kind === 'ok') {
+            // สแกน/บันทึกสำเร็จ (เสียงขึ้น 2 ระดับ)
+            scanBeepTone(783.99, t, 0.16, 0.16);
+            scanBeepTone(1318.51, t + 0.2, 0.28, 0.16);
+        }
+    } catch (e) { /* บางเบราว์เซอร์บล็อกเสียง — ละเว้น */ }
+}
+
+// ─── เฝ้าดูใบหน้า → เริ่ม Auto-Capture อัตโนมัติเมื่อพบ (ไม่ต้องกดปุ่ม) ───────
+let enrollWatchBlurTicks = 0; // นับเฟรมที่หน้าเบลอต่อเนื่อง (เพื่อแนะนำผู้ใช้)
+
+function startEnrollWatch() {
+    if (faceEnrollState.active) return;
+    if (!faceEnrollState.modelsReady || !faceEnrollState.cameraOn) return;
+    if (faceEnrollState.watching) return;
+    faceEnrollState.watching = true;
+    faceEnrollState.watchHits = 0;
+    faceEnrollState.watchLastHitAt = 0;
+    enrollWatchBlurTicks = 0;
+    setEnrollStatus('พร้อมแล้ว — หันหน้าเข้ากล้อง ระบบจะเริ่มเก็บเฟรมอัตโนมัติเมื่อเจอใบหน้า', '#059669');
+    const sb = enrollEl('face-enroll-start-btn');
+    if (sb) { sb.disabled = false; sb.style.opacity = ''; }
+    scheduleEnrollWatch();
+}
+
+function stopEnrollWatch() {
+    faceEnrollState.watching = false;
+    if (faceEnrollState.watchTimerId) { clearTimeout(faceEnrollState.watchTimerId); faceEnrollState.watchTimerId = null; }
+}
+
+function scheduleEnrollWatch() {
+    if (!faceEnrollState.watching) return;
+    faceEnrollState.watchTimerId = setTimeout(enrollWatchTick, 150);
+}
+
+async function enrollWatchTick() {
+    faceEnrollState.watchTimerId = null;
+    if (!faceEnrollState.watching || faceEnrollState.active) return;
+    const video = enrollEl('face-enroll-video');
+    if (!video || video.readyState < 2 || !window.faceapi) { scheduleEnrollWatch(); return; }
+    let det = null;
+    try {
+        det = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .withFaceLandmarks();
+    } catch (e) { /* ข้ามเฟรม */ }
+    if (!faceEnrollState.watching || faceEnrollState.active) return;
+    if (!det) {
+        drawLiveFaceBox(video, enrollEl('face-enroll-overlay'), null);
+        faceEnrollState.watchHits = 0;
+        scheduleEnrollWatch();
+        return;
+    }
+    drawLiveFaceBox(video, enrollEl('face-enroll-overlay'), det.detection.box, '#34d399');
+    const sharp = computeFaceSharpness(video, det.detection.box);
+    if (sharp >= FACE_ENROLL_SHARPNESS_MIN) {
+        enrollWatchBlurTicks = 0;
+        const now = performance.now();
+        faceEnrollState.watchHits = (now - faceEnrollState.watchLastHitAt <= 800) ? faceEnrollState.watchHits + 1 : 1;
+        faceEnrollState.watchLastHitAt = now;
+        if (faceEnrollState.watchHits >= 3) {
+            // เจอใบหน้าชัดเจนต่อเนื่อง ~0.5 วินาที → เริ่มเก็บเฟรม (~3 วิ) ทันที
+            playScanBeep('found');
+            startFaceEnrollment(true);
+            return;
+        }
+    } else {
+        faceEnrollState.watchHits = 0;
+        if (++enrollWatchBlurTicks % 12 === 0) {
+            setEnrollStatus('พบหน้าแต่ภาพเบลอ — อยู่นิ่ง ๆ และให้แสงสว่างพอ ระบบจะเริ่มเอง', '#d97706');
+        }
+    }
+    scheduleEnrollWatch();
 }
 
 function scheduleEnrollSample() {
@@ -26884,6 +27034,7 @@ async function sampleEnrollFrame() {
     } catch (e) { /* เฟรมนี้ล้มเหลว — ข้าม */ }
     faceEnrollState.inFlight = false;
     if (!faceEnrollState.active) return;
+    if (det) drawLiveFaceBox(video, enrollEl('face-enroll-overlay'), det.detection.box, '#34d399');
 
     const elapsed = performance.now() - faceEnrollState.startedAt;
     if (det) {
@@ -26963,6 +27114,7 @@ async function saveFaceEnrollment(payload, itemCount) {
         if (res && res.status === 'success') {
             setEnrollStatus(`🎉 ลงทะเบียนใบหน้าสำเร็จ (${itemCount} มุม) — ปิดหน้านี้ได้เลย`, '#059669');
             showToast(`🎉 ลงทะเบียนใบหน้าสำเร็จ (${itemCount} มุม)`, 'success');
+            playScanBeep('ok');
             if (startBtn) startBtn.disabled = true;
             const closeBtn = enrollEl('face-enroll-close-btn');
             if (closeBtn) closeBtn.textContent = 'เสร็จสิ้น ✓';
@@ -27133,7 +27285,7 @@ function faceScanAvgEar(det) {
 
 function faceScanStatus(msg, color) {
     const el = enrollEl('face-scan-status');
-    if (el) { el.textContent = msg; el.style.color = color || '#0f172a'; }
+    if (el) { el.textContent = msg; el.style.color = color || '#e2e8f0'; }
 }
 
 function faceScanProgress(pct) {
@@ -27179,6 +27331,7 @@ function startFaceScanAttempt() {
     faceScanState.startedAt = performance.now();
     enrollEl('face-scan-retry-btn').style.display = 'none';
     faceScanStatus('มองตรงกล้อง…');
+    clearLiveFaceBox(enrollEl('face-scan-overlay'));
     scheduleFaceScanTick();
 }
 
@@ -27204,6 +27357,7 @@ async function faceScanTick() {
     if (!faceScanState.busy) return;
 
     if (!det) {
+        drawLiveFaceBox(video, enrollEl('face-scan-overlay'), null);
         if (elapsed > 3000) faceScanStatus('ไม่พบใบหน้า — มองตรงกล้องให้เต็มกรอบ', '#d97706');
         faceScanProgress((elapsed / FACE_SCAN_TRY_LIMIT_MS) * 100);
         scheduleFaceScanTick();
@@ -27211,6 +27365,7 @@ async function faceScanTick() {
     }
 
     const ear = faceScanAvgEar(det);
+    drawLiveFaceBox(video, enrollEl('face-scan-overlay'), det.detection.box, '#34d399');
 
     if (faceScanState.phase === 'detect') {
         const sharp = computeFaceSharpness(video, det.detection.box);
@@ -27317,6 +27472,7 @@ async function faceScanSubmitPunch(score) {
         });
         if (res && res.status === 'success') {
             showToast(`🎉 ${res.message} (สแกนใบหน้า)`, 'success');
+            playScanBeep('ok');
             faceScanState.busy = false;
             closeFaceScanModal();
             // คืนจอแบบเดิม (เหมือนวิธีถ่ายรูป)
@@ -27370,6 +27526,7 @@ function closeFaceScanModal() {
     if (modal) modal.style.display = 'none';
     const retry = enrollEl('face-scan-retry-btn');
     if (retry) retry.style.display = 'none';
+    clearLiveFaceBox(enrollEl('face-scan-overlay'));
 }
 
 // ─── อ่าน Vector ที่ลงทะเบียนของตัวเองจาก face_database ──────────────────────
@@ -27423,7 +27580,7 @@ function mgrEl(id) { return document.getElementById(id); }
 
 function mgrStatus(msg, color) {
     const el = mgrEl('face-manager-status');
-    if (el) { el.textContent = msg; el.style.color = color || '#0f172a'; }
+    if (el) { el.textContent = msg; el.style.color = color || '#e2e8f0'; }
 }
 
 function mgrView(name) {
@@ -27526,6 +27683,7 @@ function mgrStartScanning() {
     mgrState.stableEmpId = null;
     mgrState.stableCount = 0;
     mgrEl('face-manager-result').style.display = 'none';
+    clearLiveFaceBox(mgrEl('face-manager-overlay'));
     scheduleMgrScan();
 }
 
@@ -27557,11 +27715,13 @@ async function mgrScanTick() {
     } catch (e) { /* skip */ }
     if (!mgrState.busy || !mgrState.scanningActive) return;
     if (!det) {
+        drawLiveFaceBox(video, mgrEl('face-manager-overlay'), null);
         if (mgrEl('face-manager-result').style.display !== 'none') { /* มีผลค้าง */ }
         mgrStatus('ให้ลูกน้องมองตรงกล้อง…', '#059669');
         scheduleMgrScan();
         return;
     }
+    drawLiveFaceBox(video, mgrEl('face-manager-overlay'), det.detection.box, '#34d399');
     const ear = faceScanAvgEar(det);
     const sharp = computeFaceSharpness(video, det.detection.box);
     if (ear < FACE_SCAN_EAR_OPEN || sharp < 300) {
@@ -27614,6 +27774,7 @@ async function mgrScanTick() {
 async function mgrShowMatchCard() {
     const c = mgrState.candidate;
     if (!c) return;
+    playScanBeep('found');
     mgrState.matchType = await mgrResolvePunchType(c.empId);
     mgrEl('face-manager-avatar').textContent = (c.name || '?').trim().charAt(0).toUpperCase();
     mgrEl('face-manager-match-name').textContent = c.name;
@@ -27713,6 +27874,7 @@ async function mgrSubmitPunch(empId, mode, score, evidence) {
         if (res && res.status === 'success') {
             delete mgrState.todayCache[emp.empId]; // ให้รอบถัดไปอ่าน IN/OUT ล่าสุดจาก DB
             showToast(`🎉 บันทึกเวลา${type === 'IN' ? 'เข้า' : 'ออก'}ให้ ${emp.name} แล้ว`, 'success');
+            playScanBeep('ok');
             mgrStatus(`✅ บันทึกให้ ${emp.name} แล้ว (${type === 'IN' ? 'เข้า' : 'ออก'}) — สแกนคนถัดไปได้เลย`, '#059669');
             mgrEl('face-manager-result').style.display = 'none';
             if (mgrState.view === 'confirm') mgrView('scan');
@@ -27871,6 +28033,7 @@ function closeFaceManagerModal() {
     if (video) video.srcObject = null;
     const modal = mgrEl('face-manager-modal');
     if (modal) modal.style.display = 'none';
+    clearLiveFaceBox(mgrEl('face-manager-overlay'));
 }
 </script>
 <script>
