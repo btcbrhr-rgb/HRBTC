@@ -13679,7 +13679,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // --- ส่วนจัดการเวลา ---
             function startLiveTime() {
-                setInterval(() => {
+                // กัน interval ซ้อนกัน (เรียกซ้ำหลายรอบได้) + อัปเดตทันทีรอบแรก
+                if (window._liveTimeIntervalId) {
+                    clearInterval(window._liveTimeIntervalId);
+                    window._liveTimeIntervalId = null;
+                }
+                const tick = () => {
                     const now = new Date();
                     const timeElement = document.getElementById("live-time");
                     const dateElement = document.getElementById("live-date");
@@ -13690,7 +13695,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (dateElement) {
                         dateElement.textContent = formatThaiDate(now.toISOString().split('T')[0]);
                     }
-                }, 1000);
+                };
+                tick();
+                window._liveTimeIntervalId = setInterval(tick, 1000);
             }
 
             function Utilities_formatTime(date) {
@@ -13777,6 +13784,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 if (target === "attendance") {
+                    startLiveTime(); // อัปเดตนาฬิกาเมื่อเปิดหน้าลงเวลา (กันค้างที่ค่า HTML เดิม)
                     updateAttendanceStatus();
                     // Phase 7.2: ต้องเลือกโครงการก่อน กล้องจึงจะเริ่มทำงาน
                     const prjSel = document.getElementById("attendance-project-select");
