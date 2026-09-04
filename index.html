@@ -8636,13 +8636,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 sessionStorage.setItem("is_logged_in", "true");
                 if (currentEmployeeId) {
                     sessionStorage.setItem("logged_in_emp_id", currentEmployeeId);
-                    try { localStorage.setItem("hr_logged_in_emp_id", currentEmployeeId); } catch (e) {}
+                    // session-only
                     sessionStorage.setItem('pin_verified_' + currentEmployeeId, 'true');
                 }
                 if (employeeData && Object.keys(employeeData).length > 0) {
                     try {
                         sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
-                        localStorage.setItem("hr_employee_data", JSON.stringify(employeeData));
+                        // session-only
                     } catch (e) {}
                 }
                 // ✅ Optimistic Login: แสดง loading overlay แล้วโหลดข้อมูลก่อนแสดงหน้า App
@@ -8730,9 +8730,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // เก็บใน global เพื่อให้ handleLoginSuccess ใช้ได้
                 deepLinkTargetPage = (urlTab || urlModal || urlAction === "leaveRequestPage") ? targetPage : null;
 
-                // ตรวจสอบว่า login ไว้แล้วหรือไม่ หรือส่ง empId มาผ่าน URL จาก LINE หรือ Refresh หน้าจอ
-                const savedEmpId = urlEmpId || sessionStorage.getItem("logged_in_emp_id") || localStorage.getItem("hr_logged_in_emp_id") || null;
-                const savedLoginStatus = urlEmpId ? "true" : (sessionStorage.getItem("is_logged_in") || (localStorage.getItem("hr_logged_in_emp_id") ? "true" : null));
+                // ล้างค่าตกค้างใน localStorage เพื่อให้การปิดเบราว์เซอร์ออกจากระบบให้อัตโนมัติ
+                try {
+                    localStorage.removeItem("hr_logged_in_emp_id");
+                    localStorage.removeItem("hr_employee_data");
+                } catch (e) {}
+
+                // ตรวจสอบว่า login ไว้แล้วหรือไม่: ใช้ sessionStorage เพื่อให้คงสถานะเฉพาะขณะรีเฟรชหน้า (F5) แต่เมื่อปิดเบราว์เซอร์/ปิดแท็บ จะออกจากระบบอัตโนมัติ
+                const savedEmpId = urlEmpId || sessionStorage.getItem("logged_in_emp_id") || null;
+                const savedLoginStatus = urlEmpId ? "true" : sessionStorage.getItem("is_logged_in");
 
                 if ((savedLoginStatus === "true" || urlEmpId) && savedEmpId) {
                     isLoggedIn = true;
@@ -8740,10 +8746,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     sessionStorage.setItem("is_logged_in", "true");
                     sessionStorage.setItem("logged_in_emp_id", savedEmpId);
 
-                    // กู้คืนข้อมูลพนักงานจาก session หรือ local storage ทันที
+                    // กู้คืนข้อมูลพนักงานจาก session storage ทันที
                     if (!employeeData || Object.keys(employeeData).length === 0) {
                         try {
-                            const cached = sessionStorage.getItem("employee_data") || localStorage.getItem("hr_employee_data");
+                            const cached = sessionStorage.getItem("employee_data");
                             if (cached) employeeData = JSON.parse(cached);
                         } catch(e) {}
                     }
@@ -8800,7 +8806,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 };
                                 try {
                                     sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
-                                    localStorage.setItem("hr_employee_data", JSON.stringify(employeeData));
+                                    // session-only
                                 } catch (e) {}
                             }
                         } catch(e) {
@@ -9322,7 +9328,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 currentEmployeeId = empId;
                 sessionStorage.setItem("is_logged_in", "true");
                 sessionStorage.setItem("logged_in_emp_id", empId);
-                try { localStorage.setItem("hr_logged_in_emp_id", empId); } catch(e) {}
+                // session-only
                 sessionStorage.setItem('pin_verified_' + empId, 'true');
 
                 const isAdminUser = isAdminLoginAccount(empId);
@@ -9363,7 +9369,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     console.log('[handleLoginSuccess ⚡ Supabase] Employee data loaded:', empId);
                                     try {
                                         sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
-                                        localStorage.setItem("hr_employee_data", JSON.stringify(employeeData));
+                                        // session-only
                                     } catch (e) {}
                                 }
                             }
