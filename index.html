@@ -7892,8 +7892,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         'announcements', 'holidays', 'projects', 'system_settings'
                     ];
 
-                    let chan = supabaseClient.channel('hrbtc-realtime-sync');
+                    let chan = supabaseClient.channel('hrbtc-realtime-sync', {
+                        config: { broadcast: { ack: true } }
+                    });
 
+                    // ⚡ 1. รับสัญญาณ Broadcast (Instant Peer-to-Peer 0ms ข้ามทุกเครื่อง/แท็บ)
+                    chan = chan.on(
+                        'broadcast',
+                        { event: 'data_changed' },
+                        (payload) => {
+                            const data = payload.payload || {};
+                            console.log('[Realtime ⚡ Broadcast Received]', data.table, data.action, data);
+                            this._handleEvent(data.table || 'unknown', {
+                                eventType: data.action || 'UPDATE',
+                                new: data.record || null,
+                                isBroadcast: true
+                            });
+                        }
+                    );
+
+                    // ⚡ 2. ตรวจจับการเปลี่ยนแปลงระดับ Postgres Database
                     tablesToWatch.forEach(table => {
                         chan = chan.on(
                             'postgres_changes',
@@ -7904,7 +7922,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     try {
                         if (typeof chan.subscribe === 'function') {
-                            chan.subscribe();
+                            chan.subscribe((status, error) => {
+                                if (status === 'SUBSCRIBED') {
+                                    this._status = 'connected';
+                                    this._reconnectAttempts = 0;
+                                    this._updateIndicator();
+                                    console.log('[Realtime] ✅ เชื่อมต่อ Real-time WebSocket สมบูรณ์');
+                                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                                    this._status = 'disconnected';
+                                    this._updateIndicator();
+                                    console.warn('[Realtime] ⚠️ สัญญาณ Real-time ขัดข้อง:', status, error);
+                                    this._scheduleReconnect();
+                                }
+                            });
                         }
                     } catch (error) {
                         console.warn('[Realtime] subscribe failed, disabling realtime for this session:', error);
@@ -7914,11 +7944,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     this._channel = chan;
-                    this._status = 'connected';
-                    this._reconnectAttempts = 0;
-                    this._updateIndicator();
                     if (typeof logDbActivity === 'function') {
                         logDbActivity('SYNC', 'Realtime', 'เชื่อมต่อ Real-time Synchronization สำเร็จ (พร้อมรับการอัปเดตทันที)', 'success');
+                    }
+                },
+
+                /**
+                 * 📢 ส่งสัญญาณ Broadcast ให้ทุก Client (Admin/พนักงาน) อัปเดตข้อมูลทันที
+                 */
+                broadcast(table, action, record) {
+                    if (this._channel && typeof this._channel.send === 'function') {
+                        this._channel.send({
+                            type: 'broadcast',
+                            event: 'data_changed',
+                            payload: { table, action, record, timestamp: Date.now() }
+                        }).then(resp => {
+                            console.log('[Realtime ⚡ Broadcast Sent]', table, action, resp);
+                        }).catch(err => console.warn('[Realtime broadcast send error]', err));
                     }
                 },
 
@@ -7937,19 +7979,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // บันทึก Activity Log แบบ Real-time
                     if (typeof logDbActivity === 'function') {
                         const opType = eventType === 'INSERT' ? 'CREATE' : (eventType === 'DELETE' ? 'DELETE' : 'UPDATE');
-                        const detailMsg = `⚡ Real-time Event: พบการเปลี่ยนแปลงข้อมูลในตาราง [${table}] (${eventType})`;
+                        const detailMsg = `⚡ Real-time: พบการเปลี่ยนแปลงข้อมูลในตาราง [${table}] (${eventType})`;
                         logDbActivity(opType, table, detailMsg, 'success');
                     }
 
                     this._pendingTables.add(table);
-                    this._scheduleDebouncedSync();
+                    // สำหรับคำขออนุมัติ (leave_requests, time_corrections, advance_requests) ให้ทำงานทันที 50ms
+                    const delay = (table === 'leave_requests' || table === 'time_corrections' || table === 'advance_requests') ? 50 : 250;
+                    this._scheduleDebouncedSync(delay);
                 },
 
-                _scheduleDebouncedSync() {
+                _scheduleDebouncedSync(delay = 250) {
                     if (this._debounceTimer) clearTimeout(this._debounceTimer);
                     this._debounceTimer = setTimeout(() => {
                         this._executeSync();
-                    }, 250); // 250ms debounce เพื่อรวมหลายเหตุการณ์ที่เกิดขึ้นพร้อมกัน
+                    }, delay);
                 },
 
                 async _executeSync() {
@@ -7972,21 +8016,30 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     }
 
-                    // 3. ถ้าอยู่ใน Admin mode ให้อัปเดตตารางของ Admin
+                    // 3. ถ้าอยู่ใน Admin mode ให้อัปเดตตารางและแจ้งเตือนของ Admin ทันที
                     if (typeof isAdminMode !== 'undefined' && isAdminMode) {
                         if (tables.includes('employees') && typeof fetchAdminEmployeeListInternal === 'function') {
                             adminEmployeesList = [];
                             if (typeof fetchAdminEmployeeList === 'function') await fetchAdminEmployeeList().catch(() => {});
                         }
                         if ((tables.includes('leave_requests') || tables.includes('time_corrections') || tables.includes('advance_requests')) && typeof loadAdminApprovals === 'function') {
-                            loadAdminApprovals();
+                            adminApprovalsLoadedOnce = false; // ปลดล็อกเพื่อให้ดึงข้อมูลใหม่ล่าสุดเสมอ
+                            await loadAdminApprovals();
+                            if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                            if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+
+                            // แจ้งเตือนแอดมินทันทีผ่าน Toast
+                            if (tables.includes('leave_requests')) {
+                                showToast('🔔 มีคำขอลาใหม่ / รายการอัปเดตเข้ามาในระบบ', 'info');
+                            } else if (tables.includes('time_corrections')) {
+                                showToast('🔔 มีคำขอแก้ไขเวลาทำงานใหม่', 'info');
+                            } else if (tables.includes('advance_requests')) {
+                                showToast('🔔 มีคำขอเบิกเงินกลางเดือนใหม่', 'info');
+                            }
                         }
                     }
 
-                    // 4. ⚡ Re-render ทุก View — loadAllData() ในขั้นตอนที่ 2 เรียก _renderAllViews() แล้ว
-                    //    ไม่ต้องเรียกซ้ำอีก เพื่อป้องกัน UI flicker (หน้าจอกระพิบ)
-
-                    // 5. แสดงเอฟเฟกต์กะพริบ Live Sync Badge (subtle — ไม่ใช้ scale)
+                    // 4. ⚡ Re-render ทุก View
                     this._flashLiveBadge();
                 },
 
@@ -8581,6 +8634,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     currentEmployeeId = resolvedEmpId;
                 }
                 sessionStorage.setItem("is_logged_in", "true");
+                if (currentEmployeeId) {
+                    sessionStorage.setItem("logged_in_emp_id", currentEmployeeId);
+                    try { localStorage.setItem("hr_logged_in_emp_id", currentEmployeeId); } catch (e) {}
+                    sessionStorage.setItem('pin_verified_' + currentEmployeeId, 'true');
+                }
+                if (employeeData && Object.keys(employeeData).length > 0) {
+                    try {
+                        sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
+                        localStorage.setItem("hr_employee_data", JSON.stringify(employeeData));
+                    } catch (e) {}
+                }
                 // ✅ Optimistic Login: แสดง loading overlay แล้วโหลดข้อมูลก่อนแสดงหน้า App
                 generateCycleOptions();
                 const currentCycle = getCurrentCycleRange();
@@ -8666,25 +8730,86 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // เก็บใน global เพื่อให้ handleLoginSuccess ใช้ได้
                 deepLinkTargetPage = (urlTab || urlModal || urlAction === "leaveRequestPage") ? targetPage : null;
 
-                // ตรวจสอบว่า login ไว้แล้วหรือไม่ หรือส่ง empId มาผ่าน URL จาก LINE
-                const savedEmpId = urlEmpId || null;
-                const savedLoginStatus = urlEmpId ? "true" : sessionStorage.getItem("is_logged_in");
+                // ตรวจสอบว่า login ไว้แล้วหรือไม่ หรือส่ง empId มาผ่าน URL จาก LINE หรือ Refresh หน้าจอ
+                const savedEmpId = urlEmpId || sessionStorage.getItem("logged_in_emp_id") || localStorage.getItem("hr_logged_in_emp_id") || null;
+                const savedLoginStatus = urlEmpId ? "true" : (sessionStorage.getItem("is_logged_in") || (localStorage.getItem("hr_logged_in_emp_id") ? "true" : null));
 
                 if ((savedLoginStatus === "true" || urlEmpId) && savedEmpId) {
                     isLoggedIn = true;
                     currentEmployeeId = savedEmpId;
                     sessionStorage.setItem("is_logged_in", "true");
+                    sessionStorage.setItem("logged_in_emp_id", savedEmpId);
 
-                    // บังคับยืนยัน PIN ก่อน auto-login เสมอ — แม้จะเปิดจาก LINE (lineUserId)
-                    // ยกเว้นเฉพาะ admin account และ session ที่ยืนยัน PIN ไปแล้วใน session นี้
+                    // กู้คืนข้อมูลพนักงานจาก session หรือ local storage ทันที
+                    if (!employeeData || Object.keys(employeeData).length === 0) {
+                        try {
+                            const cached = sessionStorage.getItem("employee_data") || localStorage.getItem("hr_employee_data");
+                            if (cached) employeeData = JSON.parse(cached);
+                        } catch(e) {}
+                    }
+
+                    // บังคับยืนยัน PIN เฉพาะเมื่อเปิดใหม่ผ่าน URL/เบราว์เซอร์ใหม่ที่ยังไม่ได้ยืนยัน PIN ในเซสชันนี้
                     const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
-                    if (!pinVerifiedThisSession && urlEmpId && !isAdminLoginAccount(savedEmpId)) {
+                    if (!pinVerifiedThisSession && (urlEmpId || !sessionStorage.getItem("is_logged_in")) && !isAdminLoginAccount(savedEmpId)) {
                         await promptPinBeforeAutoLogin(savedEmpId);
                         return;
                     }
 
+                    // ถ้าเป็น special admin ให้ตั้ง employeeData เริ่มต้นไว้เสมอ
+                    if (isAdminLoginAccount(savedEmpId) && (!employeeData || Object.keys(employeeData).length === 0)) {
+                        employeeData = {
+                            "รหัสพนักงาน": "admin",
+                            "ชื่อ-นามสกุล": "System Admin",
+                            "ตำแหน่ง": "Administrator",
+                            "สถานะ": "ทำงานปกติ",
+                            "วันหยุดประจําสัปดาห์": "วันอาทิตย์",
+                            "ชื่อบริษัท": "Buriram Thongchai",
+                            "สิทธิ์การใช้งาน": "administrator"
+                        };
+                    } else if ((!employeeData || Object.keys(employeeData).length === 0) && supabaseClient) {
+                        try {
+                            const { data: empRecord, error: empErr } = await supabaseClient
+                                .from('employees')
+                                .select('*')
+                                .ilike('emp_id', savedEmpId)
+                                .maybeSingle();
+                            if (!empErr && empRecord) {
+                                employeeData = {
+                                    "รหัสพนักงาน": empRecord.emp_id,
+                                    "ชื่อ-นามสกุล": empRecord.name,
+                                    "ตำแหน่ง": empRecord.position,
+                                    "สถานะ": empRecord.status,
+                                    "วันหยุดประจําสัปดาห์": empRecord.day_off,
+                                    "ชื่อบริษัท": empRecord.company,
+                                    "วันที่เริ่มงาน": empRecord.start_date,
+                                    "เบอร์โทรศัพท์": empRecord.phone,
+                                    "ที่อยู่": empRecord.address,
+                                    "เลขบัตรประชาชน": empRecord.id_card,
+                                    "วันเดือนปีเกิด": empRecord.birth_date,
+                                    "ธนาคาร": empRecord.bank,
+                                    "สาขาธนาคาร": empRecord.bank_branch,
+                                    "หมายเลขบัญชี": empRecord.bank_account,
+                                    "ลิ้งภาพโปรไฟล์": empRecord.avatar_url,
+                                    "ฐานเงินเดือน": empRecord.base_salary,
+                                    "ตัวหารค่าแรง": empRecord.wage_divisor,
+                                    "ชั่วโมงทำงานต่อวัน": empRecord.work_hours_per_day,
+                                    "ตัวคูณโอที": empRecord.ot_rate,
+                                    "สิทธิ์การใช้งาน": empRecord.role,
+                                    "LineUserId": empRecord.line_user_id,
+                                    "PIN": (empRecord.pin || empRecord.pin_hash) ? "configured" : ""
+                                };
+                                try {
+                                    sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
+                                    localStorage.setItem("hr_employee_data", JSON.stringify(employeeData));
+                                } catch (e) {}
+                            }
+                        } catch(e) {
+                            console.warn('[auto-login] Employee load failed:', e);
+                        }
+                    }
+
                     // ✅ Optimistic Login: แสดง loading overlay แล้วโหลดข้อมูลทั้งหมดก่อนแสดงหน้า App
-                    showLoginLoading();
+                    showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
                     generateCycleOptions();
                     const currentCycle = getCurrentCycleRange();
                     const homeCycleRange = document.getElementById("home-cycle-range");
@@ -8697,14 +8822,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // ⚡ โหลดข้อมูลทั้งหมดก่อนแสดง UI
                     try {
                         await loadAllData();
+                        if (typeof RealtimeSyncManager !== 'undefined') {
+                            RealtimeSyncManager.init();
+                        }
                     } catch (err) {
                         console.error('[auto-login] loadAllData error:', err);
                     }
 
                     hideLoginContainer();
                     const autoAdminUser = isAdminLoginAccount(currentEmployeeId);
-                    if (autoAdminUser && !urlTab && !urlModal) {
+                    const userRole = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+                    const isUserAdminRole = isAdminRole(userRole);
+                    const savedAdminMode = sessionStorage.getItem("is_admin_mode") === "true";
+                    const savedAdminTab = sessionStorage.getItem("admin_active_tab");
+                    const savedActivePage = sessionStorage.getItem("active_page");
+
+                    if ((autoAdminUser || isUserAdminRole) && (savedAdminMode || (!urlTab && !urlModal && autoAdminUser))) {
                         enterAdminMode();
+                        if (savedAdminTab) {
+                            switchAdminTab(savedAdminTab);
+                        }
                         // ⚡ Auto-sync ถ้า Supabase ว่างเปล่า (auto-login path)
                         if (supabaseIsEmpty) {
                             setTimeout(() => {
@@ -8713,7 +8850,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }, 1500);
                         }
                     } else {
-                        navigateTo(targetPage);
+                        const pageToOpen = (urlTab || urlModal || urlAction === "leaveRequestPage") ? targetPage : (savedActivePage || targetPage || "home");
+                        navigateTo(pageToOpen);
                         // ถ้ามีคำขอเปิด Modal หรือแบบฟอร์มพิเศษ
                         if (urlModal === "correction" && typeof openCorrectionModal === "function") {
                             setTimeout(() => openCorrectionModal(), 350);
@@ -8958,7 +9096,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     sessionStorage.removeItem('pin_verified_' + currentEmployeeId);
                 }
                 sessionStorage.removeItem("is_logged_in");
+                sessionStorage.removeItem("logged_in_emp_id");
+                sessionStorage.removeItem("employee_data");
+                sessionStorage.removeItem("active_page");
+                sessionStorage.removeItem("is_admin_mode");
+                sessionStorage.removeItem("admin_active_tab");
                 sessionStorage.clear(); // ล้างทุกอย่างใน sessionStorage
+                try {
+                    localStorage.removeItem("hr_logged_in_emp_id");
+                    localStorage.removeItem("hr_employee_data");
+                } catch(e) {}
 
                 // 🧹 ล้างข้อมูลในหน่วยความจำ
                 isLoggedIn = false;
@@ -9174,6 +9321,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 isLoggedIn = true;
                 currentEmployeeId = empId;
                 sessionStorage.setItem("is_logged_in", "true");
+                sessionStorage.setItem("logged_in_emp_id", empId);
+                try { localStorage.setItem("hr_logged_in_emp_id", empId); } catch(e) {}
                 sessionStorage.setItem('pin_verified_' + empId, 'true');
 
                 const isAdminUser = isAdminLoginAccount(empId);
@@ -9212,6 +9361,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                         "PIN": (data.pin || data.pin_hash) ? "configured" : ""
                                     };
                                     console.log('[handleLoginSuccess ⚡ Supabase] Employee data loaded:', empId);
+                                    try {
+                                        sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
+                                        localStorage.setItem("hr_employee_data", JSON.stringify(employeeData));
+                                    } catch (e) {}
                                 }
                             }
                         } catch (sbErr) {
@@ -12125,6 +12278,32 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         leaveAttachmentBase64 = "";
                         closeSignatureModal();
                         showLeavePrintChoice(savedLeaveRecord);
+
+                        // ⚡ Optimistic UI: นำรายการคำขอลาใหม่แสดงในประวัติทันที 0ms ไม่ต้องรอ network
+                        const newDocId = (res.data && res.data.docId) ? res.data.docId : (savedLeaveRecord.doc_id || savedLeaveRecord.docId || 'L-PENDING');
+                        const newLeaveItem = {
+                            "เลขที่เอกสาร": newDocId,
+                            "รหัสพนักงาน": pendingLeavePayload.empId,
+                            "ประเภทการลา": pendingLeavePayload.type,
+                            "ระยะเวลา": pendingLeavePayload.period || "เต็มวัน",
+                            "วันที่เริ่ม": pendingLeavePayload.start,
+                            "วันที่สิ้นสุด": pendingLeavePayload.end,
+                            "จำนวนวัน": parseFloat(pendingLeavePayload.days) || 1,
+                            "เหตุผล": pendingLeavePayload.reason || "",
+                            "สถานะ": "รออนุมัติ",
+                            "อนุมัติโดย": "--",
+                            "หมายเหตุ": "",
+                            "ลายมือชื่อ": signatureBase64 || "",
+                            "เอกสารแนบ": pendingLeavePayload.attachment ? "มีเอกสารแนบ" : ""
+                        };
+                        leaveRequestsList = [newLeaveItem, ...(leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== newDocId)];
+                        displayLeaveHistory();
+
+                        // ⚡ Realtime Broadcast: ส่งสัญญาณบอก Admin ทุกหน้าจอทันทีว่ามีคำขอลาใหม่
+                        if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                            RealtimeSyncManager.broadcast('leave_requests', 'INSERT', newLeaveItem);
+                        }
+
                         if (typeof loadAllData === 'function') loadAllData();
                     } else {
                         showToast("❌ ล้มเหลว: " + (res && res.message ? res.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์'), "error");
@@ -12303,6 +12482,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     showToast(`🗑️ ลบคำขอลา ${docId} เรียบร้อยแล้ว`, "success");
                     leaveRequestsList = (leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== docId);
                     displayLeaveHistory();
+
+                    // ⚡ Broadcast แจ้งเตือนแอดมินและทุกหน้าจอทันที
+                    if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                        RealtimeSyncManager.broadcast('leave_requests', 'DELETE', { docId });
+                    }
+
                     if (typeof loadAllData === 'function') {
                         loadAllData();
                     }
@@ -12473,6 +12658,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                     closeAttachLeaveModal();
                     displayLeaveHistory();
+
+                    // ⚡ Broadcast แจ้งเตือนทุกหน้าจอว่ามีการอัปเดตเอกสารแนบ
+                    if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                        RealtimeSyncManager.broadcast('leave_requests', 'UPDATE', { docId: currentAttachingDocId, attachments: uploadedUrl });
+                    }
+
                     if (typeof loadAllData === 'function') {
                         loadAllData();
                     }
@@ -13176,6 +13367,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // --- ส่วนจัดการหน้าจอและการเปลี่ยนหน้า ---
             function navigateTo(target) {
                 activePage = target;
+                try {
+                    sessionStorage.setItem("active_page", target);
+                    sessionStorage.setItem("is_admin_mode", "false");
+                } catch(e) {}
 
                 const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip", "announcements", "profile"];
                 pages.forEach(p => {
@@ -13455,6 +13650,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 isAdminMode = true;
+                try {
+                    sessionStorage.setItem("is_admin_mode", "true");
+                    sessionStorage.setItem("admin_active_tab", adminActiveTab || "dashboard");
+                } catch(e) {}
                 // แสดง connection dot เฉพาะโหมด Admin
                 const dot = document.getElementById("connection-status-dot");
                 if (dot) dot.classList.remove("hidden");
@@ -13509,6 +13708,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const adminContainer = document.getElementById("admin-app");
 
                 const switcher = document.getElementById("global-cycle-switcher");
+
+                try {
+                    sessionStorage.setItem("is_admin_mode", isAdminMode ? "true" : "false");
+                } catch(e) {}
 
                 if (isAdminMode) {
                     appContainer.classList.add("hidden");
@@ -13574,6 +13777,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return;
                 }
                 adminActiveTab = tabId;
+                try {
+                    sessionStorage.setItem("admin_active_tab", tabId);
+                } catch(e) {}
 
                 // ซ่อน Drawer เมนูบนมือถือเมื่อเลือกแท็บ
                 toggleAdminMobileSidebar(false);
@@ -16698,6 +16904,8 @@ container.innerHTML = "";
                             }
                             adminApprovalsLoadedOnce = true;
                             updateApprovalStatCards();
+                            if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                            if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
                             return;
                         }
                     } catch (sbErr) {
@@ -16764,6 +16972,8 @@ container.innerHTML = "";
                     renderCorrections({ status: 'success', data: corrData });
                     renderAdvance({ status: 'success', data: advData });
                     updateApprovalStatCards();
+                    if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                    if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
                     console.log('[loadAdminApprovals ⚡ Supabase] ✓', leaveData.length, 'leave,', corrData.length, 'corrections,', advData.length, 'advances');
                 } catch (err) {
                     showToast("❌ ซิงค์ข้อมูลคำขออนุมัติล้มเหลว: " + err.message, "error");
@@ -17342,6 +17552,9 @@ container.innerHTML = "";
                             // Always reload pending list from Supabase to stay in sync
                             // (removeApprovalPendingRow may fail for duplicate rows or key mismatches)
                             loadAdminApprovals();
+                            if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                RealtimeSyncManager.broadcast(batchOperationType === 'leave' ? 'leave_requests' : (batchOperationType === 'correction' ? 'time_corrections' : 'advance_requests'), 'UPDATE', { status });
+                            }
                             if (batchOperationType === 'correction') {
                                 yearlyMonthDataCache = {};
                                 if (typeof loadYearlyAttendanceOverview === 'function') {
@@ -17437,6 +17650,14 @@ container.innerHTML = "";
                                     await loadAdminApprovals();
                                 }
                                 updateApprovalStatCards();
+                                if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                                if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+
+                                // ⚡ Broadcast การอนุมัติไปยังทุกเครื่องทันที (พนักงานจะเห็นสถานะเปลี่ยนเป็นอนุมัติแล้วทันที)
+                                if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                    RealtimeSyncManager.broadcast(type === 'leave' ? 'leave_requests' : (type === 'correction' ? 'time_corrections' : 'advance_requests'), 'UPDATE', { status: approvedStatus });
+                                }
+
                                 if (type === 'correction') { 
                                     yearlyMonthDataCache = {};
                                     if (typeof loadYearlyAttendanceOverview === 'function') {
