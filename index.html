@@ -28964,6 +28964,8 @@ async function loadAdminFaceEnroll() {
             return;
         }
         faceEnrollRows = (res.data && res.data.rows) || [];
+        // เรียงตามรหัสพนักงาน (แบบ natural: E2 มาก่อน E10)
+        faceEnrollRows.sort((a, b) => String(a.emp_id || '').localeCompare(String(b.emp_id || ''), undefined, { numeric: true, sensitivity: 'base' }));
         renderAdminFaceEnroll(res.data);
     } catch (e) {
         console.error('[FaceEnrollAdmin] load err:', e);
@@ -28971,39 +28973,75 @@ async function loadAdminFaceEnroll() {
     }
 }
 
-function renderAdminFaceEnroll(data) {
-    const rows = faceEnrollRows;
-    const stats = (data && data.stats) || { total: rows.length, enrolled: 0, missing: 0 };
+function faceEnrollStatsHtml() {
+    const total = faceEnrollRows.length;
+    const enrolled = faceEnrollRows.filter((r) => r.enrolled).length;
+    const missing = total - enrolled;
     feEl('face-enroll-stats').innerHTML =
-        '<div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-slate-800">' + stats.total + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">พนักงานทั้งหมด</p></div>'
-        + '<div class="bg-white rounded-2xl border border-emerald-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-emerald-600">' + stats.enrolled + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">ลงทะเบียนแล้ว</p></div>'
-        + '<div class="bg-white rounded-2xl border border-amber-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-amber-600">' + stats.missing + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">ยังไม่ลงทะเบียน</p></div>';
-    feEl('face-enroll-count').textContent = rows.length + ' รายการ';
+        '<div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-slate-800">' + total + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">พนักงานทั้งหมด</p></div>'
+        + '<div class="bg-white rounded-2xl border border-emerald-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-emerald-600">' + enrolled + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">ลงทะเบียนแล้ว</p></div>'
+        + '<div class="bg-white rounded-2xl border border-amber-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-amber-600">' + missing + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">ยังไม่ลงทะเบียน</p></div>';
+    feEl('face-enroll-count').textContent = faceEnrollRows.length + ' รายการ';
+}
+
+// วาด <tr> หนึ่งแถว — ใช้ทั้งตอนโหลดเต็มตาราง และตอนอัปเดตเฉพาะแถวที่ล้าง
+function faceEnrollRowHtml(r) {
+    const badge = r.enrolled
+        ? '<span style="font-size:10px;font-weight:800;color:#047857;background:#d1fae5;border-radius:99px;padding:2px 8px;">ใบหน้า ✓</span>'
+        : '<span style="font-size:10px;font-weight:800;color:#b45309;background:#fef3c7;border-radius:99px;padding:2px 8px;">ยังไม่มีใบหน้า</span>';
+    const delBtn = r.enrolled
+        ? '<button type="button" onclick="clearFaceEnrollAdmin(\'' + String(r.emp_id).replace(/'/g, "\\'") + '\',\'' + String(r.name || '').replace(/'/g, "\\'") + '\')" title="ล้างข้อมูลใบหน้า — พนักงานต้องลงทะเบียนใหม่" style="font-size:10px;font-weight:800;color:#b91c1c;background:#fee2e2;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;">🗑 ล้าง</button>'
+        : '<span style="font-size:10px;color:#cbd5e1;">—</span>';
+    return '<tr class="border-b border-slate-50 hover:bg-slate-50" data-emp="' + String(r.emp_id || '').replace(/"/g, '&quot;') + '">'
+        + '<td class="px-4 py-3 font-bold text-slate-700">' + (r.emp_id || '') + '</td>'
+        + '<td class="px-4 py-3 text-slate-700">' + (r.name || '') + '</td>'
+        + '<td class="px-4 py-3 text-slate-500">' + (r.position || '—') + '</td>'
+        + '<td class="px-4 py-3">' + badge + '</td>'
+        + '<td class="px-4 py-3 text-slate-600 font-semibold">' + r.angles + '</td>'
+        + '<td class="px-4 py-3 text-slate-400">' + (r.updated_at ? String(r.updated_at).replace('T', ' ').slice(0, 16) : '—') + '</td>'
+        + '<td class="px-4 py-3">' + delBtn + '</td>'
+        + '</tr>';
+}
+
+// หลังล้างข้อมูล → อัปเดตเฉพาะแถวของคนนั้น (ไม่โหลดตารางใหม่ทั้งชุด)
+function faceEnrollApplyClear(empId, removeFromFilter) {
+    const idx = faceEnrollRows.findIndex((x) => String(x.emp_id) === String(empId));
+    if (idx >= 0) {
+        if (removeFromFilter) {
+            faceEnrollRows.splice(idx, 1); // อยู่ใน filter "ลงทะเบียนแล้ว" → ลบออกจากรายการที่แสดง
+        } else {
+            faceEnrollRows[idx].enrolled = false;
+            faceEnrollRows[idx].angles = 0;
+            faceEnrollRows[idx].updated_at = null;
+        }
+    }
+    if (removeFromFilter) {
+        // ลบ <tr> ของคนนั้นออกจาก DOM
+        const tr = document.querySelector('#face-enroll-body tr[data-emp="' + String(empId).replace(/"/g, '&quot;') + '"]');
+        if (tr) tr.remove();
+        if (!faceEnrollRows.length) {
+            const body = feEl('face-enroll-body');
+            if (body) body.innerHTML = '<p style="padding:28px;text-align:center;font-size:12px;color:#94a3b8;">ไม่พบพนักงานตามเงื่อนไข</p>';
+        }
+    } else {
+        // วาด <tr> ใหม่เฉพาะคนนั้น (สถานะกลายเป็นยังไม่ลงทะเบียน)
+        const r = faceEnrollRows.find((x) => String(x.emp_id) === String(empId));
+        const tr = document.querySelector('#face-enroll-body tr[data-emp="' + String(empId).replace(/"/g, '&quot;') + '"]');
+        if (r && tr) tr.outerHTML = faceEnrollRowHtml(r);
+    }
+    faceEnrollStatsHtml(); // อัปเดตเฉพาะการ์ดสรุป + จำนวนรายการ
+}
+
+function renderAdminFaceEnroll(data) {
+    faceEnrollStatsHtml();
     const body = feEl('face-enroll-body');
-    if (!rows.length) {
+    if (!faceEnrollRows.length) {
         body.innerHTML = '<p style="padding:28px;text-align:center;font-size:12px;color:#94a3b8;">ไม่พบพนักงานตามเงื่อนไข</p>';
         return;
     }
     const head = '<table class="w-full text-left text-xs"><thead><tr class="text-[10px] uppercase text-slate-400 border-b border-slate-100">'
         + '<th class="px-4 py-3">รหัส</th><th class="px-4 py-3">ชื่อ</th><th class="px-4 py-3">ตำแหน่ง</th><th class="px-4 py-3">ใบหน้า</th><th class="px-4 py-3">จำนวนมุม</th><th class="px-4 py-3">อัปเดตล่าสุด</th><th class="px-4 py-3">จัดการ</th></tr></thead><tbody>';
-    const trs = rows.map((r) => {
-        const badge = r.enrolled
-            ? '<span style="font-size:10px;font-weight:800;color:#047857;background:#d1fae5;border-radius:99px;padding:2px 8px;">ใบหน้า ✓</span>'
-            : '<span style="font-size:10px;font-weight:800;color:#b45309;background:#fef3c7;border-radius:99px;padding:2px 8px;">ยังไม่มีใบหน้า</span>';
-        const delBtn = r.enrolled
-            ? '<button type="button" onclick="clearFaceEnrollAdmin(\'' + String(r.emp_id).replace(/'/g, "\\'") + '\',\'' + String(r.name || '').replace(/'/g, "\\'") + '\')" title="ล้างข้อมูลใบหน้า — พนักงานต้องลงทะเบียนใหม่" style="font-size:10px;font-weight:800;color:#b91c1c;background:#fee2e2;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;">🗑 ล้าง</button>'
-            : '<span style="font-size:10px;color:#cbd5e1;">—</span>';
-        return '<tr class="border-b border-slate-50 hover:bg-slate-50">'
-            + '<td class="px-4 py-3 font-bold text-slate-700">' + (r.emp_id || '') + '</td>'
-            + '<td class="px-4 py-3 text-slate-700">' + (r.name || '') + '</td>'
-            + '<td class="px-4 py-3 text-slate-500">' + (r.position || '—') + '</td>'
-            + '<td class="px-4 py-3">' + badge + '</td>'
-            + '<td class="px-4 py-3 text-slate-600 font-semibold">' + r.angles + '</td>'
-            + '<td class="px-4 py-3 text-slate-400">' + (r.updated_at ? String(r.updated_at).replace('T', ' ').slice(0, 16) : '—') + '</td>'
-            + '<td class="px-4 py-3">' + delBtn + '</td>'
-            + '</tr>';
-    }).join('');
-    body.innerHTML = head + trs + '</tbody></table>';
+    body.innerHTML = head + faceEnrollRows.map(faceEnrollRowHtml).join('') + '</tbody></table>';
 }
 
 // Admin: ล้างข้อมูลใบหน้า → ให้พนักงานลงทะเบียนใหม่ (ลบแถว face_database เท่านั้น ไม่แตะ log/ภาพหลักฐาน)
@@ -29019,7 +29057,9 @@ async function clearFaceEnrollAdmin(empId, name) {
         console.log('[FaceEnrollAdmin] clear res:', res);
         if (res && res.status === 'success') {
             showToast(res.message || 'ล้างข้อมูลใบหน้าสำเร็จ', 'success');
-            loadAdminFaceEnroll(); // รีเฟรชตาราง
+            // อัปเดตเฉพาะแถวของคนนี้ + การ์ดสรุป (ไม่โหลดตารางใหม่ทั้งชุด)
+            const curFilter = (feEl('face-enroll-filter') && feEl('face-enroll-filter').value) || 'all';
+            faceEnrollApplyClear(empId, curFilter === 'enrolled');
         } else {
             const msg = ((res && res.message) || 'ล้างข้อมูลไม่สำเร็จ (ไม่ทราบสาเหตุ)');
             console.error('[FaceEnrollAdmin] clear failed:', msg, res);
