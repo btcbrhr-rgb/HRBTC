@@ -2229,6 +2229,17 @@
                                 <div id="face-enroll-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#38bdf8,#34d399);transition:width 0.2s;"></div>
                             </div>
                         </div>
+                        <!-- หน้าต่างแจ้งสำเร็จ: เก็บครบ → เด้งให้กด "เสร็จสิ้น" (ไม่ปิดเงียบ) -->
+                        <div id="face-enroll-success" style="display:none;position:absolute;inset:0;z-index:12;background:rgba(2,6,23,0.96);flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;">
+                            <div style="width:76px;height:76px;border-radius:50%;background:linear-gradient(135deg,#059669,#047857);display:flex;align-items:center;justify-content:center;margin-bottom:14px;box-shadow:0 0 0 10px rgba(5,150,105,0.14), 0 0 0 20px rgba(5,150,105,0.05);">
+                                <i class="fa-solid fa-check" style="color:#fff;font-size:34px;"></i>
+                            </div>
+                            <p id="face-enroll-success-title" style="font-size:18px;font-weight:800;color:#f8fafc;line-height:1.4;">ลงทะเบียนใบหน้าเสร็จสมบูรณ์</p>
+                            <p id="face-enroll-success-sub" style="font-size:11px;color:#94a3b8;margin:10px 0 20px 0;line-height:1.8;">—</p>
+                            <button id="face-enroll-success-btn" type="button" onclick="closeFaceEnrollmentModal()" style="width:100%;max-width:300px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:14px;padding:15px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(5,150,105,0.35);">✅ เสร็จสิ้น</button>
+                            <button id="face-enroll-success-retry" type="button" onclick="retryFaceEnrollment()" style="display:none;margin-top:12px;background:rgba(255,255,255,0.1);color:#e2e8f0;border:none;border-radius:12px;padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer;">↻ ลองใหม่อีกครั้ง (เก็บให้ครบ 3 มุม)</button>
+                            <p style="font-size:9px;color:#64748b;margin-top:16px;line-height:1.6;">เก็บเฉพาะ Face Vector (ตัวเลข) ตาม PDPA — ไม่เก็บภาพใบหน้าจริง</p>
+                        </div>
                     </div>
 
                     <!-- Body -->
@@ -13538,8 +13549,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const video = document.getElementById("video-feed");
                 if (!video) return;
                 video.setAttribute("playsinline", "true");
+                // 640x480 (ideal) แทน 400x300 เดิม → ภาพคมขึ้นสำหรับจดจำใบหน้า/ภาพหลักฐาน
                 const constraints = {
-                    video: { facingMode: cameraMode, width: 400, height: 300 }
+                    video: { facingMode: cameraMode, width: { ideal: 640 }, height: { ideal: 480 } }
                 };
 
                 try {
@@ -13549,6 +13561,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     streamRef = await navigator.mediaDevices.getUserMedia(constraints);
                     video.srcObject = streamRef;
+                    // กล้องหน้า = สะท้อนเหมือนกระจก (mirror) · กล้องหลัง = ภาพตรงตามจริง — กันสับสนทิศทาง
+                    video.style.transform = cameraMode === "user" ? "scaleX(-1)" : "none";
                     document.getElementById("camera-label").textContent = `โหมดกล้อง: ${cameraMode === "user" ? "หน้า" : "หลัง"}`;
                 } catch (err) {
                     console.error("Camera Access Error: ", err);
@@ -26702,6 +26716,10 @@ const FACE_ENROLL_POOL_MAX = 20;
 const FACE_ENROLL_TARGET_COUNT = 3;      // จำนวนมุมที่ต้องการ — เก็บอัตโนมัติจนครบ
 const FACE_ENROLL_SAVE_CAP_MS = 12000;   // ถ้ายังไม่ครบภายในเวลานี้ ให้บันทึกเท่าที่มี (กันค้างตลอดไป)
 
+// ขนาด input ของ TinyFaceDetector — ลดจาก 320 เดิมเพื่อให้เฝ้าดู/วาดกรอบลื่นขึ้น (หน้าใหญ่ในเฟรมอยู่แล้ว)
+const FACE_DETECT_WATCH_SIZE = 160;    // ลูปเฝ้าดูใบหน้าแบบเรียลไทม์ (เร็ว เนียน)
+const FACE_DETECT_CAPTURE_SIZE = 224;  // จังหวะจับ/ยืนยันจริง (สมดุลความแม่นกับความเร็ว)
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -26874,6 +26892,9 @@ async function openFaceEnrollmentModal(ctx) {
         nameEl.textContent = (nm ? nm + ' (' : '') + effEmp + (nm ? ')' : '');
     }
     setEnrollStatus('กำลังเตรียมระบบจดจำใบหน้า…', '#2563eb');
+    hideEnrollSuccess(); // reset หน้าต่างสำเร็จจากรอบก่อน
+    const closeBtnReset = enrollEl('face-enroll-close-btn');
+    if (closeBtnReset) closeBtnReset.textContent = 'ปิด';
     if (startBtn) startBtn.disabled = true;
     setEnrollBorder(false);
 
@@ -26933,12 +26954,13 @@ function closeFaceEnrollmentModal() {
     const modal = enrollEl('face-enroll-modal');
     if (modal) modal.style.display = 'none';
     setEnrollBorder(false);
+    hideEnrollSuccess();
+    // reset ปุ่ม/ข้อความให้พร้อมใช้ครั้งต่อไป (ทั้งลงทะเบียนตัวเองและ Fallback B)
+    const closeBtn = enrollEl('face-enroll-close-btn');
+    if (closeBtn) closeBtn.textContent = 'ปิด';
+    const startBtn = enrollEl('face-enroll-start-btn');
+    if (startBtn) { startBtn.disabled = false; startBtn.style.opacity = ''; }
     if (faceEnrollCtx) {
-        // reset ปุ่ม/ข้อความให้พร้อมใช้ลงทะเบียนตัวเองครั้งต่อไป
-        const closeBtn = enrollEl('face-enroll-close-btn');
-        if (closeBtn) closeBtn.textContent = 'ปิด';
-        const startBtn = enrollEl('face-enroll-start-btn');
-        if (startBtn) { startBtn.disabled = false; startBtn.style.opacity = ''; }
         faceEnrollCtx = null;
     }
     refreshFaceEnrollStatus();
@@ -26949,6 +26971,40 @@ function closeFaceEnrollmentModal() {
             mgrStartScanning();
         }
     } catch (e) { /* ignore */ }
+}
+
+function hideEnrollSuccess() {
+    const o = enrollEl('face-enroll-success');
+    if (o) o.style.display = 'none';
+    const pw = enrollEl('face-enroll-progress-wrap');
+    if (pw) pw.style.display = 'none';
+}
+
+function showEnrollSuccess(itemCount) {
+    const o = enrollEl('face-enroll-success');
+    if (!o) return;
+    const full = itemCount >= FACE_ENROLL_TARGET_COUNT;
+    const titleEl = enrollEl('face-enroll-success-title');
+    const subEl = enrollEl('face-enroll-success-sub');
+    const retry = enrollEl('face-enroll-success-retry');
+    if (titleEl) titleEl.textContent = full ? '🎉 ลงทะเบียนใบหน้าเสร็จสมบูรณ์' : 'ลงทะเบียนเสร็จแล้ว (ยังไม่ครบ ' + FACE_ENROLL_TARGET_COUNT + ' มุม)';
+    if (subEl) {
+        subEl.innerHTML = full
+            ? 'เก็บข้อมูลใบหน้า <b style="color:#6ee7b7;">' + itemCount + ' มุม</b> แล้ว<br>ระบบสแกนลงเวลาเข้า-ออก พร้อมใช้งานทันที'
+            : 'ระบบบันทึกชุดข้อมูลที่ได้ (<b style="color:#fbbf24;">' + itemCount + '/' + FACE_ENROLL_TARGET_COUNT + ' มุม</b>) แล้ว<br>แนะนำลองใหม่อีกครั้งเพื่อความแม่นยำสูงสุด';
+    }
+    if (retry) retry.style.display = full ? 'none' : 'inline-block';
+    const pw = enrollEl('face-enroll-progress-wrap');
+    if (pw) pw.style.display = 'none';
+    o.style.display = 'flex';
+}
+
+// กด "ลองใหม่อีกครั้ง" เมื่อเก็บได้ไม่ครบ → ซ่อนหน้าต่างสำเร็จแล้วเริ่มเก็บใหม่
+function retryFaceEnrollment() {
+    hideEnrollSuccess();
+    const startBtn = enrollEl('face-enroll-start-btn');
+    if (startBtn) { startBtn.disabled = false; startBtn.style.opacity = ''; }
+    startFaceEnrollment();
 }
 
 // ─── เริ่ม/หยุด Auto-Capture ────────────────────────────────────────────────
@@ -26974,6 +27030,7 @@ function startFaceEnrollment(fromAuto) {
     faceEnrollState.lastNoseMisses = 0;
     faceEnrollState.startedAt = performance.now();
     faceEnrollState.hintShown = false;
+    hideEnrollSuccess(); // เริ่มเก็บใหม่ → ซ่อนหน้าต่างสำเร็จ (ถ้ามีค้างจากรอบก่อน)
     if (startBtn) startBtn.disabled = true;
     setEnrollStatus(fromAuto ? '✅ เจอใบหน้าแล้ว — เก็บมุมใบหน้าอัตโนมัติจนครบ ' + FACE_ENROLL_TARGET_COUNT + ' มุม…' : 'มองตรงกล้องนิ่ง ๆ … ระบบเก็บเฟรมอัตโนมัติ', '#059669');
     setEnrollProgress(0, 0);
@@ -27122,7 +27179,7 @@ async function enrollWatchTick() {
     let det = null;
     try {
         det = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_WATCH_SIZE, scoreThreshold: 0.5 }))
             .withFaceLandmarks();
     } catch (e) { /* ข้ามเฟรม */ }
     if (!faceEnrollState.watching || faceEnrollState.active) return;
@@ -27169,7 +27226,7 @@ async function sampleEnrollFrame() {
     let det = null;
     try {
         det = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_CAPTURE_SIZE, scoreThreshold: 0.45 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
     } catch (e) { /* เฟรมนี้ล้มเหลว — ข้าม */ }
@@ -27266,18 +27323,21 @@ async function saveFaceEnrollment(payload, itemCount) {
             })
         });
         if (res && res.status === 'success') {
-            setEnrollStatus(`🎉 เก็บข้อมูลใบหน้าครบถ้วนแล้ว (${itemCount} มุม) — กด "เสร็จสิ้น" เพื่อปิด`, '#059669');
-            showToast(`🎉 เก็บข้อมูลใบหน้าครบถ้วนแล้ว (${itemCount} มุม)`, 'success');
             playScanBeep('ok');
+            if (faceEnrollCtx && typeof faceEnrollCtx.onSuccess === 'function') {
+                // Fallback B (หัวหน้าลงทะเบียนให้ลูกน้อง): ดำเนินการต่อโดยอัตโนมัติ (ปิด modal + ลงเวลาให้)
+                setEnrollStatus(`🎉 เก็บข้อมูลใบหน้าของ ${faceEnrollCtx.name || faceEnrollCtx.empId} ครบถ้วนแล้ว — ดำเนินการต่อ…`, '#059669');
+                const cb = faceEnrollCtx.onSuccess;
+                setTimeout(() => { try { cb(); } catch (e) { console.error('[FaceEnroll] onSuccess err', e); } }, 450);
+                return;
+            }
+            // ลงทะเบียนตัวเอง (หน้าจอ/จากปุ่มบนกล้อง): เด้งหน้าต่าง "เสร็จสิ้น" ให้กดปิดเอง — ไม่ปิดเงียบ
+            setEnrollStatus(`✅ บันทึกสำเร็จ (${itemCount} มุม) — กด "เสร็จสิ้น" เพื่อปิดหน้าต่างนี้`, '#059669');
             if (startBtn) startBtn.disabled = true;
             const closeBtn = enrollEl('face-enroll-close-btn');
             if (closeBtn) closeBtn.textContent = 'เสร็จสิ้น ✓';
-            if (faceEnrollCtx && typeof faceEnrollCtx.onSuccess === 'function') {
-                // Fallback B: หลังเซฟสำเร็จ ให้หัวหน้าดำเนินการต่อ (ปิด modal + ลงเวลาให้)
-                const cb = faceEnrollCtx.onSuccess;
-                setTimeout(() => { try { cb(); } catch (e) { console.error('[FaceEnroll] onSuccess err', e); } }, 350);
-                return;
-            }
+            showToast(itemCount >= FACE_ENROLL_TARGET_COUNT ? `🎉 เก็บข้อมูลใบหน้าครบถ้วนแล้ว (${itemCount} มุม)` : `เก็บข้อมูลแล้ว (${itemCount}/${FACE_ENROLL_TARGET_COUNT} มุม) — แนะนำลองใหม่`, itemCount >= FACE_ENROLL_TARGET_COUNT ? 'success' : 'warning');
+            showEnrollSuccess(itemCount); // เด้งหน้าต่างเต็มจอกลางกล้อง พร้อมปุ่ม "✅ เสร็จสิ้น"
             refreshFaceEnrollStatus();
         } else {
             const msg = (res && res.message) ? res.message : 'ไม่ทราบสาเหตุ';
@@ -27505,7 +27565,7 @@ async function faceScanTick() {
     let det = null;
     try {
         det = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_CAPTURE_SIZE, scoreThreshold: 0.45 }))
             .withFaceLandmarks();
     } catch (e) { /* ข้ามเฟรม */ }
     if (!faceScanState.busy) return;
@@ -27556,7 +27616,7 @@ async function faceScanCaptureFrame(triesLeft) {
     let det = null;
     try {
         det = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_CAPTURE_SIZE, scoreThreshold: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
     } catch (e) { /* retry */ }
@@ -27863,7 +27923,7 @@ async function mgrScanTick() {
     let det = null;
     try {
         det = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_WATCH_SIZE, scoreThreshold: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
     } catch (e) { /* skip */ }
@@ -28524,7 +28584,7 @@ function kioskLiveLabel() {
 async function kioskScoreLive(video) {
     try {
         const r = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_CAPTURE_SIZE, scoreThreshold: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         if (!r) { kiosk.liveScore = 0; return; }
@@ -28544,7 +28604,7 @@ async function kioskShowConfirmFromLive(video) {
     let cand = null, best = Infinity, sharp = 0;
     try {
         const r = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_CAPTURE_SIZE, scoreThreshold: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         if (r) {
@@ -28617,7 +28677,7 @@ async function kioskVerifyAndRecord(video) {
     let cand = null, best = Infinity, sharp = 0;
     try {
         const r = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_CAPTURE_SIZE, scoreThreshold: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         if (r) {
@@ -28825,7 +28885,7 @@ async function kioskLoop() {
     let det = null;
     try {
         det = await window.faceapi
-            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: FACE_DETECT_WATCH_SIZE, scoreThreshold: 0.5 }))
             .withFaceLandmarks();
     } catch (e) { /* ข้ามเฟรม */ }
     if (!kiosk.loopOn) return;
@@ -28839,7 +28899,8 @@ async function kioskLoop() {
         setTimeout(kioskLoop, 170);
         return;
     }
-    drawLiveFaceBox(video, overlay, det.detection.box, '#34d399', false, kioskLiveLabel());
+    // flipped=true เมื่อกล้องหน้า (จอ mirror ตาม video) — กรอบต้องพลิกตาม เพื่อให้ตรงกับภาพที่เห็น
+    drawLiveFaceBox(video, overlay, det.detection.box, '#34d399', cameraMode === 'user', kioskLiveLabel());
     kiosk.lastFaceSeenAt = now;
     if (kiosk.busy) { setTimeout(kioskLoop, 250); return; }
 
