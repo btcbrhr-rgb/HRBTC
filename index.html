@@ -2091,6 +2091,42 @@
                     <video id="video-feed" autoplay class="w-full h-full object-cover"></video>
                     <canvas id="photo-canvas" class="hidden w-full h-full object-cover"></canvas>
                     <img id="photo-preview" class="absolute inset-0 w-full h-full object-cover hidden" alt="Preview Image">
+                    <!-- Phase 7: overlay กรอบใบหน้าแบบเรียลไทม์บนกล้องหลัก -->
+                    <canvas id="kiosk-face-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+                    <!-- Phase 7: แถบสถานะเครื่องสแกนอัตโนมัติ -->
+                    <div id="kiosk-scan-status" style="display:none;position:absolute;left:14px;right:14px;bottom:96px;z-index:15;border-radius:14px;padding:10px 14px;backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,0.3);">
+                        <p id="kiosk-scan-status-text" style="color:white;font-size:12px;font-weight:800;text-align:center;line-height:1.5;"></p>
+                    </div>
+                    <!-- Phase 7: การ์ดเชิญลงทะเบียนเมื่อเจอใบหน้าที่ไม่รู้จัก -->
+                    <div id="kiosk-enroll-card" style="display:none;position:absolute;left:16px;right:16px;top:34%;z-index:16;background:rgba(255,251,235,0.97);border:1px solid #fcd34d;border-radius:16px;padding:14px 16px;box-shadow:0 8px 28px rgba(0,0,0,0.35);backdrop-filter:blur(8px);">
+                        <p style="font-size:13px;font-weight:800;color:#92400e;">🙂 พบใบหน้า แต่ยังไม่พบในฐานข้อมูล</p>
+                        <p style="font-size:10px;color:#78350f;margin:6px 0 10px 0;line-height:1.6;">ระบบสแกนอัตโนมัติต้องมีใบหน้าของคุณลงทะเบียนก่อน ใช้เวลาประมาณ 3 วินาที — ลงทะเบียนเลยไหม?</p>
+                        <div style="display:flex;gap:8px;">
+                            <button type="button" onclick="kioskEnrollLater()" style="flex:1;background:#e2e8f0;color:#334155;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">ไว้ทีหลัง</button>
+                            <button type="button" onclick="kioskEnrollNow()" style="flex:2;background:linear-gradient(135deg,#0891b2,#0e7490);color:white;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">📸 ลงทะเบียนใบหน้าทันที</button>
+                        </div>
+                    </div>
+                    <!-- Phase 7.1: การ์ดยืนยันข้อมูลก่อนส่งเข้าระบบนำเข้าเวลา -->
+                    <div id="kiosk-confirm-card" style="display:none;position:absolute;left:10px;right:10px;top:8%;z-index:17;max-height:88%;overflow-y:auto;background:rgba(15,23,42,0.97);border:1px solid rgba(52,211,153,0.45);border-radius:18px;padding:14px 16px;box-shadow:0 10px 34px rgba(0,0,0,0.45);backdrop-filter:blur(10px);">
+                        <p style="font-size:13px;font-weight:800;color:#6ee7b7;text-align:center;margin-bottom:10px;">✅ ตรวจสอบข้อมูลก่อนบันทึก</p>
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                            <img id="kiosk-confirm-photo" alt="ภาพใบหน้า" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid rgba(52,211,153,0.6);flex-shrink:0;background:#334155;">
+                            <div style="min-width:0;flex:1;">
+                                <p id="kiosk-confirm-name" style="font-size:14px;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</p>
+                                <p id="kiosk-confirm-id" style="font-size:10px;color:#94a3b8;font-weight:600;margin-top:2px;">—</p>
+                                <p id="kiosk-confirm-score" style="font-size:10px;color:#6ee7b7;font-weight:700;margin-top:3px;">—</p>
+                            </div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.06);border-radius:12px;padding:8px 12px;font-size:11px;color:#e2e8f0;line-height:1.8;margin-bottom:10px;">
+                            <div><b style="color:#fbbf24;">⏰ เวลา:</b> <span id="kiosk-confirm-time">—</span></div>
+                            <div><b style="color:#22c55e;">📍 พิกัด:</b> <span id="kiosk-confirm-gps">กำลังระบุตำแหน่ง…</span></div>
+                        </div>
+                        <p style="font-size:9px;color:#94a3b8;line-height:1.6;margin-bottom:10px;">หลังยืนยัน ระบบจะส่งเวลาเข้าระบบนำเข้า (ระบบสรุปให้ว่าเป็นเข้า/ออก) และเก็บภาพหลักฐานชั่วคราว 90 วัน ดูได้เฉพาะ HR/Admin ตาม PDPA</p>
+                        <div style="display:flex;gap:8px;">
+                            <button type="button" onclick="kioskConfirmNo()" style="flex:1;background:rgba(255,255,255,0.1);color:#e2e8f0;border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:11px;font-size:12px;font-weight:800;cursor:pointer;">↻ สแกนใหม่</button>
+                            <button type="button" onclick="kioskConfirmYes()" style="flex:2;background:linear-gradient(135deg,#059669,#047857);color:white;border:none;border-radius:12px;padding:11px;font-size:12px;font-weight:800;cursor:pointer;">✅ ยืนยันและส่งเข้าระบบนำเข้า</button>
+                        </div>
+                    </div>
 
                     <!-- Top Overlay: Camera label + Switch button -->
                     <div class="absolute top-3 left-3 right-3 flex justify-between items-center z-10">
@@ -2301,17 +2337,21 @@
                         </div>
 
                         <!-- ผลการจับคู่ -->
-                        <div id="face-manager-result" style="display:none;padding:10px 14px;background:rgba(180,83,9,0.18);border-top:1px solid rgba(251,191,36,0.3);border-bottom:1px solid rgba(251,191,36,0.3);backdrop-filter:blur(8px);">
-                            <p style="font-size:9px;font-weight:800;color:#fcd34d;letter-spacing:0.5px;">👤 พบพนักงานตรงกับใบหน้า</p>
+                        <div id="face-manager-result" style="display:none;padding:10px 14px;background:rgba(15,23,42,0.97);border-top:1px solid rgba(251,191,36,0.3);border-bottom:1px solid rgba(251,191,36,0.3);backdrop-filter:blur(8px);">
+                            <p style="font-size:9px;font-weight:800;color:#fcd34d;letter-spacing:0.5px;">👤 พบพนักงานตรงกับใบหน้า — ตรวจสอบก่อนส่งเข้าระบบ</p>
                             <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
                                 <div style="width:40px;height:40px;border-radius:50%;background:#fde68a;display:flex;align-items:center;justify-content:center;color:#92400e;font-weight:900;font-size:15px;flex-shrink:0;"><span id="face-manager-avatar"></span></div>
+                                <img id="face-manager-evidence" alt="ภาพใบหน้า" style="display:none;width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid rgba(252,211,77,0.6);flex-shrink:0;background:#334155;">
                                 <div style="min-width:0;flex:1;">
                                     <p style="font-size:13px;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span id="face-manager-match-name"></span></p>
                                     <p style="font-size:10px;color:#fcd34d;font-weight:600;"><span id="face-manager-match-pos"></span> · คะแนน <span id="face-manager-match-score"></span></p>
+                                    <p id="face-manager-match-time" style="font-size:9px;color:#94a3b8;margin-top:2px;">—</p>
+                                    <p id="face-manager-match-gps" style="font-size:9px;color:#6ee7b7;">📍 กำลังระบุตำแหน่ง…</p>
                                 </div>
                             </div>
+                            <p style="font-size:9px;color:#94a3b8;line-height:1.5;margin-top:8px;">จะส่งเวลาของ <b style="color:#fcd34d;"><span id="face-manager-match-name2"></span></b> เข้าระบบนำเข้าเวลา (ระบบสรุปเข้า/ออกให้ภายหลัง) · ภาพหลักฐานเก็บ 90 วัน ดูได้เฉพาะ HR/Admin ตาม PDPA</p>
                             <div style="display:flex;gap:8px;margin-top:10px;">
-                                <button id="face-manager-confirm-btn" type="button" onclick="managerConfirmPunch()" style="flex:2;background:linear-gradient(135deg,#059669,#047857);color:white;border:none;border-radius:12px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">✅ ยืนยันและบันทึกเวลา</button>
+                                <button id="face-manager-confirm-btn" type="button" onclick="managerConfirmPunch()" style="flex:2;background:linear-gradient(135deg,#059669,#047857);color:white;border:none;border-radius:12px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">✅ ยืนยันและส่งเข้าระบบนำเข้า</button>
                                 <button type="button" onclick="managerDiscardMatch()" style="flex:1;background:rgba(255,255,255,0.12);color:#e2e8f0;border:none;border-radius:12px;padding:9px;font-size:11px;font-weight:700;cursor:pointer;">↻ สแกนใหม่</button>
                             </div>
                         </div>
@@ -10979,18 +11019,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     btnOut.classList.toggle("cursor-not-allowed", hasOut);
                 }
 
-                // Phase 4: แสดง/ซ่อนแถวปุ่มลงเวลา + ข้อความบอกโหมด (สแกนใบหน้า / ถ่ายรูป)
+                // Phase 7 (Kiosk): ไม่ถ่ายรูป = เครื่องสแกนอัตโนมัติ (ซ่อนแถวปุ่ม) · ถ่ายรูปแล้ว = วิธีเดิม (ปุ่มเข้า/ออก)
                 const punchRow = document.getElementById("attendance-buttons");
                 const punchHint = document.getElementById("attendance-punch-hint");
-                const canPunch = !(hasIn && hasOut);
-                if (punchRow) punchRow.classList.toggle("hidden", !canPunch);
-                if (punchHint && canPunch) {
-                    const photoTaken = !document.getElementById("photo-preview").classList.contains("hidden");
-                    punchHint.textContent = photoTaken
+                const photoTakenNow = !document.getElementById("photo-preview").classList.contains("hidden");
+                if (punchRow) punchRow.classList.toggle("hidden", !photoTakenNow);
+                if (punchHint) {
+                    punchHint.textContent = photoTakenNow
                         ? "📸 ถ่ายภาพแล้ว — กดปุ่มเพื่อส่งภาพหลักฐาน"
-                        : "🙂 ไม่ได้ถ่ายรูป — กดปุ่ม = สแกนใบหน้ายืนยันตัวตน (หรือกดวงกลมถ่ายรูปก่อน = วิธีเดิม)";
-                } else if (punchHint) {
-                    punchHint.textContent = "";
+                        : "";
                 }
 
                 // 🆕 Update Today Status Banner on home page
@@ -13487,6 +13524,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 initCamera();
             }
 
+            // Phase 7.2: เลือกโครงการแล้ว → เปิดกล้องอัตโนมัติ (ยังอยู่หน้าลงเวลา)
+            (function initProjectCameraGate() {
+                const prjSel = document.getElementById("attendance-project-select");
+                if (!prjSel) return;
+                prjSel.addEventListener("change", function () {
+                    const sel = document.getElementById("attendance-project-select");
+                    const page = document.getElementById("page-attendance");
+                    const onPage = !!(page && !page.classList.contains("hidden"));
+                    const camActive = !!(typeof streamRef !== 'undefined' && streamRef && streamRef.active);
+                    if (onPage && sel && sel.value && !camActive) {
+                        setTimeout(initCamera, 100);
+                    }
+                });
+            })();
+
             // ถ่ายภาพหลักฐานการเช็คอิน/เช็คเอาท์
             function capturePhoto() {
                 const video = document.getElementById("video-feed");
@@ -13686,8 +13738,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 if (target === "attendance") {
                     updateAttendanceStatus();
-                    // เปิดกล้องอัตโนมัติทันทีเมื่อเปิดเข้าเมนูลงเวลา โดยไม่ต้องรอให้ผู้ใช้งานกดปุ่มใดๆ ก่อน
-                    setTimeout(initCamera, 100);
+                    // Phase 7.2: ต้องเลือกโครงการก่อน กล้องจึงจะเริ่มทำงาน
+                    const prjSel = document.getElementById("attendance-project-select");
+                    const hasPrj = !!(prjSel && prjSel.value);
+                    if (hasPrj) {
+                        setTimeout(initCamera, 100);
+                    } else if (typeof kioskStatus === 'function') {
+                        kioskStatus('⚠️ กรุณาเลือกโครงการก่อน (แถบด้านบน) — ระบบจะเปิดกล้องและเริ่มสแกนเมื่อเลือกแล้ว', 'warn');
+                    }
                     refreshFaceEnrollStatus(); // Phase 3: อัปเดตสถานะลงทะเบียนใบหน้าบนหน้าลงเวลา
                 }
 
@@ -26885,7 +26943,7 @@ function resizeLiveBoxCanvas(canvas) {
     return true;
 }
 
-function drawLiveFaceBox(video, canvas, box, color) {
+function drawLiveFaceBox(video, canvas, box, color, flipped) {
     if (!canvas || !video) return;
     if (!resizeLiveBoxCanvas(canvas)) return;
     const ctx = canvas.getContext('2d');
@@ -26893,11 +26951,12 @@ function drawLiveFaceBox(video, canvas, box, color) {
     if (!box) return;
     const vw = video.videoWidth || 0, vh = video.videoHeight || 0;
     if (!vw || !vh) return;
-    // แปลงพิกัดจากเฟรมกล้อง (ยังไม่ mirror) ไปยังจอที่แสดงแบบ mirror + object-fit:cover
+    // แปลงพิกัดจากเฟรมกล้องไปยังจอแสดงผล (object-fit:cover) — flipped=true เมื่อจอแสดงแบบ mirror (กล้องหน้าใน modal)
     const scale = Math.max(canvas.width / vw, canvas.height / vh);
     const offX = (vw * scale - canvas.width) / 2;
     const offY = (vh * scale - canvas.height) / 2;
-    const x = (vw - box.x - box.width) * scale - offX;
+    const x0 = (flipped !== false) ? (vw - box.x - box.width) : box.x;
+    const x = x0 * scale - offX;
     const y = box.y * scale - offY;
     ctx.strokeStyle = color || '#34d399';
     ctx.lineWidth = Math.max(2, Math.round(canvas.width / 200));
@@ -27771,21 +27830,46 @@ async function mgrScanTick() {
     scheduleMgrScan();
 }
 
+function mgrNowLabel() {
+    const n = new Date();
+    const pad = (x) => String(x).padStart(2, '0');
+    return pad(n.getHours()) + ':' + pad(n.getMinutes()) + ':' + pad(n.getSeconds());
+}
+
 async function mgrShowMatchCard() {
     const c = mgrState.candidate;
     if (!c) return;
     playScanBeep('found');
-    mgrState.matchType = await mgrResolvePunchType(c.empId);
     mgrEl('face-manager-avatar').textContent = (c.name || '?').trim().charAt(0).toUpperCase();
     mgrEl('face-manager-match-name').textContent = c.name;
+    mgrEl('face-manager-match-name2').textContent = c.name;
     mgrEl('face-manager-match-pos').textContent = c.pos || '—';
     mgrEl('face-manager-match-score').textContent = c.score.toFixed(3);
+    const evImg = mgrEl('face-manager-evidence');
+    if (evImg) { evImg.src = mgrState.evidence || ''; evImg.style.display = mgrState.evidence ? '' : 'none'; }
+    const tEl = mgrEl('face-manager-match-time');
+    if (tEl) tEl.textContent = '⏰ เวลา: ' + mgrNowLabel() + ' น.';
+    const gEl = mgrEl('face-manager-match-gps');
+    if (gEl) {
+        const pos = mgrState.gps;
+        gEl.textContent = (pos && pos.lat != null && pos.lng != null)
+            ? '📍 ' + pos.lat.toFixed(6) + ', ' + pos.lng.toFixed(6) + ' (พิกัดหัวหน้า)'
+            : '📍 กำลังระบุตำแหน่ง…';
+        if (mgrState.gpsPromise) {
+            mgrState.gpsPromise.then(() => {
+                const pp = mgrState.gps;
+                if (gEl && mgrEl('face-manager-result') && mgrEl('face-manager-result').style.display !== 'none') {
+                    gEl.textContent = (pp && pp.lat != null && pp.lng != null)
+                        ? '📍 ' + pp.lat.toFixed(6) + ', ' + pp.lng.toFixed(6) + ' (พิกัดหัวหน้า)'
+                        : '📍 ไม่ได้รับพิกัด (ยังส่งเวลาได้)';
+                }
+            }).catch(() => {});
+        }
+    }
     const btn = mgrEl('face-manager-confirm-btn');
-    if (mgrState.matchType === 'IN') btn.innerHTML = '✅ ยืนยัน • ลงเวลาเข้า';
-    else if (mgrState.matchType === 'OUT') btn.innerHTML = '✅ ยืนยัน • ลงเวลาออก';
-    else btn.innerHTML = '⚠️ ลงเวลาครบแล้ววันนี้';
+    if (btn) btn.textContent = '✅ ยืนยันและส่งเข้าระบบนำเข้าเวลา';
     mgrEl('face-manager-result').style.display = 'block';
-    mgrStatus('พบพนักงานแล้ว — กรุณาตรวจสอบชื่อแล้วกดยืนยัน', '#92400e');
+    mgrStatus('พบพนักงานแล้ว — ตรวจสอบชื่อ/ภาพ/เวลา/พิกัด แล้วกดยืนยัน', '#92400e');
 }
 
 function mgrDiscardMatch() {
@@ -27801,11 +27885,11 @@ function managerDiscardMatch() { mgrDiscardMatch(); }
 
 async function managerConfirmPunch() {
     if (!mgrState.candidate) return;
-    if (mgrState.matchType === null) { showToast('⚠️ พนักงานนี้ลงเวลาครบแล้ววันนี้', 'warning'); mgrDiscardMatch(); return; }
     const c = mgrState.candidate;
     mgrState.candidate = null;
     const ev = mgrState.evidence;
     mgrState.evidence = null;
+    mgrEl('face-manager-result').style.display = 'none';
     await mgrSubmitPunch(c.empId, 'manager_face', c.score, ev);
 }
 
@@ -27833,38 +27917,27 @@ async function mgrSubmitPunch(empId, mode, score, evidence) {
     if (mgrState.submitting) return;
     mgrState.submitting = true;
     const emp = mgrState.empList.find((e) => e.empId === empId) || { empId: empId, name: empId, pos: '' };
-    const type = await mgrResolvePunchType(empId);
-    if (!type) {
-        showToast('⚠️ ' + emp.name + ' ลงเวลาครบแล้ววันนี้', 'warning');
-        mgrState.submitting = false;
-        mgrDiscardMatch();
-        return;
-    }
     if (mgrState.gpsPromise) { try { await mgrState.gpsPromise; } catch (e) { /* ignore */ } }
     const pos = mgrState.gps;
     const geoOk = !!(pos && pos.lat != null && pos.lng != null);
     const timeStr = (mgrEl('live-time') && mgrEl('live-time').textContent) || new Date().toTimeString().slice(0, 8);
-    const dateStr = new Date().toISOString().split('T')[0];
     const projectEl = mgrEl('attendance-project-select');
     const payload = {
-        action: 'registerAttendance',
+        action: 'logFaceScanEvent',
         empId: empId,
-        type: type,
-        time: timeStr,
-        date: dateStr,
         project: (projectEl && projectEl.value) || '',
         lat: geoOk ? pos.lat : '',
         lng: geoOk ? pos.lng : '',
-        photo: '',
         scanMode: mode,
         createdBy: currentEmployeeId,
         similarityScore: (mode === 'manager_face' && score != null) ? score : undefined,
+        livenessOk: undefined,
         geofenceResult: geoOk ? 'manager_trust' : 'no_gps',
         gpsLat: geoOk ? pos.lat : undefined,
         gpsLng: geoOk ? pos.lng : undefined,
         faceEvidence: (mode === 'manager_face' && evidence) ? evidence : undefined
     };
-    mgrStatus('กำลังบันทึกเวลาให้ ' + emp.name + '…', '#2563eb');
+    mgrStatus('กำลังส่งเวลาของ ' + emp.name + ' เข้าระบบนำเข้า…', '#2563eb');
     try {
         const res = await fetchWithTimeout(SERVER_API_URL, {
             method: 'POST',
@@ -27872,16 +27945,18 @@ async function mgrSubmitPunch(empId, mode, score, evidence) {
         });
         mgrState.submitting = false;
         if (res && res.status === 'success') {
-            delete mgrState.todayCache[emp.empId]; // ให้รอบถัดไปอ่าน IN/OUT ล่าสุดจาก DB
-            showToast(`🎉 บันทึกเวลา${type === 'IN' ? 'เข้า' : 'ออก'}ให้ ${emp.name} แล้ว`, 'success');
+            delete mgrState.todayCache[emp.empId];
+            showToast(`🎉 ส่งเวลาของ ${emp.name} เข้าระบบนำเข้าแล้ว`, 'success');
             playScanBeep('ok');
-            mgrStatus(`✅ บันทึกให้ ${emp.name} แล้ว (${type === 'IN' ? 'เข้า' : 'ออก'}) — สแกนคนถัดไปได้เลย`, '#059669');
+            mgrStatus(`✅ ส่งเวลา ${emp.name} (${timeStr}) เข้าระบบนำเข้าแล้ว — สแกนคนถัดไปได้เลย`, '#059669');
             mgrEl('face-manager-result').style.display = 'none';
+            const evImg = mgrEl('face-manager-evidence');
+            if (evImg) evImg.style.display = 'none';
             if (mgrState.view === 'confirm') mgrView('scan');
             setTimeout(() => { if (mgrState.busy && mgrState.view === 'scan') mgrStartScanning(); }, 600);
         } else {
-            mgrStatus('❌ บันทึกไม่สำเร็จ: ' + (res && res.message ? res.message : 'ไม่ทราบสาเหตุ'), '#dc2626');
-            showToast('❌ บันทึกไม่สำเร็จ: ' + (res && res.message ? res.message : ''), 'error');
+            mgrStatus('❌ ส่งไม่สำเร็จ: ' + (res && res.message ? res.message : 'ไม่ทราบสาเหตุ'), '#dc2626');
+            showToast('❌ ส่งเวลาของ ' + emp.name + ' ไม่สำเร็จ: ' + (res && res.message ? res.message : ''), 'error');
         }
     } catch (err) {
         console.error('[ManagerScan] submit error:', err);
@@ -27948,8 +28023,7 @@ function managerPickRow(empId) {
     mgrEl('face-manager-confirm-avatar').textContent = (emp.name || '?').trim().charAt(0).toUpperCase() || '?';
     mgrEl('face-manager-confirm-name').textContent = emp.name + ' (' + emp.empId + ')';
     mgrEl('face-manager-confirm-pos').textContent = emp.pos || '—';
-    const type = mgrResolvePunchTypeAsyncLabel(emp.empId);
-    mgrEl('face-manager-btn-manual').textContent = '✅ ยืนยัน • ลงเวลา' + (type === 'IN' ? 'เข้า' : (type === 'OUT' ? 'ออก' : '')) + ' (โดยหัวหน้า)';
+    mgrEl('face-manager-btn-manual').textContent = '✅ ยืนยันและส่งเข้าระบบนำเข้าเวลา (โดยหัวหน้า)';
     mgrEl('face-manager-btn-register').style.display = 'none';
     mgrEl('face-manager-confirm-note').textContent = '';
     const isPendingB = mgrState.pendingMode === 'B';
@@ -27964,19 +28038,8 @@ function managerPickRow(empId) {
 }
 
 function mgrResolvePunchTypeAsyncLabel(empId) {
-    // เติมข้อมูลแบบ async เบา ๆ แล้วรีเฟรชข้อความปุ่ม
-    mgrResolvePunchType(empId).then((t) => {
-        mgrState.pendingType = t;
-        const note = mgrEl('face-manager-confirm-note');
-        if (t === null) {
-            mgrEl('face-manager-btn-manual').textContent = '⚠️ ลงเวลาครบแล้ววันนี้';
-            if (note) note.textContent = 'พนักงานนี้ลงเวลาเข้า-ออกครบแล้ววันนี้';
-        } else {
-            mgrEl('face-manager-btn-manual').textContent = '✅ ยืนยัน • ลงเวลา' + (t === 'IN' ? 'เข้า' : 'ออก') + ' (โดยหัวหน้า)';
-        }
-    });
-    const cached = mgrState.todayCache[empId];
-    if (cached) return (!cached.hasIn) ? 'IN' : (!cached.hasOut ? 'OUT' : null);
+    // Phase 7: ไม่ต้องแยกเข้า/ออกล่วงหน้าแล้ว — ระบบนำเข้าตัดสินภายหลัง
+    mgrEl('face-manager-btn-manual').textContent = '✅ ยืนยันและส่งเข้าระบบนำเข้าเวลา (โดยหัวหน้า)';
     return 'IN';
 }
 
@@ -27985,9 +28048,9 @@ function mgrRefreshConfirmNote() {
     const note = mgrEl('face-manager-confirm-note');
     if (!emp) return;
     const modeTxt = mgrState.pendingMode === 'B'
-        ? 'หัวหน้าจะเป็นคนถ่ายใบหน้าให้ ณ จุดนี้ แล้วจึงลงเวลาให้'
+        ? 'หัวหน้าจะเป็นคนถ่ายใบหน้าให้ ณ จุดนี้ แล้วจึงส่งเข้าระบบนำเข้าเวลาให้'
         : (emp.enrolled
-            ? 'ยืนยันตัวตนโดยหัวหน้า (manual) — บันทึก created_by=' + currentEmployeeId
+            ? 'ยืนยันโดยหัวหน้า (เลือกจากรายชื่อ) — จะส่งเวลาของ ' + emp.name + ' เข้าระบบนำเข้า (created_by=' + currentEmployeeId + ') ระบบสรุปเข้า/ออกให้ภายหลัง'
             : 'พนักงานนี้ยังไม่มีใบหน้าในระบบ — หัวหน้าจะลงทะเบียนใบหน้าให้ก่อน (วิธี B)');
     note.textContent = modeTxt;
 }
@@ -28193,6 +28256,500 @@ async function adminRunCleanupFaceCaptures() {
     } catch (e) {
         showToast('❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ', 'error');
     }
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 7: เครื่องสแกนใบหน้าอัตโนมัติ (Kiosk Mode) บนหน้าลงเวลา
+// - เปิดหน้าลงเวลา → กล้องเฝ้าดูใบหน้าตลอด (กรอบเขียว) → เจอหน้า → กะพริบตา (Liveness)
+//   → เทียบ 1:1 กับ Vector ตัวเอง → บันทึก event ดิบลง attendance_raw (ไม่ตัดสินเข้า/ออกเอง)
+//   ระบบจัดการเวลา (Reconcile/นำเข้า) จะสรุปเข้า-ออกให้ภายหลัง ตามที่ตกลงกัน
+// - ยังไม่ลงทะเบียน → การ์ดเชิญลงทะเบียนทันที (Auto-Capture ~3 วิ)
+// - ทุกสแกนสำเร็จ → ผสาน descriptor คุณภาพดีกว่าเข้ากลับ face_database (แม่นขึ้นเรื่อยๆ)
+// - วิธีเดิม (ถ่ายรูป → กดปุ่มเข้า/ออก) ยังใช้ได้ — ระบบหยุดสแกนอัตโนมัติเมื่อถ่ายรูปแล้ว
+// ═══════════════════════════════════════════════════════════════════════════
+
+let kioskBooting = false;
+
+const kiosk = {
+    loopOn: false,
+    modelsStarted: false,
+    busy: false,           // กำลัง verify
+    submitting: false,
+    phase: 'idle',         // idle → blink → verify / prompt
+    enrolledDescs: [],
+    enrolledCount: -1,     // -1 = ยังไม่ได้โหลด (ต้อง refresh)
+    stableFrames: 0,
+    blinkAt: 0,
+    blinkClosed: false,
+    cooldownUntil: 0,      // performance.now() — กันสแกนซ้ำถี่เกิน (90 วิ)
+    lastFaceSeenAt: 0,     // กันสแกนซ้ำโดยไม่หันหน้าออก (ต้องห่าง ≥10 วิ)
+    lastLabel: '',
+    enrollPromptUntil: 0,
+    gps: null,
+    gpsTried: false,
+    gpsStarted: false,
+    gpsResolved: false,
+    verify: null,          // ข้อมูลรอการยืนยัน { desc, score, sharp, evidence, time }
+    wasBlocked: false,
+    idleHintShown: false
+};
+
+function kioskEl(id) { return document.getElementById(id); }
+
+function kioskPageVisible() {
+    const s = kioskEl('page-attendance');
+    return !!(s && !s.classList.contains('hidden'));
+}
+
+function kioskModalOpen() {
+    const ids = ['face-enroll-modal', 'face-scan-modal', 'face-manager-modal'];
+    for (let i = 0; i < ids.length; i++) {
+        const m = kioskEl(ids[i]);
+        if (m && m.style && m.style.display === 'flex') return true;
+    }
+    return false;
+}
+
+function kioskPhotoTaken() {
+    const p = kioskEl('photo-preview');
+    return !!(p && !p.classList.contains('hidden'));
+}
+
+function kioskCamFrontActive() {
+    return !!(typeof streamRef !== 'undefined' && streamRef && streamRef.active && cameraMode === 'user');
+}
+
+function kioskCanScan() {
+    const prj = kioskEl('attendance-project-select');
+    return kiosk.loopOn && !!currentEmployeeId && kioskPageVisible()
+        && !!(prj && prj.value)  // Phase 7.2: ต้องเลือกโครงการก่อนถึงจะสแกนได้
+        && !kioskModalOpen() && !kioskPhotoTaken() && kioskCamFrontActive() && !kiosk.submitting;
+}
+
+function kioskStatus(html, kind) {
+    const box = kioskEl('kiosk-scan-status');
+    if (!box) return;
+    box.style.display = 'flex';
+    const t = kioskEl('kiosk-scan-status-text');
+    if (t) t.innerHTML = html;
+    box.style.background = kind === 'ok' ? 'rgba(4,120,87,0.92)'
+        : kind === 'warn' ? 'rgba(180,83,9,0.92)'
+        : kind === 'err' ? 'rgba(185,28,28,0.92)'
+        : 'rgba(15,23,42,0.82)';
+}
+
+function kioskStatusHide() {
+    const b = kioskEl('kiosk-scan-status');
+    if (b) b.style.display = 'none';
+}
+
+function kioskEnrollCard(show) {
+    const c = kioskEl('kiosk-enroll-card');
+    if (c) c.style.display = show ? 'block' : 'none';
+}
+
+// เรียกจากปุ่มบนการ์ดเชิญลงทะเบียน
+function kioskEnrollNow() {
+    kioskEnrollCard(false);
+    kioskStatusHide();
+    openFaceEnrollmentModal(); // หลังปิด modal ระบบจะ refresh สถานะ + สแกนต่อเอง
+}
+
+function kioskEnrollLater() {
+    kioskEnrollCard(false);
+    kiosk.phase = 'idle';
+    kiosk.enrollPromptUntil = performance.now() + 45000;
+    kioskStatus('รับทราบ — กดปุ่ม “ตั้งค่าระบบสแกนใบหน้า” ด้านบนได้ทุกเมื่อ', 'warn');
+}
+
+// ─── การ์ดยืนยันข้อมูลก่อนส่งเข้าระบบนำเข้า (Phase 7.1) ──────────────────────
+function kioskConfirmCard(show) {
+    const c = kioskEl('kiosk-confirm-card');
+    if (c) c.style.display = show ? 'block' : 'none';
+}
+
+function kioskNowLabel() {
+    const n = new Date();
+    const pad = (x) => String(x).padStart(2, '0');
+    return pad(n.getHours()) + ':' + pad(n.getMinutes()) + ':' + pad(n.getSeconds());
+}
+
+function kioskFillConfirmCard() {
+    const v = kiosk.verify;
+    if (!v) return;
+    const emp = (typeof employeeData !== 'undefined' && employeeData) ? employeeData : {};
+    const nm = emp['ชื่อ-นามสกุล'] || emp.name || currentEmployeeId;
+    const photo = kioskEl('kiosk-confirm-photo');
+    if (photo) { photo.src = v.evidence || ''; photo.style.display = v.evidence ? '' : 'none'; }
+    const nmEl = kioskEl('kiosk-confirm-name'); if (nmEl) nmEl.textContent = nm;
+    const idEl = kioskEl('kiosk-confirm-id'); if (idEl) idEl.textContent = 'รหัสพนักงาน: ' + currentEmployeeId;
+    const scEl = kioskEl('kiosk-confirm-score'); if (scEl) scEl.textContent = 'ความใกล้เคียง ' + v.score.toFixed(3) + ' · ผ่านเกณฑ์ ✓';
+    const tEl = kioskEl('kiosk-confirm-time'); if (tEl) tEl.textContent = v.time + ' น.';
+    kioskGpsText();
+}
+
+function kioskGpsText() {
+    const el = kioskEl('kiosk-confirm-gps');
+    if (!el) return;
+    const pos = kiosk.gps;
+    if (pos && pos.lat != null && pos.lng != null) {
+        el.textContent = pos.lat.toFixed(6) + ', ' + pos.lng.toFixed(6) + ' · จะบันทึกพิกัดลง log';
+    } else if (kiosk.gpsResolved) {
+        el.textContent = 'ไม่ได้รับพิกัด (ไม่บล็อกการบันทึก — เก็บเป็น no_gps)';
+    } else {
+        el.textContent = 'กำลังระบุตำแหน่ง…';
+    }
+}
+
+async function kioskFetchGps() {
+    try { kiosk.gps = await fetchFaceScanGps(); } catch (e) { kiosk.gps = null; }
+    kiosk.gpsResolved = true;
+    if (kioskEl('kiosk-confirm-card') && kioskEl('kiosk-confirm-card').style.display === 'block') kioskGpsText();
+}
+
+// กดยืนยัน → ส่งเข้าระบบนำเข้า
+function kioskConfirmYes() {
+    const v = kiosk.verify;
+    if (!v || kiosk.submitting) return;
+    kioskConfirmCard(false);
+    kiosk.verify = null;
+    kiosk.busy = false;
+    kioskSetPhase('idle');
+    kioskSubmitRawEvent(v.desc, v.score, v.sharp, v.evidence);
+}
+
+// กดสแกนใหม่ / ยกเลิก → ไม่บันทึก
+function kioskConfirmNo() {
+    kioskConfirmCard(false);
+    kiosk.verify = null;
+    kiosk.busy = false;
+    kioskSetPhase('idle');
+    kioskStatus('↻ ยกเลิก — ไม่ได้บันทึกเวลา มองกล้องอีกครั้งเมื่อพร้อม', 'warn');
+    setTimeout(kioskStatusHide, 3500);
+}
+
+async function kioskLoadOwnDescs(force) {
+    if (force || kiosk.enrolledCount < 0) {
+        try { kiosk.enrolledDescs = await getOwnFaceDescriptors(); }
+        catch (e) { kiosk.enrolledDescs = []; }
+        kiosk.enrolledCount = kiosk.enrolledDescs ? kiosk.enrolledDescs.length : 0;
+    }
+    return kiosk.enrolledCount;
+}
+
+function kioskSetPhase(p) {
+    kiosk.phase = p;
+    if (p !== 'blink') kiosk.blinkClosed = false;
+}
+
+async function kioskVerifyAndRecord(video) {
+    kiosk.busy = true;
+    let cand = null, best = Infinity, sharp = 0;
+    try {
+        const r = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        if (r) {
+            cand = Array.from(r.descriptor);
+            sharp = computeFaceSharpness(video, r.detection.box);
+            for (const ed of kiosk.enrolledDescs) {
+                const d = euclideanDistance128(ed, cand);
+                if (d < best) best = d;
+            }
+        }
+    } catch (e) { /* รอรอบถัดไป */ }
+    if (!cand || best > FACE_SCAN_MATCH_MAX_DIST) {
+        kiosk.busy = false;
+        kioskSetPhase('idle');
+        kioskStatus('🙅 ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้ — มองกล้องให้ชัดอีกครั้ง', 'err');
+        return;
+    }
+    const score = Math.round(Math.max(0, 1 - best) * 1000) / 1000; // 1 - distance
+    // ผ่านการยืนยันตัวตน → เก็บข้อมูล + ภาพหลักฐาน แล้วให้คนสแกนกดยืนยันก่อนส่งเข้าระบบ
+    kiosk.verify = {
+        desc: cand,
+        score: score,
+        sharp: sharp,
+        evidence: faceEvidenceJpeg(video),
+        time: kioskNowLabel()
+    };
+    kioskFillConfirmCard();
+    kioskSetPhase('confirm');
+    kioskEnrollCard(false);
+    kioskStatusHide();
+    kioskConfirmCard(true);
+    playScanBeep('found');
+    // busy ยัง true — ลูปจะไม่สแกนซ้ำจนกว่าจะกดยืนยัน/สแกนใหม่
+}
+
+async function kioskSubmitRawEvent(desc, score, sharp, evidence) {
+    if (kiosk.submitting) return;
+    kiosk.submitting = true;
+    try {
+        if (!kiosk.gpsTried) {
+            kiosk.gpsTried = true;
+            try { kiosk.gps = await fetchFaceScanGps(); } catch (e) { kiosk.gps = null; }
+        }
+        const pos = kiosk.gps;
+        const geoOk = !!(pos && pos.lat != null && pos.lng != null);
+        const now = new Date();
+        const timeStr = (kioskEl('live-time') && kioskEl('live-time').textContent) || now.toTimeString().slice(0, 8);
+        const projectEl = kioskEl('attendance-project-select');
+        const payload = {
+            action: 'logFaceScanEvent',
+            empId: currentEmployeeId,
+            project: (projectEl && projectEl.value) || '',
+            lat: geoOk ? pos.lat : '',
+            lng: geoOk ? pos.lng : '',
+            similarityScore: score,
+            livenessOk: true,
+            geofenceResult: geoOk ? 'soft_recorded' : 'no_gps',
+            gpsLat: geoOk ? pos.lat : undefined,
+            gpsLng: geoOk ? pos.lng : undefined,
+            scanMode: 'self',
+            createdBy: '',
+            faceEvidence: evidence || undefined
+        };
+        const res = await fetchWithTimeout(SERVER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+        if (res && res.status === 'success') {
+            playScanBeep('ok');
+            kiosk.cooldownUntil = performance.now() + 90000; // กันสแกนซ้ำ 90 วิ
+            kiosk.lastLabel = timeStr;
+            kioskStatus('✅ ยืนยันแล้ว — บันทึกเวลา ' + timeStr + ' ส่งเข้าระบบนำเข้าเวลา<br><span style="font-size:9px;font-weight:600;">ระบบจะสรุปให้ว่าเป็นเข้า/ออก (รอบอัปเดต 20:00 น.)</span>', 'ok');
+            kioskEnrollCard(false);
+            setTimeout(kioskStatusHide, 5000);
+            kioskImproveOwnVectors(desc, sharp); // fire-and-forget
+        } else {
+            kioskStatus('❌ บันทึกไม่สำเร็จ: ' + ((res && res.message) ? res.message : 'ไม่ทราบสาเหตุ') + ' — มองกล้องอีกครั้ง', 'err');
+        }
+    } catch (e) {
+        console.error('[Kiosk] submit error:', e);
+        kioskStatus('❌ ติดต่อเน็ตเวิร์กไม่สำเร็จ — มองกล้องอีกครั้ง', 'err');
+    }
+    kiosk.submitting = false;
+}
+
+// ─── ผสาน descriptor คุณภาพดีกว่า (เลือกแบบ: เก็บเฉพาะเฟรมที่ดีกว่าของเดิม) ────
+async function kioskImproveOwnVectors(desc, sharp) {
+    try {
+        if (typeof supabaseClient === 'undefined' || !supabaseClient || !currentEmployeeId) return;
+        const { data } = await supabaseClient
+            .from('face_database')
+            .select('face_descriptors')
+            .eq('emp_id', currentEmployeeId)
+            .maybeSingle();
+        const items = [];
+        if (data && data.face_descriptors) {
+            let obj = data.face_descriptors;
+            if (typeof obj === 'string') { try { obj = JSON.parse(obj); } catch (e) { obj = null; } }
+            const pushItem = (d, fallbackQ) => {
+                const src = (d && (d.d || d.descriptor || d.face)) ? (d.d || d.descriptor || d.face) : (Array.isArray(d) ? d : null);
+                const arr = src ? Array.from(src) : null;
+                if (arr && arr.length > 20 && typeof arr[0] === 'number') {
+                    items.push({
+                        d: arr,
+                        yaw: (d && d.yaw != null) ? d.yaw : 0,
+                        pitch: (d && d.pitch != null) ? d.pitch : 0,
+                        quality: (d && d.quality != null) ? d.quality : (fallbackQ || 0)
+                    });
+                }
+            };
+            if (obj && obj.version && Array.isArray(obj.items)) {
+                obj.items.forEach((it) => pushItem(it, 0));
+            } else {
+                parseFaceDescriptors(data.face_descriptors).forEach((d) => items.push({ d: Array.from(d), yaw: 0, pitch: 0, quality: 0 }));
+            }
+        }
+        const MAX = 8;
+        const candD = Array.from(desc);
+        const isDup = items.some((x) => euclideanDistance128(x.d, candD) < 0.25); // ซ้ำเกิน → ข้าม
+        if (isDup) return;
+        const candQ = Math.round(Math.max(0, sharp) * 10) / 10;
+        if (items.length < MAX) {
+            items.push({ d: candD, yaw: 0, pitch: 0, quality: candQ });
+        } else {
+            // เต็มแล้ว → แทนที่เฟรมคุณภาพแย่ที่สุดเฉพาะเมื่อเฟรมใหม่ดีกว่า
+            let worstIdx = 0;
+            for (let i = 1; i < items.length; i++) if (items[i].quality < items[worstIdx].quality) worstIdx = i;
+            if (candQ <= items[worstIdx].quality) return;
+            items[worstIdx] = { d: candD, yaw: 0, pitch: 0, quality: candQ };
+        }
+        await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'saveFaceDescriptor',
+                empId: currentEmployeeId,
+                descriptors: { version: 2, items: items.map((it) => ({ d: it.d, yaw: it.yaw, pitch: it.pitch, quality: it.quality })) },
+                updatedBy: currentEmployeeId
+            })
+        });
+        kiosk.enrolledCount = -1; // โหลดใหม่รอบถัดไป
+        if (typeof refreshFaceEnrollStatus === 'function') refreshFaceEnrollStatus();
+    } catch (e) {
+        console.warn('[Kiosk] improve vectors error:', e);
+    }
+}
+
+// ─── ลูปหลัก: เฝ้าดูใบหน้า → กรอบ → กะพริบตา → บันทึก ─────────────────────────
+async function kioskLoop() {
+    if (!kiosk.loopOn) return;
+
+    const pageVis = kioskPageVisible();
+    const blocked = kioskModalOpen() || kioskPhotoTaken();
+    if (kiosk.wasBlocked && !blocked && pageVis) {
+        kiosk.enrolledCount = -1; // กลับจาก modal/ถ่ายรูป → โหลดสถานะใหม่
+        kiosk.idleHintShown = false;
+    }
+    kiosk.wasBlocked = blocked;
+
+    if (!kioskCanScan()) {
+        if (kiosk.busy) { setTimeout(kioskLoop, 300); return; }
+        drawLiveFaceBox(kioskEl('video-feed'), kioskEl('kiosk-face-overlay'), null);
+        kioskEnrollCard(false);
+        if (pageVis && !kioskModalOpen() && !kioskPhotoTaken()) {
+            const prjSel = kioskEl('attendance-project-select');
+            if (!(prjSel && prjSel.value)) {
+                kioskStatus('⚠️ กรุณาเลือกโครงการก่อน (แถบด้านบน) — ระบบจะเปิดกล้องและเริ่มสแกนเมื่อเลือกแล้ว', 'warn');
+            } else if (kioskCamFrontActive() && !currentEmployeeId) {
+                kioskStatus('⚠️ กรุณาเข้าสู่ระบบก่อนใช้เครื่องสแกนอัตโนมัติ', 'warn');
+            } else if (typeof streamRef !== 'undefined' && streamRef && streamRef.active && cameraMode === 'environment') {
+                kioskStatus('📷 กล้องหลัง — กดปุ่ม “สลับ” กลับกล้องหน้าเพื่อใช้เครื่องสแกนอัตโนมัติ', 'warn');
+            } else if (!(typeof streamRef !== 'undefined' && streamRef && streamRef.active)) {
+                kioskStatus('📷 กำลังเปิดกล้องหน้า… ถ้าขอสิทธิ์กล้องแล้วยังไม่ขึ้น ให้รีเฟรชหน้า', '');
+            } else {
+                kioskStatusHide();
+            }
+        } else {
+            kioskStatusHide();
+        }
+        setTimeout(kioskLoop, 600);
+        return;
+    }
+
+    // เตรียมโมเดล (ครั้งแรกเท่านั้น)
+    if (!window.faceapi && !kiosk.modelsStarted) {
+        kiosk.modelsStarted = true;
+        ensureFaceModels().catch((e) => console.warn('[Kiosk] model load:', e));
+        kioskStatus('กำลังโหลดระบบจดจำใบหน้า…', '');
+        setTimeout(kioskLoop, 600);
+        return;
+    }
+    const video = kioskEl('video-feed');
+    if (!video || video.readyState < 2 || !window.faceapi) {
+        setTimeout(kioskLoop, 400);
+        return;
+    }
+
+    // วอร์มอัพ GPS ระหว่างสแกน (ไม่บล็อก) เพื่อแสดงบนการ์ดยืนยัน
+    if (!kiosk.gpsStarted) { kiosk.gpsStarted = true; kioskFetchGps(); }
+
+    let det = null;
+    try {
+        det = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .withFaceLandmarks();
+    } catch (e) { /* ข้ามเฟรม */ }
+    if (!kiosk.loopOn) return;
+
+    const now = performance.now();
+    const overlay = kioskEl('kiosk-face-overlay');
+    if (!det) {
+        drawLiveFaceBox(video, overlay, null);
+        if (kiosk.phase !== 'idle') kioskSetPhase('idle');
+        kiosk.stableFrames = Math.max(0, kiosk.stableFrames - 1);
+        setTimeout(kioskLoop, 170);
+        return;
+    }
+    drawLiveFaceBox(video, overlay, det.detection.box, '#34d399', false);
+    kiosk.lastFaceSeenAt = now;
+    if (kiosk.busy) { setTimeout(kioskLoop, 250); return; }
+
+    const sharp = computeFaceSharpness(video, det.detection.box);
+    const ear = faceScanAvgEar(det);
+    const cnt = await kioskLoadOwnDescs(false);
+
+    // ── ยังไม่ลงทะเบียน → การ์ดเชิญลงทะเบียนทันที ──
+    if (cnt === 0) {
+        if (kiosk.phase !== 'prompt') kioskSetPhase('prompt');
+        if (sharp >= FACE_ENROLL_SHARPNESS_MIN && ear >= FACE_SCAN_EAR_OPEN) {
+            kiosk.stableFrames++;
+            if (kiosk.stableFrames >= 4 && now >= kiosk.enrollPromptUntil) {
+                kioskEnrollCard(true);
+                playScanBeep('found');
+            }
+        } else {
+            kiosk.stableFrames = Math.max(0, kiosk.stableFrames - 1);
+        }
+        setTimeout(kioskLoop, 220);
+        return;
+    }
+
+    // ── มีใบหน้าแล้ว → idle (รอบุใบหน้าให้ตรง / หลังบันทึกแล้วรอรอบถัดไป) ──
+    if (kiosk.phase === 'idle') {
+        if (now < kiosk.cooldownUntil) {
+            if (!kiosk.idleHintShown) {
+                kiosk.idleHintShown = true;
+                kioskStatus('⏳ บันทึกเวลา ' + (kiosk.lastLabel || '-') + ' แล้ว — กันสแกนซ้ำ 90 วิ<br><span style="font-size:9px;font-weight:600;">ออกจากหน้ากล้อง แล้วกลับมาใหม่เพื่อสแกนรอบถัดไป</span>', 'ok');
+            }
+            setTimeout(kioskLoop, 500);
+            return;
+        }
+        kiosk.idleHintShown = false;
+        // ต้องหันหน้าออกไปแล้วกลับมาใหม่ (≥10 วิ) ถึงจะสแกนรอบถัดไปได้ — กันกดซ้ำ/เผลอสแกน
+        if (now - kiosk.lastFaceSeenAt < 10000) {
+            setTimeout(kioskLoop, 400);
+            return;
+        }
+        if (sharp >= FACE_ENROLL_SHARPNESS_MIN && ear >= FACE_SCAN_EAR_OPEN) {
+            kiosk.stableFrames++;
+            if (kiosk.stableFrames >= 2) {
+                kioskSetPhase('blink');
+                kiosk.blinkAt = now;
+                kiosk.blinkClosed = false;
+                kioskStatus('😉 เจอใบหน้าแล้ว — <b>กะพริบตา 1 ครั้ง</b> เพื่อยืนยันว่าเป็นคนจริง', '');
+                playScanBeep('found');
+            }
+        } else {
+            kiosk.stableFrames = Math.max(0, kiosk.stableFrames - 1);
+        }
+        setTimeout(kioskLoop, 150);
+        return;
+    }
+
+    // ── รอการกะพริบตา (Active Liveness) ──
+    if (kiosk.phase === 'blink') {
+        if (now - kiosk.blinkAt > FACE_SCAN_BLINK_LIMIT_MS) {
+            kioskSetPhase('idle');
+            kioskStatus('⏱️ ไม่เห็นการกะพริบตา — มองตรงกล้องแล้วกะพริบตาชัดๆ อีกครั้ง', 'warn');
+            setTimeout(kioskLoop, 1600);
+            return;
+        }
+        if (!kiosk.blinkClosed && ear <= FACE_SCAN_EAR_CLOSED) kiosk.blinkClosed = true;
+        if (kiosk.blinkClosed && ear >= FACE_SCAN_EAR_OPEN) {
+            kioskStatus('✅ ตรวจการกะพริบตาผ่าน — กำลังยืนยันใบหน้า…', 'ok');
+            await kioskVerifyAndRecord(video);
+            setTimeout(kioskLoop, 250);
+            return;
+        }
+        setTimeout(kioskLoop, 130);
+        return;
+    }
+
+    setTimeout(kioskLoop, 150);
+}
+
+function kioskBoot() {
+    if (kioskBooting) return;
+    kioskBooting = true;
+    kiosk.loopOn = true;
+    setTimeout(kioskLoop, 600);
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', kioskBoot);
+} else {
+    kioskBoot();
 }
 </script>
 </body>
