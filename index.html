@@ -3365,6 +3365,15 @@
                                     <span class="font-semibold">Log สแกนใบหน้า (HR)</span>
                                 </div>
                             </button>
+                            <button onclick="switchAdminTab('face-enroll')" id="admin-menu-face-enroll"
+                                class="admin-menu-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left group">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="menu-icon w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-brand-sky text-slate-500 group-hover:text-brand-deep flex items-center justify-center text-xs transition-colors shrink-0">
+                                        <i class="fa-solid fa-id-card"></i>
+                                    </span>
+                                    <span class="font-semibold">สถานะลงทะเบียนใบหน้า (HR)</span>
+                                </div>
+                            </button>
                             <button onclick="switchAdminTab('announcements')" id="admin-menu-announcements"
                                 class="admin-menu-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left group">
                                 <div class="flex items-center gap-2.5">
@@ -4264,6 +4273,38 @@
                             <button onclick="adminRunCleanupFaceCaptures()" id="admlog-cleanup" class="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 hover:bg-rose-100 transition-all">🗑 ลบภาพหมดอายุ (90 วัน)</button>
                         </div>
                         <div id="admlog-body" class="overflow-x-auto"></div>
+                    </div>
+                <section id="admin-sec-face-enroll" class="admin-sec hidden space-y-5">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                            <div class="space-y-1">
+                                <label class="block text-[10px] font-bold text-slate-500">สถานะใบหน้า</label>
+                                <select id="face-enroll-filter" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-xs bg-white">
+                                    <option value="all">ทั้งหมด</option>
+                                    <option value="enrolled">ลงทะเบียนแล้ว</option>
+                                    <option value="missing">ยังไม่ลงทะเบียน</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1 lg:col-span-2">
+                                <label class="block text-[10px] font-bold text-slate-500">ค้นหา ชื่อ / รหัสพนักงาน</label>
+                                <input type="text" id="face-enroll-search" placeholder="ชื่อ หรือรหัสพนักงาน…" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-xs">
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <button onclick="loadAdminFaceEnroll()" class="flex-1 bg-brand-deep hover:bg-brand-teal text-white text-xs font-bold py-2.5 rounded-xl transition-all">ดูข้อมูล</button>
+                                <button onclick="exportFaceEnrollCsv()" title="ส่งออก CSV" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition-all">⬇ CSV</button>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400">รายชื่อพนักงานทั้งหมด เทียบกับตาราง face_database — ใครลงทะเบียนแล้วกี่มุม / ใครยังไม่ได้ลงทะเบียน (ใช้เช็คได้ทุกรอบ)</p>
+                    </div>
+                    <div id="face-enroll-stats" class="grid grid-cols-3 gap-3"></div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800">สถานะลงทะเบียนใบหน้า</h3>
+                                <p class="text-[10px] text-slate-400" id="face-enroll-count">0 รายการ</p>
+                            </div>
+                        </div>
+                        <div id="face-enroll-body" class="overflow-x-auto"></div>
                     </div>
                 </section>
                 <section id="admin-sec-scan-devices" class="admin-sec hidden space-y-6">
@@ -13954,7 +13995,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // แผนที่เมนู id → sub-permission key
                 const menuPermMap = {
                     'dashboard': 'dashboard', 'import-time': 'import', 'import-payslip': 'payslip',
-                    'project-cost': 'calendar', 'scan-devices': 'scan', 'face-logs': 'facelogs',
+                    'project-cost': 'calendar', 'scan-devices': 'scan', 'face-logs': 'facelogs', 'face-enroll': 'facelogs',
                     'approve-leave': 'leave', 'approve-correction': 'correction', 'approve-advance': 'advance',
                     'announcements': 'announcement', 'employees': 'employees', 'settings': 'settings'
                 };
@@ -14117,7 +14158,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 toggleAdminMobileSidebar(false);
 
                 // ปิดสีปุ่มเมนูเดิมทั้งหมด
-                const menus = ['dashboard', 'import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'announcements', 'holidays', 'employees', 'settings', 'rich-menu'];
+                const menus = ['dashboard', 'import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'face-enroll', 'announcements', 'holidays', 'employees', 'settings', 'rich-menu'];
                 menus.forEach(m => {
                     const btn = document.getElementById(`admin-menu-${m}`);
                     if (btn) {
@@ -14158,6 +14199,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     titleEl.textContent = "Log สแกนใบหน้า (HR)";
                     descEl.textContent = "ดูรายการลงเวลาที่ผ่านสแกนใบหน้า แยกตามวิธี (self / manager_face / manager_manual) พร้อมคะแนนความคล้าย, Liveness, GPS และภาพหลักฐาน (เก็บ 90 วัน)";
                     if (typeof loadAdminFaceLogs === 'function') { loadAdminFaceLogs(); } else { console.warn('loadAdminFaceLogs not ready'); }
+                } else if (tabId === 'face-enroll') {
+                    titleEl.textContent = "สถานะลงทะเบียนใบหน้า (HR)";
+                    descEl.textContent = "รายชื่อพนักงานทุกคน เทียบกับ face_database — ใครลงทะเบียนแล้วกี่มุม / ใครยังไม่ได้ลงทะเบียน (พร้อมกรอง + export CSV)";
+                    if (typeof loadAdminFaceEnroll === 'function') { loadAdminFaceEnroll(); } else { console.warn('loadAdminFaceEnroll not ready'); }
                 } else if (tabId === 'import-payslip') {
                     titleEl.textContent = "นำเข้าสลิปเงินเดือน (.pdf)";
                     descEl.textContent = "นำเข้าสลิปเงินเดือนพนักงานโดยอัปโหลดไฟล์ PDF รวมแถว เพื่อให้ระบบจำแนกและอัปโหลดเข้าคลังไฟล์รายบุคคล";
@@ -26943,7 +26988,17 @@ function resizeLiveBoxCanvas(canvas) {
     return true;
 }
 
-function drawLiveFaceBox(video, canvas, box, color, flipped) {
+function kioskRoundedRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+function drawLiveFaceBox(video, canvas, box, color, flipped, label) {
     if (!canvas || !video) return;
     if (!resizeLiveBoxCanvas(canvas)) return;
     const ctx = canvas.getContext('2d');
@@ -26964,6 +27019,22 @@ function drawLiveFaceBox(video, canvas, box, color, flipped) {
     ctx.beginPath();
     ctx.rect(x, y, Math.max(2, box.width * scale), Math.max(2, box.height * scale));
     ctx.stroke();
+    // แสดงชื่อพนักงาน + % ความแม่นยำ เหนือกรอบ (ถ้ามี label)
+    if (label) {
+        const fs = Math.max(11, Math.round(canvas.width / 26));
+        ctx.font = '700 ' + fs + 'px system-ui, sans-serif';
+        const padX = 8, padY = 4;
+        const lw = ctx.measureText(label).width + padX * 2;
+        const lh = fs + padY * 2;
+        let ly = y - lh - 4;
+        if (ly < 2) ly = y + Math.max(2, box.height * scale) + 4;
+        const lx = Math.max(2, Math.min(canvas.width - lw - 2, x));
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        kioskRoundedRectPath(ctx, lx, ly, lw, lh, 6);
+        ctx.fill();
+        ctx.fillStyle = color || '#34d399';
+        ctx.fillText(label, lx + padX, ly + fs + padY - 1);
+    }
 }
 
 function clearLiveFaceBox(canvas) {
@@ -28271,6 +28342,8 @@ async function adminRunCleanupFaceCaptures() {
 
 let kioskBooting = false;
 
+const KIOSK_AUTO_CONFIRM_SCORE = 0.70; // ความแม่นยำ ≥70% → จับภาพ + แสดงหน้าต่างยืนยันทันที
+
 const kiosk = {
     loopOn: false,
     modelsStarted: false,
@@ -28291,8 +28364,11 @@ const kiosk = {
     gpsStarted: false,
     gpsResolved: false,
     verify: null,          // ข้อมูลรอการยืนยัน { desc, score, sharp, evidence, time }
+    lastScoreAt: 0,        // throttle คำนวณ % ความแม่นยำแบบเรียลไทม์
+    liveScore: 0,          // 1 - ระยะห่างล่าสุด (0..1)
     wasBlocked: false,
-    idleHintShown: false
+    idleHintShown: false,
+    readyHintShown: false
 };
 
 function kioskEl(id) { return document.getElementById(id); }
@@ -28406,6 +28482,74 @@ async function kioskFetchGps() {
     try { kiosk.gps = await fetchFaceScanGps(); } catch (e) { kiosk.gps = null; }
     kiosk.gpsResolved = true;
     if (kioskEl('kiosk-confirm-card') && kioskEl('kiosk-confirm-card').style.display === 'block') kioskGpsText();
+}
+
+// ─── แสดงชื่อพนักงาน + % ความแม่นยำ บนกรอบเขียว (เรียลไทม์) ─────────────────
+function kioskLiveLabel() {
+    if (kiosk.enrolledCount === 0) return 'ยังไม่ลงทะเบียน';
+    const emp = (typeof employeeData !== 'undefined' && employeeData) ? employeeData : {};
+    const nm = emp['ชื่อ-นามสกุล'] || emp.name || currentEmployeeId;
+    const pct = Math.round((kiosk.liveScore || 0) * 100);
+    if (kiosk.liveScore >= KIOSK_AUTO_CONFIRM_SCORE) return nm + ' · ' + pct + '%';
+    if (kiosk.liveScore > 0) return 'ความแม่นยำ ' + pct + '%';
+    return 'กำลังยืนยันตัวตน…';
+}
+
+// คำนวณ % ความแม่นยำ (1:1 กับ Vector ตัวเอง) — ทำงานทุก ~350ms เพื่อประหยัด CPU
+async function kioskScoreLive(video) {
+    try {
+        const r = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        if (!r) { kiosk.liveScore = 0; return; }
+        const desc = Array.from(r.descriptor);
+        let best = Infinity;
+        for (const ed of kiosk.enrolledDescs) {
+            const d = euclideanDistance128(ed, desc);
+            if (d < best) best = d;
+        }
+        kiosk.liveScore = Math.round(Math.max(0, 1 - best) * 1000) / 1000;
+    } catch (e) { kiosk.liveScore = 0; }
+}
+
+// ความแม่นยำ ≥70% → จับภาพ + แสดงหน้าต่างยืนยันทันที (ไม่ต้องรอกดอะไร)
+async function kioskShowConfirmFromLive(video) {
+    kiosk.busy = true;
+    let cand = null, best = Infinity, sharp = 0;
+    try {
+        const r = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        if (r) {
+            cand = Array.from(r.descriptor);
+            sharp = computeFaceSharpness(video, r.detection.box);
+            for (const ed of kiosk.enrolledDescs) {
+                const d = euclideanDistance128(ed, cand);
+                if (d < best) best = d;
+            }
+        }
+    } catch (e) { /* รอรอบถัดไป */ }
+    const score = Math.round(Math.max(0, 1 - best) * 1000) / 1000;
+    if (!cand || score < KIOSK_AUTO_CONFIRM_SCORE) {
+        kiosk.busy = false;
+        return;
+    }
+    kiosk.verify = {
+        desc: cand,
+        score: score,
+        sharp: sharp,
+        evidence: faceEvidenceJpeg(video),
+        time: kioskNowLabel()
+    };
+    kioskFillConfirmCard();
+    kioskSetPhase('confirm');
+    kioskEnrollCard(false);
+    kioskStatusHide();
+    kioskConfirmCard(true);
+    playScanBeep('found');
+    // busy ยัง true — ลูปจะไม่สแกนซ้ำจนกว่าจะกดยืนยัน/สแกนใหม่
 }
 
 // กดยืนยัน → ส่งเข้าระบบนำเข้า
@@ -28601,6 +28745,7 @@ async function kioskLoop() {
     if (kiosk.wasBlocked && !blocked && pageVis) {
         kiosk.enrolledCount = -1; // กลับจาก modal/ถ่ายรูป → โหลดสถานะใหม่
         kiosk.idleHintShown = false;
+        kiosk.readyHintShown = false; // ให้ข้อความพร้อมสแกนโผล่อีกครั้ง
     }
     kiosk.wasBlocked = blocked;
 
@@ -28642,6 +28787,12 @@ async function kioskLoop() {
         return;
     }
 
+    // โมเดลพร้อมแล้ว → อัปเดตข้อความ (กัน "กำลังโหลด…" ค้างอยู่ตลอด)
+    if (!kiosk.readyHintShown) {
+        kiosk.readyHintShown = true;
+        kioskStatus('มองตรงกล้องเพื่อบันทึกเวลา — ระบบตรวจจับและบันทึกอัตโนมัติ', '');
+    }
+
     // วอร์มอัพ GPS ระหว่างสแกน (ไม่บล็อก) เพื่อแสดงบนการ์ดยืนยัน
     if (!kiosk.gpsStarted) { kiosk.gpsStarted = true; kioskFetchGps(); }
 
@@ -28662,7 +28813,7 @@ async function kioskLoop() {
         setTimeout(kioskLoop, 170);
         return;
     }
-    drawLiveFaceBox(video, overlay, det.detection.box, '#34d399', false);
+    drawLiveFaceBox(video, overlay, det.detection.box, '#34d399', false, kioskLiveLabel());
     kiosk.lastFaceSeenAt = now;
     if (kiosk.busy) { setTimeout(kioskLoop, 250); return; }
 
@@ -28686,7 +28837,7 @@ async function kioskLoop() {
         return;
     }
 
-    // ── มีใบหน้าแล้ว → idle (รอบุใบหน้าให้ตรง / หลังบันทึกแล้วรอรอบถัดไป) ──
+    // ── มีใบหน้าแล้ว → idle: คำนวณ % ความแม่นยำแบบเรียลไทม์ → ≥70% จับภาพ+แสดงยืนยัน ──
     if (kiosk.phase === 'idle') {
         if (now < kiosk.cooldownUntil) {
             if (!kiosk.idleHintShown) {
@@ -28703,16 +28854,23 @@ async function kioskLoop() {
             return;
         }
         if (sharp >= FACE_ENROLL_SHARPNESS_MIN && ear >= FACE_SCAN_EAR_OPEN) {
-            kiosk.stableFrames++;
-            if (kiosk.stableFrames >= 2) {
-                kioskSetPhase('blink');
-                kiosk.blinkAt = now;
-                kiosk.blinkClosed = false;
-                kioskStatus('😉 เจอใบหน้าแล้ว — <b>กะพริบตา 1 ครั้ง</b> เพื่อยืนยันว่าเป็นคนจริง', '');
-                playScanBeep('found');
+            // คำนวณ % ความแม่นยำเป็นระยะ (ทุก ~350ms)
+            if (now - kiosk.lastScoreAt >= 350) {
+                kiosk.lastScoreAt = now;
+                await kioskScoreLive(video);
+            }
+            if (kiosk.liveScore >= KIOSK_AUTO_CONFIRM_SCORE) {
+                kiosk.stableFrames++;
+                if (kiosk.stableFrames >= 2) {
+                    kiosk.stableFrames = 0;
+                    await kioskShowConfirmFromLive(video);
+                }
+            } else {
+                kiosk.stableFrames = 0;
             }
         } else {
-            kiosk.stableFrames = Math.max(0, kiosk.stableFrames - 1);
+            kiosk.stableFrames = 0;
+            kiosk.liveScore = 0;
         }
         setTimeout(kioskLoop, 150);
         return;
@@ -28750,6 +28908,84 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', kioskBoot);
 } else {
     kioskBoot();
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 8: หน้า Admin — สถานะลงทะเบียนใบหน้า (พนักงานทุกคน vs face_database)
+// - action getFaceEnrollmentStatus (ต้องเป็น Admin เท่านั้น) คืน: stats + rows
+//   (emp_id, name, position, status, enrolled, angles, updated_at)
+// - กรอง: ชื่อ/รหัส + สถานะใบหน้า (all/enrolled/missing) · export CSV ฝั่ง client
+// ═══════════════════════════════════════════════════════════════════════════
+
+let faceEnrollRows = [];
+function feEl(id) { return document.getElementById(id); }
+
+async function loadAdminFaceEnroll() {
+    if (!currentEmployeeId) { showToast('⚠️ ยังไม่ได้เข้าสู่ระบบ', 'warning'); return; }
+    const search = (feEl('face-enroll-search') && feEl('face-enroll-search').value.trim()) || '';
+    const enrolled = (feEl('face-enroll-filter') && feEl('face-enroll-filter').value) || 'all';
+    const body = feEl('face-enroll-body');
+    if (body) body.innerHTML = '<p style="padding:24px;text-align:center;font-size:12px;color:#94a3b8;">กำลังโหลด…</p>';
+    try {
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'getFaceEnrollmentStatus', adminId: currentEmployeeId, search: search, enrolled: enrolled })
+        });
+        if (!res || res.status !== 'success') {
+            showToast('❌ โหลดข้อมูลไม่สำเร็จ: ' + ((res && res.message) || ''), 'error');
+            return;
+        }
+        faceEnrollRows = (res.data && res.data.rows) || [];
+        renderAdminFaceEnroll(res.data);
+    } catch (e) {
+        console.error('[FaceEnrollAdmin] load err:', e);
+        showToast('❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ', 'error');
+    }
+}
+
+function renderAdminFaceEnroll(data) {
+    const rows = faceEnrollRows;
+    const stats = (data && data.stats) || { total: rows.length, enrolled: 0, missing: 0 };
+    feEl('face-enroll-stats').innerHTML =
+        '<div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-slate-800">' + stats.total + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">พนักงานทั้งหมด</p></div>'
+        + '<div class="bg-white rounded-2xl border border-emerald-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-emerald-600">' + stats.enrolled + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">ลงทะเบียนแล้ว</p></div>'
+        + '<div class="bg-white rounded-2xl border border-amber-200 p-4 shadow-sm text-center"><p class="text-lg font-extrabold text-amber-600">' + stats.missing + '</p><p class="text-[10px] text-slate-500 font-semibold mt-1">ยังไม่ลงทะเบียน</p></div>';
+    feEl('face-enroll-count').textContent = rows.length + ' รายการ';
+    const body = feEl('face-enroll-body');
+    if (!rows.length) {
+        body.innerHTML = '<p style="padding:28px;text-align:center;font-size:12px;color:#94a3b8;">ไม่พบพนักงานตามเงื่อนไข</p>';
+        return;
+    }
+    const head = '<table class="w-full text-left text-xs"><thead><tr class="text-[10px] uppercase text-slate-400 border-b border-slate-100">'
+        + '<th class="px-4 py-3">รหัส</th><th class="px-4 py-3">ชื่อ</th><th class="px-4 py-3">ตำแหน่ง</th><th class="px-4 py-3">ใบหน้า</th><th class="px-4 py-3">จำนวนมุม</th><th class="px-4 py-3">อัปเดตล่าสุด</th></tr></thead><tbody>';
+    const trs = rows.map((r) => {
+        const badge = r.enrolled
+            ? '<span style="font-size:10px;font-weight:800;color:#047857;background:#d1fae5;border-radius:99px;padding:2px 8px;">ใบหน้า ✓</span>'
+            : '<span style="font-size:10px;font-weight:800;color:#b45309;background:#fef3c7;border-radius:99px;padding:2px 8px;">ยังไม่มีใบหน้า</span>';
+        return '<tr class="border-b border-slate-50 hover:bg-slate-50">'
+            + '<td class="px-4 py-3 font-bold text-slate-700">' + (r.emp_id || '') + '</td>'
+            + '<td class="px-4 py-3 text-slate-700">' + (r.name || '') + '</td>'
+            + '<td class="px-4 py-3 text-slate-500">' + (r.position || '—') + '</td>'
+            + '<td class="px-4 py-3">' + badge + '</td>'
+            + '<td class="px-4 py-3 text-slate-600 font-semibold">' + r.angles + '</td>'
+            + '<td class="px-4 py-3 text-slate-400">' + (r.updated_at ? String(r.updated_at).replace('T', ' ').slice(0, 16) : '—') + '</td>'
+            + '</tr>';
+    }).join('');
+    body.innerHTML = head + trs + '</tbody></table>';
+}
+
+function exportFaceEnrollCsv() {
+    if (!faceEnrollRows.length) { showToast('⚠️ ยังไม่มีข้อมูล — กด "ดูข้อมูล" ก่อน', 'warning'); return; }
+    const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const lines = ['emp_id,name,position,status,enrolled,angles,updated_at'];
+    faceEnrollRows.forEach((r) => lines.push([r.emp_id, r.name, r.position, r.status, r.enrolled ? 'yes' : 'no', r.angles, r.updated_at].map(esc).join(',')));
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'face_enrollment_status.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 500);
 }
 </script>
 </body>
