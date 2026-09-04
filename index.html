@@ -7535,6 +7535,7 @@ function compareApprovalDocIdsDescending(a, b) {
     // 2. ถ้าวันที่เท่ากันหรือไม่พบวันที่ เรียงตามเลขที่เอกสารจากมากไปน้อย (ใหม่ไปเก่า)
     const aId = getApprovalDocIdValue(a);
     const bId = getApprovalDocIdValue(b);
+    
     if (!aId && !bId) return 0;
     if (!aId) return 1;
     if (!bId) return -1;
@@ -8585,15 +8586,33 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // 🌐 อ่าน URL Query Parameters สำหรับ Deep Linking จาก LINE Flex Message
                 const urlParams = new URLSearchParams(window.location.search);
-                const urlEmpId = urlParams.get("empId");
+                let urlEmpId = urlParams.get("empId");
                 const urlTab = urlParams.get("tab");
                 const urlModal = urlParams.get("openModal");
+                const urlAction = urlParams.get("action");
+                const urlLineUserId = urlParams.get("lineUserId");
 
-                // กำหนดหน้าเป้าหมายจาก tab param
+                // ถ้าส่ง lineUserId มา (เปิดจาก LINE) แต่ไม่มี empId ให้ค้นหา empId จากฐานข้อมูลอัตโนมัติ
+                if (!urlEmpId && urlLineUserId && supabaseClient) {
+                    try {
+                        const { data: lineEmp } = await supabaseClient
+                            .from('employees')
+                            .select('emp_id')
+                            .eq('line_user_id', urlLineUserId)
+                            .maybeSingle();
+                        if (lineEmp && lineEmp.emp_id) {
+                            urlEmpId = lineEmp.emp_id;
+                        }
+                    } catch (e) {
+                        console.warn('[Line Auto-Login Lookup Failed]', e);
+                    }
+                }
+
+                // กำหนดหน้าเป้าหมายจาก tab param หรือ action
                 let targetPage = "home";
                 if (urlTab === "history" || urlTab === "calendar" || urlTab === "attendance_history") targetPage = "calendar";
                 else if (urlTab === "clock" || urlTab === "attendance") targetPage = "attendance";
-                else if (urlTab === "leave") targetPage = "leave";
+                else if (urlTab === "leave" || urlAction === "leaveRequestPage") targetPage = "leave";
                 else if (urlTab === "advance") targetPage = "advance";
                 else if (urlTab === "payslip") targetPage = "payslip";
                 else if (urlTab === "profile") targetPage = "profile";
@@ -8603,7 +8622,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 else if (urlModal === "payslip") targetPage = "payslip";
                 else if (urlModal === "profile" || urlModal === "salaryCert") targetPage = "profile";
                 // เก็บใน global เพื่อให้ handleLoginSuccess ใช้ได้
-                deepLinkTargetPage = (urlTab || urlModal) ? targetPage : null;
+                deepLinkTargetPage = (urlTab || urlModal || urlAction === "leaveRequestPage") ? targetPage : null;
 
                 // ตรวจสอบว่า login ไว้แล้วหรือไม่ หรือส่ง empId มาผ่าน URL จาก LINE
                 const savedEmpId = urlEmpId || null;
@@ -8614,7 +8633,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     currentEmployeeId = savedEmpId;
                     sessionStorage.setItem("is_logged_in", "true");
 
-                    // บังคับยืนยัน PIN ก่อน auto-login เมื่อมี empId มาจาก deep link
+                    // หากเปิดลิงก์มาจาก LINE ที่ยืนยันตัวตนแล้ว (มี lineUserId) ให้ถือว่าผ่านการยืนยันตัวตน
+                    if (urlLineUserId) {
+                        sessionStorage.setItem('pin_verified_' + savedEmpId, 'true');
+                    }
+
+                    // บังคับยืนยัน PIN ก่อน auto-login เมื่อมี empId มาจาก deep link ทั่วไป
                     const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
                     if (!pinVerifiedThisSession && urlEmpId && !isAdminLoginAccount(savedEmpId)) {
                         await promptPinBeforeAutoLogin(savedEmpId);
