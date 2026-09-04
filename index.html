@@ -3560,6 +3560,48 @@
                         </div>
                     </div>
 
+                    <!-- Modal: แนบเอกสารย้อนหลัง -->
+                    <div id="modal-attach-leave-doc" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+                        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold shadow-sm"><i class="fa-solid fa-paperclip"></i></span>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-800">แนบเอกสารย้อนหลัง</h3>
+                                        <p id="modal-attach-leave-doc-id" class="text-[11px] text-slate-400">เลขที่ใบลา: --</p>
+                                    </div>
+                                </div>
+                                <button onclick="closeAttachLeaveModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors">
+                                    <i class="fa-solid fa-xmark text-sm"></i>
+                                </button>
+                            </div>
+                            <div class="p-5 space-y-4">
+                                <div class="bg-slate-50 rounded-xl p-3 border border-slate-100 text-xs text-slate-600 space-y-1">
+                                    <p><strong>ประเภทการลา:</strong> <span id="modal-attach-leave-type">--</span></p>
+                                    <p><strong>วันที่เริ่มลา:</strong> <span id="modal-attach-leave-date">--</span></p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">เลือกไฟล์เอกสารแนบ (รูปภาพ หรือ PDF)</label>
+                                    <input type="file" id="modal-attach-file-input" accept="image/*,application/pdf" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer border border-slate-200 rounded-lg p-1">
+                                    <p class="text-[10px] text-slate-400 mt-1">รองรับไฟล์ JPG, PNG, PDF ขนาดไม่เกิน 10MB</p>
+                                </div>
+                                <div id="modal-attach-preview" class="hidden text-center p-2 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                    <img id="modal-attach-preview-img" src="" alt="Preview" class="max-h-36 mx-auto rounded shadow-xs hidden">
+                                    <div id="modal-attach-preview-pdf" class="text-xs text-slate-600 font-medium hidden">
+                                        <i class="fa-solid fa-file-pdf text-rose-500 text-2xl mb-1 block"></i>
+                                        <span id="modal-attach-preview-pdf-name">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-5 py-3.5 bg-slate-50/80 border-t border-slate-100 flex justify-end gap-2">
+                                <button type="button" onclick="closeAttachLeaveModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">ยกเลิก</button>
+                                <button type="button" id="btn-submit-attach-doc" onclick="submitAttachLeaveDoc()" class="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors shadow-xs flex items-center gap-1.5">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> บันทึกเอกสาร
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Modal: รายชื่อพนักงานที่ลาวันนี้ -->
                     <div id="modal-leave-today" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
                         <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -7779,7 +7821,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             currentEmployeeId = "";
             // 🔧 SUPABASE-FIRST: Try Supabase first, fallback to Google Apps Script API if needed
-            SERVER_API_URL = null; // Will be set from config if available
+            SERVER_API_URL = 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec';
 
             // ⚡ SUPABASE — public client config; server config remains an optional override for admin settings
             let SUPABASE_CONFIG = {
@@ -11649,6 +11691,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const status = l["สถานะ"] || "รออนุมัติ";
                     const reason = l["เหตุผล"] || "ไม่มีการระบุ";
                     const signatureUrl = l["ลายมือชื่อ"] || "";
+                    const attachmentUrl = l["เอกสารแนบ"] || l["attachments"] || "";
 
                     let badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
                     if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
@@ -11686,11 +11729,32 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             <span>อนุมัติโดย: ${l["อนุมัติโดย"] || "--"}</span>
           </div>
 
-          <div class="pt-2 border-t border-slate-100 flex justify-end">
-            <button onclick='printLeaveRecord(${safeJson(l)})' 
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy hover:bg-brand-deep text-white text-[10px] font-semibold transition-all shadow-xs active:scale-95">
-              <i class="fa-solid fa-file-pdf text-rose-400"></i> ดูใบลา / พิมพ์ PDF
-            </button>
+          <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
+            <div class="flex items-center gap-1.5">
+              ${attachmentUrl ? `
+                <a href="${attachmentUrl.startsWith('http') ? convertDriveUrl(attachmentUrl) : attachmentUrl}" target="_blank" 
+                  class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-semibold border border-blue-200 transition-all active:scale-95">
+                  <i class="fa-solid fa-paperclip text-blue-500"></i> ดูเอกสารแนบ
+                </a>
+              ` : ''}
+            </div>
+            <div class="flex items-center gap-1.5">
+              ${status !== "อนุมัติแล้ว" ? `
+                <button onclick="deleteLeaveRequestItem('${escapeHtml(docId)}')" 
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-semibold transition-all border border-rose-200 shadow-xs active:scale-95">
+                  <i class="fa-solid fa-trash-can"></i> ลบคำขอ
+                </button>
+              ` : `
+                <button onclick="openAttachLeaveModal('${escapeHtml(docId)}', '${escapeHtml(type)}', '${formatThaiDate(start)}')" 
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold transition-all border border-amber-200 shadow-xs active:scale-95">
+                  <i class="fa-solid fa-paperclip"></i> แนบเอกสารย้อนหลัง
+                </button>
+              `}
+              <button onclick='printLeaveRecord(${safeJson(l)})' 
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy hover:bg-brand-deep text-white text-[10px] font-semibold transition-all shadow-xs active:scale-95">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i> ดูใบลา / พิมพ์ PDF
+              </button>
+            </div>
           </div>
         `;
                     container.appendChild(card);
@@ -11805,6 +11869,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function openSignatureModal() {
                 document.getElementById("signature-modal").classList.remove("hidden");
                 initSignatureCanvas();
+                showToast("✍️ กรุณาลงลายมือชื่อ แล้วกดยืนยันส่งคำขอ", "info");
             }
 
             function closeSignatureModal() {
@@ -11814,6 +11879,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function initSignatureCanvas() {
                 signatureCanvas = document.getElementById("signature-canvas");
+                if (!signatureCanvas) return;
                 signatureCtx = signatureCanvas.getContext("2d");
 
                 // Set canvas background white
@@ -11891,20 +11957,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function clearSignatureCanvas() {
-                if (signatureCtx) {
+                if (signatureCtx && signatureCanvas) {
                     signatureCtx.fillStyle = "#ffffff";
                     signatureCtx.fillRect(0, 0, signatureCanvas.width, signatureCanvas.height);
                 }
             }
 
             function isCanvasEmpty() {
-                const imageData = signatureCtx.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height);
-                const pixels = imageData.data;
-                for (let i = 3; i < pixels.length; i += 4) {
-                    if (pixels[i] > 0) {
-                        return false; // Found a non-transparent pixel
+                if (!signatureCtx || !signatureCanvas) return true;
+                try {
+                    const imageData = signatureCtx.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height);
+                    const pixels = imageData.data;
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        if (pixels[i] < 240 || pixels[i + 1] < 240 || pixels[i + 2] < 240) {
+                            return false;
+                        }
                     }
-                }
+                } catch(e) { /* cross-origin fallback */ }
                 return true;
             }
 
@@ -11951,50 +12020,112 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function submitLeaveWithSignature() {
-                if (isCanvasEmpty()) {
-                    showToast("⚠️ กรุณาเช็นลายมือชื่อก่อนส่งคำขอ", "warning");
+                if (!pendingLeavePayload) {
+                    showToast("⚠️ ไม่พบข้อมูลคำขอลา กรุณากรอกใหม่อีกครั้ง", "warning");
+                    closeSignatureModal();
                     return;
                 }
 
                 return withSubmitLock("leaveSubmit", async () => {
-                    const signatureBase64 = signatureCanvas.toDataURL("image/png");
+                    let signatureBase64 = "";
+                    if (!isCanvasEmpty() && signatureCanvas) {
+                        try {
+                            signatureBase64 = signatureCanvas.toDataURL("image/png");
+                        } catch(e) { signatureBase64 = ""; }
+                    }
                     pendingLeavePayload.signature = signatureBase64;
 
                     showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล...", "info");
 
-                    // Retry logic: 3 attempts with exponential backoff, extended timeout
+                    const activeApiUrl = SERVER_API_URL || 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec';
+
                     let res = null;
                     let attempt = 0;
-                    const maxAttempts = 3;
+                    const maxAttempts = 2;
                     while (attempt < maxAttempts) {
                         try {
-                            res = await fetchWithTimeout(SERVER_API_URL, {
+                            res = await fetchWithTimeout(activeApiUrl, {
                                 method: "POST",
+                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                                 body: JSON.stringify(pendingLeavePayload),
-                                timeout: 20000 // 20s for slower networks
+                                timeout: 25000
                             });
-                            break; // success
+                            if (res && res.status === 'success') break;
                         } catch (err) {
-                            attempt++;
-                            if (attempt >= maxAttempts) {
-                                showToast("❌ ล้มเหลว: " + err.message, "error");
-                                return;
+                            console.warn('[submitLeave] GAS attempt ' + (attempt + 1) + ' failed:', err);
+                        }
+                        attempt++;
+                        if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 1000));
+                    }
+
+                    // ⚡ SUPABASE-FALLBACK: หาก GAS ไม่สำเร็จ ให้บันทึกลง Supabase โดยตรงทันที
+                    if ((!res || res.status !== "success") && supabaseClient) {
+                        try {
+                            console.log('[submitLeave] Falling back to direct Supabase insert...');
+                            const now = new Date();
+                            const y = String(now.getFullYear()).slice(-2);
+                            const m = String(now.getMonth() + 1).padStart(2, '0');
+                            const prefix = `L${y}${m}-`;
+
+                            const { data: latestRows } = await supabaseClient
+                                .from('leave_requests')
+                                .select('doc_id')
+                                .ilike('doc_id', `${prefix}%`)
+                                .order('doc_id', { ascending: false })
+                                .limit(1);
+
+                            let nextNum = 1;
+                            if (latestRows && latestRows.length > 0 && latestRows[0].doc_id) {
+                                const parts = latestRows[0].doc_id.split('-');
+                                if (parts.length > 1 && !isNaN(parseInt(parts[1]))) {
+                                    nextNum = parseInt(parts[1]) + 1;
+                                }
                             }
-                            // wait before retrying (exponential backoff)
-                            await new Promise(r => setTimeout(r, 1000 * attempt));
+                            const docId = `${prefix}${String(nextNum).padStart(3, '0')}`;
+
+                            const { data: inserted, error: sbErr } = await supabaseClient
+                                .from('leave_requests')
+                                .insert([{
+                                    doc_id: docId,
+                                    emp_id: pendingLeavePayload.empId,
+                                    leave_type: pendingLeavePayload.type,
+                                    duration: pendingLeavePayload.period || 'เต็มวัน',
+                                    start_date: pendingLeavePayload.start,
+                                    end_date: pendingLeavePayload.end,
+                                    days_count: parseFloat(pendingLeavePayload.days) || 1,
+                                    reason: pendingLeavePayload.reason || '',
+                                    status: 'รออนุมัติ',
+                                    lat: parseFloat(pendingLeavePayload.lat) || 14.9912,
+                                    lng: parseFloat(pendingLeavePayload.lng) || 103.1008,
+                                    signature_url: signatureBase64 ? 'บันทึกในระบบ' : '',
+                                    attachments: pendingLeavePayload.attachment ? 'มีเอกสารแนบ' : ''
+                                }])
+                                .select()
+                                .single();
+
+                            if (!sbErr) {
+                                res = {
+                                    status: "success",
+                                    message: "บันทึกคำขอลาลงฐานข้อมูลสำเร็จ",
+                                    data: { docId: docId }
+                                };
+                            } else {
+                                console.error('[submitLeave] Supabase insert error:', sbErr);
+                            }
+                        } catch (sbEx) {
+                            console.error('[submitLeave] Supabase fallback exception:', sbEx);
                         }
                     }
 
                     if (res && res.status === "success") {
                         showToast("🎉 ส่งใบลาเรียบร้อยแล้ว", "success");
-                        // Keep a reference to the saved leave for optional printing
                         const savedLeaveRecord = (res.data && typeof res.data === 'object') ? res.data : pendingLeavePayload;
-                        document.getElementById("leave-request-form").reset();
+                        const leaveForm = document.getElementById("leave-request-form");
+                        if (leaveForm) leaveForm.reset();
                         leaveAttachmentBase64 = "";
                         closeSignatureModal();
-                        // Offer user choice to Print or Just Save
                         showLeavePrintChoice(savedLeaveRecord);
-                        loadAllData();
+                        if (typeof loadAllData === 'function') loadAllData();
                     } else {
                         showToast("❌ ล้มเหลว: " + (res && res.message ? res.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์'), "error");
                     }
@@ -12108,6 +12239,245 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } catch (e) {
                     console.error('openLeaveCyclePrintReport error', e);
                     showToast('เกิดข้อผิดพลาดขณะเปิดหน้ารายงาน: ' + e.message, 'error');
+                }
+            }
+
+            // ─── Leave Request Employee Management (Delete & Retroactive Attachment) ───
+            let currentAttachingDocId = null;
+            let attachDocBase64 = "";
+
+            /**
+             * 🗑️ ลบคำขอลาที่ยังไม่ได้รับการอนุมัติ
+             */
+            async function deleteLeaveRequestItem(docId) {
+                if (!docId) return;
+                if (!confirm(`คุณต้องการลบคำขอลาเลขที่ "${docId}" หรือไม่?\n(คำขอนี้จะถูกลบออกจากระบบอย่างถาวร)`)) return;
+
+                showToast("⏳ กำลังลบคำขอลา...", "info");
+                let success = false;
+                let errorMsg = "";
+
+                // 1. ลบจาก Supabase โดยตรง (เฉพาะที่ยังไม่อนุมัติ และเป็นของพนักงานคนนี้)
+                if (supabaseClient && currentEmployeeId) {
+                    try {
+                        const { error: sbErr } = await supabaseClient
+                            .from('leave_requests')
+                            .delete()
+                            .eq('doc_id', docId)
+                            .eq('emp_id', currentEmployeeId)
+                            .neq('status', 'อนุมัติแล้ว');
+                        if (!sbErr) {
+                            success = true;
+                        } else {
+                            errorMsg = sbErr.message;
+                            console.warn('[deleteLeaveRequestItem] Supabase error:', sbErr);
+                        }
+                    } catch (sbEx) {
+                        console.warn('[deleteLeaveRequestItem] Supabase exception:', sbEx);
+                    }
+                }
+
+                // 2. ลบผ่าน GAS API
+                try {
+                    const activeApiUrl = SERVER_API_URL || 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec';
+                    const res = await fetchWithTimeout(activeApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'deleteLeaveRequest',
+                            docId: docId,
+                            empId: currentEmployeeId
+                        }),
+                        timeout: 15000
+                    });
+                    if (res && res.status === 'success') {
+                        success = true;
+                    } else if (res && res.message && !success) {
+                        errorMsg = res.message;
+                    }
+                } catch (gasErr) {
+                    console.warn('[deleteLeaveRequestItem] GAS error:', gasErr);
+                }
+
+                if (success) {
+                    showToast(`🗑️ ลบคำขอลา ${docId} เรียบร้อยแล้ว`, "success");
+                    leaveRequestsList = (leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== docId);
+                    displayLeaveHistory();
+                    if (typeof loadAllData === 'function') {
+                        loadAllData();
+                    }
+                } else {
+                    showToast(`❌ ไม่สามารถลบคำขอลาได้: ${errorMsg || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}`, "error");
+                }
+            }
+
+            /**
+             * 📎 เปิด Modal แนบเอกสารย้อนหลังสำหรับใบลาที่อนุมัติแล้ว
+             */
+            function openAttachLeaveModal(docId, type, dateStr) {
+                currentAttachingDocId = docId;
+                attachDocBase64 = "";
+
+                const modal = document.getElementById("modal-attach-leave-doc");
+                const docIdEl = document.getElementById("modal-attach-leave-doc-id");
+                const typeEl = document.getElementById("modal-attach-leave-type");
+                const dateEl = document.getElementById("modal-attach-leave-date");
+                const fileInput = document.getElementById("modal-attach-file-input");
+                const previewBox = document.getElementById("modal-attach-preview");
+                const previewImg = document.getElementById("modal-attach-preview-img");
+                const previewPdf = document.getElementById("modal-attach-preview-pdf");
+
+                if (docIdEl) docIdEl.textContent = `เลขที่ใบลา: ${docId}`;
+                if (typeEl) typeEl.textContent = type || "-";
+                if (dateEl) dateEl.textContent = dateStr || "-";
+                if (fileInput) fileInput.value = "";
+                if (previewBox) previewBox.classList.add("hidden");
+                if (previewImg) { previewImg.src = ""; previewImg.classList.add("hidden"); }
+                if (previewPdf) previewPdf.classList.add("hidden");
+
+                if (fileInput) {
+                    fileInput.onchange = function (e) {
+                        const file = e.target.files[0];
+                        if (!file) {
+                            attachDocBase64 = "";
+                            if (previewBox) previewBox.classList.add("hidden");
+                            return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = function (evt) {
+                            attachDocBase64 = evt.target.result;
+                            if (previewBox) previewBox.classList.remove("hidden");
+                            if (file.type.includes("pdf")) {
+                                if (previewImg) previewImg.classList.add("hidden");
+                                if (previewPdf) {
+                                    previewPdf.classList.remove("hidden");
+                                    const pdfNameEl = document.getElementById("modal-attach-preview-pdf-name");
+                                    if (pdfNameEl) pdfNameEl.textContent = file.name;
+                                }
+                            } else {
+                                if (previewPdf) previewPdf.classList.add("hidden");
+                                if (previewImg) {
+                                    previewImg.src = evt.target.result;
+                                    previewImg.classList.remove("hidden");
+                                }
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    };
+                }
+
+                if (modal) {
+                    modal.classList.remove("hidden");
+                    modal.classList.add("flex");
+                }
+            }
+
+            /**
+             * ปิด Modal แนบเอกสารย้อนหลัง
+             */
+            function closeAttachLeaveModal() {
+                const modal = document.getElementById("modal-attach-leave-doc");
+                if (modal) {
+                    modal.classList.add("hidden");
+                    modal.classList.remove("flex");
+                }
+                currentAttachingDocId = null;
+                attachDocBase64 = "";
+            }
+
+            /**
+             * 💾 ส่งบันทึกเอกสารแนบย้อนหลัง
+             */
+            async function submitAttachLeaveDoc() {
+                if (!currentAttachingDocId) {
+                    showToast("⚠️ ไม่พบรหัสใบลา", "warning");
+                    return;
+                }
+                if (!attachDocBase64) {
+                    showToast("⚠️ กรุณาเลือกไฟล์เอกสารแนบก่อน", "warning");
+                    return;
+                }
+
+                const btn = document.getElementById("btn-submit-attach-doc");
+                const originalBtnHtml = btn ? btn.innerHTML : "";
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลด...';
+                }
+
+                showToast("⏳ กำลังบันทึกเอกสารแนบย้อนหลัง...", "info");
+
+                let uploadedUrl = "";
+                let success = false;
+                let errorMsg = "";
+
+                // 1. ส่งไปยัง Google Apps Script (บันทึกลง Drive และอัปเดต Supabase)
+                const activeApiUrl = SERVER_API_URL || 'https://script.google.com/macros/s/AKfycbwRSeK_FtUYmyluUtCDfyYdiqoVWRG2886Z88-QJZZmQ6O0Ixdhm9tULnBxZpc8Gj0GmA/exec';
+                try {
+                    const res = await fetchWithTimeout(activeApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'attachLeaveDocument',
+                            docId: currentAttachingDocId,
+                            empId: currentEmployeeId,
+                            attachment: attachDocBase64
+                        }),
+                        timeout: 30000
+                    });
+                    if (res && res.status === 'success') {
+                        success = true;
+                        uploadedUrl = (res.data && res.data.attachmentUrl) ? res.data.attachmentUrl : "";
+                    } else if (res && res.message) {
+                        errorMsg = res.message;
+                    }
+                } catch (gasErr) {
+                    console.warn('[submitAttachLeaveDoc] GAS error:', gasErr);
+                }
+
+                // 2. Supabase Direct Fallback หาก GAS ส่งไม่สำเร็จ
+                if (!success && supabaseClient) {
+                    try {
+                        const patchData = {
+                            attachments: attachDocBase64.length < 500000 ? attachDocBase64 : 'มีเอกสารแนบย้อนหลัง (รอดำเนินการ)',
+                            updated_at: new Date().toISOString()
+                        };
+                        const { error: sbErr } = await supabaseClient
+                            .from('leave_requests')
+                            .update(patchData)
+                            .eq('doc_id', currentAttachingDocId)
+                            .eq('emp_id', currentEmployeeId);
+                        if (!sbErr) {
+                            success = true;
+                            uploadedUrl = patchData.attachments;
+                        } else if (!errorMsg) {
+                            errorMsg = sbErr.message;
+                        }
+                    } catch (sbEx) {
+                        console.warn('[submitAttachLeaveDoc] Supabase fallback error:', sbEx);
+                    }
+                }
+
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnHtml;
+                }
+
+                if (success) {
+                    showToast("🎉 แนบเอกสารย้อนหลังสำเร็จ", "success");
+                    if (leaveRequestsList) {
+                        const targetItem = leaveRequestsList.find(l => (l["เลขที่เอกสาร"] || l.doc_id) === currentAttachingDocId);
+                        if (targetItem) {
+                            targetItem["เอกสารแนบ"] = uploadedUrl || 'มีเอกสารแนบ';
+                        }
+                    }
+                    closeAttachLeaveModal();
+                    displayLeaveHistory();
+                    if (typeof loadAllData === 'function') {
+                        loadAllData();
+                    }
+                } else {
+                    showToast(`❌ แนบเอกสารไม่สำเร็จ: ${errorMsg || 'เกิดข้อผิดพลาดในการอัปโหลด'}`, "error");
                 }
             }
 
@@ -24527,7 +24897,12 @@ ${slip.textSample}
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
                     config = await new Promise((resolve, reject) => {
                         google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getGasConfig();
-                    }).then(r => (r && r.status === 'success') ? r.config : null);
+                    }).then(r => {
+                        if (!r) return null;
+                        if (r.config && r.config.url) return r.config;
+                        if (r.url) return { url: r.url };
+                        return null;
+                    });
                 }
                 if (config && config.url) {
                     SERVER_API_URL = config.url;
