@@ -2100,6 +2100,16 @@
                         </button>
                     </div>
 
+                    <!-- Phase 3: Face Enrollment Chip (Auto-Capture) -->
+                    <div class="absolute top-[52px] left-0 right-0 z-10 flex justify-center pointer-events-none">
+                        <button id="face-enroll-chip" type="button" onclick="openFaceEnrollmentModal()" title="ลงทะเบียนใบหน้าสำหรับระบบสแกนลงเวลา"
+                            style="pointer-events:auto;font-size:10px;color:rgba(255,255,255,0.92);background:rgba(15,23,42,0.55);border:1px solid rgba(255,255,255,0.18);padding:4px 12px;border-radius:20px;backdrop-filter:blur(4px);cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+                            <i class="fa-solid fa-id-card" style="color:#93c5fd;"></i>
+                            <span>ตั้งค่าระบบสแกนใบหน้า</span>
+                            <span id="face-enroll-chip-status" style="font-weight:700;"></span>
+                        </button>
+                    </div>
+
                     <!-- Center: Capture Button -->
                     <div class="absolute bottom-6 left-0 right-0 flex justify-center z-10">
                         <button onclick="capturePhoto()" class="btn-press" style="width:68px;height:68px;border-radius:50%;background:white;box-shadow:0 4px 20px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;border:4px solid rgba(255,255,255,0.3);cursor:pointer;">
@@ -2144,6 +2154,63 @@
                 <input type="hidden" id="attendance-lng">
                 <input type="hidden" id="attendance-photo-data">
             </section>
+
+            <!-- ============================================== -->
+            <!-- Phase 3: Modal ลงทะเบียนใบหน้า (Auto-Capture) -->
+            <!-- ============================================== -->
+            <div id="face-enroll-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(15,23,42,0.82);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
+                <div class="w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl" style="max-height:92vh;display:flex;flex-direction:column;">
+                    <!-- Header -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#1e293b,#0f172a);color:white;">
+                        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                            <i class="fa-solid fa-id-card" style="color:#93c5fd;font-size:16px;"></i>
+                            <div style="min-width:0;">
+                                <p style="font-size:13px;font-weight:800;">ลงทะเบียนใบหน้า (Auto-Capture)</p>
+                                <p style="font-size:9px;color:rgba(255,255,255,0.55);">สำหรับระบบสแกนลงเวลาเข้า-ออก</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="closeFaceEnrollmentModal()" style="background:rgba(255,255,255,0.12);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:12px;flex-shrink:0;"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <!-- Camera Stage -->
+                    <div style="position:relative;aspect-ratio:4/4;background:#020617;flex-shrink:0;border-bottom:1px solid #e2e8f0;">
+                        <video id="face-enroll-video" autoplay muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);transition:box-shadow 0.15s;"></video>
+                        <!-- Scan progress overlay -->
+                        <div id="face-enroll-progress-wrap" style="display:none;position:absolute;left:12px;right:12px;bottom:12px;background:rgba(0,0,0,0.55);border-radius:10px;padding:8px 12px;backdrop-filter:blur(4px);">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                                <span id="face-enroll-frame-count" style="color:#a5f3fc;font-size:10px;font-weight:700;">เก็บเฟรม 0</span>
+                                <span id="face-enroll-progress-text" style="color:rgba(255,255,255,0.75);font-size:10px;">0%</span>
+                            </div>
+                            <div style="height:5px;background:rgba(255,255,255,0.2);border-radius:99px;overflow:hidden;">
+                                <div id="face-enroll-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#38bdf8,#34d399);transition:width 0.2s;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Body -->
+                    <div style="padding:12px 16px;overflow-y:auto;flex:1;">
+                        <p id="face-enroll-status" style="font-size:12px;font-weight:700;color:#0f172a;margin-bottom:6px;">กำลังเตรียมระบบจดจำใบหน้า…</p>
+                        <ul style="font-size:10px;color:#64748b;line-height:1.7;list-style:none;padding:0;margin:0 0 10px 0;">
+                            <li>• มองตรงกล้อง นิ่ง ๆ ประมาณ 3 วินาที — ระบบเก็บเฟรมอัตโนมัติ ไม่ต้องหันหน้า</li>
+                            <li>• ต้องอยู่ในที่แสงสว่างพอ หน้าไม่เบลอ</li>
+                            <li>• ระบบเก็บเฉพาะ Face Vector (ตัวเลข) ตาม PDPA ไม่เก็บภาพใบหน้าจริง</li>
+                        </ul>
+                        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:8px 10px;font-size:10px;color:#1d4ed8;">
+                            พนักงาน: <b id="face-enroll-emp-name" style="color:#0f172a;">—</b>
+                        </div>
+                    </div>
+
+                    <!-- Footer actions -->
+                    <div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
+                        <button id="face-enroll-close-btn" type="button" onclick="closeFaceEnrollmentModal()"
+                            style="flex:1;background:#e2e8f0;color:#334155;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">ปิด</button>
+                        <button id="face-enroll-start-btn" type="button" onclick="startFaceEnrollment()" disabled
+                            style="flex:2;background:linear-gradient(135deg,#0284c7,#0369a1);color:white;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+                            <i class="fa-solid fa-camera"></i> เริ่มลงทะเบียน
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <!-- ============================================== -->
             <!-- 4. การลา (Leave Requests & Balances) -->
@@ -13374,6 +13441,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     updateAttendanceStatus();
                     // เปิดกล้องอัตโนมัติทันทีเมื่อเปิดเข้าเมนูลงเวลา โดยไม่ต้องรอให้ผู้ใช้งานกดปุ่มใดๆ ก่อน
                     setTimeout(initCamera, 100);
+                    refreshFaceEnrollStatus(); // Phase 3: อัปเดตสถานะลงทะเบียนใบหน้าบนหน้าลงเวลา
                 }
 
                 if (target === "leave") {
@@ -26228,6 +26296,443 @@ ${slip.textSample}
             }
         }
 
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 3: Auto-Capture Face Enrollment — ลงทะเบียนใบหน้าแบบจ้องกล้องอัตโนมัติ
+// ═══════════════════════════════════════════════════════════════════════════
+// - พนักงานมองกล้องหน้านิ่งๆ ~3 วินาที ระบบเก็บเฟรมที่ดี/มุมต่างกันเอง (ไม่ต้องหันหน้า)
+// - เก็บเฉพาะ Face Vector (128-dim) — รูปเฟรมถูกทิ้งทันที (PDPA)
+// - เขียนผ่าน action saveFaceDescriptor (GAS) → ตาราง face_database
+// - Format กลาง v2: { version: 2, items: [ { d:[128], yaw, pitch, quality } ] }
+//   parseFaceDescriptors() อ่านได้ทั้ง v2 และของเดิม (straight/left/right / face)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FACE_API_LIB_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+const FACE_API_MODELS_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+
+const faceEnrollState = {
+    libPromise: null,
+    modelsReady: false,
+    cameraOn: false,
+    ownedStream: null,
+    active: false,
+    inFlight: false,
+    timerId: null,
+    startedAt: 0,
+    pool: [],
+    lastNoseMisses: 0
+};
+
+const FACE_ENROLL_MAX_DURATION = 3200;  // ms — จ้องกล้องสูงสุด ~3 วินาที
+const FACE_ENROLL_MIN_OK = 1600;        // ms — พอมี 3 มุมต่างกันแล้ว จบไวได้
+const FACE_ENROLL_SHARPNESS_MIN = 400;  // ความคม (variance) ขั้นต่ำ
+const FACE_ENROLL_POOL_MAX = 20;
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function loadScriptPromise(src) {
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = () => resolve(true);
+        s.onerror = () => reject(new Error('โหลดไลบรารีจดจำใบหน้าไม่สำเร็จ (เช็คอินเทอร์เน็ต)'));
+        document.head.appendChild(s);
+    });
+}
+
+async function ensureFaceApiLib() {
+    if (window.faceapi) return true;
+    if (faceEnrollState.libPromise) return faceEnrollState.libPromise;
+    faceEnrollState.libPromise = loadScriptPromise(FACE_API_LIB_URL).then(() => {
+        if (!window.faceapi) throw new Error('face-api.js ไม่พร้อมใช้งาน');
+        return true;
+    });
+    return faceEnrollState.libPromise;
+}
+
+async function ensureFaceModels(onProgress) {
+    if (faceEnrollState.modelsReady) return true;
+    await ensureFaceApiLib();
+    const nets = [
+        { name: 'TinyFaceDetector', load: () => window.faceapi.nets.tinyFaceDetector.loadFromUri(FACE_API_MODELS_URL) },
+        { name: 'FaceLandmark68',   load: () => window.faceapi.nets.faceLandmark68Net.loadFromUri(FACE_API_MODELS_URL) },
+        { name: 'FaceRecognition',  load: () => window.faceapi.nets.faceRecognitionNet.loadFromUri(FACE_API_MODELS_URL) }
+    ];
+    for (let i = 0; i < nets.length; i++) {
+        if (onProgress) onProgress(i, nets.length, nets[i].name);
+        await nets[i].load();
+    }
+    faceEnrollState.modelsReady = true;
+    return true;
+}
+
+// แปลง format descriptor ทุกรุ่น → array ของ descriptor (array ตัวเลข 128 มิติ)
+function parseFaceDescriptors(raw) {
+    let obj = raw;
+    if (typeof raw === 'string') {
+        try { obj = JSON.parse(raw); } catch (e) { return []; }
+    }
+    if (!obj) return [];
+    const out = [];
+    const pushDesc = (x) => {
+        if (Array.isArray(x)) {
+            if (x.length > 20 && typeof x[0] === 'number') { out.push(x); }
+            else { x.forEach((y) => { if (Array.isArray(y) && y.length > 20 && typeof y[0] === 'number') out.push(y); }); }
+        }
+    };
+    if (Array.isArray(obj)) { obj.forEach(pushDesc); return out; }
+    // Format กลาง v2
+    if (obj.version && Array.isArray(obj.items)) {
+        obj.items.forEach((it) => {
+            const d = (it && (it.d || it.descriptor || it.face)) || null;
+            if (Array.isArray(d) && d.length > 20 && typeof d[0] === 'number') out.push(d);
+        });
+        return out;
+    }
+    // ของเดิม (FaceRegister: {face:[...]} / Kiosk: {straight/left/right:[...]})
+    ['straight', 'left', 'right', 'center', 'face', 'descriptors'].forEach((k) => {
+        if (obj[k]) pushDesc(obj[k]);
+    });
+    return out;
+}
+
+function euclideanDistance128(a, b) {
+    if (!a || !b || a.length !== b.length) return 1;
+    let s = 0;
+    for (let i = 0; i < a.length; i++) { const d = a[i] - b[i]; s += d * d; }
+    return Math.sqrt(s);
+}
+
+let _enrollScratchCanvas = null;
+function computeFaceSharpness(video, box) {
+    if (!_enrollScratchCanvas) { _enrollScratchCanvas = document.createElement('canvas'); _enrollScratchCanvas.width = 96; _enrollScratchCanvas.height = 96; }
+    const ctx = _enrollScratchCanvas.getContext('2d', { willReadFrequently: true });
+    const sx = Math.max(0, Math.floor(box.x));
+    const sy = Math.max(0, Math.floor(box.y));
+    const sw = Math.min(video.videoWidth - sx, Math.floor(box.width));
+    const sh = Math.min(video.videoHeight - sy, Math.floor(box.height));
+    if (sw < 24 || sh < 24) return 0;
+    ctx.clearRect(0, 0, 96, 96);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, 96, 96);
+    const data = ctx.getImageData(0, 0, 96, 96).data;
+    let sum = 0, sum2 = 0, n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += l; sum2 += l * l; n++;
+    }
+    const mean = sum / n;
+    return (sum2 / n) - (mean * mean);
+}
+
+function estimateHeadAngles(det) {
+    const box = det.detection.box;
+    const lms = det.landmarks.positions;
+    const nose = lms[30];
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    return {
+        yaw: clamp((nose.x - cx) / (Math.max(1, box.width / 2)), -1, 1),
+        pitch: clamp((nose.y - cy) / (Math.max(1, box.height / 2)), -1, 1)
+    };
+}
+
+function buildEnrollmentItems(pool) {
+    const sorted = [...pool].sort((a, b) => b.sharp - a.sharp);
+    const chosen = [];
+    for (const c of sorted) {
+        if (chosen.length >= 3) break;
+        if (!chosen.length) { chosen.push(c); continue; }
+        let minD = 1;
+        for (const x of chosen) { const d = euclideanDistance128(x.d, c.d); if (d < minD) minD = d; }
+        const minReq = chosen.length === 1 ? 0.10 : 0.20;
+        if (minD >= minReq) chosen.push(c);
+    }
+    if (!chosen.length && sorted.length) chosen.push(sorted[0]);
+    return chosen.map((c) => ({
+        d: c.d.slice(),
+        yaw: Math.round(c.yaw * 100) / 100,
+        pitch: Math.round(c.pitch * 100) / 100,
+        quality: Math.round(c.sharp * 10) / 10
+    }));
+}
+
+// ─── UI helpers ─────────────────────────────────────────────────────────────
+function enrollEl(id) { return document.getElementById(id); }
+
+function setEnrollStatus(msg, color) {
+    const el = enrollEl('face-enroll-status');
+    if (el) { el.textContent = msg; el.style.color = color || '#0f172a'; }
+}
+
+function setEnrollProgress(pct, frameCount) {
+    const wrap = enrollEl('face-enroll-progress-wrap');
+    const bar = enrollEl('face-enroll-progress-bar');
+    const txt = enrollEl('face-enroll-progress-text');
+    const cnt = enrollEl('face-enroll-frame-count');
+    if (wrap) wrap.style.display = 'flex';
+    if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if (txt) txt.textContent = Math.round(pct) + '%';
+    if (cnt) cnt.textContent = 'เก็บเฟรม ' + (frameCount || 0);
+}
+
+function setEnrollBorder(found) {
+    const video = enrollEl('face-enroll-video');
+    if (video) video.style.boxShadow = found ? 'inset 0 0 0 3px rgba(52,211,153,0.95)' : 'inset 0 0 0 0 rgba(52,211,153,0)';
+}
+
+// ─── เปิด/ปิด Modal ─────────────────────────────────────────────────────────
+async function openFaceEnrollmentModal() {
+    const modal = enrollEl('face-enroll-modal');
+    const startBtn = enrollEl('face-enroll-start-btn');
+    if (!modal) return;
+    if (modal.style.display === 'flex') return; // เปิดอยู่แล้ว
+    if (!currentEmployeeId) { showToast('⚠️ กรุณาเข้าสู่ระบบก่อนลงทะเบียนใบหน้า', 'warning'); return; }
+
+    modal.style.display = 'flex';
+    const nameEl = enrollEl('face-enroll-emp-name');
+    if (nameEl) {
+        const nm = (typeof employeeData !== 'undefined' && employeeData) ? (employeeData['ชื่อ-นามสกุล'] || employeeData.name || '') : '';
+        nameEl.textContent = (nm ? nm + ' (' : '') + currentEmployeeId + (nm ? ')' : '');
+    }
+    setEnrollStatus('กำลังเตรียมระบบจดจำใบหน้า…', '#2563eb');
+    if (startBtn) startBtn.disabled = true;
+    setEnrollBorder(false);
+
+    try {
+        // 1) โหลดไลบรารี + โมเดล (ครั้งแรกเท่านั้น แล้ว cache ไว้)
+        await ensureFaceModels((i, total, netName) => {
+            setEnrollStatus(`กำลังโหลดโมเดลจดจำใบหน้า… (${i + 1}/${total})`, '#2563eb');
+        });
+
+        // 2) ขอสิทธิ์กล้องหน้า (user) — ถ้าหน้าลงเวลากำลังใช้กล้องหน้าอยู่แล้ว ให้ใช้สตรีมเดิม (กันกล้องซ้อนกล้องในมือถือรุ่นประหยัด)
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setEnrollStatus('❌ เบราว์เซอร์นี้ไม่รองรับกล้อง', '#dc2626');
+            return;
+        }
+        let stream = null;
+        let ownedStream = false;
+        if (typeof streamRef !== 'undefined' && streamRef && streamRef.active
+            && typeof cameraMode !== 'undefined' && cameraMode === 'user') {
+            stream = streamRef;
+        } else {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: false
+            });
+            ownedStream = true;
+        }
+        faceEnrollState.ownedStream = ownedStream ? stream : null;
+        faceEnrollState.cameraOn = true;
+        const video = enrollEl('face-enroll-video');
+        if (video) {
+            video.srcObject = stream;
+            await video.play().catch(() => {});
+        }
+        setEnrollStatus('พร้อมแล้ว — กด “เริ่มลงทะเบียน” แล้วมองตรงกล้อง', '#059669');
+        if (startBtn) startBtn.disabled = false;
+    } catch (err) {
+        console.error('[FaceEnroll] init error:', err);
+        const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+        setEnrollStatus(isDenied
+            ? '❌ ไม่ได้รับอนุญาตให้ใช้กล้อง — กรุณากดอนุญาตกล้องแล้วลองใหม่'
+            : '❌ เริ่มต้นไม่สำเร็จ: ' + (err && err.message ? err.message : err), '#dc2626');
+        if (startBtn) startBtn.disabled = false;
+    }
+}
+
+function closeFaceEnrollmentModal() {
+    stopFaceEnrollmentCapture();
+    if (faceEnrollState.ownedStream) {
+        faceEnrollState.ownedStream.getTracks().forEach((t) => t.stop());
+        faceEnrollState.ownedStream = null;
+    }
+    faceEnrollState.cameraOn = false;
+    const video = enrollEl('face-enroll-video');
+    if (video) { video.srcObject = null; video.style.boxShadow = ''; }
+    const modal = enrollEl('face-enroll-modal');
+    if (modal) modal.style.display = 'none';
+    setEnrollBorder(false);
+    refreshFaceEnrollStatus();
+}
+
+// ─── เริ่ม/หยุด Auto-Capture ────────────────────────────────────────────────
+function startFaceEnrollment() {
+    if (faceEnrollState.active) return;
+    const video = enrollEl('face-enroll-video');
+    const startBtn = enrollEl('face-enroll-start-btn');
+    if (!faceEnrollState.modelsReady) {
+        setEnrollStatus('ระบบจดจำใบหน้ายังโหลดไม่เสร็จ — รอสักครู่แล้วลองใหม่', '#d97706');
+        return;
+    }
+    if (!video || !faceEnrollState.cameraOn) {
+        setEnrollStatus('กล้องยังไม่พร้อม — รอสักครู่แล้วลองใหม่', '#d97706');
+        return;
+    }
+    if (video.readyState < 2) {
+        setTimeout(() => { if (enrollEl('face-enroll-modal') && enrollEl('face-enroll-modal').style.display === 'flex') startFaceEnrollment(); }, 250);
+        return;
+    }
+    faceEnrollState.active = true;
+    faceEnrollState.pool = [];
+    faceEnrollState.lastNoseMisses = 0;
+    faceEnrollState.startedAt = performance.now();
+    if (startBtn) startBtn.disabled = true;
+    setEnrollStatus('มองตรงกล้องนิ่ง ๆ … ระบบเก็บเฟรมอัตโนมัติ', '#059669');
+    setEnrollProgress(0, 0);
+    setEnrollBorder(false);
+    scheduleEnrollSample();
+}
+
+function stopFaceEnrollmentCapture() {
+    faceEnrollState.active = false;
+    faceEnrollState.inFlight = false;
+    if (faceEnrollState.timerId) { clearTimeout(faceEnrollState.timerId); faceEnrollState.timerId = null; }
+    setEnrollBorder(false);
+}
+
+function scheduleEnrollSample() {
+    if (!faceEnrollState.active) return;
+    faceEnrollState.timerId = setTimeout(sampleEnrollFrame, 120);
+}
+
+async function sampleEnrollFrame() {
+    faceEnrollState.timerId = null;
+    if (!faceEnrollState.active || faceEnrollState.inFlight) return;
+    const video = enrollEl('face-enroll-video');
+    if (!video || video.readyState < 2 || !window.faceapi) { scheduleEnrollSample(); return; }
+
+    faceEnrollState.inFlight = true;
+    let det = null;
+    try {
+        det = await window.faceapi
+            .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+    } catch (e) { /* เฟรมนี้ล้มเหลว — ข้าม */ }
+    faceEnrollState.inFlight = false;
+    if (!faceEnrollState.active) return;
+
+    const elapsed = performance.now() - faceEnrollState.startedAt;
+    if (det) {
+        const sharp = computeFaceSharpness(video, det.detection.box);
+        if (sharp >= FACE_ENROLL_SHARPNESS_MIN) {
+            const ang = estimateHeadAngles(det);
+            faceEnrollState.pool.push({
+                d: Array.from(det.descriptor),
+                sharp: sharp,
+                score: det.detection.score || 0,
+                yaw: ang.yaw,
+                pitch: ang.pitch
+            });
+            if (faceEnrollState.pool.length > FACE_ENROLL_POOL_MAX) faceEnrollState.pool.shift();
+            faceEnrollState.lastNoseMisses = 0;
+            setEnrollBorder(true);
+        } else {
+            faceEnrollState.lastNoseMisses++;
+            if (faceEnrollState.lastNoseMisses % 10 === 0) setEnrollStatus('พบหน้าแต่ภาพเบลอ — อยู่นิ่ง ๆ ให้แสงพอ', '#d97706');
+        }
+    } else {
+        faceEnrollState.lastNoseMisses++;
+        if (faceEnrollState.lastNoseMisses % 10 === 0) setEnrollStatus('ยังไม่พบใบหน้า — หันหน้าเข้ากล้องตรง ๆ', '#d97706');
+        setEnrollBorder(false);
+    }
+
+    const pct = Math.min(100, (elapsed / FACE_ENROLL_MAX_DURATION) * 100);
+    setEnrollProgress(pct, faceEnrollState.pool.length);
+
+    // จบเร็วเมื่อได้ 3 มุมต่างกันแล้ว หรือครบเวลา
+    const items = buildEnrollmentItems(faceEnrollState.pool);
+    if (elapsed >= FACE_ENROLL_MAX_DURATION || (elapsed >= FACE_ENROLL_MIN_OK && items.length >= 3)) {
+        finishFaceEnrollmentCapture();
+        return;
+    }
+    scheduleEnrollSample();
+}
+
+function finishFaceEnrollmentCapture() {
+    if (!faceEnrollState.active) return;
+    stopFaceEnrollmentCapture();
+    setEnrollProgress(100, faceEnrollState.pool.length);
+
+    const items = buildEnrollmentItems(faceEnrollState.pool);
+    if (!items.length) {
+        setEnrollStatus('❌ ยังเก็บเฟรมใบหน้าไม่ได้ — ย้ายไปที่แสงสว่างพอ แล้วลองใหม่อีกครั้ง', '#dc2626');
+        const startBtn = enrollEl('face-enroll-start-btn');
+        if (startBtn) startBtn.disabled = false;
+        return;
+    }
+
+    const payload = { version: 2, items: items };
+    if (items.length < 2) {
+        setEnrollStatus('⚠️ ได้เฟรมมุมน้อยเกินไป — ระบบจะบันทึกชุดนี้ แต่แนะนำให้ลองใหม่อีกครั้งเพื่อความแม่นยำ', '#d97706');
+    } else {
+        setEnrollStatus(`✅ สแกนสำเร็จ (${items.length} มุม) — กำลังบันทึก…`, '#059669');
+    }
+    saveFaceEnrollment(payload, items.length);
+}
+
+// ─── บันทึกผ่าน GAS action saveFaceDescriptor ──────────────────────────────
+async function saveFaceEnrollment(payload, itemCount) {
+    const startBtn = enrollEl('face-enroll-start-btn');
+    try {
+        const nm = (typeof employeeData !== 'undefined' && employeeData) ? (employeeData['ชื่อ-นามสกุล'] || employeeData.name || '') : '';
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'saveFaceDescriptor',
+                empId: currentEmployeeId,
+                descriptors: payload,
+                updatedBy: nm || currentEmployeeId
+            })
+        });
+        if (res && res.status === 'success') {
+            setEnrollStatus(`🎉 ลงทะเบียนใบหน้าสำเร็จ (${itemCount} มุม) — ปิดหน้านี้ได้เลย`, '#059669');
+            showToast(`🎉 ลงทะเบียนใบหน้าสำเร็จ (${itemCount} มุม)`, 'success');
+            if (startBtn) startBtn.disabled = true;
+            const closeBtn = enrollEl('face-enroll-close-btn');
+            if (closeBtn) closeBtn.textContent = 'เสร็จสิ้น ✓';
+            refreshFaceEnrollStatus();
+        } else {
+            const msg = (res && res.message) ? res.message : 'ไม่ทราบสาเหตุ';
+            setEnrollStatus('❌ บันทึกไม่สำเร็จ: ' + msg, '#dc2626');
+            showToast('❌ บันทึกใบหน้าไม่สำเร็จ: ' + msg, 'error');
+            if (startBtn) startBtn.disabled = false;
+        }
+    } catch (err) {
+        console.error('[FaceEnroll] save error:', err);
+        setEnrollStatus('❌ บันทึกไม่สำเร็จ (ติดต่อเน็ตเวิร์ก) — ลองใหม่อีกครั้ง', '#dc2626');
+        if (startBtn) startBtn.disabled = false;
+    }
+}
+
+// ─── อัปเดตสถานะบนหน้าลงเวลา (chip) ────────────────────────────────────────
+async function refreshFaceEnrollStatus() {
+    const chip = enrollEl('face-enroll-chip-status');
+    if (!chip) return;
+    if (!currentEmployeeId) { chip.textContent = ''; return; }
+    try {
+        if (typeof supabaseClient === 'undefined' || !supabaseClient) { chip.textContent = '—'; return; }
+        const { data } = await supabaseClient
+            .from('face_database')
+            .select('face_descriptors, updated_at')
+            .eq('emp_id', currentEmployeeId)
+            .maybeSingle();
+        const count = (data && data.face_descriptors) ? parseFaceDescriptors(data.face_descriptors).length : 0;
+        if (count > 0) {
+            chip.textContent = '✓ ' + count + ' มุม';
+            chip.style.color = '#6ee7b7';
+        } else {
+            chip.textContent = 'ยังไม่ลงทะเบียน';
+            chip.style.color = '#fbbf24';
+        }
+    } catch (e) {
+        console.warn('[FaceEnroll] status refresh error:', e);
+        chip.textContent = '';
+    }
+}
 </script>
 </body>
 
