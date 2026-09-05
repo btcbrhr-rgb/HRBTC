@@ -578,6 +578,15 @@ REVOKE ALL ON FUNCTION public.fn_run_migrations(JSONB) FROM anon;
 REVOKE ALL ON FUNCTION public.fn_run_migrations(JSONB) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.fn_run_migrations(JSONB) TO service_role;
 
+-- 4. บันทึกสถานะ schema ให้ตรงกับโครงสร้างที่สคริปต์นี้สร้างครบแล้ว
+--    ทำให้รันไฟล์นี้ครั้งเดียวแล้วหน้า Auto-Migrate แสดงครบ 2 migration
+INSERT INTO public.schema_migrations (version, description)
+VALUES
+  ('baseline-2026-09-05', 'Baseline: HRBTC V2 schema ครบทุกตารางและ realtime'),
+  ('2026-09-05-attendance-raw-processing-v1', 'เพิ่มสถานะติดตามการส่ง attendance_raw เข้ากระบวนการคำนวณกลาง')
+ON CONFLICT (version) DO UPDATE SET
+  description = EXCLUDED.description;
+
 -- Idempotent - รันซ้ำกี่ครั้งก็ได้ ข้อมูลไม่หาย
--- หมายเหตุ: หลังรัน STEP 9 แล้ว GAS จะอัปเดต schema ให้อัตโนมัติ (AutoMigrate.gs) ผ่านปุ่มซิงค์/Trigger รายวัน
---          ไม่ต้องกลับมารัน SQL Editor อีก ยกเว้นต้องการรีเซ็ตระบบทั้งหมด
+-- หมายเหตุ: ไฟล์นี้รวม schema และ migration tracking ของระบบปัจจุบันไว้แล้ว
+--          รันซ้ำได้โดยไม่ลบข้อมูลเดิม และไม่ต้องเพิ่ม migration tracking ด้วยมือ
