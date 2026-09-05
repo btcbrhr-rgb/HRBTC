@@ -8261,6 +8261,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 _maxReconnectAttempts: 10,
                 _reconnectTimer: null,
                 _initialized: false,
+                // ⚡ กัน sync ซ้อนกัน: ถ้ารอบก่อนยังรันไม่จบ รอบใหม่จะรอต่อ (ไม่โหลดซ้ำซ้อน)
+                _syncRunning: false,
+                _syncQueued: false,
+                // ⚡ Max-wait debounce: เวลาแรกสุดที่ event ค้างรออยู่ (กัน debounce ค้างไม่จบ)
+                _firstPendingAt: 0,
+                // ⚡ Rate-limit ต่อโมดูล: key → timestamp ของรอบที่ refresh ล่าสุด
+                _lastModuleRefresh: {},
+                // ⚡ Throttle Activity Log: table → timestamp ของ log ล่าสุด (กันตารางความถี่สูงท่วม log)
+                _lastActivityLog: {},
 
                 init() {
                     if (!supabaseClient) {
@@ -8269,6 +8278,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     }
                     if (!supabaseClient) return;
+
+                    // ⛔ กัน subscribe ซ้ำซ้อน: ถ้า client เดิม + กำลังเชื่อม/เชื่อมแล้ว ให้ข้าม
+                    //    (เดิม init() ถูกเรียกหลายจุด → subscribe ซ้ำ → removeChannel ช่องเก่า → วน reconnect)
+                    const clientChanged = this._subscribedKey && this._subscribedKey !== supabaseClientConfigKey;
+                    if (!clientChanged && this._channel && (this._status === 'connected' || this._status === 'connecting')) {
+                        if (!this._initialized) {
+                            this._setupVisibilityListener();
+                            this._initialized = true;
+                        }
+                        return;
+                    }
 
                     this.subscribe();
                     if (!this._initialized) {
@@ -8280,18 +8300,30 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 subscribe() {
                     if (!supabaseClient || typeof supabaseClient.channel !== 'function') return;
 
+                    // ยกเลิก timer reconnect ค้างเก่า — การ subscribe ใหม่เป็นการจงใจ ไม่ให้ตัวเก่ายิงซ้อน
+                    if (this._reconnectTimer) {
+                        clearTimeout(this._reconnectTimer);
+                        this._reconnectTimer = null;
+                    }
                     if (this._channel) {
-                        try { supabaseClient.removeChannel(this._channel); } catch(e) {}
+                        // ⛔ เคลียร์ reference ก่อน removeChannel เสมอ
+                        //    เพื่อไม่ให้ status CLOSED ของช่องเก่ามา trigger reconnect วนซ้ำ (ต้นตอ Activity Log ท่วม)
+                        const oldChan = this._channel;
                         this._channel = null;
+                        try { supabaseClient.removeChannel(oldChan); } catch(e) {}
                     }
 
                     this._status = 'connecting';
                     this._updateIndicator();
 
+                    // ⚡ ครบทั้ง 19 ตาราง (ตรง supabase_rebuild_all.sql / getMigrationTableList)
                     const tablesToWatch = [
-                        'time_records', 'time_corrections', 'leave_requests',
-                        'advance_requests', 'employees', 'payslips',
-                        'announcements', 'holidays', 'projects', 'system_settings'
+                        'employees', 'time_records', 'time_corrections', 'leave_requests',
+                        'advance_requests', 'payslips', 'announcements', 'holidays',
+                        'projects', 'system_settings', 'line_chat_state', 'line_groups',
+                        'line_followers', 'face_database', 'face_capture_log',
+                        'scanner_mappings', 'agent_configs', 'attendance_raw',
+                        'employee_notification_prefs'
                     ];
 
                     let chan = supabaseClient.channel('hrbtc-realtime-sync', {
@@ -8322,15 +8354,33 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         );
                     });
 
+                    // ✅ ตั้ง reference ทันที (ก่อน subscribe) — callback ของช่องเก่าที่ถูกแทนที่จะโดนกรองทิ้ง
+                    this._channel = chan;
+                    this._subscribedKey = supabaseClientConfigKey;
+                    this._reconnectAttempts = 0;
+
                     try {
                         if (typeof chan.subscribe === 'function') {
                             chan.subscribe((status, error) => {
+                                // ⛔ ช่องที่หมดอายุแล้ว (ถูกช่องใหม่แทนที่) — ไม่จัดการ กัน reconnect วนซ้ำ
+                                if (this._channel !== chan) return;
                                 if (status === 'SUBSCRIBED') {
                                     this._status = 'connected';
                                     this._reconnectAttempts = 0;
+                                    // เชื่อมจริงแล้ว → ยกเลิก timer reconnect ค้างเก่าทิ้ง (กัน churn ซ้ำซ้อน)
+                                    if (this._reconnectTimer) {
+                                        clearTimeout(this._reconnectTimer);
+                                        this._reconnectTimer = null;
+                                    }
                                     this._updateIndicator();
                                     console.log('[Realtime] ✅ เชื่อมต่อ Real-time WebSocket สมบูรณ์');
+                                    // ✅ log "สำเร็จ" เฉพาะเมื่อเชื่อมจริง (SUBSCRIBED)
+                                    //    ไม่ log ทุกครั้งที่ subscribe — กัน Activity Log ท่วม (ต้นตอ reconnect loop)
+                                    if (typeof logDbActivity === 'function') {
+                                        logDbActivity('SYNC', 'Realtime', 'เชื่อมต่อ Real-time Synchronization สำเร็จ (พร้อมรับการอัปเดตทันที)', 'success');
+                                    }
                                 } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                                    if (this._channel === chan) this._channel = null;
                                     this._status = 'disconnected';
                                     this._updateIndicator();
                                     console.warn('[Realtime] ⚠️ สัญญาณ Real-time ขัดข้อง:', status, error);
@@ -8340,14 +8390,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     } catch (error) {
                         console.warn('[Realtime] subscribe failed, disabling realtime for this session:', error);
+                        if (this._channel === chan) this._channel = null;
                         this._status = 'disconnected';
                         this._updateIndicator();
                         return;
-                    }
-
-                    this._channel = chan;
-                    if (typeof logDbActivity === 'function') {
-                        logDbActivity('SYNC', 'Realtime', 'เชื่อมต่อ Real-time Synchronization สำเร็จ (พร้อมรับการอัปเดตทันที)', 'success');
                     }
                 },
 
@@ -8370,6 +8416,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     console.log(`[Realtime] ⚡ Change detected on [${table}]:`, payload.eventType, payload);
                     const eventType = payload.eventType || 'UPDATE';
 
+                    // ⛔ ตัวกรองสิทธิ์: พนักงานข้าม event ที่ไม่เกี่ยวกับตัวเอง (Admin เห็นทุกอย่าง)
+                    //    ลดการโหลดซ้ำเมื่อมีคนออนไลน์หลายคน — เช่น พนักงาน A ลงเวลา → มีแต่ A (กับ Admin) ที่ reload
+                    if (!this._isEventRelevantToMe(table, payload)) {
+                        // log debug อย่างมาก 1 ครั้ง / 10 วิ ต่อตาราง (กัน console ท่วมตอน batch อนุมัติทีละหลายรายการ)
+                        const skipLogNow = Date.now();
+                        if (!this._lastSkippedLog || (skipLogNow - this._lastSkippedLog[table] || 0) >= 10000) {
+                            this._lastSkippedLog = this._lastSkippedLog || {};
+                            this._lastSkippedLog[table] = skipLogNow;
+                            console.debug(`[Realtime] ⏭️ ข้าม event [${table}] (ไม่เกี่ยวกับผู้ใช้ปัจจุบัน — พนักงานเห็นเฉพาะข้อมูลตัวเอง)`);
+                        }
+                        return;
+                    }
+
                     // Invalidate Client & Admin Caches ทันที
                     if (typeof ClientCache !== 'undefined' && ClientCache.invalidate) {
                         ClientCache.invalidate();
@@ -8378,11 +8437,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         AdminDataCache.invalidateAll();
                     }
 
-                    // บันทึก Activity Log แบบ Real-time
+                    // บันทึก Activity Log แบบ Real-time — ⚡ throttle: ตารางความถี่สูง (เครื่องสแกน/Agent)
+                    // จะ log อย่างมาก 1 ครั้ง / 30 วิ ต่อตาราง กัน Activity Log + localStorage ท่วม
                     if (typeof logDbActivity === 'function') {
-                        const opType = eventType === 'INSERT' ? 'CREATE' : (eventType === 'DELETE' ? 'DELETE' : 'UPDATE');
-                        const detailMsg = `⚡ Real-time: พบการเปลี่ยนแปลงข้อมูลในตาราง [${table}] (${eventType})`;
-                        logDbActivity(opType, table, detailMsg, 'success');
+                        const nowTs = Date.now();
+                        const highFreqTables = ['attendance_raw', 'agent_configs', 'scanner_mappings', 'face_capture_log', 'face_database', 'line_chat_state', 'line_groups', 'line_followers', 'employee_notification_prefs'];
+                        const gapMs = highFreqTables.includes(table) ? 30000 : 3000;
+                        if (!this._lastActivityLog[table] || (nowTs - this._lastActivityLog[table]) >= gapMs) {
+                            this._lastActivityLog[table] = nowTs;
+                            const opType = eventType === 'INSERT' ? 'CREATE' : (eventType === 'DELETE' ? 'DELETE' : 'UPDATE');
+                            const detailMsg = `⚡ Real-time: พบการเปลี่ยนแปลงข้อมูลในตาราง [${table}] (${eventType})`;
+                            logDbActivity(opType, table, detailMsg, 'success');
+                        }
                     }
 
                     this._pendingTables.add(table);
@@ -8391,52 +8457,227 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     this._scheduleDebouncedSync(delay);
                 },
 
+                // ⚡ Rate-limit helper: คืน true ถ้าผ่านเกณฑ์ (ยังไม่เกิน minIntervalMs ตั้งแต่รอบที่แล้ว)
+                _shouldRefresh(key, minIntervalMs) {
+                    const now = Date.now();
+                    const last = this._lastModuleRefresh[key] || 0;
+                    if ((now - last) < minIntervalMs) return false;
+                    this._lastModuleRefresh[key] = now;
+                    return true;
+                },
+
+                /**
+                 * ⚡ กรอง event ตามสิทธิ์ผู้ใช้ปัจจุบัน — ลดโหลดซ้ำเมื่อมีคนออนไลน์หลายคน:
+                 *   • Admin → เห็นทุก event (refresh ทั้งระบบ)
+                 *   • พนักงาน → โหลดเฉพาะข้อมูลของตัวเอง (emp_id ตรงกับ currentEmployeeId)
+                 *     + ข้อมูลสาธารณะ (ประกาศ/วันหยุด/โครงการ) — ข้าม event ของพนักงานคนอื่น
+                 *       และตารางภายใน/Agent (เครื่องสแกน, LINE, face log ฯลฯ)
+                 */
+                _isEventRelevantToMe(table, payload) {
+                    // Admin ดูแลทั้งระบบ → ประมวลผลทุก event
+                    if (typeof isAdminMode !== 'undefined' && isAdminMode) return true;
+
+                    // ยังไม่ล็อกอิน → รับเฉพาะข้อมูลสาธารณะ (กันโหลดเปล่า)
+                    const myEmpId = (typeof currentEmployeeId !== 'undefined') ? String(currentEmployeeId) : '';
+                    if (!myEmpId) {
+                        return ['announcements', 'holidays', 'projects'].includes(table);
+                    }
+
+                    // ตารางภายใน/Agent/Admin — พนักงานบนเว็บไม่ต้องรู้ (เครื่องสแกน heartbeat, attendance_raw
+                    // ดิบ, LINE OA, agent config) → ข้ามทั้งหมด (ข้อมูลฝั่งพนักงานจะมาเป็น time_records ที่มี emp_id)
+                    const adminOnlyTables = ['scanner_mappings', 'agent_configs', 'attendance_raw',
+                        'line_chat_state', 'line_groups', 'line_followers'];
+                    if (adminOnlyTables.includes(table)) return false;
+
+                    // ตารางข้อมูลส่วนตัวของพนักงาน → ประมวลผลเฉพาะเมื่อแถวที่เปลี่ยนเป็นของตัวเอง
+                    // (รวม face_database/face_capture_log — เจ้าของต้องเห็นสถานะลงทะเบียน/สแกนของตัวเอง)
+                    const empScopedTables = ['employees', 'time_records', 'time_corrections',
+                        'leave_requests', 'advance_requests', 'payslips', 'employee_notification_prefs',
+                        'face_database', 'face_capture_log'];
+                    if (empScopedTables.includes(table)) {
+                        // ดึง emp_id ของแถวที่เปลี่ยน (DB row → payload.new / payload.old, broadcast → payload.record)
+                        const row = (payload && (payload.new || payload.old || payload.record)) || null;
+                        const rowEmp = row ? (row.emp_id ?? row['รหัสพนักงาน'] ?? row.empId ?? '') : '';
+                        if (rowEmp !== '' && rowEmp !== null && rowEmp !== undefined) {
+                            return String(rowEmp) === myEmpId;
+                        }
+                        // ⛔ ระบุ emp_id ไม่ได้:
+                        //   • Broadcast (เช่น Admin อนุมัติส่งแค่ {status}) → ข้ามสำหรับพนักงาน
+                        //     เพราะ action เขียน DB ก่อน → เจ้าของข้อมูลได้ postgres_changes ที่มี full row อยู่แล้ว
+                        //   • Event จาก DB ที่หาคนไม่ได้ (เช่น DELETE ที่ payload.old มีแค่ PK) → อนุญาตไว้
+                        //     (เหตุการณ์หายาก — กันพลาดอัปเดตการลบ เช่น Admin ลบสลิป/เวลาที่ผิด)
+                        return payload.isBroadcast ? false : true;
+                    }
+
+                    // ตารางสาธารณะ/แชร์ (announcements, holidays, projects, system_settings) → ประมวลผล
+                    return true;
+                },
+
                 _scheduleDebouncedSync(delay = 250) {
                     if (this._debounceTimer) clearTimeout(this._debounceTimer);
+                    // ⚡ Max-wait: ถ้า event มาไม่หยุด (เช่น เครื่องสแกนดันข้อมูลเป็นชุดยาว)
+                    //    กัน debounce ถูก reset ตลอดจน sync ไม่เคยทำงาน → บังคับให้ทำงานทุก 2 วิ
+                    if (this._firstPendingAt && (Date.now() - this._firstPendingAt) >= 2000) {
+                        this._firstPendingAt = 0;
+                        this._executeSync();
+                        return;
+                    }
+                    if (!this._firstPendingAt) this._firstPendingAt = Date.now();
                     this._debounceTimer = setTimeout(() => {
+                        this._firstPendingAt = 0;
                         this._executeSync();
                     }, delay);
                 },
 
                 async _executeSync() {
+                    // ⛔ Serialize: ถ้ารอบก่อนยังรันไม่จบ (เช่น loadAllData กำลัง fetch อยู่) → คิวไว้รอ
+                    //    กัน sync หลายรอบซ้อนกันโหลดซ้ำซ้อนจนหน้า Admin กระตุก
+                    if (this._syncRunning) {
+                        this._syncQueued = true;
+                        return;
+                    }
+                    this._syncRunning = true;
+                    try {
+                        await this._runSyncBody();
+                    } finally {
+                        this._syncRunning = false;
+                        if (this._syncQueued) {
+                            this._syncQueued = false;
+                            this._scheduleDebouncedSync(50);
+                        }
+                    }
+                },
+
+                async _runSyncBody() {
                     const tables = Array.from(this._pendingTables);
                     this._pendingTables.clear();
+                    this._firstPendingAt = 0;
                     if (tables.length === 0) return;
 
                     console.log('[Realtime] 🔄 Auto-syncing data for tables:', tables);
 
-                    // 1. ถ้าเป็นข้อมูลสาธารณะ (projects, holidays, announcements)
-                    if (tables.includes('projects') || tables.includes('holidays') || tables.includes('announcements')) {
+                    // 1. ถ้าเป็นข้อมูลสาธารณะ (projects, holidays, announcements) — rate-limit 5 วิ
+                    if ((tables.includes('projects') || tables.includes('holidays') || tables.includes('announcements')) && this._shouldRefresh('loadPublicData', 5000)) {
                         if (typeof publicDataLoaded !== 'undefined') publicDataLoaded = false;
                         if (typeof loadPublicData === 'function') await loadPublicData().catch(() => {});
                     }
 
                     // 2. ถ้าล็อกอินอยู่ ให้โหลดข้อมูลของผู้ใช้ใหม่ทันที
-                    if (typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId) {
-                        if (typeof loadAllData === 'function') {
+                    //    ⚡ เฉพาะตารางที่กระทบหน้าพนักงาน — ตารางภายใน/Agent (scanner_mappings, agent_configs,
+                    //    attendance_raw, LINE, face ฯลฯ) จะ refresh เฉพาะหน้า Admin ที่เปิดอยู่เท่านั้น (ข้อ 3.1)
+                    //    ⚡ rate-limit 5 วิ — กัน event ถี่ๆ (เช่น เครื่องสแกนดัน time_records) โหลดซ้ำทุกครั้ง
+                    const employeeFacingTables = ['employees', 'time_records', 'time_corrections', 'leave_requests', 'advance_requests', 'payslips', 'announcements', 'holidays', 'projects', 'system_settings', 'employee_notification_prefs'];
+                    const hitsEmployeeData = tables.some(t => employeeFacingTables.includes(t));
+                    if (hitsEmployeeData && typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId) {
+                        if (this._shouldRefresh('loadAllData', 5000) && typeof loadAllData === 'function') {
                             await loadAllData().catch(e => console.warn('[Realtime loadAllData]', e));
                         }
                     }
 
                     // 3. ถ้าอยู่ใน Admin mode ให้อัปเดตตารางและแจ้งเตือนของ Admin ทันที
                     if (typeof isAdminMode !== 'undefined' && isAdminMode) {
-                        if (tables.includes('employees') && typeof fetchAdminEmployeeListInternal === 'function') {
+                        if (tables.includes('employees') && this._shouldRefresh('fetchAdminEmployeeList', 10000) && typeof fetchAdminEmployeeListInternal === 'function') {
                             adminEmployeesList = [];
                             if (typeof fetchAdminEmployeeList === 'function') await fetchAdminEmployeeList().catch(() => {});
                         }
-                        if ((tables.includes('leave_requests') || tables.includes('time_corrections') || tables.includes('advance_requests')) && typeof loadAdminApprovals === 'function') {
-                            adminApprovalsLoadedOnce = false; // ปลดล็อกเพื่อให้ดึงข้อมูลใหม่ล่าสุดเสมอ
-                            await loadAdminApprovals();
+                        if (tables.includes('leave_requests') || tables.includes('time_corrections') || tables.includes('advance_requests')) {
+                            // ⚡ rate-limit เฉพาะการ fetch ใหม่จากเซิร์ฟเวอร์ (3 วิ) — re-render + Toast ยังทำงานทุกรอบ
+                            if (this._shouldRefresh('loadAdminApprovals', 3000) && typeof loadAdminApprovals === 'function') {
+                                adminApprovalsLoadedOnce = false; // ปลดล็อกเพื่อให้ดึงข้อมูลใหม่ล่าสุดเสมอ
+                                await loadAdminApprovals();
+                            }
+                            // re-render จากข้อมูลที่ fetch ล่าสุด (ไม่หนัก — แค่ DOM)
                             if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
                             if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
 
-                            // แจ้งเตือนแอดมินทันทีผ่าน Toast
+                            // แจ้งเตือนแอดมินทันทีผ่าน Toast (แสดงเสมอ ไม่ถูกรate-limit)
                             if (tables.includes('leave_requests')) {
                                 showToast('🔔 มีคำขอลาใหม่ / รายการอัปเดตเข้ามาในระบบ', 'info');
                             } else if (tables.includes('time_corrections')) {
                                 showToast('🔔 มีคำขอแก้ไขเวลาทำงานใหม่', 'info');
                             } else if (tables.includes('advance_requests')) {
                                 showToast('🔔 มีคำขอเบิกเงินกลางเดือนใหม่', 'info');
+                            }
+                        }
+
+                        // ⚡ 3.1 Auto-Refresh ทั้งระบบ — ตารางไหนเปลี่ยน refresh โมดูลนั้นทันที
+                        //     ไม่ต้องเปิดเมนู/กดเข้าไปก่อน (เปิดหน้าเมื่อไหร่ก็เห็นข้อมูลใหม่แล้ว)
+                        //     ใช้ typeof guard แบบเดียวกับ switchAdminTab
+                        const currentTab = (typeof adminActiveTab !== 'undefined') ? adminActiveTab : '';
+                        const callLoader = async (fnName) => {
+                            const fnRef = (typeof window !== 'undefined' && typeof window[fnName] === 'function')
+                                ? window[fnName]
+                                : (typeof globalThis !== 'undefined' && typeof globalThis[fnName] === 'function') ? globalThis[fnName] : null;
+                            if (!fnRef) return;
+                            try { await fnRef(); } catch (e) { console.warn('[Realtime] refresh ' + fnName + ' error:', e); }
+                        };
+
+                        // ── กลุ่ม A: refresh เสมอเมื่อตารางต้นทางเปลี่ยน (ไม่ผูกกับหน้าที่เปิดอยู่)
+                        //    เพื่อให้ทุกโมดูลมีข้อมูลใหม่พร้อมใช้ทันที ไม่ต้องเปิดเมนู/กดเข้าไปก่อน
+                        //    ⚡ แต่ละโมดูลมี rate-limit ของตัวเอง (minMs) กันโหลดซ้ำถี่เกินจำเป็น
+                        const tableModulesA = [
+                            // หน้าเครื่องสแกนนิ้ว/ใบหน้า (agent ส่ง heartbeat ถี่ → จำกัด 10 วิ)
+                            { tables: ['scanner_mappings', 'agent_configs'], kind: 'window', fn: 'loadScanDevices', minMs: 10000 },
+                            // หน้า Log สแกนใบหน้า (HR) — ข้อมูลเยอะ จำกัด 10 วิ
+                            { tables: ['face_capture_log'], kind: 'direct', fn: 'loadAdminFaceLogs', minMs: 10000 },
+                            // หน้าสถานะลงทะเบียนใบหน้า
+                            { tables: ['face_database', 'employees'], kind: 'direct', fn: 'loadAdminFaceEnroll', minMs: 10000 },
+                            // หน้าประกาศข่าวสาร
+                            { tables: ['announcements'], kind: 'direct', fn: 'loadAdminAnnouncements', minMs: 5000 },
+                            // หน้าจัดการวันหยุด
+                            { tables: ['holidays'], kind: 'direct', fn: 'loadAdminHolidays', minMs: 5000 },
+                            // หน้ารายชื่อพนักงาน (สิทธิ์/PIN เปลี่ยน) — ข้อมูลเยอะ จำกัด 10 วิ
+                            { tables: ['employees'], kind: 'direct', fn: 'loadAdminEmployees', minMs: 10000 }
+                        ];
+                        for (const mod of tableModulesA) {
+                            if (!mod.tables.some(t => tables.includes(t))) continue;
+                            if (!this._shouldRefresh(mod.fn, mod.minMs)) continue;
+                            if (mod.kind === 'window') {
+                                if (typeof window !== 'undefined' && typeof window[mod.fn] === 'function') await callLoader(mod.fn);
+                            } else {
+                                if (typeof globalThis !== 'undefined' && typeof globalThis[mod.fn] === 'function') {
+                                    await callLoader(mod.fn);
+                                } else if (typeof window !== 'undefined' && typeof window[mod.fn] === 'function') {
+                                    await callLoader(mod.fn);
+                                } else {
+                                    // ฟังก์ชันอาจซ่อนใน closure/ไม่ได้อยู่บน window (เช่น loadAdminEmployees) → เรียกโดยตรง
+                                    // ใช้ typeof guard ปลอดภัยเสมอ (ฟังก์ชันยังไม่โหลด = ข้าม)
+                                    try {
+                                        if (mod.fn === 'loadAdminEmployees' && typeof loadAdminEmployees === 'function') await loadAdminEmployees();
+                                        else if (mod.fn === 'loadAdminFaceEnroll' && typeof loadAdminFaceEnroll === 'function') await loadAdminFaceEnroll();
+                                        else if (mod.fn === 'loadAdminFaceLogs' && typeof loadAdminFaceLogs === 'function') await loadAdminFaceLogs();
+                                        else if (mod.fn === 'loadAdminAnnouncements' && typeof loadAdminAnnouncements === 'function') await loadAdminAnnouncements();
+                                        else if (mod.fn === 'loadAdminHolidays' && typeof loadAdminHolidays === 'function') await loadAdminHolidays();
+                                    } catch (e) { console.warn('[Realtime] refresh ' + mod.fn + ' error:', e); }
+                                }
+                            }
+                        }
+
+                        // ── กลุ่ม B: refresh เฉพาะเมื่อหน้าเปิดอยู่ (โมดูลโหลดหนัก / กำลังแก้ไขฟอร์ม)
+                        //    หน้าเหล่านี้เปิดเมื่อไหร่ switchAdminTab เรียก loader ใหม่สดทุกครั้งอยู่แล้ว
+                        //    ⚡ rate-limit 10 วิ ต่อโมดูล — ตาราง 12 เดือน/สลิปหนักมาก กันโหลดซ้ำถี่
+                        if (currentTab === 'import-time' && (tables.includes('time_records') || tables.includes('attendance_raw'))) {
+                            // ตารางเวลางาน 12 เดือน (ข้อมูลเยอะ — refresh เมื่อเปิดหน้า)
+                            if (this._shouldRefresh('loadYearlyAttendanceOverview', 10000) && typeof loadYearlyAttendanceOverview === 'function') {
+                                try { await loadYearlyAttendanceOverview(); } catch (e) { console.warn('[Realtime] loadYearlyAttendanceOverview', e); }
+                            }
+                        }
+                        if (currentTab === 'import-payslip' && tables.includes('payslips')) {
+                            // ตารางสลิปเงินเดือน (ข้อมูลเยอะ — refresh เมื่อเปิดหน้า)
+                            if (this._shouldRefresh('loadYearlyPayslipOverview', 10000) && typeof loadYearlyPayslipOverview === 'function') {
+                                try { await loadYearlyPayslipOverview(); } catch (e) { console.warn('[Realtime] loadYearlyPayslipOverview', e); }
+                            }
+                        }
+                        if (currentTab === 'settings' && tables.includes('system_settings')) {
+                            // หน้าตั้งค่าระบบ — กันกระทบฟอร์มที่กำลังแก้ไขค้างไว้
+                            if (this._shouldRefresh('loadAdminSettings', 10000) && typeof loadAdminSettings === 'function') {
+                                try { await loadAdminSettings(); } catch (e) { console.warn('[Realtime] loadAdminSettings', e); }
+                            }
+                        }
+                        if (currentTab === 'project-cost' && tables.includes('projects')) {
+                            // หน้าต้นทุนโครงการ
+                            if (this._shouldRefresh('loadProjectCostSection', 10000) && typeof loadProjectCostSection === 'function') {
+                                try { await loadProjectCostSection(); } catch (e) { console.warn('[Realtime] loadProjectCostSection', e); }
                             }
                         }
                     }
