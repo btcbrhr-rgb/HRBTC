@@ -18094,7 +18094,37 @@ container.innerHTML = "";
             }
 
 
+            function showApprovalProcessingOverlay(message, current, total) {
+                let overlay = document.getElementById('approval-processing-overlay');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.id = 'approval-processing-overlay';
+                    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.42);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px;';
+                    overlay.innerHTML = '<div style="width:min(380px,100%);background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 50px rgba(15,23,42,.22);text-align:center;">' +
+                        '<div style="width:42px;height:42px;margin:0 auto 14px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:approvalOverlaySpin .8s linear infinite;"></div>' +
+                        '<div id="approval-processing-message" style="font-size:15px;font-weight:700;color:#0f172a;"></div>' +
+                        '<div id="approval-processing-progress" style="font-size:12px;color:#64748b;margin-top:8px;"></div>' +
+                        '<div style="height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:16px;"><div id="approval-processing-bar" style="height:100%;width:0;background:#2563eb;border-radius:999px;transition:width .2s;"></div></div>' +
+                        '<style>@keyframes approvalOverlaySpin{to{transform:rotate(360deg)}}</style>' +
+                        '</div>';
+                    document.body.appendChild(overlay);
+                }
+                overlay.style.display = 'flex';
+                const messageEl = document.getElementById('approval-processing-message');
+                const progressEl = document.getElementById('approval-processing-progress');
+                const barEl = document.getElementById('approval-processing-bar');
+                if (messageEl) messageEl.textContent = message || 'กำลังประมวลผล...';
+                if (progressEl) progressEl.textContent = total ? `รายการที่ ${current || 0} / ${total}` : 'กรุณารอสักครู่ ระบบกำลังตรวจสอบข้อมูล';
+                if (barEl) barEl.style.width = total ? `${Math.min(100, ((current || 0) / total) * 100)}%` : '35%';
+            }
+
+            function hideApprovalProcessingOverlay() {
+                const overlay = document.getElementById('approval-processing-overlay');
+                if (overlay) overlay.style.display = 'none';
+            }
+
             async function confirmDecision(isApproved) {
+                showApprovalProcessingOverlay('กำลังตรวจสอบและบันทึกผลการอนุมัติ...', 0, 0);
                 const note = document.getElementById("admin-decision-note").value.trim();
                 const approverSelect = document.getElementById("admin-decision-approver-select");
                 const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
@@ -18164,6 +18194,7 @@ container.innerHTML = "";
                     }
 
                     if (items.length === 0) {
+                        hideApprovalProcessingOverlay();
                         showToast("⚠️ ไม่มีรายการที่เลือก", "warning");
                         closeDecisionModal();
                         return;
@@ -18171,6 +18202,7 @@ container.innerHTML = "";
 
                     const total = items.length;
                     showToast(`⏳ ${loadingVerb} ${total} รายการ...`, "info");
+                    showApprovalProcessingOverlay(`${loadingVerb}รายการที่เลือก...`, 0, total);
 
                     // Disable other modal inputs while processing
                     const noteEl = document.getElementById("admin-decision-note");
@@ -18188,6 +18220,7 @@ container.innerHTML = "";
                         try {
                             for (let i = 0; i < items.length; i++) {
                                 const idx = i + 1;
+                                showApprovalProcessingOverlay(`${loadingVerb}รายการที่เลือก...`, idx - 1, total);
                                 // Update button label to show progress
                                 const activeBtn = document.getElementById(activeBtnId);
                                 if (activeBtn) {
@@ -18269,6 +18302,7 @@ container.innerHTML = "";
                             }
 
                             // Now close modal (only after every item finished)
+                            hideApprovalProcessingOverlay();
                             closeDecisionModal();
 
                             // Always reload pending list from Supabase to stay in sync
@@ -18284,6 +18318,7 @@ container.innerHTML = "";
                                 }
                             }
                         } catch (err) {
+                            hideApprovalProcessingOverlay();
                             if (noteEl) noteEl.disabled = false;
                             if (approverSel) approverSel.disabled = false;
                             if (closeBtn) closeBtn.disabled = false;
@@ -18333,6 +18368,7 @@ container.innerHTML = "";
 
                             console.log('[adminDecision] response:', response);
                             const handleApprovalSuccess = async () => {
+                                hideApprovalProcessingOverlay();
                                 // ⚡ Direct Supabase Sync: ถ้าเป็นการอนุมัติคำขอแก้เวลา ให้อัปเดต time_records ทันที
                                 if (false && type === 'correction' && (approvedStatus === 'อนุมัติแล้ว' || approvedStatus === 'Approved') && supabaseClient) {
                                     try {
@@ -18389,6 +18425,7 @@ container.innerHTML = "";
                                 }
                             };
                             if (!response || typeof response !== 'object') {
+                                hideApprovalProcessingOverlay();
                                 showToast("❌ ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ", "error");
                                 await loadAdminApprovals();
                             } else if (response.status === 'success') {
@@ -18397,10 +18434,12 @@ container.innerHTML = "";
                                 // ✅ ถูกอนุมัติไปแล้ว — treat as success, ลบ row ออก
                                 await handleApprovalSuccess();
                             } else {
+                                hideApprovalProcessingOverlay();
                                 showToast(`❌ พิจารณาล้มเหลว: ${response.message || 'ไม่ทราบสาเหตุ'}${response.code ? ' (' + response.code + ')' : ''}`, "error");
                                 await loadAdminApprovals();
                             }
                         } catch (err) {
+                            hideApprovalProcessingOverlay();
                             console.error('[adminDecision] Error:', err);
                             // ⚡ Timeout/AbortError: backend อาจสำเร็จแล้ว → refresh data
                             if (err.name === 'AbortError' || (err.message && err.message.includes('timeout'))) {
