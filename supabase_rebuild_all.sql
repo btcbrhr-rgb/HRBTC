@@ -544,6 +544,8 @@ DECLARE
   all_ok BOOLEAN := true;
   first_err TEXT := NULL;
 BEGIN
+  -- ล็อกกัน migration รันพร้อมกัน (deadlock) — ตัวที่ 2 จะรอ แล้วเจอของมีอยู่แล้ว → ข้ามทั้งหมด
+  PERFORM pg_advisory_xact_lock(hashtext('hrbtc_auto_migrate'));
   FOR stmt IN SELECT jsonb_array_elements_text(p_statements) LOOP
     BEGIN
       EXECUTE stmt;
