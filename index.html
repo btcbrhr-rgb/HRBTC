@@ -9132,7 +9132,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 resultDiv.classList.remove('hidden');
 
                 try {
-                    const result = await apiRequest({ action: 'reconcileAttendanceRaw' });
+                    const adminId = (typeof currentEmployeeId !== 'undefined' && currentEmployeeId) ? currentEmployeeId : 'admin';
+                    const result = await apiRequest({ action: 'reconcileAttendanceRaw', adminId: adminId });
                     if (result && result.status === 'success') {
                         const d = result.data || {};
                         resultDiv.className = 'mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200';
@@ -9143,6 +9144,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             'ข้าม: <strong>' + (d.skipped || 0) + '</strong> · ' +
                             'ผิดพลาด: <strong>' + (d.errors || 0) + '</strong>' +
                             '</p>';
+                        try {
+                            const audit = await apiRequest({ action: 'checkAttendanceRawProcessing', adminId: adminId });
+                            const summary = audit && audit.data && audit.data.summary;
+                            if (summary) {
+                                resultDiv.innerHTML += '<p class="text-xs text-emerald-700 mt-2">สถานะ Raw: ' +
+                                    'รอประมวลผล <strong>' + (summary.pending || 0) + '</strong> · ' +
+                                    'สำเร็จ <strong>' + (summary.processed || 0) + '</strong> · ' +
+                                    'ผิดพลาด <strong>' + (summary.failed || 0) + '</strong> · ' +
+                                    'ไม่มีข้อมูลเวลา <strong>' + (summary.missingTimeRecord || 0) + '</strong></p>';
+                            }
+                        } catch (auditErr) {
+                            console.warn('[manualReconcileAttendance] audit check failed:', auditErr);
+                        }
                     } else {
                         resultDiv.className = 'mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200';
                         resultDiv.innerHTML = '<p class="text-sm font-bold text-rose-700">❌ ' + (result && result.message || 'Reconcile ไม่สำเร็จ') + '</p>';
