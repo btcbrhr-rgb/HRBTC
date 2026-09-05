@@ -16255,6 +16255,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const approverSelect = document.getElementById("admin-decision-approver-select");
                 const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
 
+                showApprovalProcessingOverlay('กำลังอัปเดตเวลา 1 รายการ...', 0, 1);
+
                 try {
                     showToast(`⏳ กำลังอัปเดตเวลา ${empId} วันที่ ${formatThaiDate(date)}...`, "info");
 
@@ -16336,7 +16338,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (typeof loadAllData === 'function') await loadAllData();
 
                     showToast(`✅ อัปเดตเวลา ${empId} วันที่ ${formatThaiDate(date)} เรียบร้อย`, "success");
+                    hideApprovalProcessingOverlay();
                 } catch (err) {
+                    hideApprovalProcessingOverlay();
                     showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message || err}`, "error");
                 }
             }
@@ -16352,6 +16356,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> กำลังอัปเดต...`;
                 }
 
+                showApprovalProcessingOverlay('กำลังอัปเดตเวลาที่เลือก...', 0, total);
                 showToast(`⏳ กำลังอัปเดตเวลา ${total} รายการลงประวัติเวลางาน...`, "info");
                 let successCount = 0;
                 let failedCount = 0;
@@ -16362,6 +16367,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 try {
                     for (let i = 0; i < items.length; i++) {
                         const it = items[i];
+                        const currentIndex = i + 1;
+                        showApprovalProcessingOverlay('กำลังอัปเดตเวลาที่เลือก...', currentIndex - 1, total);
                         try {
                             const payload = {
                                 action: "reapplyTimeCorrection",
@@ -16384,6 +16391,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             console.error(`[batchReapplyCorrection] error for ${it.empId} ${it.date}:`, e);
                             failedCount++;
                         }
+                        showApprovalProcessingOverlay('กำลังอัปเดตเวลาที่เลือก...', currentIndex, total);
                     }
 
                     if (failedCount === 0) {
@@ -16404,6 +16412,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } catch (err) {
                     showToast(`❌ เกิดข้อผิดพลาด: ${err.message || err}`, "error");
                 } finally {
+                    hideApprovalProcessingOverlay();
                     if (btn) {
                         btn.disabled = selectedCorrectionItems.size === 0;
                         btn.innerHTML = origHtml;
