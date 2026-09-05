@@ -303,6 +303,9 @@ CREATE TABLE IF NOT EXISTS public.attendance_raw (
     geofence_result TEXT,
     gps_lat NUMERIC(10,7),
     gps_lng NUMERIC(10,7),
+    processing_status TEXT DEFAULT 'pending',
+    processing_error TEXT,
+    processed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -356,6 +359,9 @@ ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS liveness_ok BOOLEAN;
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS geofence_result TEXT;
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS gps_lat NUMERIC(10,7);
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS gps_lng NUMERIC(10,7);
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS processing_status TEXT DEFAULT 'pending';
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS processing_error TEXT;
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
 
 -- เพิ่มคอลัมน์สำหรับ Agent Config (Step 3 settings)
 ALTER TABLE public.agent_configs ADD COLUMN IF NOT EXISTS poll_seconds INTEGER DEFAULT 60;
@@ -477,6 +483,7 @@ CREATE INDEX IF NOT EXISTS idx_attendance_raw_device ON public.attendance_raw(de
 CREATE INDEX IF NOT EXISTS idx_attendance_raw_emp ON public.attendance_raw(emp_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_raw_timestamp ON public.attendance_raw(timestamp);
 CREATE INDEX IF NOT EXISTS idx_attendance_raw_uid ON public.attendance_raw(scanner_uid);
+CREATE INDEX IF NOT EXISTS idx_attendance_raw_processing_status ON public.attendance_raw(processing_status);
 
 -- ════════════════════════════════════════════════════════════
 -- STEP 7: INSERT สร้างบัญชี Admin (ถ้ายังไม่มี)
