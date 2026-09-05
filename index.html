@@ -6212,6 +6212,57 @@
                                 </div>
                             </div>
 
+                            <!-- Auto-Migrate Schema (อัปเดตโครงสร้างตารางอัตโนมัติ) -->
+                            <div class="rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-50/50 via-white to-white overflow-hidden shadow-sm" data-search="auto migrate schema sync service key">
+                                <div class="px-4 py-3 bg-gradient-to-r from-violet-50 to-transparent border-b border-violet-100">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2.5">
+                                            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm">
+                                                <i class="fa-solid fa-wand-magic-sparkles text-white text-xs"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs font-extrabold text-slate-800">⚙️ Auto-Migrate Schema</p>
+                                                <p class="text-[10px] text-slate-400">อัปเดตโครงสร้างตารางอัตโนมัติ — ไม่ต้องรัน SQL Editor อีก</p>
+                                            </div>
+                                        </div>
+                                        <span id="am-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                                            <span id="am-status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                            <span id="am-status-text">ยังไม่ได้ตรวจสอบ</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="p-4 space-y-3">
+                                    <!-- Service Role Key (ลับ — เก็บเฉพาะ GAS) -->
+                                    <div class="space-y-1">
+                                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Service Role Key (ลับ — ใช้ให้ GAS อัปเดต Schema เท่านั้น)</label>
+                                        <div class="relative">
+                                            <input id="am-service-key" type="password" placeholder="sb_secret_... (Supabase → Settings → API → service_role)"
+                                                class="w-full bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 pr-9 text-[11px] font-mono focus:ring-2 focus:ring-violet-500 focus:border-violet-500 focus:outline-none transition-all">
+                                            <button onclick="toggleAmKeyVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                                                <i id="am-key-eye" class="fa-solid fa-eye-slash text-xs"></i>
+                                            </button>
+                                        </div>
+                                        <p class="text-[10px] text-slate-400">🔒 คีย์ถูกส่งไปเก็บที่ GAS (Script Properties) เท่านั้น — ระบบไม่ส่งคีย์กลับขึ้นหน้าเว็บ</p>
+                                    </div>
+                                    <!-- Actions -->
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button id="am-save-key-btn" onclick="saveAmServiceKey()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold shadow-sm transition-all"
+                                            title="บันทึก Service Role Key ลง GAS Script Properties (เฉพาะ Admin)">
+                                            <i class="fa-solid fa-key"></i> บันทึก Service Key
+                                        </button>
+                                        <button id="am-sync-btn" onclick="runAmSync()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all"
+                                            title="รัน Auto-Migrate ตอนนี้ — อัปเดต schema Supabase ให้ตรงกับโค้ด (ข้อมูลเดิมไม่หาย)">
+                                            <i class="fa-solid fa-rotate"></i> ซิงค์ Schema ตอนนี้
+                                        </button>
+                                    </div>
+                                    <!-- Status / Result -->
+                                    <div id="am-result" class="hidden rounded-xl p-3 text-[11px] leading-relaxed"></div>
+                                    <p class="text-[10px] text-slate-400">💡 ทำงานอัตโนมัติทุกครั้งที่ใช้แอป (cache 1 ชม.) + Trigger รายวัน 03:00 น. — statements เป็นแบบ additive ข้อมูลเดิมไม่มีทางหาย และรองรับ migration ใหม่ในอนาคตโดยไม่ต้องแตะ SQL Editor</p>
+                                </div>
+                            </div>
+
                             <!-- Google Apps Script API Gateway -->
                             <div class="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/50 via-white to-white overflow-hidden shadow-sm" data-search="apps script api gateway webhook url">
                                 <div class="px-4 py-3 bg-gradient-to-r from-emerald-50 to-transparent border-b border-emerald-100">
@@ -25916,6 +25967,7 @@ ${slip.textSample}
         async function initSupabasePanelUI() {
             initActivityLogs();
             loadAutomaticSyncStatus();
+            loadAmStatus();
             const urlEl  = document.getElementById('sb-config-url');
             const keyEl  = document.getElementById('sb-config-key');
             const badge = document.getElementById('sb-status-badge');
@@ -26034,6 +26086,119 @@ ${slip.textSample}
             input.type = isHidden ? 'text' : 'password';
             if (icon) {
                 icon.className = isHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+            }
+        }
+
+        /* ── Auto-Migrate Schema helpers ─────────────────────────── */
+        function toggleAmKeyVisibility() {
+            const input = document.getElementById('am-service-key');
+            const icon  = document.getElementById('am-key-eye');
+            if (!input) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            if (icon) icon.className = isHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+        }
+
+        function setAmBadge(state, text) {
+            const dot   = document.getElementById('am-status-dot');
+            const badge = document.getElementById('am-status-badge');
+            const label = document.getElementById('am-status-text');
+            if (dot) dot.className = 'w-1.5 h-1.5 rounded-full ' + (state === 'ok' ? 'bg-emerald-500' : state === 'warn' ? 'bg-amber-400 animate-ping' : state === 'err' ? 'bg-rose-500' : 'bg-slate-400');
+            if (badge) badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ' +
+                (state === 'ok' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                 state === 'warn' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                 state === 'err' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                 'bg-slate-100 text-slate-500 border-slate-200');
+            if (label) label.textContent = text || '';
+        }
+
+        function showAmResult(html, isError) {
+            const box = document.getElementById('am-result');
+            if (!box) return;
+            box.className = 'rounded-xl p-3 text-[11px] leading-relaxed ' + (isError ? 'bg-rose-50 border border-rose-200 text-rose-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+            box.innerHTML = html;
+            box.classList.remove('hidden');
+        }
+
+        async function loadAmStatus() {
+            const label = document.getElementById('am-status-text');
+            try {
+                const res = await postAction('getAutoMigrationStatus', { adminId: currentEmployeeId }, { skipPerf: true });
+                if (res && res.status === 'success' && res.hasServiceKey) {
+                    if (res.pendingCount > 0) {
+                        setAmBadge('warn', `รอซิงค์ ${res.pendingCount} รายการ`);
+                        showAmResult(`<b>⚠️ ยังมี migration รอซิงค์ ${res.pendingCount} รายการ</b><br>${(res.pending || []).map(p => `• ${p.version} — ${p.description}`).join('<br>') || ''}`, true);
+                    } else {
+                        setAmBadge('ok', `Schema ตรงกัน (${res.total} รายการ)`);
+                        showAmResult(`<b>✅ Schema ตรงกับโค้ดครบ ${res.total} รายการ</b>`, false);
+                    }
+                } else if (res && res.code === 'BOOTSTRAP_NEEDED') {
+                    setAmBadge('err', 'ต้องรัน Bootstrap SQL');
+                    showAmResult(`<b>❌ ยังไม่ได้รัน Bootstrap SQL ครั้งเดียว</b><br>เปิด <b>Supabase → SQL Editor</b> แล้วรัน SQL จาก <b>supabase_rebuild_all.sql STEP 9</b> (หรือกดดูจาก Log ของ GAS) แล้วกลับมากด <b>ซิงค์ Schema ตอนนี้</b>`, true);
+                } else if (res && res.code === 'SERVICE_KEY_MISSING') {
+                    setAmBadge('warn', 'ยังไม่ได้ตั้ง Service Key');
+                    showAmResult('<b>⚠️ ยังไม่ได้ตั้งค่า Service Role Key</b><br>วางคีย์จาก <b>Supabase → Settings → API → service_role</b> ในช่องด้านบน แล้วกด <b>บันทึก Service Key</b>', true);
+                } else {
+                    setAmBadge('err', 'ตรวจสอบไม่ได้');
+                    showAmResult('⚠️ ' + ((res && res.message) || 'อ่านสถานะ Auto-Migrate ไม่ได้') + '<br>ตรวจว่า GAS Web App ได้ deploy เวอร์ชันล่าสุดแล้ว (AutoMigrate.gs)', true);
+                }
+            } catch (e) {
+                setAmBadge('err', 'ตรวจสอบไม่ได้');
+                showAmResult('⚠️ เรียกสถานะ Auto-Migrate ไม่ได้: ' + (e.message || e), true);
+            }
+        }
+
+        async function saveAmServiceKey() {
+            const keyInput = document.getElementById('am-service-key');
+            const key = (keyInput?.value || '').trim();
+            if (!key) {
+                showToast('⚠️ กรุณากรอก Service Role Key ก่อนบันทึก', 'warning');
+                return;
+            }
+            const btn = document.getElementById('am-save-key-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก...'; }
+            try {
+                const res = await postAction('saveSupabaseServiceKey', { adminId: currentEmployeeId, serviceKey: key });
+                if (res && res.status === 'success') {
+                    showToast('✅ บันทึก Service Key สำเร็จ (เก็บเป็นความลับฝั่ง GAS)', 'success');
+                    keyInput.value = '';
+                    setAmBadge('ok', 'Service Key พร้อมใช้');
+                    showAmResult('<b>✅ Service Role Key บันทึกแล้ว</b><br>ตอนนี้กด <b>ซิงค์ Schema ตอนนี้</b> เพื่ออัปเดตโครงสร้างตารางให้ตรงกับโค้ด', false);
+                } else {
+                    showToast('❌ บันทึกไม่สำเร็จ: ' + ((res && res.message) || 'ไม่ทราบสาเหตุ'), 'error');
+                }
+            } catch (e) {
+                showToast('❌ บันทึกไม่สำเร็จ: ' + (e.message || e), 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-key"></i> บันทึก Service Key'; }
+            }
+        }
+
+        async function runAmSync() {
+            const btn = document.getElementById('am-sync-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังซิงค์...'; }
+            try {
+                const res = await postAction('runAutoMigrations', { adminId: currentEmployeeId });
+                if (res && res.status === 'success') {
+                    setAmBadge('ok', 'Schema ตรงกันแล้ว');
+                    showAmResult(`<b>✅ ${res.message || 'Auto-Migrate สำเร็จ'}</b>${res.applied && res.applied.length ? '<br>รันใหม่: ' + res.applied.join(', ') : ''}`, false);
+                    showToast('✅ Schema ซิงค์สำเร็จ ข้อมูลเดิมไม่หาย', 'success');
+                } else if (res && res.code === 'BOOTSTRAP_NEEDED') {
+                    setAmBadge('err', 'ต้องรัน Bootstrap SQL');
+                    showAmResult('<b>❌ ยังไม่ได้รัน Bootstrap SQL ครั้งเดียว</b><br>เปิด <b>Supabase → SQL Editor</b> แล้วรัน SQL จาก <b>supabase_rebuild_all.sql STEP 9</b> แล้วกลับมากดปุ่มนี้อีกครั้ง', true);
+                    showToast('❌ ต้องรัน Bootstrap SQL ครั้งเดียวใน SQL Editor', 'error', 6000);
+                } else if (res && res.code === 'SERVICE_KEY_MISSING') {
+                    setAmBadge('warn', 'ยังไม่ได้ตั้ง Service Key');
+                    showAmResult('<b>⚠️ ยังไม่ได้ตั้งค่า Service Role Key</b><br>วางคีย์ในช่องด้านบนแล้วกด <b>บันทึก Service Key</b> ก่อน', true);
+                } else {
+                    setAmBadge('err', 'ซิงค์ไม่สำเร็จ');
+                    showAmResult('❌ ' + ((res && res.message) || 'ซิงค์ Schema ไม่สำเร็จ'), true);
+                }
+            } catch (e) {
+                setAmBadge('err', 'ซิงค์ไม่สำเร็จ');
+                showAmResult('❌ ' + (e.message || e), true);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate"></i> ซิงค์ Schema ตอนนี้'; }
             }
         }
 
