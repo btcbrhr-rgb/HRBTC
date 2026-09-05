@@ -26120,10 +26120,27 @@ ${slip.textSample}
             box.classList.remove('hidden');
         }
 
+        function setAmKeySavedState(saved) {
+            const btn = document.getElementById('am-save-key-btn');
+            if (!btn) return;
+            if (saved) {
+                btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> แก้ไข Service Key';
+                btn.title = 'มี Service Key ที่บันทึกไว้แล้ว — กดเพื่อแก้ไข/เปลี่ยนคีย์ใหม่';
+                btn.classList.remove('bg-violet-600', 'hover:bg-violet-700');
+                btn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-key"></i> บันทึก Service Key';
+                btn.title = 'บันทึก Service Role Key ลง GAS Script Properties (เฉพาะ Admin)';
+                btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+                btn.classList.add('bg-violet-600', 'hover:bg-violet-700');
+            }
+        }
+
         async function loadAmStatus() {
             const label = document.getElementById('am-status-text');
             try {
                 const res = await postAction('getAutoMigrationStatus', { adminId: currentEmployeeId }, { skipPerf: true });
+                if (res) setAmKeySavedState(!!res.hasServiceKey);
                 if (res && res.status === 'success' && res.hasServiceKey) {
                     if (res.pendingCount > 0) {
                         setAmBadge('warn', `รอซิงค์ ${res.pendingCount} รายการ`);
@@ -26157,20 +26174,24 @@ ${slip.textSample}
             }
             const btn = document.getElementById('am-save-key-btn');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก...'; }
+            let saveOk = false;
             try {
                 const res = await postAction('saveSupabaseServiceKey', { adminId: currentEmployeeId, serviceKey: key });
                 if (res && res.status === 'success') {
+                    saveOk = true;
                     showToast('✅ บันทึก Service Key สำเร็จ (เก็บเป็นความลับฝั่ง GAS)', 'success');
                     keyInput.value = '';
                     setAmBadge('ok', 'Service Key พร้อมใช้');
                     showAmResult('<b>✅ Service Role Key บันทึกแล้ว</b><br>ตอนนี้กด <b>ซิงค์ Schema ตอนนี้</b> เพื่ออัปเดตโครงสร้างตารางให้ตรงกับโค้ด', false);
+                    setAmKeySavedState(true); // เปลี่ยนปุ่มเป็น "แก้ไข Service Key" (กดซ้ำ = เปลี่ยนคีย์ใหม่)
                 } else {
                     showToast('❌ บันทึกไม่สำเร็จ: ' + ((res && res.message) || 'ไม่ทราบสาเหตุ'), 'error');
                 }
             } catch (e) {
                 showToast('❌ บันทึกไม่สำเร็จ: ' + (e.message || e), 'error');
             } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-key"></i> บันทึก Service Key'; }
+                if (btn) btn.disabled = false;
+                if (!saveOk) loadAmStatus(); // คืนสถานะปุ่มให้ตรงกับเซิร์ฟเวอร์จริง (กรณีบันทึกไม่สำเร็จ)
             }
         }
 
