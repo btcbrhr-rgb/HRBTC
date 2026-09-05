@@ -6235,7 +6235,19 @@
                                     <!-- Service Role Key (ลับ — เก็บเฉพาะ GAS) -->
                                     <div class="space-y-1">
                                         <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Service Role Key (ลับ — ใช้ให้ GAS อัปเดต Schema เท่านั้น)</label>
-                                        <div class="relative">
+                                        <!-- 🔒 Locked view: มีคีย์บันทึกแล้ว → แสดง masked + ล็อกช่อง -->
+                                        <div id="am-key-locked-view" class="hidden">
+                                            <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+                                                <i class="fa-solid fa-lock text-emerald-500 text-sm"></i>
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-[11px] font-bold text-emerald-700">Service Role Key ถูกบันทึกแล้ว</p>
+                                                    <p id="am-key-masked-text" class="text-[10px] text-emerald-600 font-mono truncate">••••••••••••••••••••••••••••</p>
+                                                </div>
+                                                <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-wider shrink-0">ซ่อนคีย์</span>
+                                            </div>
+                                        </div>
+                                        <!-- ✏️ Edit view: ช่องกรอกคีย์ใหม่ -->
+                                        <div id="am-key-edit-view" class="relative">
                                             <input id="am-service-key" type="password" placeholder="sb_secret_... (Supabase → Settings → API → service_role)"
                                                 class="w-full bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 pr-9 text-[11px] font-mono focus:ring-2 focus:ring-violet-500 focus:border-violet-500 focus:outline-none transition-all">
                                             <button onclick="toggleAmKeyVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
@@ -6250,6 +6262,16 @@
                                             class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold shadow-sm transition-all"
                                             title="บันทึก Service Role Key ลง GAS Script Properties (เฉพาะ Admin)">
                                             <i class="fa-solid fa-key"></i> บันทึก Service Key
+                                        </button>
+                                        <button id="am-cancel-key-btn" onclick="cancelAmKeyEdit()"
+                                            class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold shadow-sm transition-all"
+                                            title="ยกเลิกการแก้ไข — กลับไปล็อกคีย์เดิม">
+                                            <i class="fa-solid fa-xmark"></i> ยกเลิก
+                                        </button>
+                                        <button id="am-edit-key-btn" onclick="enterAmKeyEdit()"
+                                            class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-sm transition-all"
+                                            title="มี Service Key บันทึกไว้แล้ว — กดเพื่อปลดล็อกและเปลี่ยนคีย์ใหม่">
+                                            <i class="fa-solid fa-pen-to-square"></i> แก้ไข Service Key
                                         </button>
                                         <button id="am-sync-btn" onclick="runAmSync()"
                                             class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-deep hover:bg-brand-teal text-white text-[10px] font-bold shadow-sm transition-all"
@@ -26120,20 +26142,63 @@ ${slip.textSample}
             box.classList.remove('hidden');
         }
 
+        /**
+         * 🎛️ สลับโหมดช่อง Service Role Key ตามสถานะจริงจากเซิร์ฟเวอร์
+         * @param {boolean} saved - มี Service Key บันทึกไว้แล้วใน GAS หรือไม่
+         * โหมด lock: แสดง "บันทึกแล้ว 🔒" (คีย์ซ่อน) + ปุ่ม "แก้ไข Service Key"
+         * โหมด edit: แสดงช่องกรอก + ปุ่ม "บันทึก Service Key" / "ยกเลิก"
+         */
         function setAmKeySavedState(saved) {
-            const btn = document.getElementById('am-save-key-btn');
-            if (!btn) return;
-            if (saved) {
-                btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> แก้ไข Service Key';
-                btn.title = 'มี Service Key ที่บันทึกไว้แล้ว — กดเพื่อแก้ไข/เปลี่ยนคีย์ใหม่';
-                btn.classList.remove('bg-violet-600', 'hover:bg-violet-700');
-                btn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+            const lockedView = document.getElementById('am-key-locked-view');
+            const editView   = document.getElementById('am-key-edit-view');
+            const saveBtn    = document.getElementById('am-save-key-btn');
+            const editBtn    = document.getElementById('am-edit-key-btn');
+            const cancelBtn  = document.getElementById('am-cancel-key-btn');
+            const keyInput   = document.getElementById('am-service-key');
+            const saveLocked = !!saved;
+            if (saveLocked) {
+                // 🔒 ล็อก: มีคีย์แล้ว → ซ่อนช่องกรอก แสดง masked
+                if (lockedView) lockedView.classList.remove('hidden');
+                if (editView)   editView.classList.add('hidden');
+                if (saveBtn)    saveBtn.classList.add('hidden');
+                if (editBtn)    editBtn.classList.remove('hidden');
+                if (cancelBtn)  cancelBtn.classList.add('hidden');
+                if (keyInput)   { keyInput.value = ''; keyInput.type = 'password'; }
             } else {
-                btn.innerHTML = '<i class="fa-solid fa-key"></i> บันทึก Service Key';
-                btn.title = 'บันทึก Service Role Key ลง GAS Script Properties (เฉพาะ Admin)';
-                btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
-                btn.classList.add('bg-violet-600', 'hover:bg-violet-700');
+                // ✏️ ยังไม่มีคีย์ → แสดงช่องกรอก พร้อมปุ่มบันทึก
+                if (lockedView) lockedView.classList.add('hidden');
+                if (editView)   editView.classList.remove('hidden');
+                if (saveBtn)    saveBtn.classList.remove('hidden');
+                if (editBtn)    editBtn.classList.add('hidden');
+                if (cancelBtn)  cancelBtn.classList.add('hidden');
+                if (keyInput)   { keyInput.disabled = false; keyInput.value = ''; keyInput.type = 'password'; }
             }
+        }
+
+        /**
+         * ✏️ ปลดล็อกช่องเพื่อแก้ไขคีย์ใหม่ (กดจากปุ่ม "แก้ไข Service Key")
+         * เปิดช่องกรอก + แสดงปุ่มบันทึก/ยกเลิก (ล็อกปุ่มแก้ไข)
+         */
+        function enterAmKeyEdit() {
+            const lockedView = document.getElementById('am-key-locked-view');
+            const editView   = document.getElementById('am-key-edit-view');
+            const saveBtn    = document.getElementById('am-save-key-btn');
+            const editBtn    = document.getElementById('am-edit-key-btn');
+            const cancelBtn  = document.getElementById('am-cancel-key-btn');
+            const keyInput   = document.getElementById('am-service-key');
+            if (lockedView) lockedView.classList.add('hidden');
+            if (editView)   editView.classList.remove('hidden');
+            if (saveBtn)    saveBtn.classList.remove('hidden');
+            if (editBtn)    editBtn.classList.add('hidden');
+            if (cancelBtn)  cancelBtn.classList.remove('hidden');
+            if (keyInput)   { keyInput.disabled = false; keyInput.value = ''; keyInput.type = 'password'; keyInput.focus(); }
+        }
+
+        /**
+         * ↩️ ยกเลิกการแก้ไข — กลับไปล็อก (อ้างอิงสถานะจริงจากเซิร์ฟเวอร์)
+         */
+        async function cancelAmKeyEdit() {
+            await loadAmStatus();
         }
 
         async function loadAmStatus() {
