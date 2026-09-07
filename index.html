@@ -26148,13 +26148,16 @@ ${slip.textSample}
             const currentCycleMonth = document.getElementById('billingMonth').value;
             const dates = getBillingCycleDates(currentCycleMonth);
 
-            const invoiceDetails = [];
-            let printTotalDaysCount = 0;
-            let printTotalWagesCount = 0;
-            let printTotalFoodCount = 0;
-            let printTotalTripCount = 0;
-            let printTotalOtherCount = 0;
+            // 🔒 ตรวจสอบข้อมูลรอบบัญชีโหลดครบก่อนเปิดเอกสาร (กันพิมพ์ใบเปล่า)
+            if (!dates.length || !Object.keys(attendanceData || {}).length) {
+                return showToast('ยังไม่มีข้อมูลเวลางานของรอบบัญชีนี้ — รอข้อมูลโหลดเสร็จแล้วลองใหม่', 'warning');
+            }
 
+            // ── คำนวณยอดรายพนักงานของโครงการ (เหมือนหน้าต้นทุนโครงการ แต่แยก
+            //    ค่าแรงหลัก / เงินเพิ่มแรง / ค่า OT ให้ตรงคอลัมน์ใบตั้งเบิกค่าแรง) ──
+            //    วัน "เพิ่มแรง" (พร/คส) = วันทำงานเพิ่ม 1 วัน ได้เท่าค่าแรงรายวันของคนนั้น
+            //    → คิด 1 เท่าใน ค่าแรงหลัก + อีก 1 เท่าใน เงินเพิ่มแรง (รวมวันนั้น 2 เท่า)
+            const laborData = [];
             dates.forEach(date => {
                 const dayData = attendanceData[date];
                 if (!dayData) return;
@@ -26176,82 +26179,68 @@ ${slip.textSample}
                     const dailyWage = emp.baseSalary / divisor;
                     const hourlyWage = dailyWage / workHours;
                     const otHours = parseFloat(log.ot || 0);
-                    const logWages = dailyWage + (otHours * hourlyWage * otRate);
+                    const isSpecialDay = ['พร', 'เพิ่มแรง', 'คส', 'สวัสดิการ'].includes(String(log.status || '').trim());
 
-                    let record = invoiceDetails.find(r => r.empId === empId);
-                    if (!record) {
-                        record = {
-                            empId: emp.id,
-                            empName: emp.name,
-                            role: emp.role,
-                            days: 0,
-                            wages: 0,
-                            food: 0,
-                            trip: 0,
+                    let rec = laborData.find(r => r.id === empId);
+                    if (!rec) {
+                        rec = {
+                            id: emp.id,
+                            name: emp.name,
+                            projectName: projName,
+                            workDays: 0,
+                            specialDays: 0,
+                            otHours: 0,
+                            base: 0,
+                            specialBonus: 0,
+                            ot: 0,
+                            meal: 0,
+                            travel: 0,
                             other: 0
                         };
-                        invoiceDetails.push(record);
+                        laborData.push(rec);
                     }
 
-                    record.days += 1;
-                    record.wages += logWages;
-                    record.food += parseFloat(log.food || 0);
-                    record.trip += parseFloat(log.trip || 0);
-                    record.other += parseFloat(log.other || 0);
+                    rec.workDays += 1;
+                    if (isSpecialDay) rec.specialDays += 1;
+                    rec.otHours += otHours;
+                    rec.base += dailyWage;
+                    if (isSpecialDay) rec.specialBonus += dailyWage;
+                    rec.ot += otHours * hourlyWage * otRate;
+                    rec.meal += parseFloat(log.food || 0);
+                    rec.travel += parseFloat(log.trip || 0);
+                    rec.other += parseFloat(log.other || 0);
                 });
             });
 
-            const invoiceTableBody = document.getElementById('printInvoiceTableBody');
-            invoiceTableBody.innerHTML = '';
+            if (!laborData.length) {
+                return showToast('ไม่พบพนักงานที่ทำงานในโครงการนี้สำหรับรอบบัญชีที่เลือก', 'warning');
+            }
 
-            invoiceDetails.forEach((rec, idx) => {
-                const recTotal = rec.wages + rec.food + rec.trip + rec.other;
-                printTotalDaysCount += rec.days;
-                printTotalWagesCount += rec.wages;
-                printTotalFoodCount += rec.food;
-                printTotalTripCount += rec.trip;
-                printTotalOtherCount += rec.other;
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-2.5 py-2.5 text-center border-r border-slate-300 font-bold">${idx + 1}</td>
-                    <td class="px-2.5 py-2.5 border-r border-slate-300 font-mono text-[10px] font-bold">${rec.empId}</td>
-                    <td class="px-2.5 py-2.5 border-r border-slate-300 font-extrabold text-slate-800">${rec.empName}</td>
-                    <td class="px-2.5 py-2.5 border-r border-slate-300 text-slate-600 font-semibold">${rec.role}</td>
-                    <td class="px-2 py-2.5 text-center border-r border-slate-300 font-extrabold">${rec.days} วัน</td>
-                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.wages.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.food.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.trip.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                    <td class="px-2.5 py-2.5 text-right border-r border-slate-300 font-semibold">${rec.other.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                    <td class="px-3 py-2.5 text-right font-extrabold text-brand-deep bg-slate-100/50">${recTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                `;
-                invoiceTableBody.appendChild(tr);
-            });
-
-            const grandTotalSum = printTotalWagesCount + printTotalFoodCount + printTotalTripCount + printTotalOtherCount;
-
-            document.getElementById('printProjectName').innerText = projName;
-            
-            const monthText = currentCycleMonth === '2026-06' ? "26 พ.ค. 2569 - 25 มิ.ย. 2569" : (currentCycleMonth === '2026-05' ? "26 เม.ย. 2569 - 25 พ.ค. 2569" : "26 มี.ค. 2569 - 25 เม.ย. 2569");
-            document.getElementById('printBillingCycle').innerText = monthText;
-
-            const projId = projName.match(/\((\d+)\)/)?.[1] || "01";
-            document.getElementById('printInvoiceNo').innerText = `HRBTC-${currentCycleMonth.replace('-','')}-${projId}`;
-            
+            // ── หัวเอกสาร: เลขที่ใบตั้งเบิก + รอบบัญชีจริง (แทน hardcode เดิม) + วันที่ออก ──
+            const projId = (projName.match(/\((\d+)\)/) || [])[1] || '01';
             const today = new Date();
-            const formatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-            document.getElementById('printDate').innerText = today.toLocaleDateString('th-TH', formatOptions);
+            const metaData = {
+                no: `HRBTC-${currentCycleMonth.replace('-', '')}-${projId}`,
+                date: today.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }),
+                period: `${formatThaiDate(dates[0])} - ${formatThaiDate(dates[dates.length - 1])}`
+            };
 
-            document.getElementById('printTotalDays').innerText = `${printTotalDaysCount} วัน`;
-            document.getElementById('printTotalWages').innerText = printTotalWagesCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-            document.getElementById('printTotalFood').innerText = printTotalFoodCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-            document.getElementById('printTotalTrip').innerText = printTotalTripCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-            document.getElementById('printTotalOther').innerText = printTotalOtherCount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-            document.getElementById('printGrandTotal').innerText = `${grandTotalSum.toLocaleString('th-TH', { minimumFractionDigits: 2 })} `;
-
-            setTimeout(() => {
-                window.print();
-            }, 300);
+            // ── เปิดหน้าใบตั้งเบิกค่าแรง (Print_Invoice.html) แล้วส่งข้อมูลตรงผ่าน window
+            //    (รูปแบบเดียวกับ printLeaveRecord → leave_template.html) ──
+            try {
+                const url = new URL('Print_Invoice.html', window.location.href);
+                url.searchParams.set('openedFromIndex', '1');
+                if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                    url.searchParams.set('apiUrl', SERVER_API_URL);
+                }
+                const w = window.open(url.toString(), '_blank');
+                if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                try { w.__PRINT_INVOICE_DATA__ = { laborData, metaData }; } catch (e) {}
+                w.focus && w.focus();
+            } catch (e) {
+                console.error('generateProjectInvoice error', e);
+                showToast('เกิดข้อผิดพลาดขณะเตรียมพิมพ์: ' + e.message, 'error');
+            }
         }
 
 
