@@ -1115,6 +1115,27 @@
             box-shadow: inset 3px 0 0 0 #0E3A5D !important; /* แถบแบรนด์ซ้ายสุด */
         }
 
+        /* Matrix Day Hover Tooltip — เอาเม้าส์ชี้ช่องวันเพื่อดูรายละเอียด */
+        #matrixDayTooltip {
+            position: fixed;
+            z-index: 100000;
+            width: 256px;
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease;
+        }
+        #matrixDayTooltip #matrixTipContent {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.85rem;
+            padding: 0.9rem;
+            box-shadow: 0 20px 45px -12px rgba(2, 32, 71, 0.28), 0 8px 18px -8px rgba(2, 32, 71, 0.18);
+        }
+        @media print {
+            #matrixDayTooltip { display: none !important; }
+        }
+
         /* Legal Print Styles for Matrix */
         @media print {
             body.print-matrix-mode * {
@@ -4872,7 +4893,7 @@
                         <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-deep to-brand-teal text-white flex items-center justify-center shadow-sm shrink-0"><i class="fa-solid fa-table-cells text-sm"></i></span>
                         <div>
                             <h3 class="text-sm font-extrabold text-slate-800">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet)</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">คลิกไอคอนสถานะเพื่อแก้ไขข้อมูลเวลางานได้ทันที</p>
+                            <p class="text-xs text-slate-500 mt-0.5">ชี้เมาส์ที่ช่องวันเพื่อดูรายละเอียด • คลิกไอคอนสถานะเพื่อแก้ไขข้อมูลเวลางานได้ทันที</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -4923,6 +4944,9 @@
 
             </div>
         </div>
+
+        <!-- Matrix Day Hover Tooltip (ใช้ร่วมกันทั้งมุมมอง Admin และ Foreman) -->
+        <div id="matrixDayTooltip"><div id="matrixTipContent"></div></div>
 
         <!-- TAB 3: วิเคราะห์ต้นทุนค่าโครงการ (Project Costing & Billing Tab) -->
         <div id="tab-costing" class="hidden space-y-3 no-print">
@@ -22891,6 +22915,54 @@ ${slip.textSample}
         //            getStatusCategory(), mapEmployeeRow(), mapAttendanceRow()
         // ═══════════════════════════════════════════════════════════════════════
 
+        // 🧰 Shared UI/Time Helpers (มาตรฐานกลาง ลดโค้ดซ้ำ)
+        // แปลงจำนวนนาทีรวม → "HH:MM" (ใช้กับเวลาเข้างาน/OT)
+        function _minutesToHHMM(totalMinutes) {
+            const h = Math.floor(totalMinutes / 60);
+            const m = Math.round(totalMinutes % 60);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        // ตั้งค่า innerText ของ element (เตือนถ้าไม่พบ — เดิมเขียนซ้ำทุกจุด)
+        function _elText(id, value) {
+            const el = document.getElementById(id);
+            if (el) { el.innerText = value; return el; }
+            console.warn(id + ' element not found');
+            return null;
+        }
+
+        // ตั้งค่า value ของ element (เตือนถ้าไม่พบ)
+        function _elValue(id, value) {
+            const el = document.getElementById(id);
+            if (el) { el.value = value; return el; }
+            console.warn(id + ' element not found');
+            return null;
+        }
+
+        // แสดง element (ลบ class hidden)
+        function _elShow(id) {
+            const el = document.getElementById(id);
+            if (el) { el.classList.remove('hidden'); return el; }
+            console.warn(id + ' element not found');
+            return null;
+        }
+
+        // ซ่อน element (เพิ่ม class hidden)
+        function _elHide(id) {
+            const el = document.getElementById(id);
+            if (el) { el.classList.add('hidden'); return el; }
+            console.warn(id + ' element not found');
+            return null;
+        }
+
+        // ดึง element (เตือนถ้าไม่พบ — ใช้กับ guard pattern: if (!el) return;)
+        function _elGet(id) {
+            const el = document.getElementById(id);
+            if (el) return el;
+            console.warn(id + ' element not found');
+            return null;
+        }
+
         // Helper to format Date into local "YYYY-MM-DD" string correctly without UTC shifts
         function getLocalDateString(date) {
             const y = date.getFullYear();
@@ -22990,23 +23062,38 @@ ${slip.textSample}
             return attendanceData[dateStr];
         }
 
+        // ค่าเริ่มต้นของ Log การลงเวลา (มาตรฐานกลาง — ใช้ร่วม render/modal/create)
+        function _defaultAttendanceLog(emp) {
+            return {
+                status: 'ย',
+                timeIn: '',
+                timeOut: '',
+                ot: 0,
+                food: 0,
+                trip: 0,
+                other: 0,
+                otherMemo: '',
+                penalty: 0,
+                project: emp.project
+            };
+        }
+
+        // กรองพนักงานตามโครงการที่ปฏิบัติงานจริง (มาตรฐานกลาง — เดิม copy กัน 2 จุด)
+        function _filterEmployeesByProject(dayData) {
+            return employees.filter(emp => {
+                if (activeProject === 'all') return true;
+                const log = dayData[emp.id];
+                const workingProj = log ? log.project : emp.project;
+                return workingProj === activeProject;
+            });
+        }
+
         function getOrCreateAttendanceLog(empId) {
             const emp = employees.find(e => e.id === empId);
             if (!emp) return null;
             const dayData = ensureAttendanceDateEntry(selectedDateStr);
             if (!dayData[empId]) {
-                dayData[empId] = {
-                    status: 'ย',
-                    timeIn: '',
-                    timeOut: '',
-                    ot: 0,
-                    food: 0,
-                    trip: 0,
-                    other: 0,
-                    otherMemo: '',
-                    penalty: 0,
-                    project: emp.project
-                };
+                dayData[empId] = _defaultAttendanceLog(emp);
             }
             return dayData[empId];
         }
@@ -23978,12 +24065,7 @@ ${slip.textSample}
             let lateCount = 0;
             let absentCount = 0;
 
-            const filteredEmps = employees.filter(emp => {
-                if (activeProject === 'all') return true;
-                const log = dayData[emp.id];
-                const workingProj = log ? log.project : emp.project;
-                return workingProj === activeProject;
-            });
+            const filteredEmps = _filterEmployeesByProject(dayData);
 
             if (filteredEmps.length === 0) {
                 tableBody.innerHTML = `
@@ -23999,9 +24081,7 @@ ${slip.textSample}
             }
 
             filteredEmps.forEach(emp => {
-                let log = dayData[emp.id] || {
-                    status: 'ย', timeIn: '', timeOut: '', ot: 0, food: 0, trip: 0, other: 0, otherMemo: '', penalty: 0, project: emp.project
-                };
+                const log = dayData[emp.id] || _defaultAttendanceLog(emp);
 
                 const cat = getStatusCategory(log.status);
                 if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') normalCount++;
@@ -24090,47 +24170,22 @@ ${slip.textSample}
             selectedEmpId = empId;
             const emp = employees.find(e => e.id === empId);
             
-            // Ensure selectedDateStr has data in attendanceData
-            if (!attendanceData[selectedDateStr]) {
-                attendanceData[selectedDateStr] = {};
-            }
-            
-            let log = attendanceData[selectedDateStr][empId];
-
             if (!emp) return;
-            
-            // If no log exists for this emp on this date, create default
-            if (!log) {
-                attendanceData[selectedDateStr][empId] = {
-                    status: 'ย',
-                    timeIn: '',
-                    timeOut: '',
-                    ot: 0,
-                    food: 0,
-                    trip: 0,
-                    other: 0,
-                    otherMemo: '',
-                    penalty: 0,
-                    project: emp.project
-                };
-                log = attendanceData[selectedDateStr][empId];
-            }
 
-            const modalEmpNameEl = document.getElementById('modalEmpName');
-            if (modalEmpNameEl) modalEmpNameEl.innerText = emp.name; else console.warn('modalEmpName element not found');
+            // ดึง/สร้าง log ผ่าน helper กลาง (ensure + default literal ชุดเดียว)
+            const log = getOrCreateAttendanceLog(empId);
+
+            _elText('modalEmpName', emp.name);
 
             // Format date correctly in Thai for the popup subtitle context
             const parts = selectedDateStr.split('-');
             const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
             const formattedDateTh = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
             
-            const modalEmpCodeEl = document.getElementById('modalEmpCode');
-            if (modalEmpCodeEl) modalEmpCodeEl.innerText = `รหัส: ${emp.id} | วันที่แก้ไข: ${formattedDateTh}`; else console.warn('modalEmpCode element not found');
-            const modalEmpAvatarEl = document.getElementById('modalEmpAvatar');
-            if (modalEmpAvatarEl) modalEmpAvatarEl.innerText = (emp.name || '').charAt(0); else console.warn('modalEmpAvatar element not found');
+            _elText('modalEmpCode', `รหัส: ${emp.id} | วันที่แก้ไข: ${formattedDateTh}`);
+            _elText('modalEmpAvatar', (emp.name || '').charAt(0));
 
-            const modalWorkingProjectEl = document.getElementById('modalWorkingProject');
-            if (modalWorkingProjectEl) modalWorkingProjectEl.value = log.project || ''; else console.warn('modalWorkingProject not found');
+            _elValue('modalWorkingProject', log.project || '');
 
             const statusBox = document.getElementById('modalStatusButtons');
             if (!statusBox) { console.warn('modalStatusButtons not found'); return; }
@@ -24150,57 +24205,38 @@ ${slip.textSample}
                 `;
             });
 
-            const modalTimeInEl = document.getElementById('modalTimeIn');
-            const modalTimeOutEl = document.getElementById('modalTimeOut');
-            const modalOtHoursEl = document.getElementById('modalOtHours');
-            const modalLateMinutesEl = document.getElementById('modalLateMinutes');
+            _elValue('modalTimeIn', log.timeIn);
+            _elValue('modalTimeOut', log.timeOut);
+            _elValue('modalOtHours', log.ot);
+            _elValue('modalLateMinutes', log.penalty || 15);
 
-            if (modalTimeInEl) modalTimeInEl.value = log.timeIn; else console.warn('modalTimeIn element not found');
-            if (modalTimeOutEl) modalTimeOutEl.value = log.timeOut; else console.warn('modalTimeOut element not found');
-            if (modalOtHoursEl) modalOtHoursEl.value = log.ot; else console.warn('modalOtHours element not found');
-            if (modalLateMinutesEl) modalLateMinutesEl.value = log.penalty || 15; else console.warn('modalLateMinutes element not found');
-
-            const latePanel = document.getElementById('modalLateInputGroup');
-            if (latePanel) {
-                if (log.status === 'L') {
-                    latePanel.classList.remove('hidden');
-                } else {
-                    latePanel.classList.add('hidden');
-                }
+            if (log.status === 'L') {
+                _elShow('modalLateInputGroup');
             } else {
-                console.warn('modalLateInputGroup element not found');
+                _elHide('modalLateInputGroup');
             }
 
-            const statusModalEl = document.getElementById('statusModal');
-            if (statusModalEl) {
-                statusModalEl.classList.remove('hidden');
-            } else {
-                console.warn('statusModal element not found');
-            }
+            _elShow('statusModal');
         }
 
         // Handle Change Status in Modal
         function changeModalSelectedStatus(status) {
-            const timeInInput = document.getElementById('modalTimeIn');
-            const timeOutInput = document.getElementById('modalTimeOut');
-            const latePanel = document.getElementById('modalLateInputGroup');
-
             // 🔧 FIX: ใช้ systemSettings แทน hardcoded '08:00'/'17:00'
             const _modalWorkStart = systemSettings.workStartTimeStr || '08:00';
             const _modalWorkEnd = systemSettings.workEndTimeStr || '17:00';
             if (status === 'L') {
-                if (latePanel) latePanel.classList.remove('hidden'); else console.warn('modalLateInputGroup element not found');
-                if (timeInInput) timeInInput.value = _modalWorkStart; else console.warn('modalTimeIn element not found');
-                if (timeOutInput) timeOutInput.value = _modalWorkEnd; else console.warn('modalTimeOut element not found');
+                _elShow('modalLateInputGroup');
+                _elValue('modalTimeIn', _modalWorkStart);
+                _elValue('modalTimeOut', _modalWorkEnd);
                 try { updateTimeBasedOnLate(); } catch (e) { console.warn('updateTimeBasedOnLate failed', e); }
             } else {
-                if (latePanel) latePanel.classList.add('hidden');
+                _elHide('modalLateInputGroup');
                 if (['W', 'B+', 'H+', 'S+', 'นข'].includes(status)) {
-                    if (timeInInput) timeInInput.value = _modalWorkStart;
-                    if (timeOutInput) timeOutInput.value = _modalWorkEnd;
+                    _elValue('modalTimeIn', _modalWorkStart);
+                    _elValue('modalTimeOut', _modalWorkEnd);
                 } else {
-                    if (timeInInput) timeInInput.value = '';
-                    if (timeOutInput) timeOutInput.value = '';
+                    _elValue('modalTimeIn', '');
+                    _elValue('modalTimeOut', '');
                 }
             }
 
@@ -24218,13 +24254,9 @@ ${slip.textSample}
 
         // Calculate Time In based on late minutes
         function updateTimeBasedOnLate() {
-            const lateEl = document.getElementById('modalLateMinutes');
-            const timeInInput = document.getElementById('modalTimeIn');
-            if (!lateEl || !timeInInput) {
-                if (!lateEl) console.warn('modalLateMinutes element not found');
-                if (!timeInInput) console.warn('modalTimeIn element not found');
-                return;
-            }
+            const lateEl = _elGet('modalLateMinutes');
+            const timeInInput = _elGet('modalTimeIn');
+            if (!lateEl || !timeInInput) return;
             const minutesLate = parseInt(lateEl.value) || 0;
 
             if (minutesLate > 0) {
@@ -24233,25 +24265,15 @@ ${slip.textSample}
                 const startH = parts[0] || 8;
                 const startM = parts[1] || 0;
                 const totalMinutes = (startH * 60 + startM) + minutesLate;
-                const addedHours = Math.floor(totalMinutes / 60);
-                const remainingMins = totalMinutes % 60;
-
-                const finalHoursStr = String(addedHours).padStart(2, '0');
-                const finalMinsStr = String(remainingMins).padStart(2, '0');
-
-                timeInInput.value = `${finalHoursStr}:${finalMinsStr}`;
+                timeInInput.value = _minutesToHHMM(totalMinutes);
             }
         }
 
         // Calculate Time Out based on OT hours
         function updateTimeBasedOnOt() {
-            const otEl = document.getElementById('modalOtHours');
-            const timeOutInput = document.getElementById('modalTimeOut');
-            if (!otEl || !timeOutInput) {
-                if (!otEl) console.warn('modalOtHours element not found');
-                if (!timeOutInput) console.warn('modalTimeOut element not found');
-                return;
-            }
+            const otEl = _elGet('modalOtHours');
+            const timeOutInput = _elGet('modalTimeOut');
+            if (!otEl || !timeOutInput) return;
             const otHours = parseFloat(otEl.value) || 0;
 
             if (otHours >= 0) {
@@ -24261,21 +24283,14 @@ ${slip.textSample}
                 const otStartM = parts[1] || 15;
                 const otMinutes = otHours * 60;
                 const endMinutes = (otStartH * 60 + otStartM) + otMinutes;
-
-                const finalHours = Math.floor(endMinutes / 60);
-                const finalMins = Math.round(endMinutes % 60);
-
-                timeOutInput.value = `${String(finalHours).padStart(2, '0')}:${String(finalMins).padStart(2, '0')}`;
+                timeOutInput.value = _minutesToHHMM(endMinutes);
             }
         }
 
         // Quick adjust helper for OT
         function adjustOtInput(value) {
-            const otInput = document.getElementById('modalOtHours');
-            if (!otInput) {
-                console.warn('modalOtHours element not found');
-                return;
-            }
+            const otInput = _elGet('modalOtHours');
+            if (!otInput) return;
             if (value === 0) {
                 otInput.value = '';
             } else {
@@ -24286,13 +24301,9 @@ ${slip.textSample}
 
         // Reverse Calculation from timeout
         function updateOtBasedOnTimeOut() {
-            const timeOutEl = document.getElementById('modalTimeOut');
-            const otHoursInput = document.getElementById('modalOtHours');
-            if (!timeOutEl || !otHoursInput) {
-                if (!timeOutEl) console.warn('modalTimeOut element not found');
-                if (!otHoursInput) console.warn('modalOtHours element not found');
-                return;
-            }
+            const timeOutEl = _elGet('modalTimeOut');
+            const otHoursInput = _elGet('modalOtHours');
+            if (!timeOutEl || !otHoursInput) return;
             const timeOutVal = timeOutEl.value;
             if (!timeOutVal) {
                 otHoursInput.value = '';
@@ -24316,12 +24327,7 @@ ${slip.textSample}
         }
 
         function closeStatusModal() {
-            const statusModalEl = document.getElementById('statusModal');
-            if (statusModalEl) {
-                statusModalEl.classList.add('hidden');
-            } else {
-                console.warn('statusModal element not found');
-            }
+            _elHide('statusModal');
         }
 
         // Save Status and auto fill times
@@ -24368,25 +24374,20 @@ ${slip.textSample}
 
             if (!emp || !log) return;
 
-            const modalAllEmpNameEl = document.getElementById('modalAllEmpName');
-            if (modalAllEmpNameEl) modalAllEmpNameEl.innerText = emp.name; else console.warn('modalAllEmpName element not found');
-            const modalAllEmpCodeEl = document.getElementById('modalAllEmpCode');
-            if (modalAllEmpCodeEl) modalAllEmpCodeEl.innerText = `รหัสพนักงาน: ${emp.id}`; else console.warn('modalAllEmpCode element not found');
-            const modalAllAvatarEl = document.getElementById('modalAllAvatar');
-            if (modalAllAvatarEl) modalAllAvatarEl.innerText = (emp.name || '').charAt(0); else console.warn('modalAllAvatar element not found');
+            _elText('modalAllEmpName', emp.name);
+            _elText('modalAllEmpCode', `รหัสพนักงาน: ${emp.id}`);
+            _elText('modalAllAvatar', (emp.name || '').charAt(0));
 
-            const modalFoodEl = document.getElementById('modalFood'); if (modalFoodEl) modalFoodEl.value = log.food || 0;
-            const modalTripEl = document.getElementById('modalTrip'); if (modalTripEl) modalTripEl.value = log.trip || 0;
-            const modalOtherEl = document.getElementById('modalOther'); if (modalOtherEl) modalOtherEl.value = log.other || 0;
-            const modalOtherMemoEl = document.getElementById('modalOtherMemo'); if (modalOtherMemoEl) modalOtherMemoEl.value = log.otherMemo || '';
+            _elValue('modalFood', log.food || 0);
+            _elValue('modalTrip', log.trip || 0);
+            _elValue('modalOther', log.other || 0);
+            _elValue('modalOtherMemo', log.otherMemo || '');
 
-            const allowanceModalEl = document.getElementById('allowanceModal');
-            if (allowanceModalEl) allowanceModalEl.classList.remove('hidden'); else console.warn('allowanceModal element not found');
+            _elShow('allowanceModal');
         }
 
         function closeAllowanceModal() {
-            const allowanceModalEl = document.getElementById('allowanceModal');
-            if (allowanceModalEl) allowanceModalEl.classList.add('hidden'); else console.warn('allowanceModal element not found');
+            _elHide('allowanceModal');
         }
 
         function saveAllowanceModal() {
@@ -24419,12 +24420,7 @@ ${slip.textSample}
             const dayData = attendanceData[selectedDateStr];
             if (!dayData) return;
 
-            const filteredEmps = employees.filter(emp => {
-                if (activeProject === 'all') return true;
-                const log = dayData[emp.id];
-                const workingProj = log ? log.project : emp.project;
-                return workingProj === activeProject;
-            });
+            const filteredEmps = _filterEmployeesByProject(dayData);
 
             filteredEmps.forEach(emp => {
                 if (dayData[emp.id]) {
@@ -24536,7 +24532,7 @@ ${slip.textSample}
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-bold">ย หยุดประจำสัปดาห์</span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-50 text-yellow-700 border border-yellow-200 font-bold"><i class="fa-solid fa-calendar-day text-[10px]"></i> นข วันหยุดนักขัตฤกษ์</span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-sky text-brand-deep border border-brand-sky2 font-bold"><i class="fa-solid fa-star-half-stroke text-[10px]"></i> OT ล่วงเวลา</span>
-                    <span class="text-slate-400 ml-auto hidden lg:inline-flex"><i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> เลื่อนซ้าย-ขวาเพื่อดูทั้งงวด • คลิกช่องสถานะเพื่อแก้ไข</span>
+                    <span class="text-slate-400 ml-auto hidden lg:inline-flex"><i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> เลื่อนซ้าย-ขวาเพื่อดูทั้งงวด • ชี้เมาส์ช่องวันเพื่อดูรายละเอียด • คลิกช่องสถานะเพื่อแก้ไข</span>
             `;
             document.querySelectorAll('.matrix-legend-bar').forEach(el => { el.innerHTML = legendHtml; });
 
@@ -25486,7 +25482,7 @@ ${slip.textSample}
             clearTimeout(_matrixTooltipTimer);
             const tip = document.getElementById('matrixDayTooltip');
             if (!tip) return;
-            const log = (attendanceData[dateStr] || {})[empId];
+            let log = (attendanceData[dateStr] || {})[empId];
             const emp = employees.find(e => e.id === empId);
             if (!emp) return;
 
@@ -25499,8 +25495,17 @@ ${slip.textSample}
             const headerHtml = `<div class="flex items-center gap-2.5 mb-3"><div class="flex-shrink-0">${avatarHtml}</div><div><p class="font-extrabold text-slate-800 text-xs leading-tight">${emp.name}</p><p class="text-[10px] text-slate-400 leading-tight mt-0.5">${dateLabel}</p></div></div>`;
 
             if (!log) {
-                html = `${headerHtml}<div class="bg-rose-50 rounded-xl p-3 text-center"><i class="fa-solid fa-calendar-xmark text-rose-300 text-xl mb-1.5 block"></i><p class="text-rose-500 font-bold text-[10px]">ไม่มีข้อมูลวันนี้</p></div><p class="text-[10px] text-brand-teal text-center font-bold mt-2.5 pt-2 border-t border-slate-100"><i class="fa-solid fa-plus mr-1"></i>คลิกเพื่อเพิ่มข้อมูล</p>`;
-            } else {
+                // ไม่มี time record → จำลองสถานะเดียวกับที่ตารางแสดง (วันหยุด/หยุดประจำสัปดาห์/ขาด)
+                const holidayInfo = getHoliday(dateStr);
+                if (holidayInfo) {
+                    log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                } else if (isDateEmployeeDayOff(dateStr, emp)) {
+                    log = { status: 'ย', project: emp.project };
+                } else {
+                    log = { status: 'A', project: emp.project, _isAbsent: true };
+                }
+            }
+            {
                 const cat = getStatusCategory(log.status);
                 const scMap = {
                     work:            { bg: 'bg-green-50',  text: 'text-green-700',  icon: 'fa-circle-check',       ic: 'text-green-400' },
