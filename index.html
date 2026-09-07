@@ -26497,68 +26497,243 @@ ${slip.textSample}
             }
         }
 
-        // Print Matrix Timesheet in Legal Landscape Format
+        // Print Matrix Timesheet in Formal Legal Landscape Format
         function printMatrixLegal() {
             try {
-                const table = document.querySelector('#admin-matrix-table-container table') || 
-                              document.querySelector('#foreman-matrix-table-container table') || 
-                              document.getElementById('matrixMainTable');
-                if (!table || !table.querySelector('tbody tr') || table.querySelector('tbody tr td[colspan]')) {
+                const billingMonthEl = document.getElementById('sharedBillingMonth') || document.getElementById('billingMonth');
+                const currentCycleMonth = billingMonthEl ? billingMonthEl.value : '';
+                const dates = getBillingCycleDates(currentCycleMonth);
+
+                if (!dates || dates.length === 0) {
                     if (typeof showToast === 'function') {
-                        showToast('ไม่พบข้อมูลในตาราง Matrix ที่จะพิมพ์ หรือข้อมูลกำลังโหลดอยู่', 'warning');
+                        showToast('ไม่พบข้อมูลรอบบัญชีที่จะพิมพ์', 'warning');
                     } else {
-                        alert('ไม่พบข้อมูลในตาราง Matrix ที่จะพิมพ์');
+                        alert('ไม่พบข้อมูลรอบบัญชีที่จะพิมพ์');
                     }
                     return;
                 }
 
-                const billingMonthEl = document.getElementById('sharedBillingMonth') || document.getElementById('billingMonth');
-                const currentCycleMonth = billingMonthEl ? billingMonthEl.value : '';
+                const matrixSearchEl = document.getElementById('matrixEmpSearch');
+                const matrixSearchTerm = (matrixSearchEl ? matrixSearchEl.value : '').trim().toLowerCase();
+                const filteredEmps = employees.filter(emp => {
+                    const matchProject = (typeof activeProject === 'undefined' || activeProject === 'all') || isEmpWorkedInProject(emp.id, activeProject, dates);
+                    const matchSearch = !matrixSearchTerm
+                        || emp.name.toLowerCase().includes(matrixSearchTerm)
+                        || String(emp.id).toLowerCase().includes(matrixSearchTerm);
+                    return matchProject && matchSearch;
+                });
+
+                if (filteredEmps.length === 0) {
+                    if (typeof showToast === 'function') {
+                        showToast('ไม่พบข้อมูลพนักงานที่ตรงกับตัวกรองที่จะพิมพ์', 'warning');
+                    } else {
+                        alert('ไม่พบข้อมูลพนักงานที่ตรงกับตัวกรองที่จะพิมพ์');
+                    }
+                    return;
+                }
+
                 const dateRangeText = document.getElementById('sharedBillingCycleDateRange')?.textContent || '';
                 const projText = (typeof activeProject === 'undefined' || activeProject === 'all') ? 'ทุกโครงการ' : activeProject;
+                const printDateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-                const legendEl = document.querySelector('.matrix-legend-bar');
-                const legendHtml = legendEl ? legendEl.innerHTML : '';
-
-                // Clone table for clean print rendering (remove sticky classes to prevent printing coordinate clipping)
-                const tableClone = table.cloneNode(true);
-                tableClone.querySelectorAll('.cursor-pointer').forEach(el => el.classList.remove('cursor-pointer'));
-                tableClone.querySelectorAll('.sticky').forEach(el => {
-                    el.classList.remove('sticky', 'left-0', 'left-[28px]', 'left-[208px]', 'top-0', 'bottom-0', 'z-20', 'z-30', 'z-40', 'z-50', 'sticky-col-shadow');
+                // จัดกลุ่มเดือน (Header แถวที่ 1)
+                const monthGroups = [];
+                dates.forEach((date, idx) => {
+                    const parts = date.split('-');
+                    const key = parts[0] + '-' + parts[1];
+                    const last = monthGroups[monthGroups.length - 1];
+                    if (!last || last.key !== key) {
+                        monthGroups.push({ key, startIdx: idx, endIdx: idx });
+                    } else {
+                        last.endIdx = idx;
+                    }
                 });
+
+                const dateMeta = dates.map((date, idx) => {
+                    const parts = date.split('-');
+                    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+                    let monthIdx = 0;
+                    for (let i = 0; i < monthGroups.length; i++) {
+                        if (idx >= monthGroups[i].startIdx && idx <= monthGroups[i].endIdx) { monthIdx = i; break; }
+                    }
+                    return {
+                        date,
+                        dayNum: d.getDate(),
+                        dayName: d.toLocaleDateString('th-TH', { weekday: 'narrow' }),
+                        isSunday: d.getDay() === 0,
+                        isSaturday: d.getDay() === 6,
+                        monthShort: d.toLocaleDateString('th-TH', { month: 'short' }),
+                        monthFull: d.toLocaleDateString('th-TH', { month: 'long' }),
+                        buddhistYear: (d.getFullYear() + 543) % 100,
+                        monthIdx
+                    };
+                });
+
+                // คำนวณสถิติและเตรียมแถวพนักงาน
+                let totalAllWorkingDays = 0;
+                let totalLateDays = 0;
+                let totalLateMinutes = 0;
+                let totalAbsentDays = 0;
+                let sumGrandOtHours = 0;
+                let sumGrandFood = 0;
+                let sumGrandTrip = 0;
+                let sumGrandOther = 0;
+                let sumGrandAllowance = 0;
+
+                const empRowsHtml = filteredEmps.map((emp, empIdx) => {
+                    let workedDaysCount = 0;
+                    let lateDaysCount = 0;
+                    let lateMinutesSum = 0;
+                    let absentDaysCount = 0;
+                    let totalOtHours = 0;
+                    let totalFoodSum = 0;
+                    let totalTripSum = 0;
+                    let totalOtherSum = 0;
+
+                    const dailyCells = dates.map((date, dIdx) => {
+                        const m = dateMeta[dIdx];
+                        const holidayInfo = typeof getHoliday === 'function' ? getHoliday(date) : null;
+                        let log = attendanceData[date]?.[emp.id];
+                        if (!log) {
+                            if (holidayInfo) {
+                                log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                            } else if (typeof isDateEmployeeDayOff === 'function' && isDateEmployeeDayOff(date, emp)) {
+                                log = { status: 'ย', project: emp.project };
+                            } else {
+                                log = { status: 'A', project: emp.project, _isAbsent: true };
+                            }
+                        }
+
+                        const matchesFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
+                        if (matchesFilter) {
+                            const cat = typeof getStatusCategory === 'function' ? getStatusCategory(log.status) : '';
+                            const lateMins = parseFloat(log.penalty || 0);
+                            if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
+                                workedDaysCount++;
+                            } else if (cat === 'late') {
+                                workedDaysCount++;
+                                lateDaysCount++;
+                            } else if (cat === 'absent') {
+                                absentDaysCount++;
+                            }
+                            if (lateMins > 0) {
+                                lateMinutesSum += lateMins;
+                                if (cat !== 'late') lateDaysCount++;
+                            }
+                            totalOtHours += parseFloat(log.ot || 0);
+                            totalFoodSum += parseFloat(log.food || 0);
+                            totalTripSum += parseFloat(log.trip || 0);
+                            totalOtherSum += parseFloat(log.other || 0);
+                        }
+
+                        const isSpecificProj = (activeProject !== 'all');
+                        const isWorkedOther = isSpecificProj && !isProjectMatch(log.project, activeProject);
+
+                        let cellContent = '';
+                        let cellBg = m.isSunday ? '#fee2e2' : (m.isSaturday ? '#f8fafc' : '#ffffff');
+
+                        if (isWorkedOther && log.status !== 'ย') {
+                            const otherCode = (log.project && log.project.match(/\((\d+)\)/)?.[1]) || '??';
+                            cellContent = `<span style="color:#64748b;font-size:7.5px;">↳${otherCode}</span>`;
+                            cellBg = '#f1f5f9';
+                        } else {
+                            const cat = typeof getStatusCategory === 'function' ? getStatusCategory(log.status) : '';
+                            const ot = parseFloat(log.ot || 0);
+                            const otBadge = ot > 0 ? `<div style="font-size:7px;color:#0284c7;font-weight:700;line-height:1;">+${ot}</div>` : '';
+
+                            if (log.status === 'นข' || (log._holiday && cat === 'off')) {
+                                cellBg = '#fef9c3';
+                                cellContent = `<span style="color:#854d0e;font-weight:700;font-size:8px;">นข</span>`;
+                            } else if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
+                                cellContent = `<span style="color:#15803d;font-weight:700;">W</span>${otBadge}`;
+                            } else if (cat === 'late') {
+                                const penalty = log.penalty || log.late || 0;
+                                cellContent = `<span style="color:#c2410c;font-weight:700;">L</span><div style="font-size:6.5px;color:#c2410c;line-height:1;">${penalty}m</div>${otBadge}`;
+                            } else if (cat === 'absent') {
+                                cellContent = `<span style="color:#b91c1c;font-weight:800;">A</span>`;
+                            } else if (log.status === 'ย' || cat === 'off') {
+                                cellContent = `<span style="color:#94a3b8;">ย</span>`;
+                            } else {
+                                cellContent = `<span style="color:#334155;">${log.status || '-'}</span>${otBadge}`;
+                            }
+                        }
+
+                        return `<td style="background-color:${cellBg};text-align:center;padding:3px 1px;vertical-align:middle;font-size:8.5px;line-height:1.1;border:1px solid #cbd5e1;">${cellContent}</td>`;
+                    }).join('');
+
+                    const empAllowance = totalFoodSum + totalTripSum + totalOtherSum;
+                    totalAllWorkingDays += workedDaysCount;
+                    totalLateDays += lateDaysCount;
+                    totalLateMinutes += lateMinutesSum;
+                    totalAbsentDays += absentDaysCount;
+                    sumGrandOtHours += totalOtHours;
+                    sumGrandFood += totalFoodSum;
+                    sumGrandTrip += totalTripSum;
+                    sumGrandOther += totalOtherSum;
+                    sumGrandAllowance += empAllowance;
+
+                    const latestProject = typeof getLatestProjectForEmp === 'function' ? getLatestProjectForEmp(emp.id, dates) : (emp.project || '-');
+                    const rowBg = empIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+
+                    return `
+                    <tr style="background-color:${rowBg};">
+                        <td style="text-align:center;font-size:8.5px;color:#64748b;border:1px solid #cbd5e1;">${empIdx + 1}</td>
+                        <td style="text-align:center;font-family:monospace;font-size:8.5px;color:#334155;font-weight:600;border:1px solid #cbd5e1;">${emp.id}</td>
+                        <td style="text-align:left;font-size:9.5px;font-weight:700;color:#0f172a;white-space:nowrap;padding-left:4px;border:1px solid #cbd5e1;">${emp.name}</td>
+                        <td style="text-align:left;font-size:8px;color:#475569;white-space:nowrap;padding-left:4px;max-width:85px;overflow:hidden;text-overflow:ellipsis;border:1px solid #cbd5e1;">${latestProject}</td>
+                        ${dailyCells}
+                        <td style="text-align:center;font-size:8.5px;font-weight:700;color:#15803d;background-color:#f0fdf4;border:1px solid #cbd5e1;border-left:2px solid #64748b;">${workedDaysCount}</td>
+                        <td style="text-align:center;font-size:8.5px;color:#c2410c;border:1px solid #cbd5e1;">${lateDaysCount}</td>
+                        <td style="text-align:center;font-size:8.5px;color:#c2410c;border:1px solid #cbd5e1;">${lateMinutesSum}</td>
+                        <td style="text-align:center;font-size:8.5px;font-weight:700;color:#b91c1c;${absentDaysCount > 0 ? 'background-color:#fef2f2;' : ''}border:1px solid #cbd5e1;">${absentDaysCount}</td>
+                        <td style="text-align:center;font-size:8.5px;font-weight:700;color:#0369a1;background-color:#f0f9ff;border:1px solid #cbd5e1;">${totalOtHours > 0 ? totalOtHours.toFixed(1) : '0'}</td>
+                        <td style="text-align:right;font-size:8.5px;font-family:monospace;padding-right:3px;border:1px solid #cbd5e1;border-left:2px solid #64748b;">${totalFoodSum > 0 ? totalFoodSum.toLocaleString() : '-'}</td>
+                        <td style="text-align:right;font-size:8.5px;font-family:monospace;padding-right:3px;border:1px solid #cbd5e1;">${totalTripSum > 0 ? totalTripSum.toLocaleString() : '-'}</td>
+                        <td style="text-align:right;font-size:8.5px;font-family:monospace;padding-right:3px;border:1px solid #cbd5e1;">${totalOtherSum > 0 ? totalOtherSum.toLocaleString() : '-'}</td>
+                        <td style="text-align:right;font-size:8.5px;font-weight:700;color:#065f46;background-color:#ecfdf5;font-family:monospace;padding-right:3px;border:1px solid #cbd5e1;">${empAllowance > 0 ? empAllowance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00'}</td>
+                    </tr>
+                    `;
+                }).join('');
 
                 const printHtml = `<!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <title>แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet) - ${projText}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.tailwindcss.com"><\/script>
     <style>
         @page {
             size: legal landscape;
-            margin: 6mm 5mm;
+            margin: 8mm 6mm;
         }
         * {
+            box-sizing: border-box;
+            font-family: 'Sarabun', 'Noto Sans Thai', sans-serif !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            box-sizing: border-box;
-            font-family: 'Sarabun', sans-serif;
+            color: #0f172a;
         }
         body {
-            background: #fff;
-            color: #1e293b;
+            background: #ffffff;
             margin: 0;
-            padding: 8px 12px;
-            font-size: 10px;
+            padding: 10px 14px;
+            font-size: 9px;
+            color: #0f172a;
         }
         table {
             border-collapse: collapse !important;
             width: 100%;
+            table-layout: auto;
+            border: 1.5px solid #475569;
         }
         th, td {
-            border: 1px solid #cbd5e1 !important;
+            border: 1px solid #cbd5e1;
+            padding: 2px;
+        }
+        th {
+            background-color: #f1f5f9;
+            color: #0f172a;
         }
         .no-print {
             display: flex;
@@ -26570,44 +26745,169 @@ ${slip.textSample}
             body {
                 padding: 0;
             }
+            tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="no-print mb-3 flex items-center justify-between bg-slate-100 p-2.5 rounded-xl border border-slate-200">
-        <div class="flex items-center gap-2">
-            <span class="px-2.5 py-1 text-white font-bold rounded-lg text-xs" style="background-color:#0E3A5D;">HRBTC</span>
-            <span class="text-xs font-bold text-slate-700">พิมพ์แผ่นสถิติการมาปฏิบัติงาน (ขนาด Legal แนวนอน)</span>
+    <!-- Top Control Bar (Screen Only) -->
+    <div class="no-print" style="margin-bottom:12px;background:#f8fafc;border:1px solid #cbd5e1;padding:8px 16px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="background:#0E3A5D;color:#ffffff;font-weight:800;font-size:12px;padding:3px 10px;border-radius:4px;">HRBTC</span>
+            <div>
+                <span style="font-size:12px;font-weight:700;color:#0f172a;">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (ขนาด Legal แนวนอน)</span>
+                <span style="font-size:10px;color:#64748b;margin-left:8px;">* แนะนำเลือกกระดาษ Legal แนวนอน (Landscape) และทำเครื่องหมาย 'กราฟิกพื้นหลัง (Background graphics)'</span>
+            </div>
         </div>
-        <div class="flex items-center gap-2">
-            <button onclick="window.print()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-1.5">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <button onclick="window.print()" style="background:#15803d;color:#ffffff;border:none;padding:6px 16px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
                 <i class="fa-solid fa-print"></i> สั่งพิมพ์เอกสาร
             </button>
-            <button onclick="window.close()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition">
+            <button onclick="window.close()" style="background:#e2e8f0;color:#334155;border:none;padding:6px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;">
                 ปิดหน้าต่าง
             </button>
         </div>
     </div>
 
-    <div class="mb-2 border-b border-slate-300 pb-2">
-        <div class="flex justify-between items-start">
-            <div>
-                <h1 class="text-sm font-extrabold text-slate-900 tracking-wide">บริษัท บุรีรัมย์รังชัยก่อสร้าง จำกัด</h1>
-                <h2 class="text-xs font-bold text-slate-700 mt-0.5">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet)</h2>
-            </div>
-            <div class="text-right text-[10px] text-slate-600">
-                <p><b>รอบบัญชี:</b> ${currentCycleMonth} ${dateRangeText ? '(' + dateRangeText + ')' : ''}</p>
-                <p><b>โครงการ:</b> <span class="font-bold text-slate-800">${projText}</span> | <b>พิมพ์เมื่อ:</b> ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-            </div>
+    <!-- Official Document Header -->
+    <div style="border-bottom:2.5px solid #0E3A5D;padding-bottom:6px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-end;">
+        <div>
+            <div style="font-size:16px;font-weight:800;color:#0E3A5D;letter-spacing:0.5px;">บริษัท บุรีรัมย์รังชัยก่อสร้าง จำกัด</div>
+            <div style="font-size:9.5px;font-weight:600;color:#475569;letter-spacing:0.5px;">BURIRAM RUNGCHAICONSTRUCTION CO., LTD.</div>
+            <div style="font-size:13px;font-weight:800;color:#0f172a;margin-top:3px;">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet)</div>
+        </div>
+        <div style="text-align:right;font-size:9.5px;color:#334155;line-height:1.4;">
+            <div><b>รอบบัญชี:</b> ${currentCycleMonth} ${dateRangeText ? '(' + dateRangeText + ')' : ''}</div>
+            <div><b>โครงการ:</b> <span style="font-weight:700;color:#0E3A5D;">${projText}</span> | <b>จำนวนพนักงาน:</b> ${filteredEmps.length} คน</div>
+            <div><b>วันที่พิมพ์เอกสาร:</b> ${printDateStr}</div>
         </div>
     </div>
 
-    <div class="overflow-visible">
-        ${tableClone.outerHTML}
+    <!-- Executive Summary KPI Cards -->
+    <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;margin-bottom:8px;">
+        <div style="border:1px solid #cbd5e1;border-radius:4px;padding:4px 8px;background:#f8fafc;">
+            <div style="font-size:8px;color:#64748b;font-weight:600;">พนักงานในรายงาน</div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a;">${filteredEmps.length} <span style="font-size:8.5px;font-weight:500;">คน</span></div>
+        </div>
+        <div style="border:1px solid #bbf7d0;border-radius:4px;padding:4px 8px;background:#f0fdf4;">
+            <div style="font-size:8px;color:#166534;font-weight:600;">วันทำงานรวม</div>
+            <div style="font-size:12px;font-weight:800;color:#15803d;">${totalAllWorkingDays} <span style="font-size:8.5px;font-weight:500;">วัน</span></div>
+        </div>
+        <div style="border:1px solid #fed7aa;border-radius:4px;padding:4px 8px;background:#fff7ed;">
+            <div style="font-size:8px;color:#9a3412;font-weight:600;">สถิติการมาสาย</div>
+            <div style="font-size:12px;font-weight:800;color:#c2410c;">${totalLateDays} <span style="font-size:8.5px;font-weight:500;">วัน (${totalLateMinutes} นาที)</span></div>
+        </div>
+        <div style="border:1px solid #fecaca;border-radius:4px;padding:4px 8px;background:#fef2f2;">
+            <div style="font-size:8px;color:#991b1b;font-weight:600;">สถิติการขาดงาน</div>
+            <div style="font-size:12px;font-weight:800;color:#b91c1c;">${totalAbsentDays} <span style="font-size:8.5px;font-weight:500;">วัน</span></div>
+        </div>
+        <div style="border:1px solid #bae6fd;border-radius:4px;padding:4px 8px;background:#f0f9ff;">
+            <div style="font-size:8px;color:#075985;font-weight:600;">ล่วงเวลา (OT) รวม</div>
+            <div style="font-size:12px;font-weight:800;color:#0284c7;">${sumGrandOtHours.toFixed(1)} <span style="font-size:8.5px;font-weight:500;">ชม.</span></div>
+        </div>
     </div>
 
-    <div class="mt-2 text-[9px] text-slate-500 flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200">
-        ${legendHtml}
+    <!-- Main Data Table -->
+    <table>
+        <thead>
+            <tr>
+                <th rowspan="2" style="width:24px;text-align:center;font-size:8.5px;background-color:#e2e8f0;border:1px solid #94a3b8;">#</th>
+                <th rowspan="2" style="width:45px;text-align:center;font-size:8.5px;background-color:#e2e8f0;border:1px solid #94a3b8;">รหัส</th>
+                <th rowspan="2" style="width:130px;text-align:left;padding-left:4px;font-size:9px;background-color:#e2e8f0;border:1px solid #94a3b8;">ชื่อ - นามสกุล</th>
+                <th rowspan="2" style="width:85px;text-align:left;padding-left:4px;font-size:8.5px;background-color:#e2e8f0;border:1px solid #94a3b8;">โครงการ/สังกัด</th>
+                ${monthGroups.map(g => {
+                    const span = g.endIdx - g.startIdx + 1;
+                    const start = dateMeta[g.startIdx];
+                    const end = dateMeta[g.endIdx];
+                    return `<th colspan="${span}" style="text-align:center;background-color:#e2e8f0;color:#0f172a;font-weight:700;font-size:9px;border:1px solid #94a3b8;border-bottom:1px solid #cbd5e1;">${start.monthFull} ${start.buddhistYear} (${start.dayNum}-${end.dayNum})</th>`;
+                }).join('')}
+                <th colspan="5" style="text-align:center;background-color:#cbd5e1;color:#0f172a;font-weight:700;font-size:9px;border:1px solid #94a3b8;border-left:2px solid #64748b;">สรุปสถิติเวลา</th>
+                <th colspan="4" style="text-align:center;background-color:#d1fae5;color:#065f46;font-weight:700;font-size:9px;border:1px solid #94a3b8;border-left:2px solid #64748b;">ค่าเบี้ยเลี้ยงและสวัสดิการ (บาท)</th>
+            </tr>
+            <tr>
+                ${dateMeta.map(m => {
+                    const isSun = m.isSunday;
+                    const bg = isSun ? '#fee2e2' : (m.isSaturday ? '#f1f5f9' : '#f8fafc');
+                    const textCol = isSun ? '#991b1b' : '#0f172a';
+                    return `<th style="text-align:center;background-color:${bg};color:${textCol};padding:2px 1px;min-width:19px;line-height:1;border:1px solid #cbd5e1;">
+                        <div style="font-weight:700;font-size:8px;">${m.dayNum}</div>
+                        <div style="font-size:7px;opacity:0.8;">${m.dayName}</div>
+                    </th>`;
+                }).join('')}
+                <th style="text-align:center;background-color:#e2e8f0;color:#15803d;font-weight:700;border:1px solid #cbd5e1;border-left:2px solid #64748b;font-size:7.5px;">มา(วัน)</th>
+                <th style="text-align:center;background-color:#e2e8f0;color:#c2410c;font-weight:700;border:1px solid #cbd5e1;font-size:7.5px;">สาย(วัน)</th>
+                <th style="text-align:center;background-color:#e2e8f0;color:#c2410c;font-weight:700;border:1px solid #cbd5e1;font-size:7.5px;">สาย(น.)</th>
+                <th style="text-align:center;background-color:#e2e8f0;color:#b91c1c;font-weight:700;border:1px solid #cbd5e1;font-size:7.5px;">ขาด(วัน)</th>
+                <th style="text-align:center;background-color:#e2e8f0;color:#0369a1;font-weight:700;border:1px solid #cbd5e1;font-size:7.5px;">OT(ชม.)</th>
+                <th style="text-align:right;background-color:#d1fae5;color:#065f46;font-weight:700;border:1px solid #cbd5e1;border-left:2px solid #64748b;font-size:7.5px;padding-right:3px;">ค่าข้าว</th>
+                <th style="text-align:right;background-color:#d1fae5;color:#065f46;font-weight:700;border:1px solid #cbd5e1;font-size:7.5px;padding-right:3px;">ค่าเที่ยว</th>
+                <th style="text-align:right;background-color:#d1fae5;color:#065f46;font-weight:700;border:1px solid #cbd5e1;font-size:7.5px;padding-right:3px;">ค่าอื่นๆ</th>
+                <th style="text-align:right;background-color:#a7f3d0;color:#065f46;font-weight:700;border:1px solid #cbd5e1;font-size:7.5px;padding-right:3px;">รวมเงิน</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${empRowsHtml}
+        </tbody>
+        <tfoot>
+            <tr style="background-color:#e2e8f0;font-weight:700;color:#0f172a;border-top:2px solid #475569;border-bottom:3px double #0f172a;">
+                <td colspan="4" style="text-align:center;font-size:9px;padding:5px;letter-spacing:0.5px;border:1px solid #94a3b8;">ยอดรวมทั้งสิ้น (GRAND TOTAL) - ${filteredEmps.length} คน</td>
+                <td colspan="${dates.length}" style="text-align:center;font-size:8px;color:#64748b;border:1px solid #cbd5e1;">— บันทึกเวลารวม ${totalAllWorkingDays} วันทำงาน —</td>
+                <td style="text-align:center;color:#15803d;background-color:#dcfce7;font-size:9px;border:1px solid #94a3b8;border-left:2px solid #64748b;">${totalAllWorkingDays}</td>
+                <td style="text-align:center;color:#c2410c;font-size:9px;border:1px solid #94a3b8;">${totalLateDays}</td>
+                <td style="text-align:center;color:#c2410c;font-size:9px;border:1px solid #94a3b8;">${totalLateMinutes}</td>
+                <td style="text-align:center;color:#b91c1c;background-color:#fee2e2;font-size:9px;border:1px solid #94a3b8;">${totalAbsentDays}</td>
+                <td style="text-align:center;color:#0369a1;background-color:#e0f2fe;font-size:9px;border:1px solid #94a3b8;">${sumGrandOtHours.toFixed(1)}</td>
+                <td style="text-align:right;font-family:monospace;font-size:8.5px;padding-right:3px;border:1px solid #94a3b8;border-left:2px solid #64748b;">${sumGrandFood.toLocaleString()}</td>
+                <td style="text-align:right;font-family:monospace;font-size:8.5px;padding-right:3px;border:1px solid #94a3b8;">${sumGrandTrip.toLocaleString()}</td>
+                <td style="text-align:right;font-family:monospace;font-size:8.5px;padding-right:3px;border:1px solid #94a3b8;">${sumGrandOther.toLocaleString()}</td>
+                <td style="text-align:right;color:#065f46;background-color:#a7f3d0;font-family:monospace;font-size:9px;padding-right:3px;border:1px solid #94a3b8;">${sumGrandAllowance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Legend Bar -->
+    <div style="margin-top:6px;border:1px solid #e2e8f0;border-radius:4px;padding:4px 8px;background:#f8fafc;font-size:8px;color:#475569;display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
+        <span style="font-weight:700;color:#0f172a;">คำอธิบายสัญลักษณ์:</span>
+        <span><b style="color:#15803d;">W</b> = ทำงานปกติ</span>
+        <span><b style="color:#c2410c;">L</b> = มาสาย (ระบุจำนวนนาที)</span>
+        <span><b style="color:#b91c1c;">A</b> = ขาดงาน</span>
+        <span><b style="color:#64748b;">ย</b> = วันหยุดประจำสัปดาห์</span>
+        <span><b style="color:#854d0e;background:#fef08a;padding:0 3px;border-radius:2px;">นข</b> = วันหยุดนักขัตฤกษ์</span>
+        <span><b style="color:#0284c7;">+OT</b> = ล่วงเวลา (ชั่วโมง)</span>
+        <span><b style="color:#475569;">↳(รหัส)</b> = ปฏิบัติงานช่วยโครงการอื่น</span>
+    </div>
+
+    <!-- Official Signature Section (4 Columns) -->
+    <div style="margin-top:12px;break-inside:avoid;page-break-inside:avoid;">
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;text-align:center;">
+            <div style="border:1px solid #cbd5e1;border-radius:4px;padding:8px 6px;background:#fafafa;">
+                <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:30px;">ผู้จัดทำเอกสาร</div>
+                <div style="font-size:8.5px;color:#475569;">( .............................................................. )</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">เจ้าหน้าที่แผนกบุคคล / ธุรการ</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">วันที่ ......... / ......... / .............</div>
+            </div>
+            <div style="border:1px solid #cbd5e1;border-radius:4px;padding:8px 6px;background:#fafafa;">
+                <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:30px;">ผู้ตรวจสอบ</div>
+                <div style="font-size:8.5px;color:#475569;">( .............................................................. )</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">วิศวกรโครงการ / หัวหน้างาน</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">วันที่ ......... / ......... / .............</div>
+            </div>
+            <div style="border:1px solid #cbd5e1;border-radius:4px;padding:8px 6px;background:#fafafa;">
+                <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:30px;">ผู้รับวางบิล / ฝ่ายบัญชี</div>
+                <div style="font-size:8.5px;color:#475569;">( .............................................................. )</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">เจ้าหน้าที่การเงินและบัญชี</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">วันที่ ......... / ......... / .............</div>
+            </div>
+            <div style="border:1px solid #cbd5e1;border-radius:4px;padding:8px 6px;background:#fafafa;">
+                <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:30px;">ผู้อนุมัติจ่าย</div>
+                <div style="font-size:8.5px;color:#475569;">( .............................................................. )</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">กรรมการผู้จัดการ / ผู้มีอำนาจลงนาม</div>
+                <div style="font-size:8px;color:#64748b;margin-top:3px;">วันที่ ......... / ......... / .............</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -26627,7 +26927,6 @@ ${slip.textSample}
                     printWindow.document.close();
                     printWindow.focus && printWindow.focus();
                 } else {
-                    // Fallback if popup blocker is active
                     if (typeof showToast === 'function') {
                         showToast('Popup ถูกบล็อก กำลังเปิดหน้าพิมพ์ในหน้านี้...', 'info');
                     }
