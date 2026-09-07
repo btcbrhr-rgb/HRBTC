@@ -247,6 +247,32 @@
             font-style: italic;
         }
 
+        /* ตารางสรุปย่อ (หน้าสรุปของแต่ละโครงการ) — ตัวแน่นขึ้นเพื่อให้ 1 หน้าเก็บรายพนักงานได้เยอะ */
+        .summary-compact th,
+        .summary-compact td {
+            padding: 5px 4px;
+            font-size: 10px;
+        }
+
+        /* ตัวคั่นบอก "ขึ้นหน้าใหม่" ระหว่างโครงการ — แสดงบนจอเท่านั้น (ตอนพิมพ์ตัดหน้าใหม่จริงโดยไม่แสดง) */
+        .project-page-divider {
+            margin: 28px 0 18px;
+            padding: 12px 16px;
+            border: 2px dashed #93c5fd;
+            background: #eff6ff;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e40af;
+        }
+
+        @media print {
+            .project-page-divider {
+                display: none !important;
+            }
+        }
+
         #measure-box {
             position: absolute;
             left: -9999px;
@@ -433,6 +459,54 @@
             return html;
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // หน้าสรุปยอดรวมของแต่ละโครงการ (หน้าแรกของชุดเอกสารของโครงการนั้น ๆ)
+        // — สรุปเฉพาะยอดรวมทั้งโครงการ: จำนวนคน / ค่าแรงรวม / เบี้ยเลี้ยงรวม / ยอดรวมสุทธิ
+        //   (ไม่แสดงรายชื่อพนักงาน — รายละเอียดรายบุคคลอยู่ในหน้าถัดไป)
+        // ═══════════════════════════════════════════════════════════════════
+        function createProjectSummarySection(projName, recs) {
+            let employees = 0, wages = 0, allowances = 0;
+
+            (recs || []).forEach(e => {
+                employees++;
+                wages += (e.base || 0) + (e.specialBonus || 0) + (e.ot || 0);
+                allowances += (e.meal || 0) + (e.travel || 0) + (e.other || 0);
+            });
+            const grandTotal = wages + allowances;
+
+            return `
+            ${createHeader(projName)}
+            <div style="text-align:center; margin: 4px 0 14px;">
+                <div style="display:inline-block; font-size:15px; font-weight:800; color:#1e40af; border-bottom:3px solid #1e40af; padding-bottom:4px;">📊 สรุปยอดรวมค่าแรง — ${projName}</div>
+            </div>
+            <table class="summary-compact">
+                <thead>
+                    <tr>
+                        <th style="width: 55%; text-align: left;">รายการ</th>
+                        <th class="col-total">ยอดรวม</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="text-align: left;">จำนวนคนทำงานในโครงการ</td>
+                        <td class="col-total">${employees} คน</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">ค่าแรงรวม (ค่าแรงหลัก + เงินเพิ่มแรง + ค่า OT)</td>
+                        <td class="col-total">${formatNum(wages)} บาท</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">เบี้ยเลี้ยงรวม (ค่าข้าว + ค่าเที่ยว + เบี้ยอื่นๆ)</td>
+                        <td class="col-total">${formatNum(allowances)} บาท</td>
+                    </tr>
+                    <tr class="grand-total-row">
+                        <td style="background: transparent; color: white; text-align: left; padding: 12px; font-size: 13px;">ยอดรวมสุทธิทั้งโครงการ</td>
+                        <td class="col-total" style="background: transparent; color: white; border-left: 1px solid #ffffff44; font-size: 14px;">${formatNum(grandTotal)} บาท</td>
+                    </tr>
+                </tbody>
+            </table>`;
+        }
+
         function createSignatures() {
             return `
             <div class="signature-grid">
@@ -477,8 +551,18 @@
             }, {});
 
             const projs = Object.keys(grouped);
+
             for (let pIdx = 0; pIdx < projs.length; pIdx++) {
                 const name = projs[pIdx], recs = grouped[name];
+
+                // ═══ หน้าสรุปยอดรวมของโครงการนี้ — หน้าแรกของชุดเอกสารของแต่ละโครงการ ═══
+                //    (สรุปยอดรวมทั้งโครงการเท่านั้น แล้วตามด้วยรายละเอียดเต็มรายพนักงานด้านล่าง)
+                //    โครงการถัดไปขึ้นหน้าใหม่: ตอนพิมพ์ใช้ page-break ตัดหน้าใหม่จริง — บนจอแสดงตัวคั่นบอก "ขึ้นหน้าใหม่"
+                if (pIdx > 0) {
+                    fullHtml += `<div class="project-page-divider">📄 ขึ้นหน้าใหม่ — โครงการ ${name}</div>`;
+                }
+                fullHtml += `<div class="page-break" style="padding: 5mm 2mm 0 2mm;">${createProjectSummarySection(name, recs)}</div>`;
+
                 let pages = [], current = [], carry = 0;
 
                 for (let i = 0; i < recs.length; i++) {
