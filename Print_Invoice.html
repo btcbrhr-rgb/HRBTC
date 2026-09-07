@@ -33,6 +33,28 @@
             #print-btn {
                 display: none !important;
             }
+
+            /* 🔧 ลบ padding ของ container ตอนพิมพ์ เพื่อให้เนื้อหากว้างเต็มพื้นที่ A4 (190mm)
+               และตรงกับขนาดที่ใช้ตอนวัดความสูง (#measure-box) */
+            .print-container {
+                max-width: none !important;
+                padding: 0 !important;
+            }
+
+            /* 🔧 บังคับขึ้นหน้าใหม่หลังแต่ละหน้าของเอกสาร (เดิมมี class แต่ไม่มี CSS → ไม่แบ่งหน้า) */
+            .page-break {
+                page-break-after: always;
+                break-after: page;
+            }
+
+            /* 🔧 กันแถว/กล่องลายเซ็นถูกตัดกลางระหว่างหน้า */
+            tr,
+            .sig-box,
+            .grand-total-row,
+            .summary-row {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
         }
 
         .tabular-nums {
@@ -222,7 +244,9 @@
             position: absolute;
             left: -9999px;
             top: 0;
-            width: 800px;
+            /* 🔧 190mm = ความกว้างเนื้อหาที่พิมพ์ได้จริงบน A4 (210mm - ขอบซ้าย/ขวา 10mm) @96dpi ≈ 718px
+               เดิมใช้ 800px กว้างเกินกระดาษจริง → วัดความสูงได้น้อยกว่าที่พิมพ์จริง → ข้อความล้นหน้า */
+            width: 190mm;
         }
     </style>
 </head>
@@ -436,7 +460,9 @@
                 return;
             }
 
-            const MAX_H = 1020; // เพิ่มความสูงให้เกือบเต็มหน้า A4 แนวตั้ง
+            // 🔧 ความสูงเนื้อหาที่พิมพ์ได้จริงบน A4 แนวตั้ง: 297mm - ขอบบน/ล่าง 15mm = 267mm ≈ 1009px @96dpi
+            //    (เดิม 1020 สูงเกินพื้นที่จริง → เนื้อหาล้นลงหน้าใหม่โดยไม่ได้ตั้งใจ)
+            const MAX_H = 1009;
             let fullHtml = '';
             const grouped = laborData.reduce((acc, r) => {
                 const p = r.projectName || 'ไม่ระบุ';
@@ -459,7 +485,8 @@
                     testHtml += createTable(current, pages.length, carry, (i === recs.length - 1), sum, name);
                     if (i === recs.length - 1) testHtml += createSignatures();
 
-                    measure.innerHTML = `<div style="padding-top:10mm;">${testHtml}</div>`;
+                    // 🔧 จำลอง padding เดียวกับ div หน้าจริง (5mm 2mm 0 2mm) เพื่อให้ความสูงที่วัด = ความสูงตอนพิมพ์เป๊ะ
+                    measure.innerHTML = `<div style="padding: 5mm 2mm 0 2mm;">${testHtml}</div>`;
 
                     if (measure.offsetHeight > MAX_H && current.length > 1) {
                         const pop = current.pop();
