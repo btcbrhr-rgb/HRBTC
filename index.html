@@ -14657,6 +14657,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     (async () => {
                         try { if (typeof fetchAdminEmployeeList === 'function') await fetchAdminEmployeeList(); } catch (e) { console.warn('[AdminPrefetch] fetchAdminEmployeeList error:', e); }
                         try { if (typeof loadAdminApprovals === 'function' && !adminApprovalsLoadedOnce) await loadAdminApprovals(); } catch (e) { console.warn('[AdminPrefetch] loadAdminApprovals error:', e); }
+                        // ⚡ ประวัติการอนุมัติ 3 หมวด — โหลดจาก Supabase โดยตรง (รวมไว้ใน prefetch ให้พร้อมดูทันที)
+                        //    ถ้าตารางรวมถูกเรนเดอร์ครบแล้ว ฟังก์ชันจะข้าม append กันแถวซ้ำ (ดู dedup ใน loadAdminApprovalResults)
+                        const approvalResultPrefetches = [
+                            ['approve-leave', 'leave'],
+                            ['approve-correction', 'correction'],
+                            ['approve-advance', 'advance']
+                        ];
+                        for (const [menuId, typeName] of approvalResultPrefetches) {
+                            if (!hasAdminMenuPermission(menuId)) continue;
+                            try { if (typeof loadAdminApprovalResults === 'function') await loadAdminApprovalResults(typeName); } catch (e) { console.warn('[AdminPrefetch] loadAdminApprovalResults(' + typeName + ') error:', e); }
+                        }
                     })();
                 }, 300);
 
@@ -17904,7 +17915,7 @@ container.innerHTML = "";
                 await fetchAdminEmployeeList();
                 const config = {
                     leave: {
-                        url: `${SERVER_API_URL}?action=getLeaveRequests&empId=*ALL*&adminId=${currentEmployeeId}`,
+                        // 🔧 SUPABASE-ONLY: ไม่ใช้ GAS API เดิมแล้ว (ลบ url ออก) — โหลดจาก Supabase โดยตรงด้านล่าง
                         bodyId: 'admin-leave-table-body',
                         headers: ['เลขที่เอกสาร', 'พนักงาน', 'ประเภทการลา', 'ช่วงวันที่', 'จำนวนวัน', 'เหตุผล / หมายเหตุ', 'สถานะ', 'การจัดการ'],
                         buildRow: req => {
@@ -17928,7 +17939,7 @@ container.innerHTML = "";
                         }
                     },
                     correction: {
-                        url: `${SERVER_API_URL}?action=getTimeCorrections&empId=*ALL*&adminId=${currentEmployeeId}`,
+                        // 🔧 SUPABASE-ONLY: ไม่ใช้ GAS API เดิมแล้ว (ลบ url ออก) — โหลดจาก Supabase โดยตรงด้านล่าง
                         bodyId: 'admin-correction-table-body',
                         headers: ['พนักงาน', 'วันที่ขอแก้ไข', 'เวลาเข้าใหม่', 'เวลาออกใหม่', 'เหตุผลชี้แจง', 'สถานะ', 'การจัดการ'],
                         buildRow: req => {
@@ -17966,7 +17977,7 @@ container.innerHTML = "";
                         }
                     },
                     advance: {
-                        url: `${SERVER_API_URL}?action=getAdvanceRequests&empId=*ALL*&adminId=${currentEmployeeId}`,
+                        // 🔧 SUPABASE-ONLY: ไม่ใช้ GAS API เดิมแล้ว (ลบ url ออก) — โหลดจาก Supabase โดยตรงด้านล่าง
                         bodyId: 'admin-advance-table-body',
                         headers: ['พนักงาน', 'จำนวนเงิน', 'วันที่เบิก', 'รอบจ่าย', 'ช่องทางรับเงิน', 'หมายเหตุ / เหตุผล', 'สถานะ', 'การจัดการ'],
                         buildRow: req => {
@@ -18019,10 +18030,21 @@ container.innerHTML = "";
                     // ลบ placeholder row (loading) ถ้ามี
                     const placeholder = bodyEl.querySelector('.tbl-empty-row');
                     if (placeholder) placeholder.remove();
-                    if (filteredItems.length > 0) {
-                        // ✅ Append ผลการอนุมัติ ต่อท้าย pending rows
-                        const resultsHtml = filteredItems.map(req => config[type].buildRow(req)).join('');
-                        bodyEl.insertAdjacentHTML('beforeend', resultsHtml);
+                    // ⛔ กันแถวซ้ำ (Unified Table): loadAdminApprovals() เรนเดอร์ตารางรวมครบทั้ง pending + ผลอนุมัติแล้ว
+                    //    ถ้าตารางมีแถวผลอนุมัติที่ไม่ได้มาจากฟังก์ชันนี้ (ไม่มี marker data-approval-result-row)
+                    //    → ข้าม append ข้อมูลมีอยู่แล้ว (กัน prefetch + เปิดหน้า/ซิงค์พร้อมกันได้แถวซ้ำสองรอบ)
+                    const fullTableHasResults = Array.from(bodyEl.querySelectorAll('tr[data-approval-status]'))
+                        .some(tr => !tr.hasAttribute('data-approval-result-row') && tr.getAttribute('data-approval-status') !== 'รออนุมัติ' && tr.getAttribute('data-approval-status') !== 'รอตรวจสอบ');
+                    if (!fullTableHasResults) {
+                        // ลบแถวผลอนุมัติรอบก่อนที่ฟังก์ชันนี้ append ไว้ (กันซ้ำเมื่อเรียกซ้ำติดกัน)
+                        bodyEl.querySelectorAll('tr[data-approval-result-row="true"]').forEach(tr => tr.remove());
+                        if (filteredItems.length > 0) {
+                            // ✅ Append ผลการอนุมัติ ต่อท้าย pending rows (โหลดจาก Supabase โดยตรง)
+                            const resultsHtml = filteredItems.map(req => config[type].buildRow(req)).join('');
+                            // ใส่ marker ให้แถวที่ append เพื่อให้รอบถัดไปลบได้เฉพาะแถวของตัวเอง
+                            const markedHtml = resultsHtml.replace(/<tr /g, '<tr data-approval-result-row="true" ');
+                            bodyEl.insertAdjacentHTML('beforeend', markedHtml);
+                        }
                     }
                     const colSpan = (config[type] && config[type].headers) ? (config[type].headers.length + 1) : 8;
                     // ถ้าไม่มี pending และไม่มี results → แสดง empty state
