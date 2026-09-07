@@ -14196,10 +14196,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     let lateMin = 0;
                     if (type === "IN") {
+                        const s = safeGetSettings();
                         const parts = timeStr.split(":");
                         const minutes = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-                        if (minutes > 495) {
-                            lateMin = minutes - 480;
+                        const cutoffParts = (s.lateCutoffTimeStr || '08:15').split(':');
+                        const cutoffMinutes = parseInt(cutoffParts[0]) * 60 + parseInt(cutoffParts[1]);
+                        if (minutes > cutoffMinutes) {
+                            lateMin = minutes - cutoffMinutes;
                         }
                     }
 
@@ -29977,12 +29980,15 @@ async function mgrSubmitPunch(empId, mode, score, evidence) {
     const geoOk = !!(pos && pos.lat != null && pos.lng != null);
     const timeStr = (mgrEl('live-time') && mgrEl('live-time').textContent) || new Date().toTimeString().slice(0, 8);
     const projectEl = mgrEl('attendance-project-select');
+    // ⚡ ระบุ type (IN/OUT) จากการตรวจสอบ time_records ปัจจุบัน
+    const punchType = await mgrResolvePunchType(empId);
     const payload = {
         action: 'logFaceScanEvent',
         empId: empId,
         project: (projectEl && projectEl.value) || '',
         lat: geoOk ? pos.lat : '',
         lng: geoOk ? pos.lng : '',
+        type: punchType || 'IN',
         scanMode: mode,
         createdBy: currentEmployeeId,
         similarityScore: (mode === 'manager_face' && score != null) ? score : undefined,
@@ -30626,12 +30632,22 @@ async function kioskSubmitRawEvent(desc, score, sharp, evidence) {
         const now = new Date();
         const timeStr = (kioskEl('live-time') && kioskEl('live-time').textContent) || now.toTimeString().slice(0, 8);
         const projectEl = kioskEl('attendance-project-select');
+        // ⚡ ระบุ type (IN/OUT) จาก time_records ปัจจุบัน
+        let kioskType = 'IN';
+        try {
+            const dateStr = now.toISOString().split('T')[0];
+            const { data: trData } = await supabaseClient.from('time_records')
+                .select('time_in, time_out').eq('emp_id', currentEmployeeId).eq('date', dateStr).maybeSingle();
+            if (trData && trData.time_in && !trData.time_out) kioskType = 'OUT';
+            else if (trData && trData.time_in && trData.time_out) kioskType = null; // ลงครบแล้ว
+        } catch (e) { /* fallback to IN */ }
         const payload = {
             action: 'logFaceScanEvent',
             empId: currentEmployeeId,
             project: (projectEl && projectEl.value) || '',
             lat: geoOk ? pos.lat : '',
             lng: geoOk ? pos.lng : '',
+            type: kioskType || 'IN',
             similarityScore: score,
             livenessOk: true,
             geofenceResult: geoOk ? 'soft_recorded' : 'no_gps',
