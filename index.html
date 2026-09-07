@@ -4924,7 +4924,7 @@
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">ตัวกรองโครงการหน้างาน</label>
                             <div class="relative">
-                                <select id="projectFilter" onchange="handleProjectChange()" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-sm font-semibold appearance-none transition-all">
+                                <select id="projectFilter" onchange="handleProjectChange(this.value)" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-sm font-semibold appearance-none transition-all">
                                     <option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
@@ -23033,7 +23033,7 @@ ${slip.textSample}
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">ตัวกรองโครงการหน้างาน</label>
                             <div class="relative">
-                                <select id="projectFilter" onchange="handleProjectChange()" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-sm font-semibold appearance-none transition-all">
+                                <select id="foremanProjectFilter" onchange="handleProjectChange(this.value)" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-sm font-semibold appearance-none transition-all">
                                     <option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
@@ -23851,7 +23851,7 @@ ${slip.textSample}
                 if (activeProject === 'all') return true;
                 const log = dayData[emp.id];
                 const workingProj = log ? log.project : emp.project;
-                return workingProj === activeProject;
+                return isProjectMatch(workingProj, activeProject);
             });
         }
 
@@ -24094,8 +24094,10 @@ ${slip.textSample}
                                 divisor: parseFloat(r.wage_divisor) || systemSettings.dailyDivisor || 30,
                                 workHoursPerDay: parseFloat(r.work_hours_per_day) || systemSettings.workHoursPerDay || 8,
                                 otMultiplier: parseFloat(r.ot_rate) || systemSettings.defaultOtRate || 1.5,
-                                role: r.role || 'Employee',
+                                role: r.position || r.role || 'Employee',
+                                avatar: r.avatar_url || '',
                                 avatarUrl: r.avatar_url || '',
+                                project: (r.project || r['โครงการ'] || r.company || '').toString().trim(),
                                 lineUserId: r.line_user_id || ''
                             })).filter(e => e.id);
                         }
@@ -24108,6 +24110,7 @@ ${slip.textSample}
                             const status = (!storedStatus || storedStatus === 'ปกติ' || storedStatus === 'W' || storedStatus === 'ทำงานปกติ' || storedStatus === 'ปกติ (W)') && lateMins > 0
                                 ? 'สาย'
                                 : (storedStatus || _calcStatusFromTimes(raw.time_in || '', raw.time_out || ''));
+                            const rawProj = (raw.project_in || raw.project_out || raw.project || '').toString().trim();
                             const record = {
                                 empId: (raw.emp_id || '').toString().trim(),
                                 date: (raw.date || '').toString().trim(),
@@ -24115,7 +24118,11 @@ ${slip.textSample}
                                 status,
                                 late: lateMins,
                                 penalty: lateMins,
-                                ot: parseFloat(raw.ot_hours) || 0, project: raw.project_in || '',
+                                ot: parseFloat(raw.ot_hours) || 0,
+                                food: parseFloat(raw.food_allowance) || 0,
+                                trip: parseFloat(raw.shift_allowance) || 0,
+                                other: parseFloat(raw.other_allowance) || 0,
+                                project: rawProj,
                                 source: raw.source || ''
                             };
                             if (!record.empId || !record.date) return;
@@ -24123,17 +24130,12 @@ ${slip.textSample}
                             attendanceData[record.date][record.empId] = record;
                         });
                         // Apply projects
-                        const projSel = document.getElementById('projectFilter');
-                        if (projSel && !sbProj.error && Array.isArray(sbProj.data)) {
-                            projSel.innerHTML = '<option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>';
-                            sbProj.data.forEach(p => {
-                                const name = (p.name || '').toString().trim();
-                                if (name) { const opt = document.createElement('option'); opt.value = name; opt.textContent = name; projSel.appendChild(opt); }
-                            });
-                            // 🔧 อัปเดต dropdown โครงการใน modal (โครงการผู้รับภาระต้นทุนในวันนี้) ให้มีข้อมูลด้วย
+                        if (!sbProj.error && Array.isArray(sbProj.data)) {
                             projects = [...new Set(sbProj.data.map(p => (p.name || '').toString().trim()).filter(Boolean))];
+                            updateProjectFilterOptions();
                             updateModalProjectOptions();
                         }
+                        updateEmployeeProjectsFromAttendance();
                         if (!window.__pcDataCache) window.__pcDataCache = {};
                         window.__pcDataCache[cacheKey] = { ts: Date.now() };
                         const elapsed = Math.round(performance.now() - t0);
@@ -24175,21 +24177,9 @@ ${slip.textSample}
 
                         // Apply projects
                         if (Array.isArray(d.projects)) {
-                            const projSel = document.getElementById('projectFilter');
-                            if (projSel) {
-                                projSel.innerHTML = '<option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>';
-                                d.projects.forEach(p => {
-                                    const name = (p['ชื่อโครงการ'] || p.name || '').toString().trim();
-                                    if (name) {
-                                        const opt = document.createElement('option');
-                                        opt.value = name; opt.textContent = name;
-                                        projSel.appendChild(opt);
-                                    }
-                                });
-                                // 🔧 อัปเดต dropdown โครงการใน modal (โครงการผู้รับภาระต้นทุนในวันนี้) ให้มีข้อมูลด้วย
-                                projects = [...new Set(d.projects.map(p => (p['ชื่อโครงการ'] || p.name || '').toString().trim()).filter(Boolean))];
-                                updateModalProjectOptions();
-                            }
+                            projects = [...new Set(d.projects.map(p => (p['ชื่อโครงการ'] || p.name || '').toString().trim()).filter(Boolean))];
+                            updateProjectFilterOptions();
+                            updateModalProjectOptions();
                         }
 
                         // Apply attendance
@@ -24640,18 +24630,41 @@ ${slip.textSample}
             return dates;
         }
 
+        // ── ตรวจสอบความตรงกันของชื่อโครงการ (รองรับการ trim, case, รหัสย่อในวงเล็บ) ──
+        function isProjectMatch(proj1, proj2) {
+            if (proj1 === 'all' || proj2 === 'all') return true;
+            if (!proj1 || !proj2) return false;
+            const p1 = String(proj1).trim();
+            const p2 = String(proj2).trim();
+            if (p1 === p2) return true;
+            if (p1.toLowerCase() === p2.toLowerCase()) return true;
+
+            // ตรวจสอบรหัสโครงการในวงเล็บ เช่น (01)
+            const code1 = (p1.match(/\((\d+)\)/) || [])[1];
+            const code2 = (p2.match(/\((\d+)\)/) || [])[1];
+            if (code1 && code2 && code1 === code2) return true;
+
+            // ตรวจสอบชื่อหลักโดยตัดรหัสในวงเล็บออก
+            const clean1 = p1.replace(/\s*\(\d+\)\s*/g, '').trim().toLowerCase();
+            const clean2 = p2.replace(/\s*\(\d+\)\s*/g, '').trim().toLowerCase();
+            if (clean1 && clean2 && (clean1 === clean2 || clean1.includes(clean2) || clean2.includes(clean1))) {
+                return true;
+            }
+            return false;
+        }
+
         // Scan if employee has worked on this project at least once in this cycle
         function isEmpWorkedInProject(empId, projName, dates) {
-            if (projName === 'all') return true;
+            if (!projName || projName === 'all') return true;
             for (let i = 0; i < dates.length; i++) {
                 const date = dates[i];
                 const log = attendanceData[date]?.[empId];
-                if (log && log.project === projName) {
+                if (log && isProjectMatch(log.project, projName)) {
                     return true;
                 }
             }
             const emp = employees.find(e => e.id === empId);
-            return emp && emp.project === projName;
+            return !!(emp && isProjectMatch(emp.project, projName));
         }
 
         // Get Latest Logged Project of each Employee dynamically
@@ -24705,8 +24718,17 @@ ${slip.textSample}
         }
 
         // Filter and Project Selector Changes
-        function handleProjectChange() {
-            activeProject = document.getElementById('projectFilter').value;
+        function handleProjectChange(val) {
+            if (typeof val === 'string') {
+                activeProject = val;
+            } else if (val && val.value) {
+                activeProject = val.value;
+            } else if (typeof event !== 'undefined' && event && event.target && event.target.value) {
+                activeProject = event.target.value;
+            } else {
+                const sel = document.querySelector('.proj-filter:focus') || document.getElementById('projectFilter');
+                activeProject = sel ? sel.value : 'all';
+            }
             syncProjectFilterValues(activeProject);
             refreshActiveTab();
         }
@@ -25477,7 +25499,8 @@ ${slip.textSample}
                             log = { status: 'A', project: emp.project, _isAbsent: true };
                         }
                     }
-                    const matchesFilter = (activeProject === 'all' || log.project === activeProject);                        if (matchesFilter) {
+                    const matchesFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
+                    if (matchesFilter) {
                         const cat = getStatusCategory(log.status);
                         const lateMins = parseFloat(log.penalty || 0);
                         if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
@@ -25563,7 +25586,7 @@ ${slip.textSample}
                     let statusSymbol = log.status;
 
                     const isSpecificProjActive = (activeProject !== 'all');
-                    const isWorkedOnOtherProj = isSpecificProjActive && (log.project !== activeProject);
+                    const isWorkedOnOtherProj = isSpecificProjActive && !isProjectMatch(log.project, activeProject);
 
                     if (isWorkedOnOtherProj && log.status !== 'ย') {
                         const otherProjCode = log.project.match(/\((\d+)\)/)?.[1] || "??";
@@ -25668,7 +25691,7 @@ ${slip.textSample}
 
                     const projName = log.project;
 
-                    if (activeProject !== 'all' && projName !== activeProject) return;
+                    if (activeProject !== 'all' && !isProjectMatch(projName, activeProject)) return;
 
                     const isWorking = ['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status));
                     if (!isWorking) return;
@@ -25903,7 +25926,7 @@ ${slip.textSample}
                     const otherVal = parseFloat(log.other || 0);
                     const dailyWelfareSum = foodVal + tripVal + otherVal;
 
-                    const matchesProjFilter = (activeProject === 'all' || log.project === activeProject);
+                    const matchesProjFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
 
                     if (matchesProjFilter) {
                         if (!empSummaryDB[empId]) {
