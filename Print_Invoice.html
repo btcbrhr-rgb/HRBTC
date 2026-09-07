@@ -387,14 +387,32 @@
         const invoiceInfo = {
             no: metaData.no || 'INV-PREVIEW',
             date: metaData.date || new Date().toLocaleDateString('th-TH'),
-            period: metaData.period || 'รอบบัญชีตัวอย่าง'
+            period: metaData.period || 'รอบบัญชีตัวอย่าง',
+            roundNetPay: metaData.roundNetPay || 'round',
+            roundSalary: metaData.roundSalary || 'round',
+            roundWelfare: metaData.roundWelfare || 'round'
         };
 
         // อัปเดต title ให้ตรงเลขที่เอกสารจริง
         document.title = 'ใบตั้งเบิกค่าแรง - ' + invoiceInfo.no;
 
+        function applyRounding(value, roundType = 'round') {
+            const num = parseFloat(value);
+            if (isNaN(num)) return 0;
+            if (roundType === 'round') return Math.round(num);
+            if (roundType === 'up') return Math.ceil(num);
+            if (roundType === 'down') return Math.floor(num);
+            return num;
+        }
+
         function formatNum(num) {
-            return (num || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const roundMode = invoiceInfo.roundNetPay || 'round';
+            const isWhole = roundMode !== 'none';
+            const rounded = applyRounding(num, roundMode);
+            return (rounded || 0).toLocaleString('th-TH', {
+                minimumFractionDigits: isWhole ? 0 : 2,
+                maximumFractionDigits: isWhole ? 0 : 2
+            });
         }
 
         function createHeader(projName) {

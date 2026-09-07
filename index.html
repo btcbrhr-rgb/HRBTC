@@ -21686,7 +21686,7 @@ ${slip.textSample}
                     document.getElementById("payslip-preview-id").textContent = slip.empId || "ไม่ระบุ";
                     document.getElementById("payslip-preview-name").textContent = slip.empName;
                     document.getElementById("payslip-preview-month").textContent = slip.month;
-                    document.getElementById("payslip-preview-amount").textContent = slip.netAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    document.getElementById("payslip-preview-amount").textContent = formatMoney(slip.netAmount, systemSettings.roundNetPay);
 
                     // แสดง modal
                     document.getElementById("payslip-pdf-modal").classList.remove("hidden");
@@ -22069,9 +22069,9 @@ ${slip.textSample}
                     const avgEl = document.getElementById('yps-avg-amount');
 
                     if (countEl) countEl.textContent = totalCount ? `${totalCount} ฉบับ` : '-';
-                    if (amountEl) amountEl.textContent = totalAmount > 0 ? totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+                    if (amountEl) amountEl.textContent = totalAmount > 0 ? formatMoney(totalAmount, systemSettings.roundNetPay) : '-';
                     if (upEl) upEl.textContent = uploadedCount ? `${uploadedCount} ฉบับ` : '-';
-                    if (avgEl) avgEl.textContent = avgAmount > 0 ? avgAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+                    if (avgEl) avgEl.textContent = avgAmount > 0 ? formatMoney(avgAmount, systemSettings.roundNetPay) : '-';
 
                     if (!records || records.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">ไม่มีข้อมูลสลิปเงินเดือนสำหรับเดือน ' + THAI_MONTHS_FULL[month - 1] + ' ' + buddhistYear + '</td></tr>';
@@ -22123,7 +22123,7 @@ ${slip.textSample}
                             <td class="text-center font-bold text-amber-700">${escapeHtml(empId || '-')}</td>
                             <td class="font-medium text-slate-700">${escapeHtml(empName)}</td>
                             <td class="text-center text-xs font-semibold text-slate-600">${escapeHtml(periodDisplay)}</td>
-                            <td class="text-right font-bold text-emerald-700">${netAmt > 0 ? netAmt.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</td>
+                            <td class="text-right font-bold text-emerald-700">${netAmt > 0 ? formatMoney(netAmt, systemSettings.roundNetPay) : '-'}</td>
                             <td class="text-center text-xs text-slate-500">${escapeHtml(recordedDisplay)}</td>
                             <td class="text-center">
                                 ${slipUrl ? `
@@ -23671,13 +23671,23 @@ ${slip.textSample}
         }
 
         // ฟังก์ชันคำนวณการปัดเศษตามกฎ (round: ปัดเศษขึ้นลงให้เป็นบาทถ้วน, up: ปัดขึ้น, down: ปัดลง, none: ไม่ปัด)
-        function applyRounding(value, roundType = 'round') {
+        function applyRounding(value, roundType = (systemSettings.roundNetPay || 'round')) {
             const num = parseFloat(value);
             if (isNaN(num)) return 0;
             if (roundType === 'round') return Math.round(num);
             if (roundType === 'up') return Math.ceil(num);
             if (roundType === 'down') return Math.floor(num);
             return num;
+        }
+
+        // ฟังก์ชันจัดรูปแบบเงินตามการตั้งค่าการปัดเศษ (ถ้าปัดบาทถ้วนจะไม่แสดงทศนิยม .00 ถ้าไม่ปัดจะแสดง 2 ตำแหน่ง)
+        function formatMoney(amount, roundType = (systemSettings.roundNetPay || 'round')) {
+            const val = applyRounding(amount, roundType);
+            const isWhole = roundType !== 'none';
+            return val.toLocaleString('th-TH', {
+                minimumFractionDigits: isWhole ? 0 : 2,
+                maximumFractionDigits: isWhole ? 0 : 2
+            });
         }
 
         // ตั้งค่า innerText ของ element (เตือนถ้าไม่พบ — เดิมเขียนซ้ำทุกจุด)
@@ -24913,7 +24923,7 @@ ${slip.textSample}
                         ${log.otherMemo ? `<p class="text-[10px] text-slate-400 max-w-[120px] truncate mx-auto mt-1" title="${log.otherMemo}">${log.otherMemo}</p>` : ''}
                     </td>
                     <td class="px-6 py-3 whitespace-nowrap text-right pr-6">
-                        <span class="font-extrabold text-slate-800 text-sm">${totalAllowance.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                        <span class="font-extrabold text-slate-800 text-sm">${formatMoney(totalAllowance, systemSettings.roundWelfare)}</span>
                     </td>
                 `;
                 tableBody.appendChild(tr);
@@ -25600,7 +25610,7 @@ ${slip.textSample}
                     <td class="px-1 py-1.5 text-right border-r border-b border-l-2 border-l-slate-300 text-slate-600 font-medium bg-slate-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/50' : 'bg-slate-50/20'} transition-colors duration-200 text-[10px]" style="min-width: 50px;">${totalFoodSum.toLocaleString('th-TH')}</td>
                     <td class="px-1 py-1.5 text-right border-r border-b border-slate-200 text-slate-600 font-medium bg-slate-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/50' : 'bg-slate-50/20'} transition-colors duration-200 text-[10px]" style="min-width: 50px;">${totalTripSum.toLocaleString('th-TH')}</td>
                     <td class="px-1 py-1.5 text-right border-r border-b border-slate-200 text-slate-600 font-medium bg-slate-50/40 ${empIdx % 2 !== 0 ? 'bg-slate-50/50' : 'bg-slate-50/20'} transition-colors duration-200 text-[10px]" style="min-width: 50px;">${totalOtherSum.toLocaleString('th-TH')}</td>
-                    <td class="px-1.5 py-1.5 text-right border-r border-b border-slate-200 font-bold text-emerald-700 bg-emerald-100/50 ${empIdx % 2 !== 0 ? 'bg-emerald-100/30' : 'bg-emerald-50/30'} transition-colors duration-200 text-[10px]" style="min-width: 50px;">${totalAllowancesSum.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="px-1.5 py-1.5 text-right border-r border-b border-slate-200 font-bold text-emerald-700 bg-emerald-100/50 ${empIdx % 2 !== 0 ? 'bg-emerald-100/30' : 'bg-emerald-50/30'} transition-colors duration-200 text-[10px]" style="min-width: 50px;">${formatMoney(totalAllowancesSum, systemSettings.roundWelfare)}</td>
                 `;
 
                 const tr = document.createElement('tr');
@@ -25624,16 +25634,15 @@ ${slip.textSample}
                     <td class="py-2 px-1 text-right font-mono border-t-2 border-r border-b border-l-2 border-slate-300 text-[10px]">${sumGrandFood.toLocaleString('th-TH')}</td>
                     <td class="py-2 px-1 text-right font-mono border-t-2 border-r border-b border-slate-300 text-[10px]">${sumGrandTrip.toLocaleString('th-TH')}</td>
                     <td class="py-2 px-1 text-right font-mono border-t-2 border-r border-b border-slate-300 text-[10px]">${sumGrandOther.toLocaleString('th-TH')}</td>
-                    <td class="py-2 px-1.5 text-right font-extrabold text-emerald-800 font-mono bg-emerald-100/80 border-t-2 border-r border-b border-l border-emerald-300 text-[10px]">${totalAllow.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                    <td class="py-2 px-1.5 text-right font-extrabold text-emerald-800 font-mono bg-emerald-100/80 border-t-2 border-r border-b border-l border-emerald-300 text-[10px]">${formatMoney(totalAllow, systemSettings.roundWelfare)}</td>
                 </tr>
             `;
             tableFoot.innerHTML = footHtml;
 
-            const _fmtBaht2 = v => v.toLocaleString('th-TH', { minimumFractionDigits: 2 });
             document.querySelectorAll('#sum-total-employees').forEach(el => { el.innerText = `${filteredEmps.length}`; });
-            document.querySelectorAll('#sum-total-wages').forEach(el => { el.innerText = _fmtBaht2(sumGrandWages); });
-            document.querySelectorAll('#sum-total-allowances').forEach(el => { el.innerText = _fmtBaht2(sumGrandAllowance); });
-            document.querySelectorAll('#sum-total-labor-cost').forEach(el => { el.innerText = _fmtBaht2(sumGrandWages + sumGrandAllowance); });
+            document.querySelectorAll('#sum-total-wages').forEach(el => { el.innerText = formatMoney(sumGrandWages, systemSettings.roundSalary); });
+            document.querySelectorAll('#sum-total-allowances').forEach(el => { el.innerText = formatMoney(sumGrandAllowance, systemSettings.roundWelfare); });
+            document.querySelectorAll('#sum-total-labor-cost').forEach(el => { el.innerText = formatMoney(sumGrandWages + sumGrandAllowance, systemSettings.roundNetPay); });
         }
         // ═══════════════════════════════════════════════════════════════════════
         // 📂 SECTION 7/12: PROJECT COSTING — Cost Calculation & Cards
@@ -25671,11 +25680,12 @@ ${slip.textSample}
                     const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
                     const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
 
-                    const baseDailyWage = emp.baseSalary / divisor; 
+                    const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary); 
                     const baseHourlyWage = baseDailyWage / workHours; 
                     
                     const logOtHours = parseFloat(log.ot || 0);
-                    const logWages = baseDailyWage + (logOtHours * baseHourlyWage * otRate); 
+                    const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
+                    const logWages = baseDailyWage + logOtPay; 
 
                     if (!costingDatabase[projName]) {
                         costingDatabase[projName] = {};
@@ -25699,9 +25709,9 @@ ${slip.textSample}
                     record.days += 1;
                     record.otHours += logOtHours;
                     record.wages += logWages;
-                    record.food += parseFloat(log.food || 0);
-                    record.trip += parseFloat(log.trip || 0);
-                    record.other += parseFloat(log.other || 0);
+                    record.food += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
+                    record.trip += applyRounding(parseFloat(log.trip || 0), systemSettings.roundWelfare);
+                    record.other += applyRounding(parseFloat(log.other || 0), systemSettings.roundWelfare);
                 });
             });
 
@@ -25787,11 +25797,11 @@ ${slip.textSample}
                                 </div>
                             </td>
                             <td class="px-4 py-4 text-center font-bold text-slate-700">${rec.days} วัน</td>
-                            <td class="px-4 py-4 text-right font-extrabold text-slate-800">${rec.wages.toLocaleString('th-TH', { minimumFractionDigits: 2 })} <p class="text-[10px] text-brand-teal font-extrabold mt-0.5">${rec.otHours} ชม. OT</p></td>
-                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">${rec.food.toLocaleString('th-TH')}</td>
-                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">${rec.trip.toLocaleString('th-TH')}</td>
-                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">${rec.other.toLocaleString('th-TH')}</td>
-                            <td class="px-6 py-4 text-right font-extrabold text-slate-800 bg-slate-50/50">${recTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                            <td class="px-4 py-4 text-right font-extrabold text-slate-800">${formatMoney(rec.wages, systemSettings.roundSalary)} <p class="text-[10px] text-brand-teal font-extrabold mt-0.5">${rec.otHours} ชม. OT</p></td>
+                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">${formatMoney(rec.food, systemSettings.roundWelfare)}</td>
+                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">${formatMoney(rec.trip, systemSettings.roundWelfare)}</td>
+                            <td class="px-4 py-4 text-right text-slate-600 font-semibold">${formatMoney(rec.other, systemSettings.roundWelfare)}</td>
+                            <td class="px-6 py-4 text-right font-extrabold text-slate-800 bg-slate-50/50">${formatMoney(recTotal, systemSettings.roundNetPay)}</td>
                         </tr>
                     `;
                 });
@@ -25806,7 +25816,7 @@ ${slip.textSample}
                         <div class="flex flex-wrap gap-4 items-center">
                             <div class="text-left lg:text-right">
                                 <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider">ต้นทุนโครงการสะสม</p>
-                                <p class="text-xl font-black text-slate-900">${projectGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</p>
+                                <p class="text-xl font-black text-slate-900">${formatMoney(projectGrandTotal, systemSettings.roundNetPay)}</p>
                             </div>
                             <button onclick="generateProjectInvoice('${encodeURIComponent(projName)}')" class="px-4 py-2.5 bg-brand-navy hover:bg-brand-deep text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center">
                                 <i class="fa-solid fa-file-invoice-dollar mr-2 text-amber-400"></i> ออกรายงาน / เรียกเก็บเงิน
@@ -25833,11 +25843,11 @@ ${slip.textSample}
                                 <tr class="hr-table-total">
                                     <td colspan="2" class="px-6 py-4.5 text-right font-black">ยอดสะสมรวมของโครงการนี้</td>
                                     <td class="px-4 py-4.5 text-center font-black text-slate-800">${projectTotalDays} วัน-คน</td>
-                                    <td class="px-4 py-4.5 text-right font-black text-slate-800">${projectTotalWages.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
-                                    <td class="px-4 py-4.5 text-right text-slate-600">${projectTotalFood.toLocaleString('th-TH')}</td>
-                                    <td class="px-4 py-4.5 text-right text-slate-600">${projectTotalTrip.toLocaleString('th-TH')}</td>
-                                    <td class="px-4 py-4.5 text-right text-slate-600">${projectTotalOther.toLocaleString('th-TH')}</td>
-                                    <td class="px-6 py-4.5 text-right text-brand-deep bg-brand-sky/40 text-sm font-black">${projectGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+                                    <td class="px-4 py-4.5 text-right font-black text-slate-800">${formatMoney(projectTotalWages, systemSettings.roundSalary)}</td>
+                                    <td class="px-4 py-4.5 text-right text-slate-600">${formatMoney(projectTotalFood, systemSettings.roundWelfare)}</td>
+                                    <td class="px-4 py-4.5 text-right text-slate-600">${formatMoney(projectTotalTrip, systemSettings.roundWelfare)}</td>
+                                    <td class="px-4 py-4.5 text-right text-slate-600">${formatMoney(projectTotalOther, systemSettings.roundWelfare)}</td>
+                                    <td class="px-6 py-4.5 text-right text-brand-deep bg-brand-sky/40 text-sm font-black">${formatMoney(projectGrandTotal, systemSettings.roundNetPay)}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -25847,9 +25857,9 @@ ${slip.textSample}
                 container.appendChild(cardDiv);
             });
 
-            document.getElementById('costing-total-cost').innerText = `${grandCost.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
-            document.getElementById('costing-wages-cost').innerText = `${wagesCost.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
-            document.getElementById('costing-allowances-cost').innerText = `${allowancesCost.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            document.getElementById('costing-total-cost').innerText = formatMoney(grandCost, systemSettings.roundNetPay);
+            document.getElementById('costing-wages-cost').innerText = formatMoney(wagesCost, systemSettings.roundSalary);
+            document.getElementById('costing-allowances-cost').innerText = formatMoney(allowancesCost, systemSettings.roundWelfare);
         }
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -26213,7 +26223,7 @@ ${slip.textSample}
                     const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
                     const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
 
-                    const dailyWage = emp.baseSalary / divisor;
+                    const dailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary);
                     const hourlyWage = dailyWage / workHours;
                     const otHours = parseFloat(log.ot || 0);
                     const isSpecialDay = ['พร', 'เพิ่มแรง', 'คส', 'สวัสดิการ'].includes(String(log.status || '').trim());
@@ -26242,10 +26252,10 @@ ${slip.textSample}
                     rec.otHours += otHours;
                     rec.base += dailyWage;
                     if (isSpecialDay) rec.specialBonus += dailyWage;
-                    rec.ot += otHours * hourlyWage * otRate;
-                    rec.meal += parseFloat(log.food || 0);
-                    rec.travel += parseFloat(log.trip || 0);
-                    rec.other += parseFloat(log.other || 0);
+                    rec.ot += applyRounding(otHours * hourlyWage * otRate, systemSettings.roundSalary);
+                    rec.meal += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
+                    rec.travel += applyRounding(parseFloat(log.trip || 0), systemSettings.roundWelfare);
+                    rec.other += applyRounding(parseFloat(log.other || 0), systemSettings.roundWelfare);
                 });
             });
 
@@ -26274,7 +26284,10 @@ ${slip.textSample}
             const metaData = {
                 no: `HRBTC-${currentCycleMonth.replace('-', '')}-${projId}`,
                 date: today.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }),
-                period: `${formatThaiDate(dates[0])} - ${formatThaiDate(dates[dates.length - 1])}`
+                period: `${formatThaiDate(dates[0])} - ${formatThaiDate(dates[dates.length - 1])}`,
+                roundSalary: systemSettings.roundSalary || 'round',
+                roundNetPay: systemSettings.roundNetPay || 'round',
+                roundWelfare: systemSettings.roundWelfare || 'round'
             };
 
             openInvoicePrintPage({ laborData, metaData });
@@ -26321,7 +26334,10 @@ ${slip.textSample}
             const metaData = {
                 no: `HRBTC-${currentCycleMonth.replace('-', '')}-ALL`,
                 date: today.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }),
-                period: `${formatThaiDate(dates[0])} - ${formatThaiDate(dates[dates.length - 1])}`
+                period: `${formatThaiDate(dates[0])} - ${formatThaiDate(dates[dates.length - 1])}`,
+                roundSalary: systemSettings.roundSalary || 'round',
+                roundNetPay: systemSettings.roundNetPay || 'round',
+                roundWelfare: systemSettings.roundWelfare || 'round'
             };
 
             // summary: true → หน้าแรกของชุดเอกสารเป็นหน้าสรุปยอดรวมแต่ละโครงการ
