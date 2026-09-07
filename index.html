@@ -8734,7 +8734,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const hitsEmployeeData = tables.some(t => employeeFacingTables.includes(t));
                     if (hitsEmployeeData && typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId) {
                         if (this._shouldRefresh('loadAllData', 5000) && typeof loadAllData === 'function') {
-                            await loadAllData().catch(e => console.warn('[Realtime loadAllData]', e));
+                            // 🔧 ส่งรายชื่อตารางที่เปลี่ยน (tablesHint) → loadAllData fetch เฉพาะตารางนั้นใหม่
+                            //    เช่น Admin อนุมัติใบลา → leave_requests เปลี่ยน → หน้ารายการลาของพนักงานอัปเดตทันที
+                            await loadAllData(tables).catch(e => console.warn('[Realtime loadAllData]', e));
                         }
                     }
 
@@ -9423,6 +9425,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 } catch (err) {
                     console.error('[autoLoginAndNavigate] loadAllData error:', err);
+                }
+
+                // ⚡ Eager: อัปเดตสถานะลงทะเบียนใบหน้าบนหน้าลงเวลาทันที (ไม่ต้องรอเปิดหน้า)
+                if (typeof refreshFaceEnrollStatus === 'function') {
+                    refreshFaceEnrollStatus().catch(() => {});
                 }
 
                 hideLoginContainer();
@@ -10212,7 +10219,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let _lastLoadEmpId = '';
             let _lastLoadCycleStart = '';
 
-            async function loadAllData() {
+            async function loadAllData(tablesHint) {
                 if (!currentEmployeeId) {
                     console.warn('[loadAllData] missing currentEmployeeId');
                     return false;
@@ -10232,16 +10239,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (supabaseClient) {
                     const tSup0 = performance.now();
                     try {
+                        // 🔧 OPTIMIZE: ถ้าเกิดจาก Realtime event (tablesHint) → fetch เฉพาะตารางที่เปลี่ยนจริง
+                        //    เพื่อให้การอนุมัติ/อัปเดตคำขอลา-เบิกเงิน-สลิป อัปเดตหน้างานทันทีโดยไม่ต้องรอรอบบัญชีใหม่
+                        const hint = Array.isArray(tablesHint) ? tablesHint : [];
+                        const needCorrections = fullRefresh || hint.includes('time_corrections');
+                        const needLeaves = fullRefresh || hint.includes('leave_requests');
+                        const needAdvances = fullRefresh || hint.includes('advance_requests');
+                        const needPayslips = fullRefresh || hint.includes('payslips');
+
                         const queries = [
                             // User-specific data (always fetch time_records สำหรับ billing cycle ใหม่)
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
                             // 🔧 FIX: ดึง time_records ทั้งหมด (ไม่ filter cycle) สำหรับกิจกรรมล่าสุด
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).order('date', { ascending: false }).limit(60),
                             // 🔧 OPTIMIZE: ไม่ต้อง fetch ซ้ำถ้าแค่เปลี่ยนรอบบัญชี (ไม่เปลี่ยนพนักงาน)
-                            fullRefresh ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
-                            fullRefresh ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
-                            fullRefresh ? supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId) : null,
-                            fullRefresh ? supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId) : null
+                            needCorrections ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
+                            needLeaves ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
+                            needAdvances ? supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId) : null,
+                            needPayslips ? supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId) : null
                         ];
                         // Public data: โหลดเฉพาะเมื่อยังไม่ได้โหลด (reuse จาก loadPublicData)
                         if (!publicDataLoaded || projectsList.length === 0) {
@@ -10465,6 +10480,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     try { if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards(); } catch (e) { console.warn(e); }
                     // 🚀 填充 project dropdowns หลังจากโหลดข้อมูลโครงการแล้ว
                     try { if (typeof populateProjectDropdowns === 'function') populateProjectDropdowns(); } catch (e) { console.warn(e); }
+                    // ⚡ Eager Render: เรนเดอร์ทุกหน้าไว้ล่วงหน้า (กิจกรรม/ลา/เบิกเงิน/สลิป)
+                    //    ให้ข้อมูลพร้อมดูทันทีเมื่อกดเมนู โดยไม่ต้องรอให้กดเข้าไปก่อน (ตามคำขอ)
+                    try { if (typeof displayActivitiesList === 'function') displayActivitiesList(); } catch (e) { console.warn(e); }
+                    try { if (typeof displayLeaveHistory === 'function') displayLeaveHistory(); } catch (e) { console.warn(e); }
+                    try { if (typeof displayAdvanceHistory === 'function') displayAdvanceHistory(); } catch (e) { console.warn(e); }
+                    try { if (typeof displayPayslipList === 'function') displayPayslipList(); } catch (e) { console.warn(e); }
+                    // ⚡ Eager Render: หน้าโปรไฟล์ — เรนเดอร์จาก employeeData ที่มีอยู่แล้วทันที
+                    //    (ไม่ยิง fetch ถ้ายังไม่มีข้อมูล กัน toast ซ้ำ — เปิดหน้าเมื่อไหร่ค่อยโหลด)
+                    try {
+                        if (typeof employeeData !== 'undefined' && employeeData && Object.keys(employeeData).length > 0 && typeof loadProfileData === 'function') {
+                            loadProfileData();
+                        }
+                    } catch (e) { console.warn(e); }
                 } finally {
                     _renderAllViewsRunning = false;
                 }
@@ -14583,6 +14611,89 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 showToast("🛠️ เข้าสู่ระบบในฐานะผู้ดูแลระบบ", "success");
                 switchAdminTab(adminActiveTab);
+
+                // ⚡ ดึงข้อมูลทุกโมดูล Admin ล่วงหน้า — เมนูไหนกดก็เห็นข้อมูลพร้อมดูทันที (ไม่ต้องรอโหลด)
+                prefetchAllAdminData();
+            }
+
+            // ⚡ Auto-Prefetch: ดึงข้อมูลทุกโมดูล Admin ไว้ล่วงหน้าเมื่อเข้าโหมด Admin
+            //    ตามคำขอ "ทั้งหมดควรออโต้ แบบมีข้อมูลให้พร้อมดู โดยไม่ต้องกดเข้าเมนูไปก่อน"
+            let _adminPrefetchStarted = false;
+
+            function _callAdminLoaderSafe(fnName) {
+                // 1) ค้นหาจาก window/globalThis ก่อน
+                try {
+                    const fn = (typeof window !== 'undefined' && typeof window[fnName] === 'function') ? window[fnName]
+                        : (typeof globalThis !== 'undefined' && typeof globalThis[fnName] === 'function') ? globalThis[fnName] : null;
+                    if (fn) {
+                        const r = fn();
+                        if (r && typeof r.then === 'function') r.catch(() => {});
+                        return;
+                    }
+                } catch (e) { console.warn('[AdminPrefetch] window.' + fnName + ' error:', e); }
+                // 2) ฟังก์ชันซ่อนใน closure → เรียกโดยตรงด้วย typeof guard (ปลอดภัยเสมอ)
+                try {
+                    if (fnName === 'loadAdminEmployees' && typeof loadAdminEmployees === 'function') loadAdminEmployees();
+                    else if (fnName === 'loadAdminFaceEnroll' && typeof loadAdminFaceEnroll === 'function') loadAdminFaceEnroll();
+                    else if (fnName === 'loadAdminFaceLogs' && typeof loadAdminFaceLogs === 'function') loadAdminFaceLogs();
+                    else if (fnName === 'loadAdminAnnouncements' && typeof loadAdminAnnouncements === 'function') loadAdminAnnouncements();
+                    else if (fnName === 'loadAdminHolidays' && typeof loadAdminHolidays === 'function') loadAdminHolidays();
+                    else if (fnName === 'loadScanDevices' && typeof loadScanDevices === 'function') loadScanDevices();
+                    else if (fnName === 'loadAdminAuditLogs' && typeof loadAdminAuditLogs === 'function') loadAdminAuditLogs();
+                    else if (fnName === 'loadYearlyAttendanceOverview' && typeof loadYearlyAttendanceOverview === 'function') loadYearlyAttendanceOverview();
+                    else if (fnName === 'loadYearlyPayslipOverview' && typeof loadYearlyPayslipOverview === 'function') loadYearlyPayslipOverview();
+                    else if (fnName === 'loadProjectCostSection' && typeof loadProjectCostSection === 'function') loadProjectCostSection();
+                } catch (e) { console.warn('[AdminPrefetch] ' + fnName + ' error:', e); }
+            }
+
+            function prefetchAllAdminData() {
+                if (_adminPrefetchStarted) return;
+                _adminPrefetchStarted = true;
+                console.log('[AdminPrefetch] ⚡ เริ่มดึงข้อมูลทุกโมดูล Admin ล่วงหน้า (พร้อมดูทันทีโดยไม่ต้องกดเมนู)');
+
+                // ⚡ Stage 1 — โมดูลหลัก (พนักงาน + อนุมัติ) ทันที: เป็นฐานให้ dashboard/employees/approvals
+                //    หน่วง 300ms กันแย่งกับ switchAdminTab ของหน้าแรกที่เปิดอยู่
+                setTimeout(() => {
+                    (async () => {
+                        try { if (typeof fetchAdminEmployeeList === 'function') await fetchAdminEmployeeList(); } catch (e) { console.warn('[AdminPrefetch] fetchAdminEmployeeList error:', e); }
+                        try { if (typeof loadAdminApprovals === 'function' && !adminApprovalsLoadedOnce) await loadAdminApprovals(); } catch (e) { console.warn('[AdminPrefetch] loadAdminApprovals error:', e); }
+                    })();
+                }, 300);
+
+                // ⚡ Stage 2 — โมดูลที่เหลือ (หน่วงทีละนิด กันแย่ง bandwidth กับหน้าแรก) + เคารพสิทธิ์เมนู
+                const stage2 = [
+                    ['announcements', 'loadAdminAnnouncements', 1200],
+                    ['holidays', 'loadAdminHolidays', 1600],
+                    ['scan-devices', 'loadScanDevices', 2000],
+                    ['face-logs', 'loadAdminFaceLogs', 2400],
+                    ['face-enroll', 'loadAdminFaceEnroll', 2800],
+                    ['employees', 'loadAdminEmployees', 3200],
+                    ['audit-logs', 'loadAdminAuditLogs', 3600],
+                    ['import-time', 'loadYearlyAttendanceOverview', 4500],
+                    ['import-payslip', 'loadYearlyPayslipOverview', 5000],
+                    ['project-cost', 'loadProjectCostSection', 5500]
+                ];
+                stage2.forEach(([menuId, fn, delay]) => {
+                    setTimeout(() => {
+                        if (!hasAdminMenuPermission(menuId)) return;
+                        _callAdminLoaderSafe(fn);
+                    }, delay);
+                });
+
+                // ⚡ Stage 3 — ตั้งค่าระบบ (ใช้ adminSettingsInitPromise เดียวกับ switchAdminTab กัน init ซ้ำ)
+                setTimeout(() => {
+                    if (!hasAdminMenuPermission('settings')) return;
+                    if (!adminSettingsInitPromise && typeof loadAdminSettings === 'function') {
+                        adminSettingsInitPromise = Promise.all([
+                            loadAdminSettings(),
+                            typeof initGasPanelUI === 'function' ? initGasPanelUI() : null,
+                            typeof initSupabasePanelUI === 'function' ? initSupabasePanelUI() : null
+                        ]).catch(err => {
+                            console.warn('[Admin settings] initialization failed', err);
+                            adminSettingsInitPromise = null;
+                        });
+                    }
+                }, 6000);
             }
 
             // สลับการแสดงผลแถบเมนูด้านข้างของแอดมินบนมือถือ (Mobile Drawer)
@@ -14642,7 +14753,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     showToast("🛠️ เข้าสู่โหมดผู้ดูแลระบบ (เต็มหน้าจอ)", "info");
                     switchAdminTab(adminActiveTab);
-                    
+
+                    // ⚡ ดึงข้อมูลทุกโมดูล Admin ล่วงหน้า — เมนูไหนกดก็เห็นข้อมูลพร้อมดูทันที
+                    prefetchAllAdminData();
+
                     // Load approvals and dashboard data
                     if (!adminApprovalsLoadedOnce) {
                         loadAdminApprovals().then(() => {
