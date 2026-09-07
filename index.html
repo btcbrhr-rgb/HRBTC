@@ -1138,12 +1138,24 @@
 
         /* Legal Print Styles for Matrix */
         @media print {
+            body.print-matrix-mode {
+                background: white !important;
+                color: black !important;
+            }
             body.print-matrix-mode * {
                 visibility: hidden;
             }
+            body.print-matrix-mode #admin-sec-project-cost,
+            body.print-matrix-mode #project-cost-container,
+            body.print-matrix-mode #tab-summary,
             body.print-matrix-mode #matrix-card,
             body.print-matrix-mode #matrix-card * {
                 visibility: visible;
+            }
+            body.print-matrix-mode #admin-sec-project-cost,
+            body.print-matrix-mode #project-cost-container,
+            body.print-matrix-mode #tab-summary {
+                display: block !important;
             }
             body.print-matrix-mode #matrix-card {
                 position: absolute;
@@ -1159,6 +1171,9 @@
             }
             body.print-matrix-mode #matrix-fullscreen-btn,
             body.print-matrix-mode button {
+                display: none !important;
+            }
+            body.print-matrix-mode #invoicePrintArea {
                 display: none !important;
             }
             @page {
@@ -23025,6 +23040,12 @@ ${slip.textSample}
                             <p class="text-xs text-slate-500 mt-0.5">แสดงข้อมูลรายวันตลอดรอบเงินเดือน สามารถคลิกไอคอนสถานะของพนักงานเพื่อแก้ไขข้อมูลเวลางานและสถานะได้ทันที</p>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="printMatrixLegal()" title="พิมพ์ตาราง (Legal)"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all shadow-sm active:scale-95">
+                            <i class="fa-solid fa-print"></i> พิมพ์ตาราง
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Filter Bar: โครงการ / ค้นหาพนักงาน (รอบบัญชีใช้ shared selector ด้านบน) -->
@@ -26478,11 +26499,152 @@ ${slip.textSample}
 
         // Print Matrix Timesheet in Legal Landscape Format
         function printMatrixLegal() {
-            document.body.classList.add('print-matrix-mode');
-            window.print();
+            try {
+                const table = document.querySelector('#admin-matrix-table-container table') || 
+                              document.querySelector('#foreman-matrix-table-container table') || 
+                              document.getElementById('matrixMainTable');
+                if (!table || !table.querySelector('tbody tr') || table.querySelector('tbody tr td[colspan]')) {
+                    if (typeof showToast === 'function') {
+                        showToast('ไม่พบข้อมูลในตาราง Matrix ที่จะพิมพ์ หรือข้อมูลกำลังโหลดอยู่', 'warning');
+                    } else {
+                        alert('ไม่พบข้อมูลในตาราง Matrix ที่จะพิมพ์');
+                    }
+                    return;
+                }
+
+                const billingMonthEl = document.getElementById('sharedBillingMonth') || document.getElementById('billingMonth');
+                const currentCycleMonth = billingMonthEl ? billingMonthEl.value : '';
+                const dateRangeText = document.getElementById('sharedBillingCycleDateRange')?.textContent || '';
+                const projText = (typeof activeProject === 'undefined' || activeProject === 'all') ? 'ทุกโครงการ' : activeProject;
+
+                const legendEl = document.querySelector('.matrix-legend-bar');
+                const legendHtml = legendEl ? legendEl.innerHTML : '';
+
+                // Clone table for clean print rendering (remove sticky classes to prevent printing coordinate clipping)
+                const tableClone = table.cloneNode(true);
+                tableClone.querySelectorAll('.cursor-pointer').forEach(el => el.classList.remove('cursor-pointer'));
+                tableClone.querySelectorAll('.sticky').forEach(el => {
+                    el.classList.remove('sticky', 'left-0', 'left-[28px]', 'left-[208px]', 'top-0', 'bottom-0', 'z-20', 'z-30', 'z-40', 'z-50', 'sticky-col-shadow');
+                });
+
+                const printHtml = `<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet) - ${projText}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <style>
+        @page {
+            size: legal landscape;
+            margin: 6mm 5mm;
+        }
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            box-sizing: border-box;
+            font-family: 'Sarabun', sans-serif;
+        }
+        body {
+            background: #fff;
+            color: #1e293b;
+            margin: 0;
+            padding: 8px 12px;
+            font-size: 10px;
+        }
+        table {
+            border-collapse: collapse !important;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #cbd5e1 !important;
+        }
+        .no-print {
+            display: flex;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print mb-3 flex items-center justify-between bg-slate-100 p-2.5 rounded-xl border border-slate-200">
+        <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 text-white font-bold rounded-lg text-xs" style="background-color:#0E3A5D;">HRBTC</span>
+            <span class="text-xs font-bold text-slate-700">พิมพ์แผ่นสถิติการมาปฏิบัติงาน (ขนาด Legal แนวนอน)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="window.print()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-1.5">
+                <i class="fa-solid fa-print"></i> สั่งพิมพ์เอกสาร
+            </button>
+            <button onclick="window.close()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition">
+                ปิดหน้าต่าง
+            </button>
+        </div>
+    </div>
+
+    <div class="mb-2 border-b border-slate-300 pb-2">
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-sm font-extrabold text-slate-900 tracking-wide">บริษัท บุรีรัมย์รังชัยก่อสร้าง จำกัด</h1>
+                <h2 class="text-xs font-bold text-slate-700 mt-0.5">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet)</h2>
+            </div>
+            <div class="text-right text-[10px] text-slate-600">
+                <p><b>รอบบัญชี:</b> ${currentCycleMonth} ${dateRangeText ? '(' + dateRangeText + ')' : ''}</p>
+                <p><b>โครงการ:</b> <span class="font-bold text-slate-800">${projText}</span> | <b>พิมพ์เมื่อ:</b> ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="overflow-visible">
+        ${tableClone.outerHTML}
+    </div>
+
+    <div class="mt-2 text-[9px] text-slate-500 flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200">
+        ${legendHtml}
+    </div>
+
+    <script>
+        window.addEventListener('load', () => {
             setTimeout(() => {
-                document.body.classList.remove('print-matrix-mode');
-            }, 1000);
+                window.print();
+            }, 600);
+        });
+    <\/script>
+</body>
+</html>`;
+
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.open();
+                    printWindow.document.write(printHtml);
+                    printWindow.document.close();
+                    printWindow.focus && printWindow.focus();
+                } else {
+                    // Fallback if popup blocker is active
+                    if (typeof showToast === 'function') {
+                        showToast('Popup ถูกบล็อก กำลังเปิดหน้าพิมพ์ในหน้านี้...', 'info');
+                    }
+                    document.body.classList.add('print-matrix-mode');
+                    window.print();
+                    setTimeout(() => {
+                        document.body.classList.remove('print-matrix-mode');
+                    }, 1000);
+                }
+            } catch (err) {
+                console.error('[printMatrixLegal error]', err);
+                if (typeof showToast === 'function') {
+                    showToast('เกิดข้อผิดพลาดในการพิมพ์: ' + err.message, 'error');
+                } else {
+                    alert('เกิดข้อผิดพลาดในการพิมพ์: ' + err.message);
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════════
