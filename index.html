@@ -23335,13 +23335,19 @@ ${slip.textSample}
                         // Apply attendance
                         attendanceData = {};
                         sbAtt.data.forEach(raw => {
+                            const lateMins = (parseInt(raw.late_minutes) || 0) || _calcLateFromTimeIn(raw.time_in || '');
+                            const storedStatus = (raw.status || '').toString().trim();
+                            // 🔧 แสดงสถานะตามจริงจากเวลา: ถ้า DB เก็บ 'ปกติ'/ว่างไว้ แต่เวลาจริงมาสาย → แสดง 'สาย' ทันที
+                            const status = (!storedStatus || storedStatus === 'ปกติ' || storedStatus === 'W' || storedStatus === 'ทำงานปกติ' || storedStatus === 'ปกติ (W)') && lateMins > 0
+                                ? 'สาย'
+                                : (storedStatus || _calcStatusFromTimes(raw.time_in || '', raw.time_out || ''));
                             const record = {
                                 empId: (raw.emp_id || '').toString().trim(),
                                 date: (raw.date || '').toString().trim(),
                                 timeIn: raw.time_in || '', timeOut: raw.time_out || '',
-                                status: raw.status || _calcStatusFromTimes(raw.time_in || '', raw.time_out || ''),
-                                late: (parseInt(raw.late_minutes) || 0) || _calcLateFromTimeIn(raw.time_in || ''),
-                                penalty: (parseInt(raw.late_minutes) || 0) || _calcLateFromTimeIn(raw.time_in || ''),
+                                status,
+                                late: lateMins,
+                                penalty: lateMins,
                                 ot: parseFloat(raw.ot_hours) || 0, project: raw.project_in || '',
                                 source: raw.source || ''
                             };
