@@ -8822,7 +8822,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         // ── กลุ่ม B: refresh เฉพาะเมื่อหน้าเปิดอยู่ (โมดูลโหลดหนัก / กำลังแก้ไขฟอร์ม)
                         //    หน้าเหล่านี้เปิดเมื่อไหร่ switchAdminTab เรียก loader ใหม่สดทุกครั้งอยู่แล้ว
                         //    ⚡ rate-limit 10 วิ ต่อโมดูล — ตาราง 12 เดือน/สลิปหนักมาก กันโหลดซ้ำถี่
-                        if (currentTab === 'import-time' && (tables.includes('time_records') || tables.includes('attendance_raw'))) {
+                        //    ⚡ ยกเว้น ต้นทุนโครงการ (บล็อกล่าง): refresh ทั้งเปิด/ปิดหน้า (20 วิ) เพราะเป็นเครื่องมือ
+                        //    เรียลไทม์ — ยอดชั่วโมง/ต้นทุนต้องสดเสมอ แม้ยังไม่ได้เปิดหน้านั้น
+                        if (currentTab === 'import-time' && (tables.includes('time_records') || tables.includes('attendance_raw') || tables.includes('time_corrections'))) {
                             // ตารางเวลางาน 12 เดือน (ข้อมูลเยอะ — refresh เมื่อเปิดหน้า)
                             if (this._shouldRefresh('loadYearlyAttendanceOverview', 10000) && typeof loadYearlyAttendanceOverview === 'function') {
                                 try { await loadYearlyAttendanceOverview(); } catch (e) { console.warn('[Realtime] loadYearlyAttendanceOverview', e); }
@@ -8840,10 +8842,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 try { await loadAdminSettings(); } catch (e) { console.warn('[Realtime] loadAdminSettings', e); }
                             }
                         }
-                        if (currentTab === 'project-cost' && tables.includes('projects')) {
-                            // หน้าต้นทุนโครงการ
-                            if (this._shouldRefresh('loadProjectCostSection', 10000) && typeof loadProjectCostSection === 'function') {
-                                try { await loadProjectCostSection(); } catch (e) { console.warn('[Realtime] loadProjectCostSection', e); }
+                        if (['time_records', 'employees', 'projects', 'attendance_raw'].some(t => tables.includes(t))) {
+                            // ⚡ ต้นทุนโครงการ — อินพุตของ Matrix คือ time_records + employees + projects
+                            //    (attendance_raw หลัง Reconcile จะกลายเป็น time_records)
+                            //    ① ล้าง cache ของ Matrix ทันที — กัน cache 120 วิ (loadSheetData) เสิร์ฟข้อมูลเก่า
+                            //    หลังมีข้อมูลใหม่เข้ามา (เดิม refresh เฉพาะตอนหน้าเปิด + เฉพาะตาราง projects → ยอดค้าง)
+                            try {
+                                if (typeof window !== 'undefined') {
+                                    if (window.__pcDataCache) window.__pcDataCache = {};
+                                    window.__attendanceCycleCache = null;
+                                }
+                            } catch (e) {}
+                            // ② refresh Matrix ทั้งตอนหน้าเปิด (10 วิ) และตอนปิด (20 วิ — ข้อมูลพร้อมดูทันทีเมื่อสลับเข้ามา)
+                            //    เฉพาะโหมด Admin (Matrix เป็นเครื่องมือผู้ดูแล/ผู้จัดการ) — พนักงานไม่ต้องโหลดซ้ำ
+                            if (typeof isAdminMode !== 'undefined' && isAdminMode) {
+                                const minMs = (currentTab === 'project-cost') ? 10000 : 20000;
+                                if (this._shouldRefresh('loadProjectCostSection', minMs) && typeof loadProjectCostSection === 'function') {
+                                    try { await loadProjectCostSection(); } catch (e) { console.warn('[Realtime] loadProjectCostSection', e); }
+                                }
                             }
                         }
                     }
