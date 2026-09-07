@@ -23324,9 +23324,9 @@ ${slip.textSample}
                                 dayOff: r.day_off || 'อาทิตย์', company: r.company || '',
                                 startDate: r.start_date || '', phone: r.phone || '',
                                 baseSalary: parseFloat(r.base_salary) || 0,
-                                wageDivisor: parseFloat(r.wage_divisor) || 30,
-                                workHours: parseFloat(r.work_hours_per_day) || 8,
-                                otRate: parseFloat(r.ot_rate) || 1.5,
+                                divisor: parseFloat(r.wage_divisor) || systemSettings.dailyDivisor || 30,
+                                workHoursPerDay: parseFloat(r.work_hours_per_day) || systemSettings.workHoursPerDay || 8,
+                                otMultiplier: parseFloat(r.ot_rate) || systemSettings.defaultOtRate || 1.5,
                                 role: r.role || 'Employee',
                                 avatarUrl: r.avatar_url || '',
                                 lineUserId: r.line_user_id || ''
@@ -23357,6 +23357,9 @@ ${slip.textSample}
                                 const name = (p.name || '').toString().trim();
                                 if (name) { const opt = document.createElement('option'); opt.value = name; opt.textContent = name; projSel.appendChild(opt); }
                             });
+                            // 🔧 อัปเดต dropdown โครงการใน modal (โครงการผู้รับภาระต้นทุนในวันนี้) ให้มีข้อมูลด้วย
+                            projects = [...new Set(sbProj.data.map(p => (p.name || '').toString().trim()).filter(Boolean))];
+                            updateModalProjectOptions();
                         }
                         if (!window.__pcDataCache) window.__pcDataCache = {};
                         window.__pcDataCache[cacheKey] = { ts: Date.now() };
@@ -23410,6 +23413,9 @@ ${slip.textSample}
                                         projSel.appendChild(opt);
                                     }
                                 });
+                                // 🔧 อัปเดต dropdown โครงการใน modal (โครงการผู้รับภาระต้นทุนในวันนี้) ให้มีข้อมูลด้วย
+                                projects = [...new Set(d.projects.map(p => (p['ชื่อโครงการ'] || p.name || '').toString().trim()).filter(Boolean))];
+                                updateModalProjectOptions();
                             }
                         }
 
@@ -24185,7 +24191,19 @@ ${slip.textSample}
             _elText('modalEmpCode', `รหัส: ${emp.id} | วันที่แก้ไข: ${formattedDateTh}`);
             _elText('modalEmpAvatar', (emp.name || '').charAt(0));
 
-            _elValue('modalWorkingProject', log.project || '');
+            // 🔧 ตรวจสอบให้โครงการของวันนี้มีอยู่ใน dropdown เสมอ (แม้ไม่อยู่ในตาราง projects)
+            const _workingProjSel = document.getElementById('modalWorkingProject');
+            if (_workingProjSel) {
+                const _projVal = log.project || '';
+                if (_projVal && !Array.from(_workingProjSel.options).some(o => o.value === _projVal)) {
+                    const opt = document.createElement('option');
+                    opt.value = _projVal;
+                    opt.textContent = _projVal;
+                    _workingProjSel.appendChild(opt);
+                    _workingProjSel.disabled = false;
+                }
+                _elValue('modalWorkingProject', _projVal);
+            }
 
             const statusBox = document.getElementById('modalStatusButtons');
             if (!statusBox) { console.warn('modalStatusButtons not found'); return; }
