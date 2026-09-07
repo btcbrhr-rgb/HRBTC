@@ -6318,6 +6318,62 @@
                                 </div>
                             </div>
 
+                            <!-- Keep-Alive Ping (กันโปรเจกต์ Supabase ถูก auto-pause) -->
+                            <div class="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/50 via-white to-white overflow-hidden shadow-sm" data-search="keep alive ping supabase auto pause trigger">
+                                <div class="px-4 py-3 bg-gradient-to-r from-amber-50 to-transparent border-b border-amber-100">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2.5">
+                                            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-sm">
+                                                <i class="fa-solid fa-heart-pulse text-white text-xs"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs font-extrabold text-slate-800">🔋 Keep-Alive Ping</p>
+                                                <p class="text-[10px] text-slate-400">กันโปรเจกต์ Supabase ถูก auto-pause (Free tier หยุดหลังไม่มีการใช้งาน ~7 วัน)</p>
+                                            </div>
+                                        </div>
+                                        <span id="ka-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                                            <span id="ka-status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                            <span id="ka-status-text">ยังไม่ได้ตรวจสอบ</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="p-4 space-y-3">
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                                            <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Trigger</p>
+                                            <p id="ka-trigger-state" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
+                                        </div>
+                                        <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                                            <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Ping ล่าสุด</p>
+                                            <p id="ka-last-ping" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
+                                        </div>
+                                        <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                                            <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Supabase</p>
+                                            <p id="ka-supabase-state" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
+                                        </div>
+                                    </div>
+                                    <div id="ka-next-run-box" class="hidden flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                                        <span class="text-[10px] font-bold text-amber-700">⏰ Trigger ครั้งถัดไป</span>
+                                        <span id="ka-next-run" class="text-[10px] font-extrabold text-amber-700">-</span>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button id="ka-run-btn" onclick="runKeepAliveNow()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold shadow-sm transition-all"
+                                            title="รัน Keep-Alive Ping ตอนนี้ — สร้าง Supabase API activity จริงทันที">
+                                            <i class="fa-solid fa-bolt"></i> รัน Ping ตอนนี้
+                                        </button>
+                                        <button id="ka-trigger-btn" onclick="toggleKeepAliveTrigger()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold shadow-sm transition-all"
+                                            title="เปิด/ปิด Trigger อัตโนมัติทุก 3 วัน">
+                                            <i id="ka-trigger-btn-icon" class="fa-solid fa-toggle-off"></i>
+                                            <span id="ka-trigger-btn-text">เปิด Trigger</span>
+                                        </button>
+                                    </div>
+                                    <div id="ka-result" class="hidden rounded-xl p-3 text-[11px] leading-relaxed"></div>
+                                    <p class="text-[10px] text-slate-400">💡 Trigger อัตโนมัติ ping ทุก 3 วัน (04:00 น.) — ping จะ query Supabase จริง 1 ครั้ง เพื่อสร้าง API activity และกันโปรเจกต์ถูก pause โดยไม่ต้องเปิดแอปเอง</p>
+                                </div>
+                            </div>
+
                             <!-- Google Apps Script API Gateway -->
                             <div class="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/50 via-white to-white overflow-hidden shadow-sm" data-search="apps script api gateway webhook url">
                                 <div class="px-4 py-3 bg-gradient-to-r from-emerald-50 to-transparent border-b border-emerald-100">
@@ -26627,6 +26683,7 @@ ${slip.textSample}
             initActivityLogs();
             loadAutomaticSyncStatus();
             loadAmStatus();
+            loadKeepAliveStatus();
             const urlEl  = document.getElementById('sb-config-url');
             const keyEl  = document.getElementById('sb-config-key');
             const badge = document.getElementById('sb-status-badge');
@@ -26922,6 +26979,141 @@ ${slip.textSample}
                 showAmResult('❌ ' + (e.message || e), true);
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate"></i> ซิงค์ Schema ตอนนี้'; }
+            }
+        }
+
+        /* ── Keep-Alive Ping helpers (กันโปรเจกต์ Supabase ถูก auto-pause) ─── */
+        function setKaBadge(state, text) {
+            const dot   = document.getElementById('ka-status-dot');
+            const badge = document.getElementById('ka-status-badge');
+            const label = document.getElementById('ka-status-text');
+            if (dot) dot.className = 'w-1.5 h-1.5 rounded-full ' + (state === 'ok' ? 'bg-emerald-500' : state === 'warn' ? 'bg-amber-400 animate-ping' : state === 'err' ? 'bg-rose-500' : 'bg-slate-400');
+            if (badge) badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ' +
+                (state === 'ok' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                 state === 'warn' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                 state === 'err' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                 'bg-slate-100 text-slate-500 border-slate-200');
+            if (label) label.textContent = text || '';
+        }
+
+        function showKaResult(html, isError) {
+            const box = document.getElementById('ka-result');
+            if (!box) return;
+            box.className = 'rounded-xl p-3 text-[11px] leading-relaxed ' + (isError ? 'bg-rose-50 border border-rose-200 text-rose-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+            box.innerHTML = html;
+            box.classList.remove('hidden');
+        }
+
+        function formatKaDate(value) {
+            if (!value) return '-';
+            const d = new Date(value);
+            if (isNaN(d.getTime())) return String(value);
+            return d.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        async function loadKeepAliveStatus() {
+            try {
+                const res = await postAction('keepAliveStatus', { adminId: currentEmployeeId }, { skipPerf: true });
+                if (res && res.status === 'success' && res.data) {
+                    const d = res.data;
+                    const lp = d.lastPing || {};
+
+                    // Badge สถานะ
+                    if (lp.supabase === 'ok') setKaBadge('ok', 'Supabase ตอบสนอง');
+                    else if (lp.supabase === 'error') setKaBadge('err', 'Supabase ไม่ตอบสนอง');
+                    else setKaBadge('warn', 'ยังไม่เคย Ping');
+
+                    // Trigger state
+                    const trigEl = document.getElementById('ka-trigger-state');
+                    if (trigEl) trigEl.textContent = d.triggerEnabled ? '🟢 เปิดอยู่' : '⚪ ปิดอยู่';
+
+                    // Ping ล่าสุด + Supabase
+                    const pingEl = document.getElementById('ka-last-ping');
+                    if (pingEl) pingEl.textContent = formatKaDate(lp.timestamp);
+                    const sbEl = document.getElementById('ka-supabase-state');
+                    if (sbEl) sbEl.textContent = lp.supabase === 'ok' ? '✅ OK' : (lp.supabase === 'error' ? '❌ Error' : '-');
+
+                    // Next run
+                    const nextBox = document.getElementById('ka-next-run-box');
+                    const nextEl  = document.getElementById('ka-next-run');
+                    if (d.triggerEnabled && nextEl && nextBox) {
+                        nextEl.textContent = formatKaDate(d.nextRun);
+                        nextBox.classList.remove('hidden');
+                    } else if (nextBox) {
+                        nextBox.classList.add('hidden');
+                    }
+
+                    // ปุ่ม toggle trigger
+                    const tBtn = document.getElementById('ka-trigger-btn');
+                    const tIcon = document.getElementById('ka-trigger-btn-icon');
+                    const tText = document.getElementById('ka-trigger-btn-text');
+                    if (tBtn) {
+                        if (d.triggerEnabled) {
+                            tBtn.className = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-[10px] font-bold shadow-sm transition-all';
+                            if (tIcon) tIcon.className = 'fa-solid fa-toggle-on';
+                            if (tText) tText.textContent = 'ปิด Trigger';
+                        } else {
+                            tBtn.className = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold shadow-sm transition-all';
+                            if (tIcon) tIcon.className = 'fa-solid fa-toggle-off';
+                            if (tText) tText.textContent = 'เปิด Trigger';
+                        }
+                    }
+                } else {
+                    setKaBadge('err', 'อ่านสถานะไม่ได้');
+                    showKaResult('⚠️ ' + ((res && res.message) || 'อ่านสถานะ Keep-Alive ไม่ได้') + '<br>ตรวจว่า GAS Web App ได้ deploy เวอร์ชันล่าสุดแล้ว', true);
+                }
+            } catch (e) {
+                setKaBadge('err', 'อ่านสถานะไม่ได้');
+                showKaResult('⚠️ เรียกสถานะ Keep-Alive ไม่ได้: ' + (e.message || e), true);
+            }
+        }
+
+        async function runKeepAliveNow() {
+            const btn = document.getElementById('ka-run-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลัง Ping...'; }
+            try {
+                const res = await postAction('keepAliveRunNow', { adminId: currentEmployeeId });
+                if (res && res.status === 'success' && res.data) {
+                    if (res.data.supabase === 'ok') {
+                        setKaBadge('ok', 'Supabase ตอบสนอง');
+                        showKaResult('<b>✅ Ping สำเร็จ</b> — Supabase ตอบสนอง ' + formatKaDate(res.data.timestamp), false);
+                        showToast('✅ Keep-Alive Ping สำเร็จ — Supabase ตอบสนองแล้ว', 'success');
+                    } else {
+                        setKaBadge('err', 'Supabase ไม่ตอบสนอง');
+                        showKaResult('<b>⚠️ Web App ตอบ แต่ Supabase ไม่ตอบสนอง</b><br>ตรวจว่าโปรเจกต์ Supabase ถูก pause หรือไม่ (supabase.com → Resume project)', true);
+                        showToast('⚠️ Supabase ไม่ตอบสนอง — ตรวจสถานะโปรเจกต์', 'warning', 6000);
+                    }
+                } else {
+                    setKaBadge('err', 'Ping ไม่สำเร็จ');
+                    showKaResult('❌ ' + ((res && res.message) || 'Ping ไม่สำเร็จ'), true);
+                }
+            } catch (e) {
+                setKaBadge('err', 'Ping ไม่สำเร็จ');
+                showKaResult('❌ ' + (e.message || e), true);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-bolt"></i> รัน Ping ตอนนี้'; }
+                loadKeepAliveStatus();
+            }
+        }
+
+        async function toggleKeepAliveTrigger() {
+            const btn = document.getElementById('ka-trigger-btn');
+            if (btn) btn.disabled = true;
+            try {
+                // อ่านสถานะปัจจุบันก่อน แล้วสลับกลับ
+                const st = await postAction('keepAliveStatus', { adminId: currentEmployeeId }, { skipPerf: true });
+                const target = !(st && st.data && st.data.triggerEnabled);
+                const res = await postAction('keepAliveSetTrigger', { adminId: currentEmployeeId, enabled: target });
+                if (res && res.status === 'success') {
+                    showToast(target ? '✅ เปิด Trigger อัตโนมัติแล้ว (ทุก 3 วัน)' : 'ปิด Trigger อัตโนมัติแล้ว', target ? 'success' : 'info');
+                } else {
+                    showToast('❌ ' + ((res && res.message) || 'เปลี่ยนสถานะ Trigger ไม่สำเร็จ'), 'error');
+                }
+            } catch (e) {
+                showToast('❌ ' + (e.message || e), 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+                loadKeepAliveStatus();
             }
         }
 
