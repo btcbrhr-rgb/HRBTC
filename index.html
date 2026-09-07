@@ -3474,6 +3474,15 @@
                                 <span id="admin-menu-scan-devices-badge"
                                     class="hidden bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
                             </button>
+                            <button onclick="switchAdminTab('audit-logs')" id="admin-menu-audit-logs"
+                                class="admin-menu-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left group">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="menu-icon w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-brand-sky text-slate-500 group-hover:text-brand-deep flex items-center justify-center text-xs transition-colors shrink-0">
+                                        <i class="fa-solid fa-clipboard-list"></i>
+                                    </span>
+                                    <span class="font-semibold">ประวัติการใช้งาน (Audit Log)</span>
+                                </div>
+                            </button>
                         </div>
                     </div>
 
@@ -6960,6 +6969,80 @@
                 </section>
 
                 <!-- ═══════════════════════════════════════════════════════════════ -->
+                <!-- 📝 AUDIT LOG TAB — ประวัติการใช้งาน (ใคร ทำอะไร เมื่อไหร่) -->
+                <!-- ═══════════════════════════════════════════════════════════════ -->
+                <section id="admin-sec-audit-logs" class="admin-sec hidden space-y-6">
+
+                    <!-- ═══ FILTER BAR ═══ -->
+                    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm px-4 py-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <div class="relative flex-1 min-w-[200px]">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[10px]"></i>
+                                <input id="audit-log-search" type="text" placeholder="ค้นหา action / รหัสพนักงาน / รายละเอียด..."
+                                    onkeydown="if(event.key==='Enter')loadAdminAuditLogs()"
+                                    class="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                            </div>
+                            <input id="audit-log-emp-id" type="text" placeholder="รหัสพนักงาน"
+                                class="w-28 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-brand-teal focus:outline-none">
+                            <select id="audit-log-action"
+                                class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-brand-teal focus:outline-none">
+                                <option value="">ทุก action</option>
+                            </select>
+                            <input id="audit-log-start" type="date"
+                                class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-brand-teal focus:outline-none">
+                            <span class="text-[10px] text-slate-400 font-bold">ถึง</span>
+                            <input id="audit-log-end" type="date"
+                                class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-brand-teal focus:outline-none">
+                            <button onclick="loadAdminAuditLogs()"
+                                class="bg-brand-deep hover:bg-brand-teal text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-md shadow-brand-deep/20 flex items-center gap-1.5">
+                                <i class="fa-solid fa-filter"></i> ค้นหา
+                            </button>
+                            <button onclick="resetAdminAuditLogFilters()"
+                                class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl transition-all">
+                                ล้าง
+                            </button>
+                        </div>
+                        <div class="mt-2 text-[10px] text-slate-400 flex items-center gap-2">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>ประวัติจะบันทึกอัตโนมัติทุกครั้งที่มีการใช้งานระบบ (ลงเวลา / ลา / เบิก / อนุมัติ / แก้ไขข้อมูล ฯลฯ) — แสดงล่าสุด 200 รายการต่อครั้ง</span>
+                        </div>
+                    </div>
+
+                    <!-- ═══ RESULT TABLE ═══ -->
+                    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                        <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs">
+                                    <i class="fa-solid fa-clock-rotate-left"></i>
+                                </span>
+                                <span class="text-xs font-bold text-slate-700">รายการประวัติการใช้งาน</span>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500" id="audit-log-count">0 รายการ</span>
+                            </div>
+                            <button onclick="exportAuditLogTable()"
+                                class="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 border border-emerald-200"
+                                title="ดาวน์โหลด CSV">
+                                <i class="fa-solid fa-file-csv"></i> Export CSV
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead>
+                                    <tr class="text-[10px] uppercase text-slate-400 border-b border-slate-100 bg-slate-50/50">
+                                        <th class="px-4 py-2.5 font-bold">เวลา</th>
+                                        <th class="px-4 py-2.5 font-bold">การกระทำ (Action)</th>
+                                        <th class="px-4 py-2.5 font-bold">ผู้ใช้งาน</th>
+                                        <th class="px-4 py-2.5 font-bold">รายละเอียด</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-log-body">
+                                    <tr><td colspan="4" class="py-8 text-center text-slate-400 italic">กด "ค้นหา" เพื่อโหลดประวัติการใช้งาน</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ═══════════════════════════════════════════════════════════════ -->
                 <!-- 📱 RICH MENU TAB — คู่มือตั้งค่าใน LINE OA -->
                 <!-- ═══════════════════════════════════════════════════════════════ -->
                 <section id="admin-sec-rich-menu" class="admin-sec hidden space-y-6">
@@ -7720,6 +7803,7 @@
                                 aria-label="สิทธิ์การใช้งานระบบ"
                                 class="w-full bg-slate-50 border border-slate-200 text-brand-teal rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
                                 <option value="Employee">Employee (พนักงานทั่วไป)</option>
+                                <option value="Manager">Manager (ผู้จัดการ/หัวหน้างาน — ดูแดชบอร์ด + อนุมัติ)</option>
                                 <option value="admin">admin (ผู้ดูแลเฉพาะบางเมนู)</option>
                                 <option value="Administrator">Administrator (ผู้ดูแลระบบสูงสุดเห็นทุกอย่าง)</option>
                             </select>
@@ -14338,6 +14422,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return normalizedRole === 'administrator' || normalizedRole === 'admin' || normalizedRole.startsWith('admin:');
             }
 
+            function isManagerRole(role) {
+                return (role || "").toString().trim().toLowerCase() === 'manager';
+            }
+
+            // 🔑 เมนูที่ Manager เข้าถึงได้ (สอดคล้องกับ MANAGER_FEATURES ฝั่ง backend)
+            const MANAGER_ADMIN_MENUS = ['dashboard', 'approve-leave', 'approve-correction', 'approve-advance', 'project-cost'];
+
             function isAdminLoginAccount(empId) {
                 return (empId || "").toString().trim().toLowerCase() === 'admin';
             }
@@ -14347,6 +14438,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
                 // Administrator เข้าถึงได้ทุกเมนู
                 if (isAdminRole(role)) return true;
+                // Manager เข้าถึงได้เฉพาะเมนูที่กำหนด
+                if (isManagerRole(role)) {
+                    return MANAGER_ADMIN_MENUS.includes(menuId);
+                }
                 // admin:home,calendar format — ตรวจ sub-permissions
                 if (role.toLowerCase().startsWith('admin:')) {
                     const sub = role.split(":")[1];
@@ -14365,12 +14460,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     document.querySelectorAll('[id^="admin-menu-"]').forEach(el => el.closest('.space-y-1')?.querySelector('button') && (el.style.display = ''));
                     return;
                 }
+                // Manager เห็นเฉพาะเมนูที่กำหนด
+                if (isManagerRole(role)) {
+                    document.querySelectorAll('[id^="admin-menu-"]').forEach(el => {
+                        const menuId = el.id.replace('admin-menu-', '');
+                        el.style.display = MANAGER_ADMIN_MENUS.includes(menuId) ? '' : 'none';
+                    });
+                    return;
+                }
                 // แผนที่เมนู id → sub-permission key
                 const menuPermMap = {
                     'dashboard': 'dashboard', 'import-time': 'import', 'import-payslip': 'payslip',
                     'project-cost': 'calendar', 'scan-devices': 'scan', 'face-logs': 'facelogs', 'face-enroll': 'facelogs',
                     'approve-leave': 'leave', 'approve-correction': 'correction', 'approve-advance': 'advance',
-                    'announcements': 'announcement', 'employees': 'employees', 'settings': 'settings'
+                    'announcements': 'announcement', 'employees': 'employees', 'settings': 'settings',
+                    'audit-logs': 'audit'
                 };
                 // ดึง sub-permissions จาก role string
                 let allowed = [];
@@ -14389,13 +14493,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function enterAdminMode() {
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
-                const hasAdminPermission = isAdminRole(role) || isAdminLoginAccount(currentEmployeeId);
+                const hasAdminPermission = isAdminRole(role) || isManagerRole(role) || isAdminLoginAccount(currentEmployeeId);
                 if (!hasAdminPermission) {
                     showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
                     return;
                 }
 
                 isAdminMode = true;
+                // 🔑 Manager: ถ้าแท็บที่จำไว้ไม่มีสิทธิ์ ให้กลับไปแดชบอร์ด (ป้องกัน toast เตือนตอนเข้าโหมด)
+                if (isManagerRole(role) && !MANAGER_ADMIN_MENUS.includes(adminActiveTab || '')) {
+                    adminActiveTab = 'dashboard';
+                }
                 try {
                     sessionStorage.setItem("is_admin_mode", "true");
                     sessionStorage.setItem("admin_active_tab", adminActiveTab || "dashboard");
@@ -14531,7 +14639,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 toggleAdminMobileSidebar(false);
 
                 // ปิดสีปุ่มเมนูเดิมทั้งหมด
-                const menus = ['dashboard', 'import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'face-enroll', 'announcements', 'holidays', 'employees', 'settings', 'rich-menu'];
+                const menus = ['dashboard', 'import-time', 'import-payslip', 'scan-devices', 'project-cost', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'face-enroll', 'announcements', 'holidays', 'employees', 'settings', 'audit-logs', 'rich-menu'];
                 menus.forEach(m => {
                     const btn = document.getElementById(`admin-menu-${m}`);
                     if (btn) {
@@ -14622,6 +14730,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     titleEl.textContent = "จัดการวันหยุดประจำปี";
                     descEl.textContent = "เพิ่ม แก้ไข หรือลบวันหยุดนักขัตฤกษ์และวันหยุดเพิ่มเติมขององค์กร";
                     loadAdminHolidays();
+                } else if (tabId === 'audit-logs') {
+                    titleEl.textContent = "ประวัติการใช้งาน (Audit Log)";
+                    descEl.textContent = "ค้นหาประวัติว่าใคร ทำอะไร แก้ไขข้อมูลอะไร เมื่อไหร่ ในระบบ";
+                    if (typeof loadAdminAuditLogs === 'function') { loadAdminAuditLogs(); } else { console.warn('loadAdminAuditLogs not ready'); }
                 } else if (tabId === 'employees') {
                     titleEl.textContent = "จัดการรายชื่อพนักงาน";
                     descEl.textContent = "ดูรายชื่อพนักงานทั้งหมดของบริษัท เพิ่ม แก้ไข ล้าง PIN หรือตั้งค่าสิทธิ์ผู้ดูแลระบบ";
@@ -18410,6 +18522,8 @@ container.innerHTML = "";
 
                         if (role.toLowerCase() === 'administrator') {
                             mainRole = "Administrator";
+                        } else if (role.toLowerCase() === 'manager') {
+                            mainRole = "Manager";
                         } else if (role.startsWith("admin")) {
                             mainRole = "admin";
                             if (role.includes(":")) {
@@ -18873,6 +18987,430 @@ container.innerHTML = "";
                     }
                 }
 
+                // ═══════════════════════════════════════════════════════════════════
+                // 📂 B-Plus Export (Business Plus) — ส่งออก .xlsx นำเข้าโปรแกรมเงินเดือน
+                // - นำเข้าเวลางาน.xlsx : 4 คอลัมน์ (รหัสพนักงาน, วันที่ YYYYMMDD, เวลาเข้า, เวลาออก)
+                // - นำเข้าวันลา.xlsx   : 7 คอลัมน์ (แตกเป็นรายวัน + จับคู่รหัสการลาตามผังบัญชี)
+                // - Sheet เดียว: BplusData (ตาม format B-Plus)
+                // ⚠️ รหัสการลาด้านล่างต้องยืนยันกับผังบัญชีของบริษัทจริง — ปรับได้ที่ BPLUS_LEAVE_CODE_MAP
+                // ═══════════════════════════════════════════════════════════════════
+
+                // รหัสประเภทการลาตามผังบัญชี B-Plus (paid = ลาภายในสิทธิ์ / unpaid = ลาเกินสิทธิ์ไม่รับค่าจ้าง)
+                const BPLUS_LEAVE_CODE_MAP = {
+                    'ลาป่วย':    { paid: '2150', unpaid: '10036' },
+                    'ลากิจ':     { paid: '2160', unpaid: '10020' },
+                    'ลาพักร้อน': { paid: '2140', unpaid: '10028' }
+                };
+
+                // ช่วงรอบบัญชีเริ่มต้น = รอบปัจจุบัน (26 เดือนก่อน → 25 เดือนนี้)
+                function getBplusDefaultCycle() {
+                    const now = new Date();
+                    let m = now.getMonth();
+                    let y = now.getFullYear();
+                    if (now.getDate() < 26) {
+                        m -= 1;
+                        if (m < 0) { m = 11; y -= 1; }
+                    }
+                    return getCycleDateRange(y, m); // { start, end }
+                }
+
+                function getBplusSelectedRange() {
+                    const start = ((document.getElementById('bplus-export-start') || {}).value || '').trim();
+                    const end = ((document.getElementById('bplus-export-end') || {}).value || '').trim();
+                    if (!start || !end || start > end) return null;
+                    return { start, end };
+                }
+
+                function formatBplusCycleLabel(dateStr) {
+                    if (!dateStr) return '';
+                    const monthsShort = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                    const parts = String(dateStr).split('-');
+                    if (parts.length < 3) return dateStr;
+                    return `${parseInt(parts[2])} ${monthsShort[parseInt(parts[1]) - 1]} ${parts[0]}`;
+                }
+
+                function openBplusExportModal() {
+                    const modal = document.getElementById('admin-bplus-export-modal');
+                    if (!modal) return;
+                    // ตั้งค่าเริ่มต้นเป็นรอบบัญชีปัจจุบัน
+                    const range = getBplusDefaultCycle();
+                    const startEl = document.getElementById('bplus-export-start');
+                    const endEl = document.getElementById('bplus-export-end');
+                    if (startEl) startEl.value = range.start;
+                    if (endEl) endEl.value = range.end;
+                    modal.classList.remove('hidden');
+                    onBplusCycleChange();
+                }
+
+                function closeBplusExportModal() {
+                    const modal = document.getElementById('admin-bplus-export-modal');
+                    if (modal) modal.classList.add('hidden');
+                }
+
+                function onBplusCycleChange() {
+                    const range = getBplusSelectedRange();
+                    const labelEl = document.getElementById('bplus-cycle-label');
+                    if (labelEl) {
+                        labelEl.textContent = range
+                            ? `${formatBplusCycleLabel(range.start)} - ${formatBplusCycleLabel(range.end)}`
+                            : 'กรุณาเลือกวันที่ให้ถูกต้อง';
+                    }
+                    updateBplusExportCounts();
+                }
+
+                // อัปเดตจำนวนข้อมูลที่พร้อมส่งออก (badge บนการ์ดทั้ง 2 ใบ)
+                async function updateBplusExportCounts() {
+                    const range = getBplusSelectedRange();
+                    const timeBadge = document.getElementById('bplus-time-count-badge');
+                    const leaveBadge = document.getElementById('bplus-leave-count-badge');
+                    if (!range || !supabaseClient) return;
+                    if (timeBadge) timeBadge.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...';
+                    if (leaveBadge) leaveBadge.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> คำนวณ...';
+                    try {
+                        const [tRes, lRes] = await Promise.all([
+                            supabaseClient.from('time_records').select('id', { count: 'exact', head: true })
+                                .gte('date', range.start).lte('date', range.end),
+                            supabaseClient.from('leave_requests').select('id', { count: 'exact', head: true })
+                                .in('status', ['อนุมัติแล้ว', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ'])
+                                .lte('start_date', range.end).gte('end_date', range.start)
+                        ]);
+                        if (timeBadge) timeBadge.textContent = (tRes.count || 0).toLocaleString('th-TH') + ' รายการ';
+                        if (leaveBadge) leaveBadge.textContent = (lRes.count || 0).toLocaleString('th-TH') + ' รายการ';
+                    } catch (e) {
+                        console.error('[updateBplusExportCounts] error:', e);
+                        if (timeBadge) timeBadge.textContent = 'ไม่สามารถนับได้';
+                        if (leaveBadge) leaveBadge.textContent = 'ไม่สามารถนับได้';
+                    }
+                }
+
+                // แปลง 'YYYY-MM-DD' → 'YYYYMMDD' (format นำเข้า B-Plus)
+                function bplusDateToYYYYMMDD(dateStr) {
+                    if (!dateStr) return '';
+                    return String(dateStr).replace(/-/g, '');
+                }
+
+                // สร้าง workbook Sheet เดียวชื่อ BplusData
+                function bplusBuildWorkbook(headers, rows) {
+                    const ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'BplusData');
+                    return wb;
+                }
+
+                // ตัดชื่อประเภทการลาให้เป็น base type (ลบวงเล็บ/คำต่อท้าย เช่น ' (ไม่รับค่าจ้าง)')
+                function normalizeLeaveBaseType(rawType) {
+                    let t = String(rawType || '').replace(/\s*\([^)]*\)/g, '').trim();
+                    if (t === 'พักร้อน') t = 'ลาพักร้อน';
+                    return t;
+                }
+
+                // คำนวณว่าใบลาแต่ละรายการรับค่าจ้างหรือไม่ (ใช้ running-sum เดียวกับ Leave Quota Audit)
+                // คืนค่า: { [leave.id]: true=รับค่าจ้าง / false=เกินสิทธิ์ไม่รับค่าจ้าง }
+                async function computeBplusLeavePaidStatus(overlapLeaves) {
+                    const paidMap = {};
+                    const validStatuses = ['รออนุมัติ', 'อนุมัติแล้ว', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ'];
+                    const settings = safeGetSettings();
+                    const quotas = {
+                        'ลากิจ': settings.personalLeaveDays || 3,
+                        'ลาป่วย': settings.sickLeaveDays || 30,
+                        'ลาพักร้อน': settings.annualLeaveDays || 10
+                    };
+
+                    // ดึงใบลาทั้งปีที่ครอบคลุมช่วงที่เลือก เพื่อคำนวณยอดสะสมให้ตรงกับระบบ
+                    const years = new Set();
+                    overlapLeaves.forEach(l => {
+                        const y = String(l.start_date || '').substring(0, 4);
+                        if (y) years.add(y);
+                    });
+                    let allLeaves = overlapLeaves.slice();
+                    for (const y of years) {
+                        try {
+                            const { data, error } = await supabaseClient.from('leave_requests')
+                                .select('*')
+                                .in('status', validStatuses)
+                                .gte('start_date', `${y}-01-01`)
+                                .lte('start_date', `${y}-12-31`);
+                            if (!error && Array.isArray(data)) {
+                                data.forEach(l => { if (!allLeaves.some(x => x.id === l.id)) allLeaves.push(l); });
+                            }
+                        } catch (e) {
+                            console.warn('[computeBplusLeavePaidStatus] year fetch failed:', y, e);
+                        }
+                    }
+
+                    // จัดกลุ่มตามพนักงาน+ปี แล้วเรียงตามเวลา (chronological)
+                    const grouped = {};
+                    allLeaves.forEach(l => {
+                        const st = (l.status || '').trim();
+                        if (!validStatuses.includes(st)) return;
+                        const empId = (l.emp_id || '').trim();
+                        const y = String(l.start_date || '').substring(0, 4);
+                        if (!empId || !y) return;
+                        const key = `${empId}_${y}`;
+                        if (!grouped[key]) grouped[key] = [];
+                        grouped[key].push(l);
+                    });
+
+                    Object.keys(grouped).forEach(key => {
+                        const list = grouped[key].sort((a, b) => String(a.start_date || '').localeCompare(String(b.start_date || '')));
+                        const running = { 'ลากิจ': 0, 'ลาป่วย': 0, 'ลาพักร้อน': 0 };
+                        list.forEach(l => {
+                            const rawType = (l.leave_type || '').trim();
+                            const baseType = normalizeLeaveBaseType(rawType);
+                            const days = parseFloat(l.days_count || 1);
+                            const quota = quotas[baseType];
+                            const alreadyUnpaid = rawType.includes('ไม่รับค่าจ้าง');
+                            if (alreadyUnpaid) {
+                                paidMap[l.id] = false; // เป็นไม่รับค่าจ้างอยู่แล้ว
+                                return;
+                            }
+                            if (quota === undefined) {
+                                paidMap[l.id] = true; // ประเภทที่ไม่มีโควตา → นับเป็นรับค่าจ้าง
+                                return;
+                            }
+                            const prevSum = running[baseType] || 0;
+                            const isExceeded = prevSum >= quota || (prevSum + days) > quota;
+                            if (isExceeded) {
+                                paidMap[l.id] = false; // เกินสิทธิ์ → ไม่รับค่าจ้าง
+                            } else {
+                                paidMap[l.id] = true;
+                                running[baseType] = prevSum + days;
+                            }
+                        });
+                    });
+                    return paidMap;
+                }
+
+                // ─── นำเข้าเวลางาน.xlsx (4 คอลัมน์) ───────────────────────────────
+                async function exportBplusTimeRecords() {
+                    const range = getBplusSelectedRange();
+                    if (!range) return showToast('⚠️ กรุณาเลือกช่วงวันที่ให้ถูกต้อง', 'warning');
+                    if (typeof XLSX === 'undefined') return showToast('❌ ไลบรารี Excel ยังไม่โหลด (ตรวจอินเทอร์เน็ต)', 'error');
+                    const btn = document.getElementById('btn-export-bplus-time');
+                    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> กำลังสร้างไฟล์...'; }
+                    try {
+                        if (!supabaseClient) throw new Error('Supabase ยังไม่เชื่อมต่อ');
+                        const { data, error } = await supabaseClient
+                            .from('time_records')
+                            .select('emp_id,date,time_in,time_out')
+                            .gte('date', range.start)
+                            .lte('date', range.end)
+                            .order('date', { ascending: true })
+                            .order('emp_id', { ascending: true });
+                        if (error) throw error;
+                        const rows = (data || []).map(r => [
+                            String(r.emp_id || '').trim(),
+                            bplusDateToYYYYMMDD(r.date),
+                            String(r.time_in || '').trim(),
+                            String(r.time_out || '').trim()
+                        ]);
+                        if (!rows.length) return showToast('⚠️ ไม่มีข้อมูลเวลางานในช่วงที่เลือก', 'warning');
+                        const wb = bplusBuildWorkbook(['รหัสพนักงาน', 'วันที่', 'เวลาเข้า', 'เวลาออก'], rows);
+                        XLSX.writeFile(wb, 'นำเข้าเวลางาน.xlsx');
+                        showToast(`✅ ส่งออกเวลางาน ${rows.length} รายการสำเร็จ`, 'success');
+                    } catch (e) {
+                        console.error('[exportBplusTimeRecords] error:', e);
+                        showToast('❌ สร้างไฟล์ไม่สำเร็จ: ' + (e.message || e), 'error');
+                    } finally {
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> ดาวน์โหลด นำเข้าเวลางาน.xlsx'; }
+                    }
+                }
+
+                // ─── นำเข้าวันลา.xlsx (7 คอลัมน์, แตกเป็นรายวัน) ───────────────────
+                async function exportBplusLeaveRequests() {
+                    const range = getBplusSelectedRange();
+                    if (!range) return showToast('⚠️ กรุณาเลือกช่วงวันที่ให้ถูกต้อง', 'warning');
+                    if (typeof XLSX === 'undefined') return showToast('❌ ไลบรารี Excel ยังไม่โหลด (ตรวจอินเทอร์เน็ต)', 'error');
+                    const btn = document.getElementById('btn-export-bplus-leave');
+                    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> กำลังสร้างไฟล์...'; }
+                    try {
+                        if (!supabaseClient) throw new Error('Supabase ยังไม่เชื่อมต่อ');
+                        // 1. ดึงใบลาที่อนุมัติแล้วและทับซ้อนช่วงที่เลือก
+                        const { data, error } = await supabaseClient
+                            .from('leave_requests')
+                            .select('*')
+                            .in('status', ['อนุมัติแล้ว', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ'])
+                            .lte('start_date', range.end)
+                            .gte('end_date', range.start)
+                            .order('start_date', { ascending: true });
+                        if (error) throw error;
+                        const leaves = data || [];
+                        if (!leaves.length) return showToast('⚠️ ไม่มีใบลาที่อนุมัติแล้วในช่วงที่เลือก', 'warning');
+
+                        // 2. คำนวณสถานะรับค่าจ้าง/ไม่รับค่าจ้าง
+                        const paidMap = await computeBplusLeavePaidStatus(leaves);
+
+                        // 3. แตกเป็นรายวันตามช่วงที่เลือก
+                        const rangeStart = new Date(range.start + 'T00:00:00');
+                        const rangeEndDate = new Date(range.end + 'T00:00:00');
+                        const rows = [];
+                        leaves.forEach(l => {
+                            const isHalfDay = /ครึ่งวัน/.test(String(l.duration || ''));
+                            const paid = paidMap[l.id] !== false;
+                            const codeInfo = BPLUS_LEAVE_CODE_MAP[normalizeLeaveBaseType(l.leave_type)];
+                            const leaveCode = codeInfo ? (paid ? codeInfo.paid : codeInfo.unpaid) : String(l.leave_type || '').trim();
+                            const empName = getAdminEmployeeName(l.emp_id);
+                            let cur = new Date(String(l.start_date || '') + 'T00:00:00');
+                            const endD = new Date(String(l.end_date || l.start_date || '') + 'T00:00:00');
+                            while (cur <= endD) {
+                                if (cur >= rangeStart && cur <= rangeEndDate) {
+                                    const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+                                    rows.push([
+                                        String(l.emp_id || '').trim(),
+                                        empName,
+                                        bplusDateToYYYYMMDD(dateStr),
+                                        leaveCode,
+                                        String(l.leave_type || '').trim(),
+                                        isHalfDay ? 0.5 : 1,
+                                        String(l.reason || '').trim()
+                                    ]);
+                                }
+                                cur.setDate(cur.getDate() + 1);
+                            }
+                        });
+                        if (!rows.length) return showToast('⚠️ ไม่พบวันลาในช่วงที่เลือก', 'warning');
+                        const wb = bplusBuildWorkbook(
+                            ['รหัสพนักงาน', 'ชื่อ-นามสกุล', 'วันที่', 'รหัสการลา', 'ประเภทการลา', 'จำนวนวัน', 'เหตุผล'],
+                            rows
+                        );
+                        XLSX.writeFile(wb, 'นำเข้าวันลา.xlsx');
+                        showToast(`✅ ส่งออกวันลา ${rows.length} รายการสำเร็จ`, 'success');
+                    } catch (e) {
+                        console.error('[exportBplusLeaveRequests] error:', e);
+                        showToast('❌ สร้างไฟล์ไม่สำเร็จ: ' + (e.message || e), 'error');
+                    } finally {
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> ดาวน์โหลด นำเข้าวันลา.xlsx'; }
+                    }
+                }
+
+                // ═══════════════════════════════════════════════════════════════════
+                // 📝 AUDIT LOG — ประวัติการใช้งาน (ใคร ทำอะไร เมื่อไหร่)
+                // - เรียก action getAuditLogs (Admin เท่านั้น) → อ่านจากตาราง audit_logs
+                // - กรอง: ข้อความ / รหัสพนักงาน / action / ช่วงวันที่ · export CSV ฝั่ง client
+                // ═══════════════════════════════════════════════════════════════════
+
+                let auditLogRows = []; // เก็บแถวล่าสุดสำหรับ Export CSV
+
+                async function loadAdminAuditLogs() {
+                    if (!currentEmployeeId) { showToast('⚠️ ยังไม่ได้เข้าสู่ระบบ', 'warning'); return; }
+                    const body = document.getElementById('audit-log-body');
+                    if (body) body.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลดประวัติการใช้งาน...</td></tr>';
+                    try {
+                        const search = (document.getElementById('audit-log-search') || {}).value || '';
+                        const empId = (document.getElementById('audit-log-emp-id') || {}).value || '';
+                        const action = (document.getElementById('audit-log-action') || {}).value || '';
+                        const periodStart = (document.getElementById('audit-log-start') || {}).value || '';
+                        const periodEnd = (document.getElementById('audit-log-end') || {}).value || '';
+
+                        const res = await fetchWithTimeout(SERVER_API_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'getAuditLogs',
+                                adminId: currentEmployeeId,
+                                search: search,
+                                empId: empId,
+                                action: action,
+                                periodStart: periodStart,
+                                periodEnd: periodEnd,
+                                limit: 200
+                            })
+                        });
+                        if (!res || res.status !== 'success') {
+                            const msg = (res && res.message) || 'โหลดประวัติไม่สำเร็จ';
+                            if (body) body.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-rose-500">❌ ${escapeHtml(msg)}</td></tr>`;
+                            showToast('❌ ' + msg, 'error');
+                            return;
+                        }
+                        auditLogRows = Array.isArray(res.data) ? res.data : [];
+                        renderAdminAuditLogs(auditLogRows);
+                    } catch (e) {
+                        console.error('[AuditLog] load err:', e);
+                        if (body) body.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-rose-500">❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ: ${escapeHtml(e.message || e)}</td></tr>`;
+                        showToast('❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ', 'error');
+                    }
+                }
+
+                function resetAdminAuditLogFilters() {
+                    ['audit-log-search', 'audit-log-emp-id', 'audit-log-start', 'audit-log-end'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
+                    });
+                    const act = document.getElementById('audit-log-action');
+                    if (act) act.value = '';
+                    loadAdminAuditLogs();
+                }
+
+                function renderAdminAuditLogs(rows) {
+                    const body = document.getElementById('audit-log-body');
+                    const countEl = document.getElementById('audit-log-count');
+                    if (countEl) countEl.textContent = rows.length + ' รายการ';
+                    if (!body) return;
+
+                    // เติม action dropdown อัตโนมัติ (จากข้อมูลที่โหลดมา)
+                    const actionSel = document.getElementById('audit-log-action');
+                    if (actionSel) {
+                        const currentVal = actionSel.value;
+                        const seen = new Set();
+                        actionSel.innerHTML = '<option value="">ทุก action</option>';
+                        rows.forEach(r => {
+                            const a = String(r.action || '');
+                            if (a && !seen.has(a)) {
+                                seen.add(a);
+                                const opt = document.createElement('option');
+                                opt.value = a;
+                                opt.textContent = a;
+                                actionSel.appendChild(opt);
+                            }
+                        });
+                        actionSel.value = currentVal;
+                    }
+
+                    if (!rows.length) {
+                        body.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-400 italic">ไม่พบรายการประวัติตามเงื่อนไข</td></tr>';
+                        return;
+                    }
+
+                    body.innerHTML = rows.map(r => {
+                        const timeStr = r.created_at ? String(r.created_at).replace('T', ' ').slice(0, 19) : '-';
+                        const empId = String(r.emp_id || '-');
+                        const empName = String(r.emp_name || '');
+                        const empDisplay = empName
+                            ? `<span class="font-bold text-slate-700">${escapeHtml(empId)}</span> <span class="text-slate-400">· ${escapeHtml(empName)}</span>`
+                            : `<span class="font-bold text-slate-700">${escapeHtml(empId)}</span>`;
+                        let detailsHtml = '-';
+                        if (r.details !== null && r.details !== undefined) {
+                            if (typeof r.details === 'object') {
+                                detailsHtml = `<code class="text-[10px] text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">${escapeHtml(JSON.stringify(r.details))}</code>`;
+                            } else {
+                                detailsHtml = `<span class="text-slate-500">${escapeHtml(String(r.details))}</span>`;
+                            }
+                        }
+                        const badgeColor = String(r.action || '').startsWith('UNAUTHORIZED')
+                            ? 'bg-rose-100 text-rose-700 border-rose-200'
+                            : 'bg-brand-sky/50 text-brand-deep border-brand-sky';
+                        return `
+                            <tr class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                                <td class="px-4 py-2.5 text-slate-400 whitespace-nowrap text-[10px] tabular-nums">${escapeHtml(timeStr)}</td>
+                                <td class="px-4 py-2.5"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor}">${escapeHtml(String(r.action || ''))}</span></td>
+                                <td class="px-4 py-2.5">${empDisplay}</td>
+                                <td class="px-4 py-2.5">${detailsHtml}</td>
+                            </tr>`;
+                    }).join('');
+                }
+
+                function exportAuditLogTable() {
+                    if (!auditLogRows.length) { showToast('⚠️ ยังไม่มีข้อมูล — กด "ค้นหา" ก่อน', 'warning'); return; }
+                    const esc = (v) => '"' + String(v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : v)).replace(/"/g, '""') + '"';
+                    const lines = ['created_at,action,emp_id,emp_name,details'];
+                    auditLogRows.forEach(r => lines.push([r.created_at, r.action, r.emp_id, r.emp_name, r.details].map(esc).join(',')));
+                    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'audit_logs_' + new Date().toISOString().slice(0, 10) + '.csv';
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 500);
+                }
+
                 
 
 function closeEmployeeModal() {
@@ -18926,6 +19464,7 @@ function closeEmployeeModal() {
                         });
                         finalRole = `admin:${allowed.join(",")}`;
                     }
+                    // Manager/Administrator/Employee — เก็บค่า role ตามที่เลือกโดยตรง
 
                     const payload = {
                         action: "saveEmployee",
