@@ -16091,38 +16091,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 setStatValue('adv-stat-soon', (c.advance?.oneDay ?? 0) + (c.advance?.threeDays ?? 0));
             }
 
-            function updateBatchButtons() {
-                const approveLeaveBtn = document.getElementById('batch-approve-leave');
-                const rejectLeaveBtn = document.getElementById('batch-reject-leave');
-                const approveCorrectionBtn = document.getElementById('batch-approve-correction');
-                const rejectCorrectionBtn = document.getElementById('batch-reject-correction');
-                const reapplyCorrectionBtn = document.getElementById('batch-reapply-correction');
-                const approveAdvanceBtn = document.getElementById('batch-approve-advance');
-                const rejectAdvanceBtn = document.getElementById('batch-reject-advance');
-
-                if (approveLeaveBtn) {
-                    approveLeaveBtn.disabled = selectedLeaveItems.size === 0;
-                }
-                if (rejectLeaveBtn) {
-                    rejectLeaveBtn.disabled = selectedLeaveItems.size === 0;
-                }
-                if (approveCorrectionBtn) {
-                    approveCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
-                }
-                if (rejectCorrectionBtn) {
-                    rejectCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
-                }
-                if (reapplyCorrectionBtn) {
-                    reapplyCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
-                }
-                if (approveAdvanceBtn) {
-                    approveAdvanceBtn.disabled = selectedAdvanceItems.size === 0;
-                }
-                if (rejectAdvanceBtn) {
-                    rejectAdvanceBtn.disabled = selectedAdvanceItems.size === 0;
-                }
-            }
-
             function setStatValue(id, val) {
                 const el = document.getElementById(id);
                 if (el && el.textContent !== String(val)) {
@@ -16155,93 +16123,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ✅ โหลดข้อมูลทั้งสองส่วนเสมอ (pending + results)
                 loadAdminApprovals();
                 loadAdminApprovalResults(type);
-            }
-
-            // Batch functions for advance
-            function toggleAdvanceItem(checkbox) {
-                const key = `${checkbox.dataset.empId}::${checkbox.dataset.date}::${checkbox.dataset.amount}`;
-                if (checkbox.checked) {
-                    selectedAdvanceItems.add({ empId: checkbox.dataset.empId, date: checkbox.dataset.date, amount: checkbox.dataset.amount, key: key });
-                } else {
-                    selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
-                }
-                updateBatchButtons();
-            }
-
-            function toggleSelectAllAdvance(selectAllCheckbox) {
-                const checkboxes = document.querySelectorAll('.advance-checkbox');
-                checkboxes.forEach(cb => {
-                    cb.checked = selectAllCheckbox.checked;
-                    const key = `${cb.dataset.empId}::${cb.dataset.date}::${cb.dataset.amount}`;
-                    if (cb.checked) {
-                        selectedAdvanceItems.add({ empId: cb.dataset.empId, date: cb.dataset.date, amount: cb.dataset.amount, key: key });
-                    } else {
-                        selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
-                    }
-                });
-                updateBatchButtons();
-            }
-
-            function batchApproveAdvance() {
-                if (selectedAdvanceItems.size === 0) return;
-                openBatchDecisionModal('advance', 'approve');
-            }
-
-            function batchRejectAdvance() {
-                if (selectedAdvanceItems.size === 0) return;
-                openBatchDecisionModal('advance', 'reject');
-            }
-
-            function toggleCorrectionItem(checkbox) {
-                const empId = checkbox.dataset.empId;
-                const date = checkbox.dataset.date;
-                if (!empId || !date) return;
-                const key = `${empId}::${date}`;
-                selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
-                if (checkbox.checked) {
-                    selectedCorrectionItems.add({ empId, date, key });
-                }
-                updateBatchButtons();
-            }
-
-            function toggleSelectAllCorrection(selectAllCheckbox) {
-                const checkboxes = document.querySelectorAll('.correction-checkbox');
-                if (!selectAllCheckbox.checked) {
-                    checkboxes.forEach(cb => { cb.checked = false; });
-                    selectedCorrectionItems.clear();
-                } else {
-                    checkboxes.forEach(cb => {
-                        cb.checked = true;
-                        const empId = cb.dataset.empId;
-                        const date = cb.dataset.date;
-                        if (empId && date) {
-                            const key = `${empId}::${date}`;
-                            selectedCorrectionItems = new Set(Array.from(selectedCorrectionItems).filter(item => item.key !== key));
-                            selectedCorrectionItems.add({ empId, date, key });
-                        }
-                    });
-                }
-                updateBatchButtons();
-            }
-
-            function batchApproveCorrection() {
-                if (selectedCorrectionItems.size === 0) return;
-                openBatchDecisionModal('correction', 'approve');
-            }
-
-            function batchRejectCorrection() {
-                if (selectedCorrectionItems.size === 0) return;
-                openBatchDecisionModal('correction', 'reject');
-            }
-
-            function batchApproveLeave() {
-                if (selectedLeaveItems.size === 0) return;
-                openBatchDecisionModal('leave', 'approve');
-            }
-
-            function batchRejectLeave() {
-                if (selectedLeaveItems.size === 0) return;
-                openBatchDecisionModal('leave', 'reject');
             }
 
             async function reapplyTimeCorrection(recordData) {
@@ -18972,79 +18853,6 @@ container.innerHTML = "";
 
 function closeEmployeeModal() {
                     document.getElementById("admin-employee-modal").classList.add("hidden");
-                }
-
-                async function saveEmployeeForm(event) {
-                    event.preventDefault();
-                    const empId = document.getElementById("form-emp-id").value.trim();
-                    const name = document.getElementById("form-emp-name").value.trim();
-                    const pos = document.getElementById("form-emp-pos").value.trim();
-                    const company = document.getElementById("form-emp-company").value.trim();
-                    const salary = parseFloat(document.getElementById("form-emp-salary").value || 0);
-                    const divisor = parseInt(document.getElementById("form-emp-divisor").value || 30);
-                    const hours = parseInt(document.getElementById("form-emp-hours").value || 8);
-                    const dayoff = document.getElementById("form-emp-dayoff").value;
-                    const avatar = document.getElementById("form-emp-avatar").value.trim();
-                    const bank = document.getElementById("form-emp-bank").value.trim();
-                    const branch = document.getElementById("form-emp-branch").value.trim();
-                    const accno = document.getElementById("form-emp-accno").value.trim();
-                    const phone = document.getElementById("form-emp-phone").value.trim();
-                    const status = document.getElementById("form-emp-status").value;
-                    const mainRole = document.getElementById("form-emp-role").value;
-
-                    if (!empId || !name) {
-                        showToast("⚠️ กรุณากรอกรหัสและชื่อพนักงาน", "warning");
-                        return;
-                    }
-
-                    let finalRole = mainRole;
-                    if (mainRole === 'admin') {
-                        const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
-                        const allowed = [];
-                        pages.forEach(p => {
-                            const checkbox = document.getElementById(`perm-menu-${p}`);
-                            if (checkbox && checkbox.checked) allowed.push(p);
-                        });
-                        finalRole = `admin:${allowed.join(",")}`;
-                    }
-
-                    const payload = {
-                        action: "saveEmployee",
-                        "รหัสพนักงาน": empId,
-                        "ชื่อ-นามสกุล": name,
-                        "ตำแหน่ง": pos,
-                        "ชื่อบริษัท": company,
-                        "ฐานเงินเดือน": salary,
-                        "ตัวหารค่าแรง": divisor,
-                        "ชั่วโมงทำงานต่อวัน": hours,
-                        "วันหยุดประจําสัปดาห์": dayoff,
-                        "ลิ้งภาพโปรไฟล์": avatar,
-                        "ธนาคาร": bank,
-                        "สาขาธนาคาร": branch,
-                        "หมายเลขบัญชี": accno,
-                        "เบอร์โทรศัพท์": phone,
-                        "สถานะ": status,
-                        "สิทธิ์การใช้งาน": finalRole
-                    };
-
-                    showToast("⏳ กำลังบันทึกข้อมูลพนักงาน...", "info");
-
-                    try {
-                        const res = await fetchWithTimeout(SERVER_API_URL, {
-                            method: "POST",
-                            body: JSON.stringify(payload)
-                        });
-
-                        if (res.status === 'success') {
-                            showToast(`🎉 ${res.message}`, "success");
-                            closeEmployeeModal();
-                            loadAdminEmployees();
-                        } else {
-                            showToast("❌ บันทึกพนักงานล้มเหลว: " + res.message, "error");
-                        }
-                    } catch (err) {
-                        showToast("❌ การเชื่อมต่อล้มเหลว: " + err.message, "error");
-                    }
                 }
 
                 // ซ่อน/แสดง Checkbox การตั้งค่าเมนูตามประเภทสิทธิ์
@@ -24604,66 +24412,6 @@ ${slip.textSample}
 
             refreshActiveTab();
             closeAllowanceModal();
-        }
-
-        // ⏰ ล้าง Trigger เก่าทั้งหมดแล้วติดตั้ง "ทริกเกอร์ทุกตัวที่ระบบต้องใช้" (One-Click Master Setup)
-        async function triggerSetupAllTriggers() {
-            const confirmed = confirm(
-                '⚙️ ติดตั้งทริกเกอร์ระบบทั้งหมด (Master Trigger Setup)?\n\n' +
-                '• ระบบจะค้นหาและล้าง Trigger เก่าที่ค้างอยู่ทั้งหมด\n' +
-                '• แล้วติดตั้งทริกเกอร์สำคัญของระบบครบทั้ง 5 ตัว:\n' +
-                '  1. 📊 สำรองข้อมูลลง Sheets ครบ 19 ตาราง (ทุกวันหลัง 17:00 น. / ช่วง 18:00 น.)\n' +
-                '  2. 🔔 แจ้งเตือนรายการรออนุมัติให้ Admin (ทุกเช้า 08:00 น.)\n' +
-                '  3. 📊 สรุปยอดเข้างานส่ง LINE กลุ่ม (ทุกเช้า 09:00 น.)\n' +
-                '  4. 💬 ส่งคิวแจ้งเตือน LINE Batch (ทุก 10 นาที)\n' +
-                '  5. 👥 เตือนผู้ติดตามผูกบัญชี LINE (ทุกวันจันทร์ 09:00 น.)\n\n' +
-                'ต้องการดำเนินการต่อหรือไม่?'
-            );
-            if (!confirmed) return;
-
-            const btn = document.getElementById('sb-trigger-btn');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังตั้งค่า...';
-            }
-
-            sbLog('⚙️ [TRIGGER] เริ่มกระบวนการล้างและติดตั้งทริกเกอร์ระบบทั้งหมด...', '#fde047');
-            showToast('⏳ กำลังติดตั้งทริกเกอร์ระบบ...', 'info');
-
-            try {
-                let result = null;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    result = await new Promise((resolve, reject) => {
-                        google.script.run
-                            .withSuccessHandler(resolve)
-                            .withFailureHandler(reject)
-                            .setupAllSystemTriggers();
-                    });
-                } else if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                    result = await postAction('setupAllSystemTriggers', {}, { timeout: 60000 });
-                } else {
-                    throw new Error('ไม่สามารถเชื่อมต่อ Server เพื่อตั้งค่า Trigger ได้');
-                }
-
-                if (!result || result.status !== 'success') {
-                    throw new Error(result ? result.message : 'ตั้งค่า Trigger ไม่สำเร็จ');
-                }
-
-                const msg = result.message || `ติดตั้ง Trigger ครบทั้ง ${result.installedCount || 0} ตัวเรียบร้อย`;
-                sbLog(`🎉 ${msg}`, '#34d399');
-                if (Array.isArray(result.triggers)) {
-                    result.triggers.forEach(t => sbLog(`  ✅ ${t}`, '#a7f3d0'));
-                }
-                showToast(`✅ ${msg}`, 'success');
-            } catch (err) {
-                sbLog(`❌ เกิดข้อผิดพลาดในการตั้ง Trigger: ${err.message || err}`, '#f87171');
-                showToast(`❌ ตั้งค่า Trigger ไม่สำเร็จ: ${err.message || err}`, 'error');
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> ⚙️ ตั้งค่าทริกเกอร์ระบบทั้งหมด';
-                }
-            }
         }
 
         // Batch Status Change Buttons
