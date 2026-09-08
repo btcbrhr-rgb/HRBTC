@@ -6878,6 +6878,11 @@
                                                 class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
                                         </div>
                                         <div class="space-y-1.5">
+                                            <label for="setting-halfDayWageRate" class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">อัตราค่าจ้างครึ่งวัน (เท่า)</label>
+                                            <input type="number" id="setting-halfDayWageRate" value="0.5" min="0" max="1" step="0.1"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                        <div class="space-y-1.5">
                                             <label for="setting-defaultFoodAllowance" class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">ค่าอาหาร/วัน (บาท)</label>
                                             <input type="number" id="setting-defaultFoodAllowance" value="50" min="0"
                                                 class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
@@ -22283,6 +22288,7 @@ ${slip.textSample}
                     deduction: {
                         latePenaltyPerMinute: 1.0,
                         lateHalfDayThreshold: 240,
+                        halfDayWageRate: 0.5,
                         defaultFoodAllowance: 50
                     },
                     rounding: {
@@ -22362,6 +22368,7 @@ ${slip.textSample}
                             // ค่าหัก
                             document.getElementById("setting-latePenaltyPerMinute").value = s.latePenaltyPerMinute || 1.0;
                             document.getElementById("setting-lateHalfDayThreshold").value = s.lateHalfDayThreshold || 240;
+                            document.getElementById("setting-halfDayWageRate").value = s.halfDayWageRate || 0.5;
                             document.getElementById("setting-defaultFoodAllowance").value = s.defaultFoodAllowance || 50;
                             // ปัดเศษ
                             document.getElementById("setting-roundSalary").value = s.roundSalary || 'round';
@@ -22468,6 +22475,7 @@ ${slip.textSample}
                             // ค่าหัก
                             latePenaltyPerMinute: parseFloat(document.getElementById("setting-latePenaltyPerMinute").value),
                             lateHalfDayThreshold: parseInt(document.getElementById("setting-lateHalfDayThreshold").value),
+                            halfDayWageRate: parseFloat(document.getElementById("setting-halfDayWageRate").value),
                             defaultFoodAllowance: parseInt(document.getElementById("setting-defaultFoodAllowance").value),
                             // ปัดเศษ
                             roundSalary: document.getElementById("setting-roundSalary").value,
@@ -23673,6 +23681,7 @@ ${slip.textSample}
             defaultCentralProject: '(00)บุรีรัมย์',
             latePenaltyPerMinute: 1.0,
             lateHalfDayThreshold: 240,
+            halfDayWageRate: 0.5,
             holidayOtRate: 2.0,
             holidayWorkRate: 1.0,
             lunchStartTimeStr: '12:00',
@@ -23819,6 +23828,7 @@ ${slip.textSample}
             const s = status.toString().trim();
 
             if (['W', 'ปกติ', 'ทำงานปกติ', 'ทำงาน', '✓', '1', 'ปกติ (W)'].includes(s)) return 'work';
+            if (['LH', 'สายครึ่งวัน', 'สาย (LH)'].includes(s)) return 'late_half';
             if (['L', 'สาย', 'มาสาย', 'สาย (L)', '3'].includes(s)) return 'late';
             if (['A', 'ขาด', 'ขาดงาน', '0'].includes(s)) return 'absent';
             
@@ -25557,7 +25567,7 @@ ${slip.textSample}
                         const lateMins = parseFloat(log.penalty || 0);
                         if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
                             workedDaysCount++;
-                        } else if (cat === 'late') {
+                        } else if (cat === 'late' || cat === 'late_half') {
                             workedDaysCount++;
                             lateDaysCount++;
                         } else if (cat === 'absent') {
@@ -25573,6 +25583,11 @@ ${slip.textSample}
                         if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete' || cat === 'late') {
                             const logOtHours = parseFloat(log.ot || 0);
                             totalWagesCost += costParams.baseDailyWage + (logOtHours * costParams.baseHourlyWage * costParams.otRate);
+                        } else if (cat === 'late_half') {
+                            // 🔧 สายครึ่งวัน — คิดค่าจ้างครึ่งวัน (halfDayWageRate × baseDailyWage)
+                            const halfRate = parseFloat(systemSettings.halfDayWageRate) || 0.5;
+                            const logOtHours = parseFloat(log.ot || 0);
+                            totalWagesCost += (costParams.baseDailyWage * halfRate) + (logOtHours * costParams.baseHourlyWage * costParams.otRate);
                         }
 
                         totalOtHours += parseFloat(log.ot || 0);
@@ -26659,7 +26674,7 @@ ${slip.textSample}
                             const lateMins = parseFloat(log.penalty || 0);
                             if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
                                 workedDaysCount++;
-                            } else if (cat === 'late') {
+                            } else if (cat === 'late' || cat === 'late_half') {
                                 workedDaysCount++;
                                 lateDaysCount++;
                             } else if (cat === 'absent') {
@@ -26667,7 +26682,7 @@ ${slip.textSample}
                             }
                             if (lateMins > 0) {
                                 lateMinutesSum += lateMins;
-                                if (cat !== 'late') lateDaysCount++;
+                                if (cat !== 'late' && cat !== 'late_half') lateDaysCount++;
                             }
                             totalOtHours += parseFloat(log.ot || 0);
                             totalFoodSum += parseFloat(log.food || 0);
@@ -26695,6 +26710,9 @@ ${slip.textSample}
                                 cellContent = `<span style="color:#854d0e;font-weight:700;font-size:8px;">นข</span>`;
                             } else if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
                                 cellContent = `<span style="color:#15803d;font-weight:700;">W</span>${otBadge}`;
+                            } else if (cat === 'late_half') {
+                                const penalty = log.penalty || log.late || 0;
+                                cellContent = `<span style="color:#9333ea;font-weight:700;">L½</span><div style="font-size:6.5px;color:#9333ea;line-height:1;">${penalty}m</div>${otBadge}`;
                             } else if (cat === 'late') {
                                 const penalty = log.penalty || log.late || 0;
                                 cellContent = `<span style="color:#c2410c;font-weight:700;">L</span><div style="font-size:6.5px;color:#c2410c;line-height:1;">${penalty}m</div>${otBadge}`;
