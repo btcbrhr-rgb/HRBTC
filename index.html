@@ -6591,6 +6591,13 @@
                                                 class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
                                         </div>
                                         <div class="space-y-1.5">
+                                            <label for="setting-lateBaseMinutes" class="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span> นาทีฐานคำนวณสาย
+                                            </label>
+                                            <input type="number" id="setting-lateBaseMinutes" value="15" min="0" step="1"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                        <div class="space-y-1.5">
                                             <label for="setting-otStartTimeStr" class="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> เริ่มคิด OT
                                             </label>
@@ -6715,7 +6722,7 @@
                                         </div>
                                         <div class="space-y-1.5">
                                             <label for="setting-defaultOtRate" class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">อัตรา OT ปกติ (เท่า)</label>
-                                            <input type="number" id="setting-defaultOtRate" value="1.5" min="1" step="0.1"
+                                            <input type="number" id="setting-defaultOtRate" value="1.0" min="0" step="0.1"
                                                 class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
                                         </div>
                                         <div class="space-y-1.5">
@@ -8752,8 +8759,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     //    ⚡ rate-limit 5 วิ — กัน event ถี่ๆ (เช่น เครื่องสแกนดัน time_records) โหลดซ้ำทุกครั้ง
                     const employeeFacingTables = ['employees', 'time_records', 'time_corrections', 'leave_requests', 'advance_requests', 'payslips', 'announcements', 'holidays', 'projects', 'system_settings', 'employee_notification_prefs'];
                     const hitsEmployeeData = tables.some(t => employeeFacingTables.includes(t));
+                    const settingsChanged = tables.includes('system_settings');
                     if (hitsEmployeeData && typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId) {
-                        if (this._shouldRefresh('loadAllData', 5000) && typeof loadAllData === 'function') {
+                        if ((settingsChanged || this._shouldRefresh('loadAllData', 5000)) && typeof loadAllData === 'function') {
                             // 🔧 ส่งรายชื่อตารางที่เปลี่ยน (tablesHint) → loadAllData fetch เฉพาะตารางนั้นใหม่
                             //    เช่น Admin อนุมัติใบลา → leave_requests เปลี่ยน → หน้ารายการลาของพนักงานอัปเดตทันที
                             await loadAllData(tables).catch(e => console.warn('[Realtime loadAllData]', e));
@@ -11123,7 +11131,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ข้อมูลที่เปลี่ยนช้ามาก → cache นาน
                 getEmployee:           10 * 60_000,  // 10 นาที — ข้อมูลส่วนตัวเปลี่ยนช้า
                 getEmployeeData:       10 * 60_000,  // alias
-                getSystemSettings:     15 * 60_000,  // 15 นาที — ตั้งค่าระบบเปลี่ยนนานมาก
+                getSystemSettings:     0,            // ห้าม cache — system_settings ต้องมีผลทันที
                 getAnnouncements:      5 * 60_000,   // 5 นาที
                 getHolidays:           60 * 60_000,  // 1 ชั่วโมง — วันหยุดเปลี่ยนปีละครั้ง
                 getProjects:           15 * 60_000,  // 15 นาที
@@ -11345,7 +11353,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             if (val === '') continue;
                             if (val === 'true' || val === 'จริง') val = true;
                             else if (val === 'false' || val === 'เท็จ') val = false;
-                            else if (!isNaN(parseFloat(val))) val = parseFloat(val);
+                            else if (!isNaN(parseFloat(val)) && !val.includes(':')) val = parseFloat(val);
                             settingsObj[key] = val;
                         }
                         AdminDataCache.set('settings', settingsObj);
@@ -12130,7 +12138,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const parts = timeInStr.split(':').map(Number);
                 const cutoffMin = cutoff[0] * 60 + cutoff[1];
                 const inMin = parts[0] * 60 + (parts[1] || 0);
-                return inMin > cutoffMin ? inMin - cutoffMin : 0;
+                const lateBaseMinutes = parseInt(s.lateBaseMinutes, 10) || 15;
+                return inMin > cutoffMin ? lateBaseMinutes + (inMin - cutoffMin) : 0;
             }
             // 🔧 Centralized: คำนวณ OT จากเวลาออกจริง + settings
             function _calcOtFromTimeOut(timeOutStr) {
@@ -15653,7 +15662,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // ค่าแรงต่อชั่วโมงโดยเฉลี่ย = (เงินเดือนเฉลี่ย / ตัวหาร / ชม.ต่อวัน) * อัตรา OT * ชม. OT
                     const _d = systemSettings.dailyDivisor || 30;
                     const _h = systemSettings.workHoursPerDay || 8;
-                    const _otR = systemSettings.defaultOtRate || 1.5;
+                    const _otR = systemSettings.defaultOtRate || 1.0;
                     const avgHourlyWage = (avgSalary > 0 ? avgSalary : 15000) / (_d * _h);
                     const estOtCost = Math.round(totalOtHours * avgHourlyWage * _otR);
 
@@ -15777,7 +15786,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const siteAvgSalary = s.workerIds.size > 0 ? (siteSalary / s.workerIds.size) : avgSalary;
                         const _sd = systemSettings.dailyDivisor || 30;
                         const _sh = systemSettings.workHoursPerDay || 8;
-                        const _sotR = systemSettings.defaultOtRate || 1.5;
+                        const _sotR = systemSettings.defaultOtRate || 1.0;
                         const hourly = (siteAvgSalary > 0 ? siteAvgSalary : 15000) / (_sd * _sh);
                         const siteOtCost = Math.round(s.otHours * hourly * _sotR);
                         return {
@@ -22254,7 +22263,8 @@ ${slip.textSample}
                         workHoursPerDay: 8,
                         otIntervalMinutes: 30,
                         otIntervalValue: 0.5,
-                        defaultOtRate: 1.5,
+                        defaultOtRate: 1.0,
+                        lateBaseMinutes: 15,
                         dailyDivisor: 30
                     },
                     lunch: {
@@ -22339,7 +22349,8 @@ ${slip.textSample}
                             document.getElementById("setting-workHoursPerDay").value = s.workHoursPerDay || 8;
                             document.getElementById("setting-otIntervalMinutes").value = s.otIntervalMinutes || 30;
                             document.getElementById("setting-otIntervalValue").value = s.otIntervalValue || 0.5;
-                            document.getElementById("setting-defaultOtRate").value = s.defaultOtRate || 1.5;
+                            document.getElementById("setting-defaultOtRate").value = s.defaultOtRate ?? 1.0;
+                            document.getElementById("setting-lateBaseMinutes").value = s.lateBaseMinutes ?? 15;
                             document.getElementById("setting-dailyDivisor").value = s.dailyDivisor || 30;
                             // OT & วันหยุด
                             document.getElementById("setting-holidayOtRate").value = s.holidayOtRate || 2.0;
@@ -22474,6 +22485,7 @@ ${slip.textSample}
                             leaveCutoff: document.getElementById("setting-leaveCutoff").value,
                             // ค่าหัก
                             latePenaltyPerMinute: parseFloat(document.getElementById("setting-latePenaltyPerMinute").value),
+                            lateBaseMinutes: parseInt(document.getElementById("setting-lateBaseMinutes").value),
                             lateHalfDayThreshold: parseInt(document.getElementById("setting-lateHalfDayThreshold").value),
                             halfDayWageRate: parseFloat(document.getElementById("setting-halfDayWageRate").value),
                             defaultFoodAllowance: parseInt(document.getElementById("setting-defaultFoodAllowance").value),
@@ -22500,6 +22512,20 @@ ${slip.textSample}
                             body: JSON.stringify(payload)
                         });
                         if (res.status === 'success') {
+                            if (typeof ClientCache !== 'undefined') {
+                                ClientCache.invalidate(key => key.startsWith('getSystemSettings::'));
+                            }
+                            if (typeof loadSystemSettingsFromSheet === 'function') {
+                                await loadSystemSettingsFromSheet();
+                            }
+                            if (Array.isArray(employees)) {
+                                employees = employees.map(emp => ({
+                                    ...emp,
+                                    divisor: systemSettings.dailyDivisor,
+                                    workHoursPerDay: systemSettings.workHoursPerDay,
+                                    otMultiplier: systemSettings.defaultOtRate
+                                }));
+                            }
                             showToast("🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว", "success");
                         } else {
                             showToast("❌ บันทึกล้มเหลว: " + res.message, "error");
@@ -22605,6 +22631,10 @@ ${slip.textSample}
                             })
                         });
                         if (res.status === 'success') {
+                            systemSettings.symbolRules = newRules;
+                            if (typeof loadSystemSettingsFromSheet === 'function') {
+                                await loadSystemSettingsFromSheet();
+                            }
                             renderSymbolRulesTable();
                             closeSymbolRulesModal();
                             showToast("🎉 บันทึกกฎสรุปสถานะสำเร็จแล้ว", "success");
@@ -23672,7 +23702,8 @@ ${slip.textSample}
             workEndTimeStr: '17:00',
             lateCutoffTimeStr: '08:15',
             otStartTimeStr: '17:15',
-            defaultOtRate: 1.5,
+            defaultOtRate: 1.0,
+            lateBaseMinutes: 15,
             billingCycleStartDay: 26,
             billingCycleEndDay: 25,
             otIntervalMinutes: 30,
@@ -23849,9 +23880,9 @@ ${slip.textSample}
                 project: (row['โครงการ'] || row['Project'] || '').toString().trim(),
                 avatar: '',
                 baseSalary: parseFloatOrZero(row['ฐานเงินเดือน'] || row['Base Salary'] || row['Salary']),
-                divisor: parseFloatOrZero(row['ตัวหารค่าแรง'] || row['Divisor']) || systemSettings.dailyDivisor || 30,
-                workHoursPerDay: parseFloatOrZero(row['ชั่วโมงทำงานต่อวัน'] || row['Hours per Day']) || systemSettings.workHoursPerDay || 8,
-                otMultiplier: parseFloatOrZero(row['ตัวคูณโอที'] || row['OT Multiplier'] || row['otMultiplier']) || systemSettings.defaultOtRate || 1.5
+                divisor: systemSettings.dailyDivisor,
+                workHoursPerDay: systemSettings.workHoursPerDay,
+                otMultiplier: systemSettings.defaultOtRate
             };
         }
 
@@ -24000,7 +24031,7 @@ ${slip.textSample}
                         if (val === '') continue;
                         if (val === 'true' || val === 'จริง') val = true;
                         else if (val === 'false' || val === 'เท็จ') val = false;
-                        else if (!isNaN(parseFloat(val))) val = parseFloat(val);
+                            else if (!isNaN(parseFloat(val)) && !val.includes(':')) val = parseFloat(val);
                         systemSettings[key] = val;
                     }
                     console.log('[loadSystemSettings ⚡ Supabase]', data.length, 'settings loaded');
@@ -24150,9 +24181,9 @@ ${slip.textSample}
                                 dayOff: r.day_off || 'อาทิตย์', company: r.company || '',
                                 startDate: r.start_date || '', phone: r.phone || '',
                                 baseSalary: parseFloat(r.base_salary) || 0,
-                                divisor: parseFloat(r.wage_divisor) || systemSettings.dailyDivisor || 30,
-                                workHoursPerDay: parseFloat(r.work_hours_per_day) || systemSettings.workHoursPerDay || 8,
-                                otMultiplier: parseFloat(r.ot_rate) || systemSettings.defaultOtRate || 1.5,
+                                divisor: systemSettings.dailyDivisor,
+                                workHoursPerDay: systemSettings.workHoursPerDay,
+                                otMultiplier: systemSettings.defaultOtRate,
                                 role: r.position || r.role || 'Employee',
                                 avatar: r.avatar_url || '',
                                 avatarUrl: r.avatar_url || '',
@@ -25518,7 +25549,7 @@ ${slip.textSample}
             const _empDailyCostParams = (emp) => {
                 const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
                 const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                const otRate = emp.otMultiplier || systemSettings.defaultOtRate || 1.5;
+                const otRate = emp.otMultiplier || systemSettings.defaultOtRate || 1.0;
                 const baseDailyWage = (parseFloat(emp.baseSalary) || 0) / divisor;
                 return { baseDailyWage, baseHourlyWage: workHours > 0 ? baseDailyWage / workHours : 0, otRate };
             };
@@ -25778,7 +25809,7 @@ ${slip.textSample}
 
                     const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
                     const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                    const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
+                        const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
 
                     const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary); 
                     const baseHourlyWage = baseDailyWage / workHours; 
@@ -26026,7 +26057,7 @@ ${slip.textSample}
 
                         const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
                         const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                        const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
+                        const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
 
                         const baseDailyWage = emp.baseSalary / divisor;
                         const baseHourlyWage = baseDailyWage / workHours;
@@ -26323,7 +26354,7 @@ ${slip.textSample}
 
                     const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
                     const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                    const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.5));
+                    const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
 
                     const dailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary);
                     const hourlyWage = dailyWage / workHours;
