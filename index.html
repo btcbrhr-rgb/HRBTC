@@ -4851,7 +4851,7 @@
                     </button>
                     <div class="flex items-center gap-1.5 text-xs text-slate-400 font-semibold min-w-max">
                         <i class="fa-solid fa-calendar-week text-brand-teal"></i>
-                        <span id="sharedBillingCycleDateRange">26 - 25</span>
+                        <span id="sharedBillingCycleDateRange">-</span>
                     </div>
                 </div>
                 <!-- 🔧 Hidden sync dropdowns (อัปเดตอัตโนมัติโดย sync mechanism) -->
@@ -9342,7 +9342,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // --- การคิดรอบบัญชี (Accounting Cycle Helper) ---
             function getCycleDateRange(year, month) {
                 // month = เดือนเริ่มต้นรอบบัญชี (0-indexed: 0=ม.ค., 11=ธ.ค.)
-                // รอบบัญชี: วันที่ 26 ของเดือนเริ่มต้น → วันที่ 25 ของเดือนถัดไป
+                // 🔧 รอบบัญชีใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth):
+                //    วันที่ startDay ของเดือนเริ่มต้น → วันที่ endDay ของเดือนถัดไป
+                const startDay = parseInt(systemSettings.billingCycleStartDay) || 26;
+                const endDay = parseInt(systemSettings.billingCycleEndDay) || 25;
                 const startYear = year;
                 const startMonth = month;
                 let endYear = year;
@@ -9351,8 +9354,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     endMonth = 0;
                     endYear = year + 1;
                 }
-                const startDate = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-26`;
-                const endDate = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-25`;
+                const startDate = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+                const endDate = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
                 return { start: startDate, end: endDate };
             }
 
@@ -19150,7 +19153,7 @@ container.innerHTML = "";
                             "ลาป่วย": settings.sickLeaveDays || 30,
                             "ลาพักร้อน": settings.annualLeaveDays || 10,
                             "พักร้อน": settings.annualLeaveDays || 10,
-                            "ลาคลอด": settings.maternityLeaveDays || 98,
+                            "ลาคลอด": settings.maternityLeaveDays || 90,
                             "ลาทหาร": settings.militaryLeaveDays || 60
                         };
 
@@ -24589,6 +24592,14 @@ ${slip.textSample}
             } catch (err) {
                 console.error('[loadSystemSettings] Supabase error:', err);
             }
+
+            // 🔄 อัปเดตป้ายรอบบัญชีให้ตรงกับ system_settings ทันที (เดิมเป็นค่าคงที่ 26 - 25)
+            try {
+                const cycEl = document.getElementById('sharedBillingCycleDateRange');
+                if (cycEl) {
+                    cycEl.textContent = `${systemSettings.billingCycleStartDay || 26} - ${systemSettings.billingCycleEndDay || 25}`;
+                }
+            } catch (cycErr) { console.warn('[loadSystemSettings] cycle label error:', cycErr); }
         }
 
         async function loadEmployeesFromSheet() {
@@ -26097,9 +26108,10 @@ ${slip.textSample}
             let sumGrandAllowance = 0;
             let sumGrandWages = 0;
             const _empDailyCostParams = (emp) => {
-                const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
-                const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                const otRate = emp.otMultiplier || systemSettings.defaultOtRate || 1.0;
+                // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth) — ไม่ใช้ emp.divisor/workHours/otMultiplier
+                const divisor = systemSettings.dailyDivisor || 30;
+                const workHours = systemSettings.workHoursPerDay || 8;
+                const otRate = systemSettings.defaultOtRate || 1.0;
                 const baseDailyWage = (parseFloat(emp.baseSalary) || 0) / divisor;
                 return { baseDailyWage, baseHourlyWage: workHours > 0 ? baseDailyWage / workHours : 0, otRate };
             };
@@ -26357,9 +26369,10 @@ ${slip.textSample}
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
 
-                    const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
-                    const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                        const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
+                    // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
+                    const divisor = systemSettings.dailyDivisor || 30;
+                    const workHours = systemSettings.workHoursPerDay || 8;
+                    const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
 
                     const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary); 
                     const baseHourlyWage = baseDailyWage / workHours; 
@@ -26575,8 +26588,9 @@ ${slip.textSample}
                     const emp = employees.find(e => e.id === empId);
                     if (!emp || !log) return;
 
-                    const _divisor = emp.divisor || systemSettings.dailyDivisor || 30;
-                    const _workHrs = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
+                    // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
+                    const _divisor = systemSettings.dailyDivisor || 30;
+                    const _workHrs = systemSettings.workHoursPerDay || 8;
                     const baseDailyWage = emp.baseSalary / _divisor;
                     const baseHourlyWage = baseDailyWage / _workHrs;
                     const logOtHours = parseFloat(log.ot || 0);
@@ -26605,9 +26619,10 @@ ${slip.textSample}
                             };
                         }
 
-                        const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
-                        const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                        const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
+                        // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
+                        const divisor = systemSettings.dailyDivisor || 30;
+                        const workHours = systemSettings.workHoursPerDay || 8;
+                        const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
 
                         const baseDailyWage = emp.baseSalary / divisor;
                         const baseHourlyWage = baseDailyWage / workHours;
@@ -26902,9 +26917,10 @@ ${slip.textSample}
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
 
-                    const divisor = emp.divisor || systemSettings.dailyDivisor || 30;
-                    const workHours = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
-                    const otRate = emp.otMultiplier || (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
+                    // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
+                    const divisor = systemSettings.dailyDivisor || 30;
+                    const workHours = systemSettings.workHoursPerDay || 8;
+                    const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
 
                     const dailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary);
                     const hourlyWage = dailyWage / workHours;
