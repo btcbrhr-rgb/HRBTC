@@ -10308,6 +10308,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         const [tRes, tAllRes, cRes, lRes, aRes, payRes, pRes, annRes, holRes] = await Promise.all(queries);
 
+                        // ⚡ โหลด system_settings สำหรับทุกคน (ไม่ใช่แค่ admin) — ใช้คำนวณ late/OT/ค่าแรง
+                        try {
+                            const settingsRes = await supabaseClient.from('system_settings').select('key_name,default_value');
+                            if (!settingsRes.error && Array.isArray(settingsRes.data)) {
+                                const merged = {};
+                                settingsRes.data.forEach(row => {
+                                    const k = (row.key_name || '').trim();
+                                    let v = (row.default_value || '').trim();
+                                    if (!k || !v) return;
+                                    if (v === 'true' || v === 'จริง') v = true;
+                                    else if (v === 'false' || v === 'เท็จ') v = false;
+                                    else if (!isNaN(parseFloat(v)) && !v.includes(':')) v = parseFloat(v);
+                                    merged[k] = v;
+                                });
+                                systemSettings = Object.assign({}, systemSettings, merged);
+                            }
+                        } catch (e) { console.warn('[loadAllData] settings load error:', e); }
+
                         if (!tRes.error && Array.isArray(tRes.data)) {
                             timeRecordsList = tRes.data.map(r => {
                                 const tIn = r.time_in || '';
@@ -15627,9 +15645,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         });
                     }
 
-                    // ค่าแรงต่อชั่วโมงโดยเฉลี่ย = (เงินเดือนเฉลี่ย / 30 / 8) * 1.5 * ชม. OT
-                    const avgHourlyWage = (avgSalary > 0 ? avgSalary : 15000) / 240;
-                    const estOtCost = Math.round(totalOtHours * avgHourlyWage * 1.5);
+                    // ค่าแรงต่อชั่วโมงโดยเฉลี่ย = (เงินเดือนเฉลี่ย / ตัวหาร / ชม.ต่อวัน) * อัตรา OT * ชม. OT
+                    const _d = systemSettings.dailyDivisor || 30;
+                    const _h = systemSettings.workHoursPerDay || 8;
+                    const _otR = systemSettings.defaultOtRate || 1.5;
+                    const avgHourlyWage = (avgSalary > 0 ? avgSalary : 15000) / (_d * _h);
+                    const estOtCost = Math.round(totalOtHours * avgHourlyWage * _otR);
 
                     if (otHoursEl) otHoursEl.textContent = `${totalOtHours} ชม.`;
                     if (otCostEl) otCostEl.textContent = `฿${estOtCost.toLocaleString()}`;
@@ -20578,8 +20599,8 @@ function closeEmployeeModal() {
                     records.forEach(r => {
                         const status = (r['สถานะสรุป'] || r['status'] || '').toString().trim();
                         const timeIn = r['เวลาเข้า'] || r['time_in'] || '';
-                        const lateMin = (parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0) || _calcLateFromTimeIn(r['เวลาเข้า'] || r.time_in || '');
-                        const otHrs = parseFloat(r['ชั่วโมง OT'] || r['ot_hours'] || 0) || 0;
+                        const lateMin = _calcLateFromTimeIn(r['เวลาเข้า'] || r.time_in || '') || (parseInt(r['นาทีสาย'] || r['late_minutes'] || 0) || 0);
+                        const otHrs = _calcOtFromTimeOut(r['เวลาออก'] || r.time_out || '') || parseFloat(r['ชั่วโมง OT'] || r['ot_hours'] || 0) || 0;
 
                         totalDays++;
                         if (status === 'ย' || status === 'นข') return;
@@ -20610,8 +20631,8 @@ function closeEmployeeModal() {
                         let timeIn = (r.time_in || r['เวลาเข้า'] || r.timeIn || '').toString().trim();
                         let timeOut = (r.time_out || r['เวลาออก'] || r.timeOut || '').toString().trim();
                         const status = (r.status || r['สถานะสรุป'] || r['สถานะ'] || '').toString().trim();
-                        const late = (parseInt(r.late_minutes || r['นาทีสาย'] || r.lateMinutes || 0) || 0) || _calcLateFromTimeIn(timeIn);
-                        const ot = (r.ot_hours != null ? r.ot_hours : (r['ชั่วโมง OT'] || r.otHours || 0));
+                        const late = _calcLateFromTimeIn(timeIn) || (parseInt(r.late_minutes || r['นาทีสาย'] || r.lateMinutes || 0) || 0);
+                        const ot = _calcOtFromTimeOut(timeOut) || (r.ot_hours != null ? r.ot_hours : (r['ชั่วโมง OT'] || r.otHours || 0));
                         const project = (r.project_in || r.project || r['โครงการเข้า'] || r['โครงการ'] || '').toString().trim();
 
                         // ตรวจสอบว่ารายการนี้มีการขอแก้ไขเวลาหรือไม่
@@ -23836,8 +23857,9 @@ ${slip.textSample}
                 status: (row['สถานะสรุป'] || row['สถานะ'] || row['status'] || '').toString().trim() || 'W',
                 timeIn: (row['เวลาเข้า'] || row['timeIn'] || '').toString().trim(),
                 timeOut: (row['เวลาออก'] || row['timeOut'] || '').toString().trim(),
-                ot: parseFloatOrZero(row['ชั่วโมง OT'] || row['OT'] || row['ot']),
-                penalty: (parseFloatOrZero(row['นาทีสาย'] || row['late_minutes'] || row['lateMinutes'] || row['late']) || 0) || _calcLateFromTimeIn(row['เวลาเข้า'] || row['timeIn'] || row['time_in'] || ''),
+                ot: _calcOtFromTimeOut(row['เวลาออก'] || row['timeOut'] || row['time_out'] || '') || parseFloatOrZero(row['ชั่วโมง OT'] || row['OT'] || row['ot']) || 0,
+                // ⚡ คำนวณ late จากเวลาเข้าจริง + settings เสมอ (ไม่เชื่อ DB value)
+                penalty: _calcLateFromTimeIn(row['เวลาเข้า'] || row['timeIn'] || row['time_in'] || '') || parseFloatOrZero(row['นาทีสาย'] || row['late_minutes'] || row['lateMinutes'] || row['late']) || 0,
                 project,
                 food: parseFloatOrZero(row['ค่าข้าว'] || row['food'] || row['meal'] || 0),
                 trip: parseFloatOrZero(row['ค่าเที่ยว'] || row['trip'] || row['transport'] || 0),
@@ -24128,7 +24150,7 @@ ${slip.textSample}
                         // Apply attendance
                         attendanceData = {};
                         sbAtt.data.forEach(raw => {
-                            const lateMins = (parseInt(raw.late_minutes) || 0) || _calcLateFromTimeIn(raw.time_in || '');
+                            const lateMins = _calcLateFromTimeIn(raw.time_in || '') || (parseInt(raw.late_minutes) || 0);
                             const storedStatus = (raw.status || '').toString().trim();
                             // 🔧 แสดงสถานะตามจริงจากเวลา: ถ้า DB เก็บ 'ปกติ'/ว่างไว้ แต่เวลาจริงมาสาย → แสดง 'สาย' ทันที
                             const status = (!storedStatus || storedStatus === 'ปกติ' || storedStatus === 'W' || storedStatus === 'ทำงานปกติ' || storedStatus === 'ปกติ (W)') && lateMins > 0
@@ -25044,8 +25066,11 @@ ${slip.textSample}
 
             _elValue('modalTimeIn', log.timeIn);
             _elValue('modalTimeOut', log.timeOut);
-            _elValue('modalOtHours', log.ot);
-            _elValue('modalLateMinutes', log.penalty || 15);
+            // ⚡ คำนวณ late/OT จากเวลาจริง + settings แทนอ่านจาก DB (กันค่าเพี้ยน)
+            const _modalLate = log.timeIn ? _calcLateFromTimeIn(log.timeIn) : 0;
+            const _modalOt = log.timeOut ? _calcOtFromTimeOut(log.timeOut) : 0;
+            _elValue('modalOtHours', _modalOt || log.ot || 0);
+            _elValue('modalLateMinutes', _modalLate || log.penalty || 0);
 
             if (log.status === 'L') {
                 _elShow('modalLateInputGroup');
@@ -25951,8 +25976,10 @@ ${slip.textSample}
                     const emp = employees.find(e => e.id === empId);
                     if (!emp || !log) return;
 
-                    const baseDailyWage = emp.baseSalary / emp.divisor;
-                    const baseHourlyWage = baseDailyWage / 8;
+                    const _divisor = emp.divisor || systemSettings.dailyDivisor || 30;
+                    const _workHrs = emp.workHoursPerDay || systemSettings.workHoursPerDay || 8;
+                    const baseDailyWage = emp.baseSalary / _divisor;
+                    const baseHourlyWage = baseDailyWage / _workHrs;
                     const logOtHours = parseFloat(log.ot || 0);
 
                     const foodVal = parseFloat(log.food || 0);
