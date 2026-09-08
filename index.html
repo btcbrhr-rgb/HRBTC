@@ -15770,8 +15770,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             if (emp) siteSalary += Number(emp["ฐานเงินเดือน"] ?? emp["เงินเดือน"] ?? emp.base_salary ?? 0);
                         });
                         const siteAvgSalary = s.workerIds.size > 0 ? (siteSalary / s.workerIds.size) : avgSalary;
-                        const hourly = (siteAvgSalary > 0 ? siteAvgSalary : 15000) / 240;
-                        const siteOtCost = Math.round(s.otHours * hourly * 1.5);
+                        const _sd = systemSettings.dailyDivisor || 30;
+                        const _sh = systemSettings.workHoursPerDay || 8;
+                        const _sotR = systemSettings.defaultOtRate || 1.5;
+                        const hourly = (siteAvgSalary > 0 ? siteAvgSalary : 15000) / (_sd * _sh);
+                        const siteOtCost = Math.round(s.otHours * hourly * _sotR);
                         return {
                             name: s.name,
                             workersCount: s.workerIds.size,
@@ -25211,7 +25214,7 @@ ${slip.textSample}
             const timeIn = timeInEl ? timeInEl.value : '';
             const timeOut = timeOutEl ? timeOutEl.value : '';
             const ot = otEl ? (parseFloat(otEl.value) || 0) : 0;
-            const penalty = (statusKey === 'L' && lateEl) ? (parseInt(lateEl.value) || 15) : 0;
+            const penalty = (statusKey === 'L' && lateEl) ? (parseInt(lateEl.value) || _calcLateFromTimeIn(timeIn)) : 0;
             const selectedWorkingProject = workingProjEl ? workingProjEl.value : '';
 
             attendanceData[selectedDateStr][selectedEmpId].status = statusKey;
