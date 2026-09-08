@@ -22627,6 +22627,7 @@ ${slip.textSample}
             }
 
                 async function saveAdminSettings() {
+                    console.log('[Settings] ▶ saveAdminSettings() ถูกเรียก — empId =', currentEmployeeId, '| SERVER_API_URL =', typeof SERVER_API_URL !== 'undefined' ? (SERVER_API_URL ? 'มีค่า' : 'ว่าง') : 'ไม่นิยาม');
                     initSettingsDirtyTracking();
                     if (!currentEmployeeId) {
                         showToast('❌ ยังไม่ได้เข้าสู่ระบบ — กรุณาเข้าสู่ระบบก่อนบันทึก', 'error');
@@ -22712,13 +22713,14 @@ ${slip.textSample}
                         }
                         if (saveOk) {
                             if (typeof ClientCache !== 'undefined') {
-                                ClientCache.invalidate(key => key.startsWith('getSystemSettings::'));
+                                try { ClientCache.invalidate(key => key.startsWith('getSystemSettings::')); } catch (cacheErr) { console.warn('[Settings] cache invalidate', cacheErr); }
                             }
-                            if (typeof loadSystemSettingsFromSheet === 'function') {
-                                await loadSystemSettingsFromSheet();
-                            }
-                            if (typeof loadSettingsMeta === 'function') {
-                                await loadSettingsMeta();
+                            // ✅ เขียน DB สำเร็จแล้ว — ขั้นรีเฟรชเป็นแค่การอัปเดตหน้าจอ ห้ามทำให้แจ้ง “บันทึกไม่สำเร็จ” ทั้งที่เขียนไปแล้ว
+                            try {
+                                if (typeof loadSystemSettingsFromSheet === 'function') await loadSystemSettingsFromSheet();
+                                if (typeof loadSettingsMeta === 'function') await loadSettingsMeta();
+                            } catch (refreshErr) {
+                                console.warn('[Settings] รีเฟรชหลังบันทึกผิดพลาด (ไม่กระทบการบันทึก):', refreshErr);
                             }
                             if (Array.isArray(employees)) {
                                 employees = employees.map(emp => ({
@@ -22729,7 +22731,7 @@ ${slip.textSample}
                                 }));
                             }
                             updateSettingsSaveState(true);
-                            showToast("🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว", "success");
+                            showToast(directSaveOk ? "🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว (เขียนตรง Supabase)" : "🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว", "success");
                         }
                     } catch (err) {
                         showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
