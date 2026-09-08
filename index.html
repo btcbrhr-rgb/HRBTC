@@ -6109,8 +6109,8 @@
                                 <input id="settings-search" type="text" placeholder="ค้นหา..." oninput="filterSettings(this.value)"
                                     class="w-36 sm:w-48 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg pl-7 pr-3 py-1.5 text-[11px] focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
                             </div>
-                            <button onclick="saveAdminSettings()" class="bg-gradient-to-r from-brand-deep to-brand-teal hover:from-brand-teal hover:to-brand-deep text-white font-bold text-[11px] px-4 py-2 rounded-xl shadow-lg shadow-brand-deep/20 transition-all shrink-0 flex items-center gap-1.5">
-                                <i class="fa-solid fa-floppy-disk"></i><span class="hidden sm:inline">บันทึกทั้งหมด</span>
+                            <button id="settings-save-button" onclick="saveAdminSettings()" class="bg-gradient-to-r from-brand-deep to-brand-teal hover:from-brand-teal hover:to-brand-deep text-white font-bold text-[11px] px-4 py-2 rounded-xl shadow-lg shadow-brand-deep/20 transition-all shrink-0 flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-check"></i><span class="hidden sm:inline">บันทึกแล้ว</span>
                             </button>
                         </div>
                     </div>
@@ -22354,6 +22354,43 @@ ${slip.textSample}
                         }
                     }
                     showToast(`🔄 คืนค่ากลุ่ม "${group}" เป็นค่าเริ่มต้นแล้ว`, 'info');
+                    updateSettingsSaveState();
+                }
+
+                let savedSettingsFormSnapshot = '';
+                let settingsDirtyTrackingReady = false;
+
+                function getSettingsFormSnapshot() {
+                    return JSON.stringify(Array.from(document.querySelectorAll('[id^="setting-"]'))
+                        .filter(el => el.id !== 'settings-search')
+                        .sort((a, b) => a.id.localeCompare(b.id))
+                        .map(el => ({
+                            id: el.id,
+                            value: el.type === 'checkbox' ? el.checked : el.value
+                        })));
+                }
+
+                function updateSettingsSaveState(saved) {
+                    const button = document.getElementById('settings-save-button');
+                    if (!button) return;
+                    if (saved === true) savedSettingsFormSnapshot = getSettingsFormSnapshot();
+                    const isDirty = saved !== true && getSettingsFormSnapshot() !== savedSettingsFormSnapshot;
+                    button.classList.toggle('settings-save-dirty', isDirty);
+                    button.classList.toggle('settings-save-clean', !isDirty);
+                    const icon = button.querySelector('i');
+                    const label = button.querySelector('span');
+                    if (icon) icon.className = isDirty ? 'fa-solid fa-floppy-disk' : 'fa-solid fa-circle-check';
+                    if (label) label.textContent = isDirty ? 'มีการแก้ไข · บันทึก' : 'บันทึกแล้ว';
+                    button.setAttribute('aria-label', isDirty ? 'มีการแก้ไขที่ยังไม่ได้บันทึก' : 'การตั้งค่าบันทึกแล้ว');
+                }
+
+                function initSettingsDirtyTracking() {
+                    if (settingsDirtyTrackingReady) return;
+                    settingsDirtyTrackingReady = true;
+                    document.querySelectorAll('[id^="setting-"]').forEach(el => {
+                        el.addEventListener('input', () => updateSettingsSaveState());
+                        el.addEventListener('change', () => updateSettingsSaveState());
+                    });
                 }
 
                 // ตั้งค่าระบบ (Admin Settings)
@@ -22426,6 +22463,8 @@ ${slip.textSample}
                                 currentSymbolRules = {};
                             }
                             renderSymbolRulesTable();
+                            initSettingsDirtyTracking();
+                            updateSettingsSaveState(true);
                         } else {
                             showToast("❌ โหลดการตั้งค่าล้มเหลว: " + res.message, "error");
                         }
@@ -22473,6 +22512,8 @@ ${slip.textSample}
                 async function saveAdminSettings() {
                     const payload = {
                         action: "saveSystemSettings",
+                        empId: currentEmployeeId,
+                        adminId: currentEmployeeId,
                         settings: {
                             workStartTimeStr: document.getElementById("setting-workStartTimeStr").value,
                             workEndTimeStr: document.getElementById("setting-workEndTimeStr").value,
@@ -22549,6 +22590,7 @@ ${slip.textSample}
                                     otMultiplier: systemSettings.defaultOtRate
                                 }));
                             }
+                            updateSettingsSaveState(true);
                             showToast("🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว", "success");
                         } else {
                             showToast("❌ บันทึกล้มเหลว: " + res.message, "error");
@@ -22650,6 +22692,8 @@ ${slip.textSample}
                             method: "POST",
                             body: JSON.stringify({
                                 action: "saveSystemSettings",
+                                    empId: currentEmployeeId,
+                                    adminId: currentEmployeeId,
                                 settings: { symbolRules: newRules }
                             })
                         });
@@ -23102,6 +23146,14 @@ ${slip.textSample}
             border-color: #47a8bd;
             box-shadow: 0 0 0 3px rgba(71, 168, 189, .14);
             background: #fff;
+        }
+        .settings-save-dirty {
+            background: linear-gradient(135deg, #d97706, #b45309) !important;
+            box-shadow: 0 8px 18px rgba(217, 119, 6, .22) !important;
+        }
+        .settings-save-clean {
+            background: linear-gradient(135deg, #15803d, #16a34a) !important;
+            box-shadow: 0 8px 18px rgba(22, 163, 74, .18) !important;
         }
         @media (max-width: 900px) {
             .settings-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
