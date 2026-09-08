@@ -22500,9 +22500,20 @@ ${slip.textSample}
                     settingsFormUserEdited = false;
                     showToast("⏳ กำลังโหลดการตั้งค่าระบบ...", "info");
                     try {
-                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`);
-                        if (res.status === 'success') {
-                            const s = res.data;
+                        let res = null;
+                        let s = null;
+                        try {
+                            res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`);
+                            if (res.status === 'success') s = res.data;
+                        } catch (netErr) {
+                            console.error('[Settings] GAS API ไม่ตอบสนอง — จะโหลดค่าจริงจาก Supabase โดยตรง', netErr);
+                        }
+                        // 🔍 ต้องโชว์ "ค่าจริงที่ระบบใช้": ถ้า GAS เข้าไม่ถึง → อ่านจาก Supabase โดยตรง
+                        if (!s && typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
+                            try { s = await fetchSystemSettingsFromSupabaseDirect(); }
+                            catch (dErr) { console.error('[Settings] Supabase direct load failed:', dErr); s = null; }
+                        }
+                        if (s) {
                             // เวลา
                             document.getElementById("setting-workStartTimeStr").value = s.workStartTimeStr || "08:00";
                             document.getElementById("setting-workEndTimeStr").value = s.workEndTimeStr || "17:00";
@@ -22568,8 +22579,9 @@ ${slip.textSample}
                             initSettingsDirtyTracking();
                             // ผู้ใช้เริ่มพิมพ์แก้ก่อนโหลดเสร็จ → คงสถานะ "มีการแก้ไข" ไว้ อย่าเพิ่งคืนเป็น "บันทึกแล้ว"
                             if (!settingsFormUserEdited) updateSettingsSaveState(true);
-                        } else {
-                            showToast("❌ โหลดการตั้งค่าล้มเหลว: " + res.message, "error");
+                        }
+                        if (!s) {
+                            showToast("❌ โหลดการตั้งค่าล้มเหลว: " + ((res && res.message) || 'เชื่อมต่อ API ไม่ได้ และอ่านจาก Supabase โดยตรงก็ไม่สำเร็จ'), "error");
                         }
                     } catch (err) {
                         showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
@@ -22722,6 +22734,27 @@ ${slip.textSample}
                     } catch (err) {
                         showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
                     }
+                }
+
+                // 🔍 อ่านค่าจริงจาก Supabase โดยตรง (fallback เมื่อ GAS เข้าไม่ถึง) — normalize ให้ตรงกับ getSystemSettings ใน Code.gs
+                async function fetchSystemSettingsFromSupabaseDirect() {
+                    const { data, error } = await supabaseClient.from('system_settings').select('key_name,default_value');
+                    if (error) throw error;
+                    const out = {};
+                    for (const row of (data || [])) {
+                        const key = String(row.key_name || '').trim();
+                        const dbVal = String(row.default_value ?? '').trim();
+                        if (!key || dbVal === '') continue;
+                        let parsed = dbVal;
+                        if ((key.endsWith('TimeStr') || key.indexOf('Time') >= 0 || key.indexOf('Lunch') >= 0 || key.indexOf('halfDay') >= 0)) {
+                            const m = dbVal.match(/\b(\d{1,2}:\d{2})/);
+                            if (m) parsed = m[1];
+                        } else if (dbVal === 'true' || dbVal === 'จริง') parsed = true;
+                        else if (dbVal === 'false' || dbVal === 'เท็จ') parsed = false;
+                        else if (/^-?\d+(\.\d+)?$/.test(dbVal)) parsed = parseFloat(dbVal);
+                        out[key] = parsed;
+                    }
+                    return out;
                 }
 
                 // สำรอง: ถ้า GAS API เข้าไม่ถึง → เขียน system_settings เข้า Supabase โดยตรง
