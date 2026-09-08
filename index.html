@@ -12251,8 +12251,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // 🔧 Centralized: คำนวณนาทีสายจากเวลาเข้าจริง + settings
             function _calcLateFromTimeIn(timeInStr) {
-                // 🔧 Centralized: คืนค่าเป็นนาทีสายจริง (ไม่ใช่ penalty points)
-                // ใช้ lateCutoffTimeStr จาก Settings เป็นหลัก
+                // 🧮 นิยามเดียวกับทุกฝั่ง (Code.gs / ScanAgent.gs / scan_agent.py):
+                // late_minutes = lateBaseMinutes + นาทีที่เกิน lateCutoffTimeStr
                 if (!timeInStr || timeInStr === '--:--') return 0;
                 const s = safeGetSettings();
                 const cutoff = (s.lateCutoffTimeStr || '08:15').split(':').map(Number);
@@ -12281,17 +12281,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function _calcStatusFromTimes(timeInStr, timeOutStr) {
                 if (timeInStr && timeOutStr) {
                     const s = safeGetSettings();
-                    const late = _calcLateFromTimeIn(timeInStr);
+                    const late = _calcLateFromTimeIn(timeInStr); // late_minutes รวม lateBaseMinutes (นิยามเดียวทุกฝั่ง)
                     if (late > 0) {
-                        // 🔧 FIX: ใช้ lateHalfDayThreshold จาก Settings
+                        // 🔧 ใช้ lateHalfDayThreshold จาก Settings — เปรียบเทียบค่า late (รวม base) เหมือน Code.gs/Python
                         const threshold = parseInt(s.lateHalfDayThreshold) || 240;
-                        // คำนวณนาทีสายจริง (ไม่ใช่ penalty points)
-                        const cutoff = (s.lateCutoffTimeStr || '08:15').split(':').map(Number);
-                        const parts = timeInStr.split(':').map(Number);
-                        const cutoffMin = cutoff[0] * 60 + cutoff[1];
-                        const inMin = parts[0] * 60 + (parts[1] || 0);
-                        const actualLateMin = inMin > cutoffMin ? inMin - cutoffMin : 0;
-                        return actualLateMin >= threshold ? 'สายครึ่งวัน' : 'สาย';
+                        return late >= threshold ? 'สายครึ่งวัน' : 'สาย';
                     }
                     return 'ปกติ';
                 } else if (timeInStr && !timeOutStr) return 'MO';
