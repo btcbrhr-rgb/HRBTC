@@ -22457,6 +22457,7 @@ ${slip.textSample}
 
                 let savedSettingsFormSnapshot = '';
                 let settingsDirtyTrackingReady = false;
+                let settingsFormUserEdited = false; // ผู้ใช้พิมพ์แก้ก่อนโหลดเสร็จ → อย่าให้ load ทับสถานะ dirty
 
                 function getSettingsFormSnapshot() {
                     return JSON.stringify(Array.from(document.querySelectorAll('[id^="setting-"]'))
@@ -22485,15 +22486,24 @@ ${slip.textSample}
                 function initSettingsDirtyTracking() {
                     if (settingsDirtyTrackingReady) return;
                     settingsDirtyTrackingReady = true;
-                    document.querySelectorAll('[id^="setting-"]').forEach(el => {
-                        el.addEventListener('input', () => updateSettingsSaveState());
-                        el.addEventListener('change', () => updateSettingsSaveState());
-                    });
+                    // 🎯 Event delegation — ครอบคลุมช่องที่โหลด/เพิ่มทีหลัง และไม่ต้องรอให้ load สำเร็จก่อน
+                    const onSettingsInput = (e) => {
+                        const t = e.target;
+                        if (t && t.id && t.id.indexOf('setting-') === 0) {
+                            settingsFormUserEdited = true;
+                            updateSettingsSaveState();
+                        }
+                    };
+                    document.addEventListener('input', onSettingsInput, true);
+                    document.addEventListener('change', onSettingsInput, true);
                 }
 
                 // ตั้งค่าระบบ (Admin Settings)
                 // ─────────────────────────────────────────────────────────────
                 async function loadAdminSettings() {
+                    // ✅ ติดตั้ง dirty tracking ทันที (ไม่ต้องรอโหลดสำเร็จ) — แก้ปุ่มค้าง "บันทึกแล้ว"
+                    initSettingsDirtyTracking();
+                    settingsFormUserEdited = false;
                     showToast("⏳ กำลังโหลดการตั้งค่าระบบ...", "info");
                     try {
                         const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`);
@@ -22562,7 +22572,8 @@ ${slip.textSample}
                             }
                             renderSymbolRulesTable();
                             initSettingsDirtyTracking();
-                            updateSettingsSaveState(true);
+                            // ผู้ใช้เริ่มพิมพ์แก้ก่อนโหลดเสร็จ → คงสถานะ "มีการแก้ไข" ไว้ อย่าเพิ่งคืนเป็น "บันทึกแล้ว"
+                            if (!settingsFormUserEdited) updateSettingsSaveState(true);
                         } else {
                             showToast("❌ โหลดการตั้งค่าล้มเหลว: " + res.message, "error");
                         }
@@ -22610,6 +22621,12 @@ ${slip.textSample}
             }
 
                 async function saveAdminSettings() {
+                    initSettingsDirtyTracking();
+                    if (!currentEmployeeId) {
+                        showToast('❌ ยังไม่ได้เข้าสู่ระบบ — กรุณาเข้าสู่ระบบก่อนบันทึก', 'error');
+                        return;
+                    }
+                    showToast("⏳ กำลังบันทึกการตั้งค่าระบบ...", "info");
                     const payload = {
                         action: "saveSystemSettings",
                         empId: currentEmployeeId,
@@ -22669,13 +22686,25 @@ ${slip.textSample}
                         }
                     };
 
-                    showToast("⏳ กำลังบันทึกการตั้งค่าระบบ...", "info");
                     try {
-                        const res = await fetchWithTimeout(SERVER_API_URL, {
-                            method: "POST",
-                            body: JSON.stringify(payload)
-                        });
-                        if (res.status === 'success') {
+                        let res;
+                        try {
+                            res = await fetchWithTimeout(SERVER_API_URL, {
+                                method: "POST",
+                                body: JSON.stringify(payload)
+                            });
+                        } catch (netErr) {
+                            // GAS เข้าไม่ถึง → ลองเขียนตรง ๆ ไปยัง Supabase (โหมด Supabase-only)
+                            console.error('[Settings] GAS API ไม่ตอบสนอง — จะลองเขียน Supabase โดยตรง', netErr);
+                            res = null;
+                        }
+                        const directSaveOk = !(res && res.status === 'success') && await trySaveSystemSettingsDirect(payload.settings);
+                        const saveOk = (res && res.status === 'success') || directSaveOk;
+                        if (!saveOk) {
+                            showToast("❌ บันทึกล้มเหลว: " + ((res && res.message) || 'เชื่อมต่อ API ไม่ได้'), "error");
+                            return;
+                        }
+                        if (saveOk) {
                             if (typeof ClientCache !== 'undefined') {
                                 ClientCache.invalidate(key => key.startsWith('getSystemSettings::'));
                             }
@@ -22695,11 +22724,30 @@ ${slip.textSample}
                             }
                             updateSettingsSaveState(true);
                             showToast("🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว", "success");
-                        } else {
-                            showToast("❌ บันทึกล้มเหลว: " + res.message, "error");
                         }
                     } catch (err) {
                         showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
+                    }
+                }
+
+                // สำรอง: ถ้า GAS API เข้าไม่ถึง → เขียน system_settings เข้า Supabase โดยตรง
+                async function trySaveSystemSettingsDirect(settingsMap) {
+                    try {
+                        if (typeof supabaseClient === 'undefined' || !supabaseClient || typeof supabaseClient.from !== 'function') return false;
+                        const rows = Object.entries(settingsMap || {}).map(([key_name, value]) => {
+                            if (value === null || value === undefined || value === '') return null;
+                            let default_value;
+                            if (typeof value === 'boolean') default_value = value ? 'true' : 'false';
+                            else default_value = String(value);
+                            return { key_name, default_value, active: 'custom' };
+                        }).filter(Boolean);
+                        if (!rows.length) return false;
+                        const { error } = await supabaseClient.from('system_settings').upsert(rows, { onConflict: 'key_name' });
+                        if (error) { console.error('[Settings] Supabase direct upsert failed:', error); return false; }
+                        return true;
+                    } catch (err) {
+                        console.error('[Settings] Supabase direct upsert error:', err);
+                        return false;
                     }
                 }
 
