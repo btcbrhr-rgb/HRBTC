@@ -8570,6 +8570,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 _maxReconnectAttempts: 10,
                 _reconnectTimer: null,
                 _initialized: false,
+                // 🔁 Fallback poll: กันหน้า "ค้างข้อมูลเก่า" เมื่อ WebSocket (Realtime) ใช้ไม่ได้
+                _pollTimer: null,
+                _wasDisconnected: false,
                 // ⚡ กัน sync ซ้อนกัน: ถ้ารอบก่อนยังรันไม่จบ รอบใหม่จะรอต่อ (ไม่โหลดซ้ำซ้อน)
                 _syncRunning: false,
                 _syncQueued: false,
@@ -8587,6 +8590,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                     }
                     if (!supabaseClient) return;
+                    this._startFallbackPolling();
 
                     // ⛔ กัน subscribe ซ้ำซ้อน: ถ้า client เดิม + กำลังเชื่อม/เชื่อมแล้ว ให้ข้าม
                     //    (เดิม init() ถูกเรียกหลายจุด → subscribe ซ้ำ → removeChannel ช่องเก่า → วน reconnect)
@@ -8688,7 +8692,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     if (typeof logDbActivity === 'function') {
                                         logDbActivity('SYNC', 'Realtime', 'เชื่อมต่อ Real-time Synchronization สำเร็จ (พร้อมรับการอัปเดตทันที)', 'success');
                                     }
-                                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                                    // 🔄 เพิ่งกลับมาจากการหลุด → ดึงข้อมูลล่าสุดทันที (ไม่ต้องรอ event ใหม่)
+                                    if (this._wasDisconnected) {
+                                        this._wasDisconnected = false;
+                                        this._catchUpMissedChanges();
+                                    }                                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                                    this._wasDisconnected = true; // จำไว้ว่าหลุด — กลับมาเชื่อมเมื่อไหร่ให้เก็บข้อมูลที่พลาด
                                     if (this._channel === chan) this._channel = null;
                                     this._status = 'disconnected';
                                     this._updateIndicator();
@@ -9012,6 +9021,73 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     // 4. ⚡ Re-render ทุก View
                     this._flashLiveBadge();
+                },
+
+                // 🔁 Fallback poll — ทำงานเฉพาะเมื่อ Realtime (WebSocket) ไม่เชื่อมต่อ:
+                //    เน็ตเวิร์ก/ไฟร์วอลล์บางที่บล็อก WebSocket → REST ยังใช้ได้ แต่ event ไม่มา
+                //    → รีเฟรชข้อมูลเองเป็นช่วง (45 วิ) เพื่อให้หน้าไม่อัปเดต "เฉพาะเมื่อกด F5"
+                _startFallbackPolling() {
+                    if (this._pollTimer) return;
+                    this._pollTimer = setInterval(() => { this._pollFreshDataWhenDisconnected(); }, 45000);
+                },
+
+                // 🔄 เก็บข้อมูลที่พลาดไประหว่าง WebSocket หลุด (เมื่อเชื่อมกลับมาแล้ว)
+                async _catchUpMissedChanges() {
+                    console.log('[Realtime] 🔄 Reconnect สำเร็จ — sync ข้อมูลล่าสุด (เก็บที่พลาดระหว่างหลุด)');
+                    try {
+                        const adminMode = (typeof isAdminMode !== 'undefined' && isAdminMode);
+                        if (adminMode) {
+                            if (typeof loadAdminApprovals === 'function') {
+                                if (typeof adminApprovalsLoadedOnce !== 'undefined') adminApprovalsLoadedOnce = false;
+                                try { await loadAdminApprovals(); } catch (e) { console.warn('[Realtime] catch-up approvals:', e); }
+                            }
+                        } else if (typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId && typeof loadAllData === 'function') {
+                            try { await loadAllData(); } catch (e) { console.warn('[Realtime] catch-up loadAllData:', e); }
+                        }
+                    } catch (e) { console.warn('[Realtime] catch-up error:', e); }
+                },
+
+                async _pollFreshDataWhenDisconnected() {
+                    if (document.hidden) return;              // แท็บไม่ได้เปิดอยู่ → ข้าม (ประหยัด)
+                    if (this._status === 'connected') return;  // Realtime ปกติดี → ใช้ realtime ตามเดิม
+                    if (this._lastPollLog && (Date.now() - this._lastPollLog) < 60000) return;
+                    this._lastPollLog = Date.now();
+                    console.warn('[Realtime] ⚠️ WebSocket ไม่เชื่อมต่อ — ใช้โหมดสำรอง: รีเฟรชข้อมูลเอง (fallback poll)');
+                    try {
+                        const adminMode = (typeof isAdminMode !== 'undefined' && isAdminMode);
+                        const empLoggedIn = (typeof isLoggedIn !== 'undefined' && isLoggedIn && typeof currentEmployeeId !== 'undefined' && currentEmployeeId);
+
+                        if (adminMode) {
+                            // Admin: รายการรออนุมัติ + โมดูลที่เปิดอยู่ปัจจุบัน
+                            if (typeof loadAdminApprovals === 'function') {
+                                try {
+                                    if (typeof adminApprovalsLoadedOnce !== 'undefined') adminApprovalsLoadedOnce = false;
+                                    await loadAdminApprovals();
+                                } catch (e) { console.warn('[Realtime] poll loadAdminApprovals:', e); }
+                            }
+                            const tabLoaders = {
+                                'employees': 'loadAdminEmployees', 'holidays': 'loadAdminHolidays',
+                                'announcements': 'loadAdminAnnouncements', 'scan-devices': 'loadScanDevices',
+                                'face-logs': 'loadAdminFaceLogs', 'face-enroll': 'loadAdminFaceEnroll',
+                                'import-time': 'loadYearlyAttendanceOverview', 'import-payslip': 'loadYearlyPayslipOverview',
+                                'project-cost': 'loadProjectCostSection', 'audit-logs': 'loadAdminAuditLogs',
+                                'settings': 'loadAdminSettings'
+                            };
+                            const cur = (typeof adminActiveTab !== 'undefined') ? adminActiveTab : 'dashboard';
+                            const fnName = tabLoaders[cur];
+                            if (fnName) {
+                                const fnRef = (typeof globalThis !== 'undefined' && typeof globalThis[fnName] === 'function')
+                                    ? globalThis[fnName]
+                                    : (typeof window !== 'undefined' && typeof window[fnName] === 'function') ? window[fnName] : null;
+                                if (fnRef) { try { await fnRef(); } catch (e) { console.warn('[Realtime] poll ' + fnName + ':', e); } }
+                            }
+                        } else if (empLoggedIn && typeof loadAllData === 'function') {
+                            // พนักงาน: โหลดข้อมูลส่วนตัวใหม่ (สดจาก Supabase)
+                            await loadAllData();
+                        }
+                    } catch (e) {
+                        console.warn('[Realtime] fallback poll error:', e);
+                    }
                 },
 
                 _setupVisibilityListener() {
@@ -10453,7 +10529,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     if (!k || !v) return;
                                     if (v === 'true' || v === 'จริง') v = true;
                                     else if (v === 'false' || v === 'เท็จ') v = false;
-                                    else if (!isNaN(parseFloat(v)) && !v.includes(':')) v = parseFloat(v);
+                                    else if (/^-?\d+(\.\d+)?$/.test(v)) v = parseFloat(v);
                                     merged[k] = v;
                                 });
                                 systemSettings = Object.assign({}, systemSettings, merged);
@@ -11474,7 +11550,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             if (val === '') continue;
                             if (val === 'true' || val === 'จริง') val = true;
                             else if (val === 'false' || val === 'เท็จ') val = false;
-                            else if (!isNaN(parseFloat(val)) && !val.includes(':')) val = parseFloat(val);
+                            else if (/^-?\d+(\.\d+)?$/.test(val)) val = parseFloat(val);
                             settingsObj[key] = val;
                         }
                         AdminDataCache.set('settings', settingsObj);
@@ -24661,7 +24737,7 @@ ${slip.textSample}
                         if (val === '') continue;
                         if (val === 'true' || val === 'จริง') val = true;
                         else if (val === 'false' || val === 'เท็จ') val = false;
-                            else if (!isNaN(parseFloat(val)) && !val.includes(':')) val = parseFloat(val);
+                            else if (/^-?\d+(\.\d+)?$/.test(val)) val = parseFloat(val);
                         systemSettings[key] = val;
                     }
                     console.log('[loadSystemSettings ⚡ Supabase]', data.length, 'settings loaded');
