@@ -6147,10 +6147,24 @@
                             </div>
                         </div>
 
-                        <div class="hr-table-search-bar">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input type="text" placeholder="ค้นหาชื่อ, รหัส, ตำแหน่ง, บริษัท..." oninput="hrTableFilter('admin-employees-table-body', this.value, 'emp-count-filter')" aria-label="ค้นหาพนักงาน">
-                            <span class="row-count" id="emp-count-filter"></span>
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div class="hr-table-search-bar flex-1">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" placeholder="ค้นหาชื่อ, รหัส, ตำแหน่ง, บริษัท..." oninput="hrTableFilter('admin-employees-table-body', this.value, 'emp-count-filter')" aria-label="ค้นหาพนักงาน">
+                                <span class="row-count" id="emp-count-filter"></span>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <i class="fa-solid fa-shield-halved text-slate-400 text-xs" aria-hidden="true"></i>
+                                <select id="admin-emp-role-filter" onchange="filterAdminEmployeesByRole(this.value)"
+                                    title="กรองตามระดับสิทธิ์" aria-label="กรองตามระดับสิทธิ์"
+                                    class="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand-teal focus:outline-none cursor-pointer">
+                                    <option value="all">ระดับสิทธิ์ทั้งหมด</option>
+                                    <option value="administrator">👑 Super Admin</option>
+                                    <option value="admin">🛡️ Admin จำกัดสิทธิ์</option>
+                                    <option value="manager">👷 Manager</option>
+                                    <option value="employee">👤 พนักงานทั่วไป</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="hr-table-wrap overflow-x-auto">
                             <table class="hr-table" style="min-width:900px">
@@ -17860,32 +17874,85 @@ async function loadAdminEmployees() {
                             container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">ไม่พบรายชื่อพนักงานในฐานข้อมูล</td></tr>`;
                             return;
                         }
-container.innerHTML = "";
-                        adminEmployeesList.forEach(emp => {
-                            const tr = document.createElement("tr");
-                            tr.className = "hr-table-row";
+                        renderAdminEmployeesTable();
+                    } else {
+                        container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ${res.message}</td></tr>`;
+                    }
+                } catch (err) {
+                    container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ เชื่อมต่อ API ไม่สำเร็จ: ${err.message}</td></tr>`;
+                }
+            }
 
-                            const empId = emp["รหัสพนักงาน"] || "N/A";
-                            const name = emp["ชื่อ-นามสกุล"] || "N/A";
-                            const pos = emp["ตำแหน่ง"] || "-";
-                            const status = emp["สถานะ"] || "ทำงานปกติ";
-                            const company = emp["ชื่อบริษัท"] || "-";
-                            const hours = emp["ชั่วโมงทำงานต่อวัน"] || "8";
-                            const phone = emp["เบอร์โทรศัพท์"] || "-";
-                            const role = emp["สิทธิ์การใช้งาน"] || "Employee";
+            // ═══════════════════════════════════════════════════════════
+            // จัดการรายชื่อ & สิทธิ์ — ตัวกรองระดับสิทธิ์ + ป้าย Role
+            // (ปรับปรุงตามแนวคิด EmployeeManagement: ค้นหา + กรองสิทธิ์ + ป้ายสี)
+            // ═══════════════════════════════════════════════════════════
+            let adminEmpRoleFilter = 'all';
 
-                            let statusBadge = `<span class="badge badge-approved"><i class="fa-solid fa-circle-check"></i> ทำงานปกติ</span>`;
-                            if (status === 'ลาออก') statusBadge = `<span class="badge badge-rejected"><i class="fa-solid fa-circle-xmark"></i> ลาออก</span>`;
-                            else if (status === 'พักงาน') statusBadge = `<span class="badge badge-pending"><i class="fa-solid fa-circle-minus"></i> พักงาน</span>`;
+            function getAdminRoleCategory(role) {
+                const r = (role || '').toString().trim().toLowerCase();
+                if (r === 'administrator' || r.startsWith('super')) return 'administrator';
+                if (r.startsWith('admin')) return 'admin'; // รวม 'admin:xxx' (Admin จำกัดสิทธิ์)
+                if (r === 'manager') return 'manager';
+                return 'employee';
+            }
 
-                            let roleBadge = `<span class="badge badge-neutral">${role}</span>`;
-                            if (role.toLowerCase() === 'administrator') {
-                                roleBadge = `<span class="badge badge-approved" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe">👑 Admin สูงสุด</span>`;
-                            } else if (role.startsWith('admin')) {
-                                roleBadge = `<span class="badge badge-info" style="background:#fff7ed; color:#c2410c; border:1px solid #ffedd5">🛡️ Admin จำกัดสิทธิ์</span>`;
-                            }
+            function getAdminRoleBadgeHtml(role) {
+                const cat = getAdminRoleCategory(role);
+                switch (cat) {
+                    case 'administrator':
+                        return `<span class="badge badge-approved" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe">👑 Super Admin</span>`;
+                    case 'admin':
+                        return `<span class="badge badge-info" style="background:#fff7ed; color:#c2410c; border:1px solid #ffedd5">🛡️ Admin จำกัดสิทธิ์</span>`;
+                    case 'manager':
+                        return `<span class="badge badge-pending" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a">👷 Manager / หัวหน้างาน</span>`;
+                    default:
+                        return `<span class="badge badge-neutral">👤 พนักงานทั่วไป</span>`;
+                }
+            }
 
-                            tr.innerHTML = `
+            function renderAdminEmployeesTable() {
+                const container = document.getElementById("admin-employees-table-body");
+                if (!container) return;
+
+                let list = Array.isArray(adminEmployeesList) ? adminEmployeesList : [];
+                if (adminEmpRoleFilter !== 'all') {
+                    list = list.filter(emp => getAdminRoleCategory(emp["สิทธิ์การใช้งาน"] || "Employee") === adminEmpRoleFilter);
+                }
+
+                const total = Array.isArray(adminEmployeesList) ? adminEmployeesList.length : 0;
+                const badgeEl = document.getElementById("admin-emp-count-badge");
+                if (badgeEl) {
+                    badgeEl.textContent = adminEmpRoleFilter !== 'all'
+                        ? `แสดง ${list.length} จาก ${total} คน`
+                        : `พนักงานทั้งหมด: ${total} คน`;
+                }
+
+                if (list.length === 0) {
+                    container.innerHTML = `<tr class="tbl-empty-row"><td colspan="8" class="py-6 text-center text-slate-500">${adminEmpRoleFilter !== 'all' ? 'ไม่พบพนักงานตามระดับสิทธิ์ที่เลือก' : 'ไม่พบรายชื่อพนักงานในฐานข้อมูล'}</td></tr>`;
+                    return;
+                }
+
+                container.innerHTML = "";
+                list.forEach(emp => {
+                    const tr = document.createElement("tr");
+                    tr.className = "hr-table-row";
+
+                    const empId = emp["รหัสพนักงาน"] || "N/A";
+                    const name = emp["ชื่อ-นามสกุล"] || "N/A";
+                    const pos = emp["ตำแหน่ง"] || "-";
+                    const status = emp["สถานะ"] || "ทำงานปกติ";
+                    const company = emp["ชื่อบริษัท"] || "-";
+                    const hours = emp["ชั่วโมงทำงานต่อวัน"] || "8";
+                    const phone = emp["เบอร์โทรศัพท์"] || "-";
+
+                    let statusBadge = `<span class="badge badge-approved"><i class="fa-solid fa-circle-check"></i> ทำงานปกติ</span>`;
+                    if (status === 'ลาออก') statusBadge = `<span class="badge badge-rejected"><i class="fa-solid fa-circle-xmark"></i> ลาออก</span>`;
+                    else if (status === 'พักงาน') statusBadge = `<span class="badge badge-pending"><i class="fa-solid fa-circle-minus"></i> พักงาน</span>`;
+
+                    const roleBadge = getAdminRoleBadgeHtml(emp["สิทธิ์การใช้งาน"] || "Employee");
+
+                    tr.innerHTML = `
               <td>
                 <div class="emp-cell">
                   <img src="${convertDriveUrl(emp["ลิ้งภาพโปรไฟล์"]) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}" class="emp-avatar">
@@ -17915,14 +17982,19 @@ container.innerHTML = "";
                 </div>
               </td>
             `;
-                            container.appendChild(tr);
-                        });
-                    } else {
-                        container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ${res.message}</td></tr>`;
-                    }
-                } catch (err) {
-                    container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ เชื่อมต่อ API ไม่สำเร็จ: ${err.message}</td></tr>`;
+                    container.appendChild(tr);
+                });
+
+                // Re-apply search query (ถ้ามี) หลัง re-render
+                const searchInput = document.querySelector('#admin-sec-employees .hr-table-search-bar input');
+                if (searchInput && searchInput.value.trim()) {
+                    hrTableFilter('admin-employees-table-body', searchInput.value, 'emp-count-filter');
                 }
+            }
+
+            function filterAdminEmployeesByRole(value) {
+                adminEmpRoleFilter = value || 'all';
+                renderAdminEmployeesTable();
             }
 
             function editEmployeeRow(empId) {
