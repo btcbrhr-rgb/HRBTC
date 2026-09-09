@@ -1706,7 +1706,7 @@
                             <i class="fa-solid fa-shield-halved"></i>
                         </div>
                         <h3 class="font-bold text-base text-slate-800">ตั้งค่า PIN ความปลอดภัย</h3>
-                        <p class="text-xs text-slate-500">กำหนดรหัส PIN 6 หลัก เพื่อเข้าใช้งานแอปพลิเคชัน</p>
+                        <p class="text-xs text-slate-500">🔒 ระบบบังคับตั้ง PIN ครั้งแรกก่อนเข้าใช้งาน<br>ตั้งครั้งเดียวใช้ได้ตลอด (หลังถูกล้าง PIN ต้องตั้งใหม่)</p>
                     </div>
                     <div class="space-y-3">
                         <div>
@@ -10424,20 +10424,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 closeModal("pin-confirm-modal");
 
                 try {
-                    // 🔧 SUPABASE-ONLY: ตั้งค่า PIN ผ่าน Supabase
-                    if (supabaseClient) {
-                        const sbRes = await supabaseClient.from('employees').update({ pin: pin }).eq('emp_id', empId);
-                        if (sbRes.error) throw new Error(sbRes.error.message);
+                    // 🔐 ตั้ง PIN ผ่าน Backend (savePin): ตรวจเลขบัตรประชาชน 4 ตัวท้ายกับฐานข้อมูลจริง
+                    //    + เก็บ PIN แบบ SHA-256 (เข้ากับ verifyPin ฝั่งเซิร์ฟเวอร์) — ไม่เขียนตรงๆ ผ่าน Supabase
+                    showToast("⏳ กำลังบันทึก PIN...", "info");
+                    const res = await postAction('savePin', { empId, idCardLast4, pin });
+                    if (res && res.status === 'success') {
                         showToast("✅ ตั้งค่า PIN สำเร็จ กำลังเข้าสู่ระบบ...", "success");
                         closeModal("pin-setup-modal");
                         _pendingPinData = null;
                         await handleLoginSuccess(empId);
                     } else {
-                        showToast("❌ ไม่สามารถเชื่อมต่อฐานข้อมูลได้", "error");
+                        _pendingPinData = null;
+                        showToast("❌ " + ((res && res.message) || "ตั้งค่า PIN ไม่สำเร็จ"), "error");
+                        // กลับไปหน้า setup เพื่อลองใหม่ (ยังไม่ให้เข้าใช้งานจนกว่าจะตั้ง PIN สำเร็จ)
+                        showModal("pin-setup-modal");
                     }
                 } catch (err) {
                     console.error("[confirmAndSavePin] Error:", err);
-                    showToast("❌ เกิดข้อผิดพลาดในการตั้งค่า PIN", "error");
+                    _pendingPinData = null;
+                    showToast("❌ เกิดข้อผิดพลาดในการตั้งค่า PIN: " + err.message, "error");
+                    showModal("pin-setup-modal");
                 }
             }
 
@@ -10459,18 +10465,34 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         pinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบ...';
                     }
 
-                    // 🔧 SUPABASE-ONLY: ตรวจสอบ PIN ผ่าน Supabase
+                    // 🔐 ตรวจสอบ PIN ผ่าน Backend (verifyPin): ตรวจกับค่า hash ใน Supabase (รองรับ legacy plaintext)
                     let pinValid = false;
                     let pinMessage = "รหัส PIN ไม่ถูกต้อง";
-                    if (supabaseClient) {
-                        const sbRes = await supabaseClient.from('employees').select('emp_id,pin').eq('emp_id', empId).single();
-                        if (!sbRes.error && sbRes.data && sbRes.data.pin === pin) {
-                            pinValid = true;
-                        }
+                    let verifyResult = null;
+                    try {
+                        verifyResult = await apiRequest({ action: 'verifyPin', pin: pin, empId: empId });
+                        pinValid = !!(verifyResult && verifyResult.status === 'success' && verifyResult.valid);
+                        if (verifyResult && verifyResult.message) pinMessage = verifyResult.message;
+                    } catch (e) {
+                        console.warn('[submitPinLogin] verifyPin failed:', e);
                     }
                     if (pinValid) {
                         closeModal("pin-login-modal");
                         await handleLoginSuccess(empId);
+                    } else if (verifyResult && verifyResult.message && /ยังไม่ได้ตั้ง PIN/.test(verifyResult.message)) {
+                        // PIN ถูกล้าง/ยังไม่เคยตั้ง → บังคับไปหน้า set PIN ก่อนเข้าใช้งาน
+                        const overlay = document.getElementById("login-loading-overlay");
+                        if (overlay) overlay.classList.add("hidden");
+                        const pinBtn2 = document.getElementById('btn-submit-pin-login');
+                        if (pinBtn2) {
+                            pinBtn2.disabled = false;
+                            pinBtn2.innerHTML = 'เข้าใช้งาน';
+                        }
+                        const setupInput = document.getElementById("pin-setup-emp-id");
+                        if (setupInput) setupInput.value = empId;
+                        closeModal("pin-login-modal");
+                        showModal("pin-setup-modal");
+                        showToast("⚠️ ยังไม่ได้ตั้ง PIN — กรุณาตั้ง PIN ใหม่ก่อนเข้าใช้งาน", "warning");
                     } else {
                         // ซ่อน Loading Overlay + รีเซ็ตปุ่ม ถ้า PIN ผิด
                         const overlay = document.getElementById("login-loading-overlay");
@@ -18003,6 +18025,27 @@ async function loadAdminEmployees() {
                     openEmployeeEditModal(emp);
                 } else {
                     showToast("❌ ไม่พบข้อมูลพนักงานสำหรับแก้ไข", "error");
+                }
+            }
+
+            // ล้าง PIN พนักงาน (ต้องมีสิทธิ์ Admin) — เรียก action adminResetPin ที่ backend
+            async function clearEmployeePin(empId, name) {
+                if (!confirm(`ยืนยันการล้าง PIN ของ "${name || empId}" (${empId}) ?\nพนักงานจะต้องตั้ง PIN ใหม่ก่อนใช้งานระบบอีกครั้ง`)) return;
+
+                showToast('⏳ กำลังล้าง PIN...', 'info');
+                try {
+                    const res = await postAction('adminResetPin', {
+                        empId: currentEmployeeId,
+                        adminId: currentEmployeeId,
+                        targetEmpId: empId
+                    });
+                    if (res && res.status === 'success') {
+                        showToast('✅ ล้าง PIN ของ ' + (name || empId) + ' แล้ว', 'success');
+                    } else {
+                        showToast('❌ ' + ((res && res.message) || 'ล้าง PIN ไม่สำเร็จ'), 'error');
+                    }
+                } catch (err) {
+                    showToast('❌ ล้าง PIN ไม่สำเร็จ: ' + err.message, 'error');
                 }
             }
 
