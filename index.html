@@ -61,6 +61,43 @@
             transform: scale(0.96);
         }
 
+        /* 🚀 Fluid Page & Tab Transitions (Hardware Accelerated) */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        .page-enter-active {
+            animation: pageFluidFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            will-change: opacity, transform;
+        }
+
+        @keyframes pageFluidFadeIn {
+            from {
+                opacity: 0;
+                transform: translate3d(0, 4px, 0);
+            }
+            to {
+                opacity: 1;
+                transform: translate3d(0, 0, 0);
+            }
+        }
+
+        .tab-content-enter {
+            animation: tabFluidFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            will-change: opacity, transform;
+        }
+
+        @keyframes tabFluidFadeIn {
+            from {
+                opacity: 0;
+                transform: translate3d(0, 3px, 0);
+            }
+            to {
+                opacity: 1;
+                transform: translate3d(0, 0, 0);
+            }
+        }
+
         /* PWA Splash Simulator style */
         .pwa-splash-pulse {
             animation: pulse 2s infinite;
@@ -10460,6 +10497,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             let _lastLoadEmpId = '';
             let _lastLoadCycleStart = '';
 
+            // 🟢 PROGRESSIVE LOAD: สถานะความพร้อมของแต่ละส่วนข้อมูล
+            //    แต่ละส่วนจะแสดง skeleton จนกว่าข้อมูลจะโหลดเสร็จ
+            //    (แทนการรอให้ทุกตารางโหลดพร้อมกันแล้วค่อยแสดงผลทั้งหมด)
+            const _sectionReady = {
+                primary: false,     // เวลางาน + การตั้งค่า + ข้อมูลสาธารณะ → สถิติ/ปฏิทิน/กิจกรรม/สถานะวันนี้
+                corrections: false, // คำขอแก้ไขเวลา
+                leave: false,       // คำขอลา
+                advance: false,     // คำขอเบิกเงิน
+                payslip: false      // สลิปเงินเดือน
+            };
+
             async function loadAllData(tablesHint) {
                 if (!currentEmployeeId) {
                     console.warn('[loadAllData] missing currentEmployeeId');
@@ -10488,40 +10536,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const needAdvances = fullRefresh || hint.includes('advance_requests');
                         const needPayslips = fullRefresh || hint.includes('payslips');
 
-                        const queries = [
+                        // 🟢 STAGE 1: ข้อมูลหลัก (เวลางาน + การตั้งค่า + ข้อมูลสาธารณะ)
+                        //    โหลดพร้อมกันแบบขนาน แล้ว render หน้าหลักทันที ไม่ต้องรอส่วนรอง
+                        const needPublic = !publicDataLoaded || projectsList.length === 0 || getStoredAnnouncements().length === 0 || holidaysList.length === 0;
+
+                        const [tRes, tAllRes, settingsRes, pRes, annRes, holRes] = await Promise.all([
                             // User-specific data (always fetch time_records สำหรับ billing cycle ใหม่)
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
                             // 🔧 FIX: ดึง time_records ทั้งหมด (ไม่ filter cycle) สำหรับกิจกรรมล่าสุด
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).order('date', { ascending: false }).limit(60),
-                            // 🔧 OPTIMIZE: ไม่ต้อง fetch ซ้ำถ้าแค่เปลี่ยนรอบบัญชี (ไม่เปลี่ยนพนักงาน)
-                            needCorrections ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
-                            needLeaves ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
-                            needAdvances ? supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId) : null,
-                            needPayslips ? supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId) : null
-                        ];
-                        // Public data: โหลดเฉพาะเมื่อยังไม่ได้โหลด (reuse จาก loadPublicData)
-                        if (!publicDataLoaded || projectsList.length === 0) {
-                            queries.push(supabaseClient.from('projects').select('*').neq('status', 'ระงับ'));
-                        } else {
-                            queries.push(null); // placeholder
-                        }
-                        if (!publicDataLoaded || getStoredAnnouncements().length === 0) {
-                            queries.push(supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10));
-                        } else {
-                            queries.push(null);
-                        }
-                        if (!publicDataLoaded || holidaysList.length === 0) {
-                            queries.push(supabaseClient.from('holidays').select('date,title,holiday_type').order('date'));
-                        } else {
-                            queries.push(null);
-                        }
+                            // ⚡ system_settings — ใช้คำนวณ late/OT/ค่าแรง (โหลดพร้อมข้อมูลหลัก)
+                            supabaseClient.from('system_settings').select('key_name,default_value'),
+                            // Public data: โหลดเฉพาะเมื่อยังไม่ได้โหลด (reuse จาก loadPublicData)
+                            needPublic ? supabaseClient.from('projects').select('*').neq('status', 'ระงับ') : null,
+                            needPublic ? supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10) : null,
+                            needPublic ? supabaseClient.from('holidays').select('date,title,holiday_type').order('date') : null
+                        ]);
 
-                        const [tRes, tAllRes, cRes, lRes, aRes, payRes, pRes, annRes, holRes] = await Promise.all(queries);
-
-                        // ⚡ โหลด system_settings สำหรับทุกคน (ไม่ใช่แค่ admin) — ใช้คำนวณ late/OT/ค่าแรง
+                        // ⚡ Merge system_settings (ไม่ต้องรอให้ส่วนรองโหลดเสร็จ)
                         try {
-                            const settingsRes = await supabaseClient.from('system_settings').select('key_name,default_value');
-                            if (!settingsRes.error && Array.isArray(settingsRes.data)) {
+                            if (settingsRes && !settingsRes.error && Array.isArray(settingsRes.data)) {
                                 const merged = {};
                                 settingsRes.data.forEach(row => {
                                     const k = (row.key_name || '').trim();
@@ -10586,69 +10620,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             });
                         }
 
-                        if (cRes && !cRes.error && Array.isArray(cRes.data)) {
-                            timeCorrectionsList = cRes.data.map(c => ({
-                                "รหัสพนักงาน": c.emp_id,
-                                "วันที่": c.date,
-                                "เวลาเข้าใหม่": c.new_time_in,
-                                "เวลาออกใหม่": c.new_time_out,
-                                "เหตุผล": c.reason,
-                                "สถานะ": c.status,
-                                "โครงการ": c.project,
-                                "อนุมัติโดย": c.approved_by,
-                                "หมายเหตุ": c.notes
-                            }));
-                        }
-
-                        if (lRes && !lRes.error && Array.isArray(lRes.data)) {
-                            leaveRequestsList = lRes.data.map(l => ({
-                                "เลขที่เอกสาร": l.doc_id,
-                                "รหัสพนักงาน": l.emp_id,
-                                "ประเภทการลา": l.leave_type,
-                                "ระยะเวลา": l.duration,
-                                "วันที่เริ่ม": l.start_date,
-                                "วันที่สิ้นสุด": l.end_date,
-                                "จำนวนวัน": l.days_count,
-                                "เหตุผล": l.reason,
-                                "สถานะ": l.status,
-                                "อนุมัติโดย": l.approved_by,
-                                "หมายเหตุ": l.notes,
-                                "ลายมือชื่อ": l.signature_url,
-                                "เอกสารแนบ": l.attachments
-                            }));
-                        }
-
-                        if (aRes && !aRes.error && Array.isArray(aRes.data)) {
-                            advanceRequestsList = aRes.data.map(a => ({
-                                "รหัสพนักงาน": a.emp_id,
-                                "จำนวนเงิน": a.amount,
-                                "วันที่เบิก": a.request_date,
-                                "รอบจ่าย": a.pay_cycle,
-                                "สถานะ": a.status,
-                                "ช่องทางรับเงิน": a.payout_channel,
-                                "หมายเหตุ": a.notes
-                            }));
-                        }
-
-                        if (payRes && !payRes.error && Array.isArray(payRes.data)) {
-                            payslipsList = payRes.data.map(p => ({
-                                "รหัสพนักงาน": p.emp_id || '',
-                                "รอบเงินเดือน": p.period || '',
-                                "ชื่อไฟล์": p.file_name || '',
-                                "ID ไฟล์": p.file_id || '',
-                                "ไฟล์สลิป": p.slip_url || '',
-                                "รอบสลิป": p.slip_url || '',
-                                "วันที่บันทึก": p.recorded_at || '',
-                                "ยอดสุทธิ": p.net_amount || 0,
-                                "เงินได้สุทธิ": p.net_amount || 0,
-                                "period": p.period || '',
-                                "file_name": p.file_name || '',
-                                "slip_url": p.slip_url || '',
-                                "net_amount": p.net_amount || 0,
-                                "recorded_at": p.recorded_at || '',
-                                "created_at": p.created_at || ''
-                            }));
-                        }
 
                         // Projects (reuse from loadPublicData ถ้ามี)
                         if (pRes && !pRes.error && Array.isArray(pRes.data)) {
@@ -10679,12 +10650,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         console.log('[loadAllData ⚡ Supabase] ✓ Loaded employee data instantly');
                         if (typeof logDbActivity === 'function') {
-                            logDbActivity('READ', 'Dashboard', `ดึงข้อมูลส่วนตัวพนักงาน ${currentEmployeeId} (${timeRecordsList.length} เวลางาน, ${leaveRequestsList.length} ลา)`, 'success', Math.round(performance.now() - tSup0));
+                            logDbActivity('READ', 'Dashboard', `ดึงข้อมูลหลักพนักงาน ${currentEmployeeId} (${timeRecordsList.length} เวลางาน)`, 'success', Math.round(performance.now() - tSup0));
                         }
                         // 🔧 OPTIMIZE: อัปเดต cache keys
                         _lastLoadEmpId = currentEmployeeId;
                         _lastLoadCycleStart = pStart;
-                        _renderAllViews();
+
+                        // ✅ ข้อมูลหลักพร้อม → render หน้าหลักทันที (สถิติ/ปฏิทิน/กิจกรรม/สถานะวันนี้)
+                        _sectionReady.primary = true;
+                        renderPrimaryViews();
+
+                        // 🟢 STAGE 2: ข้อมูลรอง (แก้ไขเวลา/ลา/เบิกเงิน/สลิป) — โหลดต่อเบื้องหลัง
+                        //    แต่ละส่วนจะ render ทันทีที่ข้อมูลมา ไม่ต้องรอทุกอย่างพร้อมกัน
+                        loadSecondaryData(needCorrections, needLeaves, needAdvances, needPayslips, tSup0);
                         return true;
                     } catch (supErr) {
                         if (typeof logDbActivity === 'function') {
@@ -10697,9 +10675,126 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // 🔧 SUPABASE-ONLY: ไม่มี GAS fallback อีกต่อไป
                 console.error('[loadAllData] Supabase failed, no fallback available');
+                // 🔧 เมื่อโหลดไม่สำเร็จ → ให้ทุกส่วนแสดงสถานะว่าง (ไม่ค้าง skeleton)
+                Object.keys(_sectionReady).forEach(k => { _sectionReady[k] = true; });
                 showToast('\u274c \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e23\u0e48\u0e21\u0e15\u0e48\u0e2d\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e15\u0e48\u0e2d Supabase \u0e44\u0e21\u0e48\u0e17\u0e49\u0e32\u0e22\u0e02\u0e49\u0e21\u0e14', 'error');
                 _renderAllViews();
                 return false;
+            }
+
+            // 🟢 STAGE 2 (Progressive Load): โหลดข้อมูลรองแบบเบื้องหลัง
+            //    render แต่ละส่วนทันทีที่ข้อมูลตารางนั้นมาถึง — ไม่ต้องรอทุกอย่างพร้อมกัน
+            async function loadSecondaryData(needCorrections, needLeaves, needAdvances, needPayslips, tSup0) {
+                try {
+                    const [cRes, lRes, aRes, payRes] = await Promise.all([
+                        needCorrections ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
+                        needLeaves ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
+                        needAdvances ? supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId) : null,
+                        needPayslips ? supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId) : null
+                    ]);
+
+                    // 1) คำขอแก้ไขเวลา → อัปเดตการแจ้งเตือน/สถิติ
+                    if (cRes && !cRes.error && Array.isArray(cRes.data)) {
+                        timeCorrectionsList = cRes.data.map(c => ({
+                            "รหัสพนักงาน": c.emp_id,
+                            "วันที่": c.date,
+                            "เวลาเข้าใหม่": c.new_time_in,
+                            "เวลาออกใหม่": c.new_time_out,
+                            "เหตุผล": c.reason,
+                            "สถานะ": c.status,
+                            "โครงการ": c.project,
+                            "อนุมัติโดย": c.approved_by,
+                            "หมายเหตุ": c.notes
+                        }));
+                        _sectionReady.corrections = true;
+                        try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                        try { if (typeof updateApprovalStatCards === 'function') updateApprovalStatCards(); } catch (e) { console.warn(e); }
+                    }
+
+                    // 2) คำขอลา → render ประวัติลา + อัปเดตสถิติ/กิจกรรม/แจ้งเตือน
+                    if (lRes && !lRes.error && Array.isArray(lRes.data)) {
+                        leaveRequestsList = lRes.data.map(l => ({
+                            "เลขที่เอกสาร": l.doc_id,
+                            "รหัสพนักงาน": l.emp_id,
+                            "ประเภทการลา": l.leave_type,
+                            "ระยะเวลา": l.duration,
+                            "วันที่เริ่ม": l.start_date,
+                            "วันที่สิ้นสุด": l.end_date,
+                            "จำนวนวัน": l.days_count,
+                            "เหตุผล": l.reason,
+                            "สถานะ": l.status,
+                            "อนุมัติโดย": l.approved_by,
+                            "หมายเหตุ": l.notes,
+                            "ลายมือชื่อ": l.signature_url,
+                            "เอกสารแนบ": l.attachments
+                        }));
+                        _sectionReady.leave = true;
+                        try { if (typeof displayLeaveHistory === 'function') displayLeaveHistory(); } catch (e) { console.warn(e); }
+                        try { if (typeof calculateAndDisplayStats === 'function') calculateAndDisplayStats(); } catch (e) { console.warn(e); }
+                        try { if (typeof displayActivitiesList === 'function') displayActivitiesList(); } catch (e) { console.warn(e); }
+                        try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                    }
+
+                    // 3) คำขอเบิกเงิน → render ประวัติเบิก + อัปเดตกิจกรรม/แจ้งเตือน
+                    if (aRes && !aRes.error && Array.isArray(aRes.data)) {
+                        advanceRequestsList = aRes.data.map(a => ({
+                            "รหัสพนักงาน": a.emp_id,
+                            "จำนวนเงิน": a.amount,
+                            "วันที่เบิก": a.request_date,
+                            "รอบจ่าย": a.pay_cycle,
+                            "สถานะ": a.status,
+                            "ช่องทางรับเงิน": a.payout_channel,
+                            "หมายเหตุ": a.notes
+                        }));
+                        _sectionReady.advance = true;
+                        try { if (typeof displayAdvanceHistory === 'function') displayAdvanceHistory(); } catch (e) { console.warn(e); }
+                        try { if (typeof displayActivitiesList === 'function') displayActivitiesList(); } catch (e) { console.warn(e); }
+                        try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                    }
+
+                    // 4) สลิปเงินเดือน → render รายการสลิป + แจ้งเตือนสลิปใหม่
+                    if (payRes && !payRes.error && Array.isArray(payRes.data)) {
+                        payslipsList = payRes.data.map(p => ({
+                            "รหัสพนักงาน": p.emp_id || '',
+                            "รอบเงินเดือน": p.period || '',
+                            "ชื่อไฟล์": p.file_name || '',
+                            "ID ไฟล์": p.file_id || '',
+                            "ไฟล์สลิป": p.slip_url || '',
+                            "รอบสลิป": p.slip_url || '',
+                            "วันที่บันทึก": p.recorded_at || '',
+                            "ยอดสุทธิ": p.net_amount || 0,
+                            "เงินได้สุทธิ": p.net_amount || 0,
+                            "period": p.period || '',
+                            "file_name": p.file_name || '',
+                            "slip_url": p.slip_url || '',
+                            "net_amount": p.net_amount || 0,
+                            "recorded_at": p.recorded_at || '',
+                            "created_at": p.created_at || ''
+                        }));
+                        _sectionReady.payslip = true;
+                        try { if (typeof displayPayslipList === 'function') displayPayslipList(); } catch (e) { console.warn(e); }
+                        try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                    }
+
+                    console.log('[loadAllData ⚡ Supabase] ✓ Secondary data loaded:', {
+                        corrections: timeCorrectionsList.length,
+                        leave: leaveRequestsList.length,
+                        advance: advanceRequestsList.length,
+                        payslip: payslipsList.length
+                    });
+                    if (typeof logDbActivity === 'function') {
+                        logDbActivity('READ', 'Dashboard', `ดึงข้อมูลส่วนตัวพนักงาน ${currentEmployeeId} (${leaveRequestsList.length} ลา, ${advanceRequestsList.length} เบิก, ${payslipsList.length} สลิป)`, 'success', Math.round(performance.now() - tSup0));
+                    }
+                    // Render รอบสุดท้าย (debounce) — เก็บส่วนที่อาจยังค้างอยู่ทั้งหมด
+                    _renderAllViews();
+                } catch (err) {
+                    // โหลดส่วนรองไม่สำเร็จ → ให้ส่วนที่เหลือแสดงสถานะว่าง ไม่ค้าง skeleton
+                    Object.keys(_sectionReady).forEach(k => { _sectionReady[k] = true; });
+                    if (typeof logDbActivity === 'function') {
+                        logDbActivity('ERROR', 'Supabase', `ดึงข้อมูลส่วนรองไม่สำเร็จ: ${err.message || err}`, 'error');
+                    }
+                    console.error('[loadSecondaryData] ERROR:', err.message || err);
+                }
             }
 
             function refreshDataInBackground() {
@@ -10755,6 +10850,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } finally {
                     _renderAllViewsRunning = false;
                 }
+            }
+
+            // 🟢 PROGRESSIVE LOAD: render ข้อมูลหลักทันทีที่โหลดเสร็จ
+            //    (สถิติ/ปฏิทิน/กิจกรรม/สถานะวันนี้) — ส่วนรองจะค่อยๆ เติมทีหลัง
+            function renderPrimaryViews() {
+                try { if (typeof updateEmployeeProfileUI === 'function') updateEmployeeProfileUI(); } catch (e) { console.warn(e); }
+                try { if (typeof displayAnnouncements === 'function') displayAnnouncements(); } catch (e) { console.warn(e); }
+                try { if (typeof calculateAndDisplayStats === 'function') calculateAndDisplayStats(); } catch (e) { console.warn(e); }
+                try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
+                try { if (typeof renderCalendarDaysFromLocal === 'function') renderCalendarDaysFromLocal(); } catch (e) { console.warn(e); }
+                try { if (typeof updateAttendanceStatus === 'function') updateAttendanceStatus(); } catch (e) { console.warn(e); }
+                try { if (typeof applyRolePermissions === 'function') applyRolePermissions(); } catch (e) { console.warn(e); }
+                try { if (typeof populateProjectDropdowns === 'function') populateProjectDropdowns(); } catch (e) { console.warn(e); }
+                try { if (typeof displayActivitiesList === 'function') displayActivitiesList(); } catch (e) { console.warn(e); }
+                // โปรไฟล์ — เรนเดอร์จาก employeeData ที่มีอยู่แล้ว
+                try {
+                    if (typeof employeeData !== 'undefined' && employeeData && Object.keys(employeeData).length > 0 && typeof loadProfileData === 'function') {
+                        loadProfileData();
+                    }
+                } catch (e) { console.warn(e); }
             }
 
             // ─── Announcement Storage & Functions ──────────────────────
@@ -10861,9 +10976,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
             
             function displayAnnouncements() {
-                const list = getStoredAnnouncements();
                 const panelContainer = document.getElementById('notification-announcements');
                 const pageContainer = document.getElementById('page-announcements-list');
+                // 🟢 PROGRESSIVE: ประกาศยังโหลดไม่เสร็จ → แสดง skeleton แทน "ไม่พบข่าวสาร"
+                if (!publicDataLoaded && getStoredAnnouncements().length === 0) {
+                    [panelContainer, pageContainer].forEach(c => {
+                        if (c && c.children.length === 0) c.innerHTML = skeletonHTML('card', 3);
+                    });
+                    return;
+                }
+                const list = getStoredAnnouncements();
                 const fallbackHtml = '<div class="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-slate-500 text-xs text-center">ไม่พบข่าวสารล่าสุด</div>';
 
                 [panelContainer, pageContainer].forEach(container => {
@@ -10892,6 +11014,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const container = document.getElementById('home-reminders-list');
                 const notificationContainer = document.getElementById('notification-reminders');
                 const announcementPageContainer = document.getElementById('page-announcements-reminders');
+                // 🟢 PROGRESSIVE: ยังไม่มีข้อมูลส่วนไหนเลย → แสดง skeleton
+                if (!_sectionReady.primary && !_sectionReady.leave && !_sectionReady.advance && !_sectionReady.payslip) {
+                    [container, notificationContainer, announcementPageContainer].forEach(c => {
+                        if (c && c.children.length === 0) c.innerHTML = skeletonHTML('card', 2);
+                    });
+                    return;
+                }
                 const currentCycle = getCurrentCycleRange();
                 const daysLeft = getDaysUntil(currentCycle.end);
 
@@ -11618,6 +11747,39 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return el;
             }
 
+            // helper: แสดง skeleton ในค่าสถิติ/ยอดคงเหลือ (แทนเลข 0 หลอกๆ ตอนยังโหลดไม่เสร็จ)
+            function showStatsSkeleton() {
+                const statIds = [
+                    "stat-work-days", "stat-late-minutes", "stat-ot-hours", "stat-absent-days", "stat-leave-days",
+                    "home-leave-personal-used", "home-leave-sick-used", "home-leave-vacation-used",
+                    "leave-personal-used", "leave-sick-used", "leave-vacation-used"
+                ];
+                statIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = '<span class="skeleton" style="display:inline-block;width:38px;height:16px;vertical-align:middle;"></span>';
+                });
+                // แถบสิทธิ์ลา → shimmer แทนแถบว่าง (จะถูกแทนที่เมื่อข้อมูลจริงมา)
+                ["home-leave-personal-bar", "home-leave-sick-bar", "home-leave-vacation-bar",
+                 "leave-personal-bar", "leave-sick-bar", "leave-vacation-bar"].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.width = '100%';
+                        el.style.background = 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)';
+                        el.style.backgroundSize = '200% 100%';
+                        el.style.animation = 'skeleton-shimmer 1.5s ease-in-out infinite';
+                    }
+                });
+            }
+
+            // helper: ตั้งความกว้างแถบสิทธิ์ลา พร้อมล้าง shimmer ของ skeleton ออก
+            function setLeaveBarWidth(el, pct) {
+                if (!el) return;
+                el.style.width = (pct || 0) + '%';
+                el.style.background = '';
+                el.style.backgroundSize = '';
+                el.style.animation = '';
+            }
+
             function showSpinner(containerId, label = 'กำลังโหลด...') {
                 const el = document.getElementById(containerId);
                 if (el) el.innerHTML = spinnerHTML(label);
@@ -11865,7 +12027,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const bannerTime = document.getElementById('today-status-time');
                 const bannerBtn = document.getElementById('today-status-btn');
                 if (bannerText && bannerTime && bannerBtn) {
-                    if (hasIn && !hasOut) {
+                    // 🟢 PROGRESSIVE: ข้อมูลหลักยังไม่พร้อม → แสดง skeleton บน banner
+                    if (!_sectionReady.primary) {
+                        bannerText.innerHTML = '<span class="skeleton" style="display:inline-block;width:120px;height:12px;vertical-align:middle;"></span>';
+                        bannerTime.innerHTML = '<span class="skeleton" style="display:inline-block;width:170px;height:10px;vertical-align:middle;"></span>';
+                    } else if (hasIn && !hasOut) {
                         bannerText.textContent = 'เข้างานแล้ว · ปกติ';
                         bannerTime.textContent = 'เวลาเข้า ' + (todayRecord['เวลาเข้า'] || '...') + ' น. · ยังไม่ได้ลงเวลาออก';
                         bannerBtn.textContent = 'ออกงาน';
@@ -12143,6 +12309,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // --- คำนวณวิเคราะห์สถิติตามรอบบัญชี (Phase D-1: คำนวณจากข้อมูลจริง) ---
             function calculateAndDisplayStats() {
+                // 🟢 PROGRESSIVE: ข้อมูลหลักยังไม่พร้อม → แสดง skeleton แทนเลข 0 หลอกๆ
+                if (!_sectionReady.primary) { showStatsSkeleton(); return; }
+
                 // === 🟢 PHASE D-1: ใช้ Status Map ครอบคลุมทุกค่าที่ปรากฏในชีตจริง ===
                 const STATUS_CATEGORY = {
                     // ทำงานปกติ
@@ -12277,9 +12446,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if ($("leave-vacation-total"))$("leave-vacation-total").textContent= annualQuota;
 
                 // Update leave page progress bars
-                if ($("leave-personal-bar")) $("leave-personal-bar").style.width = (personalQuota > 0 ? (personalUsed / personalQuota * 100) : 0) + '%';
-                if ($("leave-sick-bar"))     $("leave-sick-bar").style.width     = (sickQuota > 0 ? (sickUsed / sickQuota * 100) : 0) + '%';
-                if ($("leave-vacation-bar")) $("leave-vacation-bar").style.width = (annualQuota > 0 ? (vacationUsed / annualQuota * 100) : 0) + '%';
+                setLeaveBarWidth($("leave-personal-bar"), personalQuota > 0 ? (personalUsed / personalQuota * 100) : 0);
+                setLeaveBarWidth($("leave-sick-bar"), sickQuota > 0 ? (sickUsed / sickQuota * 100) : 0);
+                setLeaveBarWidth($("leave-vacation-bar"), annualQuota > 0 ? (vacationUsed / annualQuota * 100) : 0);
 
                 if ($("home-leave-personal-used")) $("home-leave-personal-used").textContent = personalUsed;
                 if ($("home-leave-sick-used"))    $("home-leave-sick-used").textContent    = sickUsed;
@@ -12290,9 +12459,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if ($("home-leave-vacation-total"))$("home-leave-vacation-total").textContent= annualQuota;
 
                 // Update progress bars
-                if ($("home-leave-personal-bar")) $("home-leave-personal-bar").style.width = (personalQuota > 0 ? (personalUsed / personalQuota * 100) : 0) + '%';
-                if ($("home-leave-sick-bar"))     $("home-leave-sick-bar").style.width     = (sickQuota > 0 ? (sickUsed / sickQuota * 100) : 0) + '%';
-                if ($("home-leave-vacation-bar")) $("home-leave-vacation-bar").style.width = (annualQuota > 0 ? (vacationUsed / annualQuota * 100) : 0) + '%';
+                setLeaveBarWidth($("home-leave-personal-bar"), personalQuota > 0 ? (personalUsed / personalQuota * 100) : 0);
+                setLeaveBarWidth($("home-leave-sick-bar"), sickQuota > 0 ? (sickUsed / sickQuota * 100) : 0);
+                setLeaveBarWidth($("home-leave-vacation-bar"), annualQuota > 0 ? (vacationUsed / annualQuota * 100) : 0);
 
                 if ($("stat-work-days"))     $("stat-work-days").innerHTML     = `${stats.workDaysCount} <span class="text-xs font-normal text-slate-500">วัน</span>`;
                 if ($("stat-late-minutes"))  $("stat-late-minutes").innerHTML  = `${stats.totalLateMin} <span class="text-xs font-normal text-slate-500">นาที</span>`;
@@ -12383,6 +12552,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function displayActivitiesList() {
                 const listContainer = document.getElementById("home-activities-list");
                 if (!listContainer) return;
+                // 🟢 PROGRESSIVE: ข้อมูลหลักยังไม่พร้อม → แสดง skeleton
+                if (!_sectionReady.primary) { showSkeleton('home-activities-list', 'card', 3); return; }
                 listContainer.innerHTML = "";
 
                 // === รวม 3 ประเภทกิจกรรมเข้าด้วยกัน (ทั้งหมด ไม่จำกัดรอบบัญชี) ===
@@ -12585,6 +12756,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 const container = document.getElementById("calendar-days-list");
                 if (!container) return;
+                // 🟢 PROGRESSIVE: ข้อมูลหลักยังไม่พร้อม → แสดง skeleton
+                if (!_sectionReady.primary) {
+                    showSkeleton('calendar-days-list', 'card', 4);
+                    const cnt = document.getElementById("calendar-records-count");
+                    if (cnt) cnt.textContent = '...';
+                    return;
+                }
 
                 const fullRecords = getFullCycleRecords(start, end, timeRecordsList, leaveRequestsList, employeeData);
                 displayCalendarDays(fullRecords);
@@ -12873,6 +13051,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function displayLeaveHistory() {
                 const container = document.getElementById("leave-history-list");
+                if (!container) return;
+                // 🟢 PROGRESSIVE: ข้อมูลลายังไม่พร้อม → แสดง skeleton
+                if (!_sectionReady.leave) { showSkeleton('leave-history-list', 'card', 3); return; }
                 container.innerHTML = "";
 
                 if (leaveRequestsList.length === 0) {
@@ -13837,6 +14018,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // --- ส่วนเบิกเงินเดือนล่วงหน้า ---
             function displayAdvanceHistory() {
                 const container = document.getElementById("advance-history-list");
+                if (!container) return;
+                // 🟢 PROGRESSIVE: ข้อมูลเบิกเงินยังไม่พร้อม → แสดง skeleton
+                if (!_sectionReady.advance) { showSkeleton('advance-history-list', 'card', 3); return; }
                 container.innerHTML = "";
 
                 if (advanceRequestsList.length === 0) {
@@ -13998,6 +14182,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function displayPayslipList() {
                 const container = document.getElementById("payslip-records-list");
+                if (!container) return;
+                // 🟢 PROGRESSIVE: ข้อมูลสลิปยังไม่พร้อม → แสดง skeleton
+                if (!_sectionReady.payslip) { showSkeleton('payslip-records-list', 'card', 3); return; }
                 const countBadge = document.getElementById("payslip-count-badge");
                 container.innerHTML = "";
                 console.log('[displayPayslipList] payslipsList:', payslipsList.length, 'items', payslipsList.slice(0, 2));
