@@ -292,7 +292,12 @@ CREATE TABLE IF NOT EXISTS public.attendance_raw (
     device_id TEXT NOT NULL,
     branch_code TEXT DEFAULT '',
     scanner_uid TEXT NOT NULL,
+    raw_name TEXT DEFAULT '',
+    agent_id TEXT DEFAULT '',
     emp_id TEXT DEFAULT '',
+    mapping_status TEXT DEFAULT '',
+    suggested_emp_id TEXT DEFAULT '',
+    suggested_score NUMERIC(6,2) DEFAULT 0,
     timestamp TEXT NOT NULL,
     status INTEGER DEFAULT 0,
     punch INTEGER DEFAULT 1,
@@ -318,6 +323,15 @@ CREATE TABLE IF NOT EXISTS public.employee_notification_prefs (
     advance BOOLEAN DEFAULT true,
     announcement BOOLEAN DEFAULT true,
     updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ตารางประวัติการใช้งาน (Audit Log) — ใคร ทำอะไร เมื่อไหร่
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    action TEXT NOT NULL,
+    emp_id TEXT,
+    details TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ════════════════════════════════════════════════════════════
@@ -359,6 +373,11 @@ ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS liveness_ok BOOLEAN;
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS geofence_result TEXT;
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS gps_lat NUMERIC(10,7);
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS gps_lng NUMERIC(10,7);
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS raw_name TEXT DEFAULT '';
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS agent_id TEXT DEFAULT '';
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS mapping_status TEXT DEFAULT '';
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS suggested_emp_id TEXT DEFAULT '';
+ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS suggested_score NUMERIC(6,2) DEFAULT 0;
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS processing_status TEXT DEFAULT 'pending';
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS processing_error TEXT;
 ALTER TABLE public.attendance_raw ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
@@ -443,7 +462,7 @@ DO $$ DECLARE t TEXT; BEGIN
     'employees','time_records','time_corrections','leave_requests',
     'advance_requests','payslips','system_settings','announcements',
     'projects','holidays','line_chat_state','line_groups',
-    'line_followers','face_database','face_capture_log','scanner_mappings','agent_configs','attendance_raw','employee_notification_prefs'
+    'line_followers','face_database','face_capture_log','scanner_mappings','agent_configs','attendance_raw','employee_notification_prefs','audit_logs'
     ]) LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     IF NOT EXISTS (
@@ -484,6 +503,9 @@ CREATE INDEX IF NOT EXISTS idx_attendance_raw_emp ON public.attendance_raw(emp_i
 CREATE INDEX IF NOT EXISTS idx_attendance_raw_timestamp ON public.attendance_raw(timestamp);
 CREATE INDEX IF NOT EXISTS idx_attendance_raw_uid ON public.attendance_raw(scanner_uid);
 CREATE INDEX IF NOT EXISTS idx_attendance_raw_processing_status ON public.attendance_raw(processing_status);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_emp_id ON public.audit_logs(emp_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON public.audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs(created_at);
 
 -- ════════════════════════════════════════════════════════════
 -- STEP 7: INSERT สร้างบัญชี Admin (ถ้ายังไม่มี)
@@ -504,7 +526,7 @@ BEGIN
       'employees','time_records','time_corrections','leave_requests',
       'advance_requests','payslips','system_settings','announcements',
       'projects','holidays','line_chat_state','line_groups',
-      'line_followers','face_database','face_capture_log','scanner_mappings','agent_configs','attendance_raw','employee_notification_prefs'
+      'line_followers','face_database','face_capture_log','scanner_mappings','agent_configs','attendance_raw','employee_notification_prefs','audit_logs'
     ]) LOOP
       BEGIN
         EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
@@ -583,7 +605,8 @@ GRANT EXECUTE ON FUNCTION public.fn_run_migrations(JSONB) TO service_role;
 INSERT INTO public.schema_migrations (version, description)
 VALUES
   ('baseline-2026-09-05', 'Baseline: HRBTC V2 schema ครบทุกตารางและ realtime'),
-  ('2026-09-05-attendance-raw-processing-v1', 'เพิ่มสถานะติดตามการส่ง attendance_raw เข้ากระบวนการคำนวณกลาง')
+  ('2026-09-05-attendance-raw-processing-v1', 'เพิ่มสถานะติดตามการส่ง attendance_raw เข้ากระบวนการคำนวณกลาง'),
+  ('2026-09-07-audit-logs-v1', 'เพิ่มตาราง audit_logs สำหรับเก็บประวัติการใช้งาน (ใคร ทำอะไร เมื่อไหร่)')
 ON CONFLICT (version) DO UPDATE SET
   description = EXCLUDED.description;
 
