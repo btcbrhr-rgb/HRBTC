@@ -8077,6 +8077,26 @@
                     </div>
                 </div>
 
+                <!-- ข้อมูลส่วนตัว (เลขบัตร / วันเกิด / วันเริ่มงาน) -->
+                <div class="grid grid-cols-3 gap-4 border-t border-slate-800 pt-3">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">เลขบัตรประชาชน</label>
+                        <input type="text" id="form-emp-idcard" placeholder="13 หลัก" maxlength="13" inputmode="numeric"
+                            title="เลขบัตรประชาชน 13 หลัก" aria-label="เลขบัตรประชาชน"
+                            class="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">วันเดือนปีเกิด</label>
+                        <input type="date" id="form-emp-birthdate" title="วันเดือนปีเกิด" aria-label="วันเดือนปีเกิด"
+                            class="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">วันที่เริ่มงาน</label>
+                        <input type="date" id="form-emp-start-date" title="วันที่เริ่มงาน" aria-label="วันที่เริ่มงาน"
+                            class="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                    </div>
+                </div>
+
                 <!-- ข้อมูลส่วนตัวอื่นๆ -->
                 <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1">
@@ -17873,7 +17893,17 @@ async function loadAdminEmployees() {
                                     'สิทธิ์การใช้งาน': r.role,
                                     'ลิ้งภาพโปรไฟล์': r.avatar_url,
                                     'วันหยุดประจําสัปดาห์': r.day_off,
-                                    'ฐานเงินเดือน': r.base_salary
+                                    'ฐานเงินเดือน': r.base_salary,
+                                    'เลขบัตรประชาชน': r.id_card,
+                                    'วันเดือนปีเกิด': r.birth_date,
+                                    'วันที่เริ่มงาน': r.start_date,
+                                    'ที่อยู่': r.address,
+                                    'ธนาคาร': r.bank,
+                                    'สาขาธนาคาร': r.bank_branch,
+                                    'หมายเลขบัญชี': r.bank_account,
+                                    'ตัวหารค่าแรง': r.wage_divisor,
+                                    'ตัวคูณโอที': r.ot_rate,
+                                    'LineUserId': r.line_user_id
                                 }));
                                 console.log('[loadAdminEmployees ⚡ Supabase] ✓', data.length, 'employees');
                             }
@@ -17898,7 +17928,7 @@ async function loadAdminEmployees() {
                         }
                         renderAdminEmployeesTable();
                     } else {
-                        container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ${res.message}</td></tr>`;
+                        container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ เกิดข้อผิดพลาด: ไม่สามารถโหลดรายชื่อพนักงานได้</td></tr>`;
                     }
                 } catch (err) {
                     container.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-600">❌ เชื่อมต่อ API ไม่สำเร็จ: ${err.message}</td></tr>`;
@@ -19365,12 +19395,21 @@ async function loadAdminEmployees() {
                 }
             }
 
+                // แปลงวันที่เป็น YYYY-MM-DD (รองรับ DD/MM/YYYY จากข้อมูลเก่า) สำหรับ input type="date"
+                function normalizeIsoDateForInput_(value) {
+                    if (!value) return "";
+                    const s = value.toString().trim();
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+                        const parts = s.split("/");
+                        return parts[2] + "-" + parts[1] + "-" + parts[0];
+                    }
+                    return s;
+                }
+
                 // เปิดโมดอลการสร้างหรือแก้ไขผู้ใช้พนักงาน
                 function openEmployeeEditModal(emp = null) {
-                    const form = document.getElementById("admin-employee-form");
-                    form.reset();
-
-                    const titleEl = document.getElementById("admin-emp-form-title");
+                    // ฟอร์มเป็น div-based (ไม่มีแท็ก <form id="admin-employee-form">) — ล้างค่าใน else branch แทน
+                    const titleEl = document.getElementById("admin-emp-modal-title");
                     const idInput = document.getElementById("form-emp-id");
 
                     if (emp) {
@@ -19390,6 +19429,9 @@ async function loadAdminEmployees() {
                         document.getElementById("form-emp-branch").value = emp["สาขาธนาคาร"] || "";
                         document.getElementById("form-emp-accno").value = emp["หมายเลขบัญชี"] || "";
                         document.getElementById("form-emp-phone").value = emp["เบอร์โทรศัพท์"] || "";
+                        document.getElementById("form-emp-idcard").value = emp["เลขบัตรประชาชน"] || "";
+                        document.getElementById("form-emp-birthdate").value = normalizeIsoDateForInput_(emp["วันเดือนปีเกิด"]);
+                        document.getElementById("form-emp-start-date").value = normalizeIsoDateForInput_(emp["วันที่เริ่มงาน"]);
                         document.getElementById("form-emp-status").value = emp["สถานะ"] || "ทำงานปกติ";
 
                         // สิทธิ์การใช้งานและการเข้าถึงเมนู
@@ -19420,10 +19462,26 @@ async function loadAdminEmployees() {
                         idInput.value = "";
                         idInput.disabled = false;
 
+                        // ล้างค่าฟอร์มทั้งหมด (กันข้อมูลพนักงานคนก่อนค้างอยู่)
+                        ["form-emp-name", "form-emp-pos", "form-emp-company", "form-emp-avatar",
+                         "form-emp-bank", "form-emp-branch", "form-emp-accno", "form-emp-phone",
+                         "form-emp-idcard", "form-emp-birthdate", "form-emp-start-date"].forEach(fid => {
+                            const el = document.getElementById(fid);
+                            if (el) el.value = "";
+                        });
+                        const setVal = (fid, val) => { const el = document.getElementById(fid); if (el) el.value = val; };
+                        setVal("form-emp-salary", "15000");
+                        setVal("form-emp-divisor", "30");
+                        setVal("form-emp-hours", "8");
+                        setVal("form-emp-dayoff", "อาทิตย์");
+                        setVal("form-emp-status", "ทำงานปกติ");
+                        setVal("form-emp-role", "Employee");
+
                         // ตั้งค่าเมนูเป็นติ๊กหมดตามค่าเริ่มต้น
                         const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
                         pages.forEach(p => {
-                            document.getElementById(`perm-menu-${p}`).checked = true;
+                            const cb = document.getElementById(`perm-menu-${p}`);
+                            if (cb) cb.checked = true;
                         });
                     }
 
@@ -20323,11 +20381,21 @@ function closeEmployeeModal() {
                     const branch = document.getElementById("form-emp-branch").value.trim();
                     const accno = document.getElementById("form-emp-accno").value.trim();
                     const phone = document.getElementById("form-emp-phone").value.trim();
+                    const idcard = document.getElementById("form-emp-idcard").value.trim();
+                    const birthdate = document.getElementById("form-emp-birthdate").value;
+                    const startDate = document.getElementById("form-emp-start-date").value;
                     const status = document.getElementById("form-emp-status").value;
                     const mainRole = document.getElementById("form-emp-role").value;
 
                     if (!empId || !name) {
                         showToast("⚠️ กรุณากรอกรหัสและชื่อพนักงาน", "warning");
+                        return;
+                    }
+
+                    // เลขบัตรประชาชน: ถ้ากรอกให้ ต้องเป็นตัวเลข 13 หลัก (ใช้ยืนยันตัวตนตอนตั้ง PIN)
+                    const idcardDigits = idcard.replace(/[^0-9]/g, "");
+                    if (idcard && idcardDigits.length !== 13) {
+                        showToast("⚠️ เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก", "warning");
                         return;
                     }
 
@@ -20343,8 +20411,16 @@ function closeEmployeeModal() {
                     }
                     // Manager/Administrator/Employee — เก็บค่า role ตามที่เลือกโดยตรง
 
+                    // 🔒 Admin จำกัดสิทธิ์ต้องเลือกเมนูอย่างน้อย 1 เมนู
+                    if (mainRole === 'admin' && !(finalRole.split(':')[1] || '').trim()) {
+                        showToast("⚠️ กรุณาเลือกเมนูที่อนุญาตอย่างน้อย 1 เมนูสำหรับ Admin จำกัดสิทธิ์", "warning");
+                        return;
+                    }
+
                     const payload = {
                         action: "saveEmployee",
+                        // adminId ใช้ยืนยันสิทธิ์ฝั่ง backend (requireAdminAuth) — ไม่มีจะถูกปฏิเสธ UNAUTHORIZED
+                        adminId: currentEmployeeId,
                         "รหัสพนักงาน": empId,
                         "ชื่อ-นามสกุล": name,
                         "ตำแหน่ง": pos,
@@ -20358,6 +20434,9 @@ function closeEmployeeModal() {
                         "สาขาธนาคาร": branch,
                         "หมายเลขบัญชี": accno,
                         "เบอร์โทรศัพท์": phone,
+                        "เลขบัตรประชาชน": idcardDigits,
+                        "วันเดือนปีเกิด": birthdate,
+                        "วันที่เริ่มงาน": startDate,
                         "สถานะ": status,
                         "สิทธิ์การใช้งาน": finalRole
                     };
