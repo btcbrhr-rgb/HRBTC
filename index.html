@@ -24587,7 +24587,7 @@ ${slip.textSample}
                     var avatarEl = get('avatar');
                     var initialEl = get('initial');
                     if (nameEl) nameEl.textContent = name || '...';
-                    if (idEl) idEl.textContent = 'รหัส: ' + (empId || '...');
+                    if (idEl) idEl.textContent = empId || '...';
                     if (posEl) posEl.textContent = 'ตำแหน่ง: ' + (position || 'พนักงานทั่วไป');
 
                     // โลโก้ + ชื่อบริษัท + ข้อมูลติดต่อ (จาก COMPANY_INFO — แสดงให้เป็นทางการเมื่อพิมพ์)
@@ -24600,11 +24600,9 @@ ${slip.textSample}
                         logoEl.onerror = function () { this.style.display = 'none'; };
                     }
                     if (companyEl) companyEl.textContent = ci.name || '';
-                    // ตามเทมเพลตบัตรพนักงาน: ช่อง "ฝ่าย" ใช้ position แทน (เช่นเดียวกับช่องรถ)
+                    // ตามเทมเพลตบัตรพนักงาน: ช่อง "ฝ่าย" ถูกซ่อนด้วย CSS (.bq-dept{display:none}) — รวมเข้ากับตำแหน่งแล้ว
                     if (deptEl) {
-                        var deptText = position || 'พนักงานทั่วไป';
-                        deptEl.textContent = deptText;
-                        deptEl.style.display = '';
+                        deptEl.style.display = 'none';
                     }
                     // ลายน้ำโลโก้บนพื้นบัตร — กริด 3 คอลัมน์, โลโก้ 28px, ระยะห่างกว้าง, จาง 6% (ตามเทมเพลต)
                     var wmEl = get('watermark');
@@ -24624,17 +24622,21 @@ ${slip.textSample}
                         contactEl.appendChild(telEl);
                     }
 
-                    // รูปโปรไฟล์ / ตัวอักษรย่อ
+                    // รูปโปรไฟล์ / ตัวอักษรย่อ (ถ้ารูปโหลดไม่ได้ → แสดงตัวอักษรย่อแทน)
                     var photoUrl = convertDriveUrl(data['ลิ้งภาพโปรไฟล์'] || data.avatar_url);
                     if (avatarEl && initialEl) {
+                        initialEl.textContent = (name || '?').charAt(0);
                         if (photoUrl) {
                             avatarEl.src = photoUrl;
                             avatarEl.classList.remove('hidden');
+                            avatarEl.onerror = function () {
+                                avatarEl.classList.add('hidden');
+                                initialEl.classList.remove('hidden');
+                            };
                             initialEl.classList.add('hidden');
                         } else {
                             avatarEl.classList.add('hidden');
                             initialEl.classList.remove('hidden');
-                            initialEl.textContent = (name || '?').charAt(0);
                         }
                     }
 
@@ -24911,9 +24913,10 @@ ${slip.textSample}
                         var photoUrl = convertDriveUrl(emp['ลิ้งภาพโปรไฟล์'] || emp.avatar_url);
                         var safeId = String(empId).replace(/[^a-zA-Z0-9_-]/g, '_');
 
+                        var initialHtml = '<div class="bq-initial">' + (name.charAt(0) || '?') + '</div>';
                         var avatarHtml = photoUrl
-                            ? '<img src="' + photoUrl + '" class="bq-avatar" alt="">'
-                            : '<div class="bq-initial">' + (name.charAt(0) || '?') + '</div>';
+                            ? initialHtml + '<img src="' + photoUrl + '" class="bq-avatar" alt="" onerror="this.remove()">'
+                            : initialHtml;
 
                         var card = document.createElement('div');
                         card.className = 'batch-qr-card';
@@ -25608,13 +25611,14 @@ ${slip.textSample}
         /* รอยเว้าล่างหัวบัตร (ตามเทมเพลต) */
         .bq-head-cut {
             position: absolute;
-            bottom: -12px;
+            bottom: -8px;
             left: 0;
             right: 0;
-            height: 16px;
+            height: 13px;
             background: #ffffff;
             clip-path: ellipse(55% 100% at 50% 100%);
             pointer-events: none;
+            z-index: 0;
         }
         /* กันปุ่มดาวน์โหลด (PNG) ทับข้อความหัวบัตรตอนแสดงตัวอย่างกลุ่ม */
         body:not(.print-qr-pass):not(.print-batch-qr) #batch-qr-modal .batch-qr-card .bq-head { padding-right: 44px; }
@@ -25626,13 +25630,14 @@ ${slip.textSample}
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            padding: 6px 10px 3px;
-            gap: 4px;
+            justify-content: space-evenly;
+            padding: 5px 10px 4px;
+            overflow: visible;
         }
 
         /* ── รูปพนักงาน: วงแหวนขาว + กรอบน้ำเงิน 4px (ตามเทมเพลต) ── */
         .bq-photo {
+            position: relative;
             width: clamp(84px, 44%, 100px);
             height: clamp(84px, 44%, 100px);
             border-radius: 50%;
@@ -25642,13 +25647,21 @@ ${slip.textSample}
             box-shadow: 0 10px 24px -14px rgba(15,23,42,0.35);
             box-sizing: border-box;
             flex-shrink: 0;
+            overflow: hidden;
+            z-index: 1;
         }
         .bq-photo .bq-avatar {
-            width: 100%;
-            height: 100%;
+            position: absolute;
+            top: 4.25px;
+            right: 4.25px;
+            bottom: 4.25px;
+            left: 4.25px;
+            width: auto;
+            height: auto;
             border-radius: 50%;
             object-fit: cover;
             display: block;
+            z-index: 2;
         }
         .bq-photo .bq-initial {
             width: 100%;
@@ -25661,17 +25674,19 @@ ${slip.textSample}
             justify-content: center;
             font-weight: 800;
             font-size: clamp(18px, 5vw, 24px);
+            z-index: 1;
+            text-transform: uppercase;
         }
 
-        .bq-meta { min-width: 0; text-align: center; width: 100%; display: flex; flex-direction: column; align-items: center; }
+        .bq-meta { min-width: 0; text-align: center; width: 100%; display: flex; flex-direction: column; align-items: center; flex: none; gap: 3px; }
         .bq-meta p { margin: 0; text-align: center; }
-        .bq-name { font-size: clamp(10.5px, 3vw, 12px); font-weight: 800; color: #054B99; line-height: 1.25; letter-spacing: -0.01em; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
-        .bq-pos { font-size: clamp(8px, 2.2vw, 9.5px); font-weight: 700; color: #475569; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+        .bq-name { font-size: clamp(10.5px, 3vw, 12px); font-weight: 800; color: #054B99; line-height: 1.25; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+        .bq-pos { font-size: clamp(8px, 2.2vw, 9.5px); font-weight: 700; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
         .bq-dept { display: none; } /* ซ่อนช่องฝ่าย — รวมเข้ากับตำแหน่งแล้ว ตามเทมเพลต */
 
         /* ── ชิปรหัสพนักงาน (ตามเทมเพลต) ── */
         .bq-id-chip {
-            margin-top: 4px;
+            margin-top: 3px;
             display: inline-flex;
             align-items: center;
             gap: 3px;
@@ -25692,8 +25707,7 @@ ${slip.textSample}
 
         /* ── QR Code: กล่องขาว กรอบ emerald-300 (ตามเทมเพลต) ── */
         .bq-qr-wrap {
-            margin-top: auto;
-            margin-bottom: auto;
+            margin: 0;
             background: #ffffff;
             border: 1px solid #6ee7b7;
             border-radius: 10px;
