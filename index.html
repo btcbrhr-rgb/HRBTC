@@ -24877,11 +24877,16 @@ ${slip.textSample}
                 }
 
                 function printQrPassCard() {
-                    document.body.classList.add('print-qr-pass');
-                    window.print();
-                    setTimeout(function () {
-                        document.body.classList.remove('print-qr-pass');
-                    }, 500);
+                    // เปิด Print_QRCard.html ในหน้าต่างใหม่แทน window.print()
+                    // ใช้ adminQrCurrentEmp (ฝั่ง Admin modal) หรือ currentEmployeeId (ฝั่งโปรไฟล์)
+                    var empId = (typeof adminQrCurrentEmp !== 'undefined' && adminQrCurrentEmp && adminQrCurrentEmp.id)
+                        ? adminQrCurrentEmp.id
+                        : (typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : null);
+                    if (!empId) {
+                        showToast('⚠️ ไม่พบรหัสพนักงาน', 'warning');
+                        return;
+                    }
+                    openPrintQrCardPageSingle(empId);
                 }
 
                 // ═══════════════════════════════════════════════════════════
@@ -25125,11 +25130,15 @@ ${slip.textSample}
                         showToast('⚠️ ไม่มีบัตรให้พิมพ์', 'warning');
                         return;
                     }
-                    document.body.classList.add('print-batch-qr');
-                    window.print();
-                    setTimeout(function () {
-                        document.body.classList.remove('print-batch-qr');
-                    }, 500);
+                    // เปิด Print_QRCard.html ในหน้าต่างใหม่แทน window.print()
+                    var ids = batchQrEmployees.map(function(emp) {
+                        return String(emp['รหัสพนักงาน'] || emp.emp_id || '').trim();
+                    }).filter(Boolean);
+                    if (ids.length === 0) {
+                        showToast('⚠️ ไม่พบรหัสพนักงานในรายการ', 'warning');
+                        return;
+                    }
+                    openPrintQrCardPage(ids);
                 }
 
                 // ═══════════════════════════════════════════════════════════
@@ -26503,40 +26512,51 @@ ${slip.textSample}
             body.print-batch-qr .bq-foot-bar { height: 1.5mm !important; display: block !important; }
         }
 
-        /* Final orientation guard: CR80 is portrait and card data flows top-to-bottom */
-        body:not(.print-qr-pass):not(.print-batch-qr) #admin-qr-pass-card,
-        body:not(.print-qr-pass):not(.print-batch-qr) #qr-pass-card .batch-qr-card,
-        body:not(.print-qr-pass):not(.print-batch-qr) #batch-qr-grid .batch-qr-card,
-        body.print-qr-pass #admin-qr-pass-card,
-        body.print-qr-pass #qr-pass-card .batch-qr-card,
-        body.print-batch-qr #batch-qr-grid .batch-qr-card {
-            width: 54mm !important;
-            height: 85.6mm !important;
-            max-width: 54mm !important;
-            aspect-ratio: auto !important;
-            flex-direction: column !important;
+        /* Final orientation guard: CR80 portrait — ใช้เฉพาะ @media print เท่านั้น
+           (ลบ screen-mode selectors ออก เพราะ 54mm บนจอทำให้ content ล้น) */
+        @media print {
+            body.print-qr-pass #admin-qr-pass-card,
+            body.print-qr-pass #qr-pass-card .batch-qr-card,
+            body.print-batch-qr #batch-qr-grid .batch-qr-card {
+                width: 54mm !important;
+                height: 85.6mm !important;
+                max-width: 54mm !important;
+                aspect-ratio: auto !important;
+                flex-direction: column !important;
+            }
+            body.print-qr-pass #admin-qr-pass-card .bq-body,
+            body.print-qr-pass #qr-pass-card .batch-qr-card .bq-body,
+            body.print-batch-qr #batch-qr-grid .bq-body {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: flex-start !important;
+                width: 100% !important;
+            }
+            body.print-qr-pass #admin-qr-pass-card .bq-meta,
+            body.print-qr-pass #qr-pass-card .batch-qr-card .bq-meta,
+            body.print-batch-qr #batch-qr-grid .bq-meta {
+                width: 100% !important;
+                text-align: center !important;
+                align-items: center !important;
+            }
         }
-        body:not(.print-qr-pass):not(.print-batch-qr) #admin-qr-pass-card .bq-body,
-        body:not(.print-qr-pass):not(.print-batch-qr) #qr-pass-card .batch-qr-card .bq-body,
-        body:not(.print-qr-pass):not(.print-batch-qr) #batch-qr-grid .bq-body,
-        body.print-qr-pass #admin-qr-pass-card .bq-body,
-        body.print-qr-pass #qr-pass-card .batch-qr-card .bq-body,
-        body.print-batch-qr #batch-qr-grid .bq-body {
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            width: 100% !important;
+        /* บนจอ: bq-body และ bq-meta ยังคง flex column + center (ไม่บังคับขนาด 54mm) */
+        #admin-qr-pass-card .bq-body,
+        #qr-pass-card .batch-qr-card .bq-body,
+        #batch-qr-grid .bq-body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            width: 100%;
         }
-        body:not(.print-qr-pass):not(.print-batch-qr) #admin-qr-pass-card .bq-meta,
-        body:not(.print-qr-pass):not(.print-batch-qr) #qr-pass-card .batch-qr-card .bq-meta,
-        body:not(.print-qr-pass):not(.print-batch-qr) #batch-qr-grid .bq-meta,
-        body.print-qr-pass #admin-qr-pass-card .bq-meta,
-        body.print-qr-pass #qr-pass-card .batch-qr-card .bq-meta,
-        body.print-batch-qr #batch-qr-grid .bq-meta {
-            width: 100% !important;
-            text-align: center !important;
-            align-items: center !important;
+        #admin-qr-pass-card .bq-meta,
+        #qr-pass-card .batch-qr-card .bq-meta,
+        #batch-qr-grid .bq-meta {
+            width: 100%;
+            text-align: center;
+            align-items: center;
         }
     </style>
 
