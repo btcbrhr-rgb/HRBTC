@@ -25118,6 +25118,7 @@ ${slip.textSample}
                     }
                 }
 
+
                 // พิมพ์บัตรทั้งหมด (แสดงเฉพาะบัตรใน modal)
                 function printBatchQrCards() {
                     if (batchQrEmployees.length === 0) {
@@ -25129,6 +25130,34 @@ ${slip.textSample}
                     setTimeout(function () {
                         document.body.classList.remove('print-batch-qr');
                     }, 500);
+                }
+
+                // ═══════════════════════════════════════════════════════════
+                // 🪪 เปิดหน้าพิมพ์บัตรพนักงาน QR แบบแยก Tab (Print_QRCard.html)
+                //    empIds: Array ของรหัสพนักงาน (ถ้าไม่ส่ง = พิมพ์ทั้งหมดที่ active)
+                // ═══════════════════════════════════════════════════════════
+                function openPrintQrCardPage(empIds) {
+                    var base = window.location.origin + window.location.pathname;
+                    var url  = base + '?action=printQrCardPage';
+                    if (empIds && empIds.length > 0) {
+                        url += '&empIds=' + empIds.map(encodeURIComponent).join(',');
+                    }
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                }
+
+                // ─── Helper: เปิดพิมพ์บัตรจาก batch selection ปัจจุบัน ───
+                function openPrintQrCardPageFromSelection() {
+                    var ids = Array.from(adminSelectedEmpIds || []);
+                    if (ids.length === 0) {
+                        showToast('⚠️ กรุณาเลือกพนักงานก่อนพิมพ์บัตร', 'warning');
+                        return;
+                    }
+                    openPrintQrCardPage(ids);
+                }
+
+                // ─── Helper: เปิดพิมพ์บัตรเฉพาะพนักงาน 1 คน (จากโปรไฟล์/ตาราง) ───
+                function openPrintQrCardPageSingle(empId) {
+                    openPrintQrCardPage(empId ? [empId] : []);
                 }
 
                 async function loadProfileData() {
