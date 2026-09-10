@@ -8643,6 +8643,7 @@ async function fetchAdminEmployeeListInternal() {
                 "ชั่วโมงทำงานต่อวัน": r.work_hours_per_day,
                 "ตัวคูณโอที": r.ot_rate,
                 "สิทธิ์การใช้งาน": r.role,
+                "PIN": r.pin ? "configured" : "",
                 "LineUserId": r.line_user_id
             }));
             
@@ -18215,7 +18216,7 @@ async function loadAdminEmployees() {
                     // 1. Supabase primary
                     if (supabaseClient) {
                         try {
-                            const sbRes = await supabaseClient.from('employees').select('*');
+                            const sbRes = await supabaseClient.from('employees').select('*').order('emp_id', { ascending: true });
                             if (!sbRes.error && Array.isArray(sbRes.data)) {
                                 data = sbRes.data.map(r => ({
                                     'รหัสพนักงาน': r.emp_id,
@@ -18226,6 +18227,7 @@ async function loadAdminEmployees() {
                                     'ชั่วโมงทำงานต่อวัน': r.work_hours_per_day,
                                     'เบอร์โทรศัพท์': r.phone,
                                     'สิทธิ์การใช้งาน': r.role,
+                                    'PIN': r.pin ? 'configured' : '',
                                     'ลิ้งภาพโปรไฟล์': r.avatar_url,
                                     'วันหยุดประจําสัปดาห์': r.day_off,
                                     'ฐานเงินเดือน': r.base_salary,
@@ -18240,6 +18242,12 @@ async function loadAdminEmployees() {
                                     'ตัวคูณโอที': r.ot_rate,
                                     'LineUserId': r.line_user_id
                                 }));
+                                adminEmployeesMap.clear();
+                                adminEmployeesList = data;
+                                data.forEach(emp => {
+                                    const id = (emp['รหัสพนักงาน'] || '').toString().trim();
+                                    if (id) adminEmployeesMap.set(id, emp);
+                                });
                                 console.log('[loadAdminEmployees ⚡ Supabase] ✓', data.length, 'employees');
                             }
                         } catch (sbErr) {
@@ -18255,6 +18263,11 @@ async function loadAdminEmployees() {
 
                     if (data) {
                         adminEmployeesList = data;
+                        adminEmployeesMap.clear();
+                        adminEmployeesList.forEach(emp => {
+                            const id = (emp['รหัสพนักงาน'] || '').toString().trim();
+                            if (id) adminEmployeesMap.set(id, emp);
+                        });
                         if (typeof populateEmployeeFormOptions === 'function') populateEmployeeFormOptions();
                         document.getElementById("admin-emp-count-badge").textContent = `พนักงานทั้งหมด: ${adminEmployeesList.length} คน`;
 
@@ -18304,6 +18317,10 @@ async function loadAdminEmployees() {
                     default:
                         return `<span class="badge badge-neutral"><i class="fa-solid fa-user" aria-hidden="true"></i> พนักงานทั่วไป</span>`;
                 }
+            }
+
+            function employeeHasPin(emp) {
+                return !!(emp && (emp["PIN"] === 'configured' || emp.pin));
             }
 
             function getEmpStatusBadgeHtml(status) {
@@ -18461,7 +18478,7 @@ async function loadAdminEmployees() {
               <td>${roleBadge}</td>
               <td style="text-align: right;">
                 <div style="display: flex; gap: 4px; justify-content: flex-end;">
-                  <button onclick='clearEmployeePin("${empId}", "${name}")' title="ล้าง PIN" class="tbl-btn tbl-btn-danger">
+                  <button onclick='clearEmployeePin("${empId}", "${name}")' title="ล้าง PIN" class="${employeeHasPin(emp) ? 'tbl-btn tbl-btn-danger' : 'tbl-btn tbl-btn-edit'}">
                     <i class="fa-solid fa-key"></i> ล้าง PIN
                   </button>
                   <button onclick="showEmployeeQrPass('${empId}')" title="บัตร QR ลงเวลา" class="tbl-btn tbl-btn-print">
@@ -18519,7 +18536,7 @@ async function loadAdminEmployees() {
                         <div class="flex items-center justify-between pt-1 border-t border-slate-100">
                             <span class="text-[11px] text-slate-400">${emp["เบอร์โทรศัพท์"] || 'ไม่มีเบอร์'}</span>
                             <div class="flex items-center gap-1">
-                                <button onclick="clearEmployeePin('${empId}', '${name.replace(/'/g, "\\'")}')" title="ล้าง PIN" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-key text-xs"></i></button>
+                                <button onclick="clearEmployeePin('${empId}', '${name.replace(/'/g, "\\'")}')" title="ล้าง PIN" class="p-1.5 ${employeeHasPin(emp) ? 'text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'} rounded-lg transition"><i class="fa-solid fa-key text-xs"></i></button>
                                 <button onclick="showEmployeeQrPass('${empId}')" title="บัตร QR" class="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition"><i class="fa-solid fa-qrcode text-xs"></i></button>
                                 <button onclick="editEmployeeRow('${empId}')" title="แก้ไข" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pencil text-xs"></i></button>
                             </div>
@@ -18766,6 +18783,7 @@ async function loadAdminEmployees() {
                     });
                     if (res && res.status === 'success') {
                         showToast('✅ ล้าง PIN ของ ' + (name || empId) + ' แล้ว', 'success');
+                        await loadAdminEmployees();
                     } else {
                         showToast('❌ ' + ((res && res.message) || 'ล้าง PIN ไม่สำเร็จ'), 'error');
                     }
