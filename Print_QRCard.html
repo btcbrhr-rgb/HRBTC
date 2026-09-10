@@ -98,6 +98,29 @@
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-800 flex flex-col items-center">
 
+  <!-- LOADING OVERLAY (แสดงขณะดึงข้อมูลจาก GAS) -->
+  <div id="loadingOverlay" class="no-print fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-[9999] transition-opacity duration-500">
+    <div class="text-center">
+      <!-- Spinner -->
+      <div class="relative w-20 h-20 mx-auto mb-6">
+        <div class="absolute inset-0 rounded-full border-4 border-brand-blue/20"></div>
+        <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-brand-green animate-spin"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <i class="fa-solid fa-id-card text-brand-blue text-2xl"></i>
+        </div>
+      </div>
+      <!-- Status Text -->
+      <h2 class="text-white text-lg font-bold mb-2">กำลังโหลดข้อมูลบัตรพนักงาน</h2>
+      <p id="loadingStatus" class="text-slate-400 text-sm">กำลังเชื่อมต่อฐานข้อมูล...</p>
+      <!-- Progress dots -->
+      <div class="flex items-center justify-center gap-1.5 mt-4">
+        <div class="w-2 h-2 rounded-full bg-brand-blue animate-bounce" style="animation-delay:0ms"></div>
+        <div class="w-2 h-2 rounded-full bg-brand-blue animate-bounce" style="animation-delay:150ms"></div>
+        <div class="w-2 h-2 rounded-full bg-brand-blue animate-bounce" style="animation-delay:300ms"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- NAVBAR -->
   <header class="no-print w-full bg-slate-900 text-white shadow-md border-b border-slate-800 sticky top-0 z-50">
     <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -148,7 +171,8 @@
 
   <script>
     /* ── 1. DATA ── */
-    var _CARD_DATA_ = typeof _CARD_DATA_ !== 'undefined' ? _CARD_DATA_ : null;
+    var _CARD_DATA_      = typeof _CARD_DATA_      !== 'undefined' ? _CARD_DATA_      : null;
+    var _LOADING_CONFIG_ = typeof _LOADING_CONFIG_ !== 'undefined' ? _LOADING_CONFIG_ : null;
     var COMPANY = (_CARD_DATA_ && _CARD_DATA_.company) ? _CARD_DATA_.company : {
       name:'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด', logoUrl:'',
       address:'31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
@@ -157,23 +181,60 @@
     };
     var employees = (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0)
       ? _CARD_DATA_.employees
-      : [{empId:'DEMO001',fullName:'นายตัวอย่าง ทดสอบ',position:'พนักงานทดสอบ',photo:'',deepLink:''}];
+      : [];
     var activeEmpIndex = 0;
 
     /* ── 2. INIT ── */
-    window.addEventListener('DOMContentLoaded', function(){
+    function hideLoadingOverlay() {
+      var ov = document.getElementById('loadingOverlay');
+      if (ov) { ov.style.opacity = '0'; setTimeout(function(){ ov.style.display='none'; }, 500); }
+    }
+    function setLoadingStatus(msg) {
+      var el = document.getElementById('loadingStatus');
+      if (el) el.textContent = msg;
+    }
+    function initUI() {
       var navName = document.getElementById('nav-company-name');
-      if(navName) navName.textContent = COMPANY.name;
+      if (navName) navName.textContent = COMPANY.name;
       var logoWrap = document.getElementById('nav-logo-wrap');
-      if(COMPANY.logoUrl){
-        logoWrap.innerHTML='<img src="'+COMPANY.logoUrl+'" class="w-full h-full object-contain p-1" alt="Logo">';
+      if (COMPANY.logoUrl) {
+        logoWrap.innerHTML = '<img src="' + COMPANY.logoUrl + '" class="w-full h-full object-contain p-1" alt="Logo">';
       } else {
         var lt = document.getElementById('nav-logo-text');
-        if(lt) lt.textContent = (COMPANY.name||'B').charAt(0).toUpperCase();
+        if (lt) lt.textContent = (COMPANY.name || 'B').charAt(0).toUpperCase();
       }
       populateDropdown();
       renderActiveCard();
+      hideLoadingOverlay();
+    }
+
+    window.addEventListener('DOMContentLoaded', function() {
+      // ── กรณี _LOADING_CONFIG_: ดึงข้อมูลจาก GAS API (Phase 2) ──
+      if (_LOADING_CONFIG_ && _LOADING_CONFIG_.gasDataUrl) {
+        setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
+        fetch(_LOADING_CONFIG_.gasDataUrl)
+          .then(function(res) {
+            setLoadingStatus('กำลังประมวลผลข้อมูล...');
+            return res.json();
+          })
+          .then(function(json) {
+            if (json.status === 'success' && json.data) {
+              COMPANY   = json.data.company   || COMPANY;
+              employees = json.data.employees || [];
+            }
+            setLoadingStatus('โหลดเสร็จแล้ว กำลังแสดงบัตร...');
+            initUI();
+          })
+          .catch(function(err) {
+            setLoadingStatus('❌ โหลดข้อมูลล้มเหลว: ' + err);
+            setTimeout(hideLoadingOverlay, 2000);
+          });
+      } else {
+        // ── กรณีปกติ: มี _CARD_DATA_ inject มาแล้ว ──
+        initUI();
+      }
     });
+
 
     /* ── 3. FIELD HELPERS ── */
     // Code.gs inject: { empId, name, position, photoUrl, qrUrl }
