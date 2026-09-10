@@ -20258,6 +20258,12 @@ async function loadAdminEmployees() {
                     const nameEl = document.getElementById('admin-create-leave-empname');
                     if (!empId || empId.length < 3) { nameEl.textContent = '-'; return; }
                     nameEl.textContent = '⏳ กำลังค้นหา...';
+                    // 🔧 Phase 1: ตรวจจากแคชพนักงาน (adminEmployeesMap โหลดจาก Supabase แล้ว) ก่อนไป GAS
+                    const cacheEmp = (typeof adminEmployeesMap !== 'undefined' && adminEmployeesMap && adminEmployeesMap.get) ? adminEmployeesMap.get(empId) : null;
+                    if (cacheEmp) {
+                        nameEl.textContent = cacheEmp['ชื่อ-นามสกุล'] || cacheEmp['ชื่อ'] || cacheEmp.name || '(ไม่พบชื่อ)';
+                        return;
+                    }
                     try {
                         const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`, { timeout: 6000 });
                         if (res && res.status === 'success' && res.data) {
@@ -20332,14 +20338,20 @@ async function loadAdminEmployees() {
                     // Verify employee exists (only if name still shows '-')
                     const nameEl = document.getElementById('admin-create-leave-empname');
                     if (!nameEl.textContent || nameEl.textContent === '-' || nameEl.textContent.startsWith('❌')) {
-                        try {
-                            const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`);
-                            if (!empRes || empRes.status !== 'success') {
-                                return showToast('❌ ไม่พบข้อมูลพนักงาน: ' + empId, 'error');
+                        // 🔧 Phase 1: ตรวจจากแคชพนักงาน (adminEmployeesMap โหลดจาก Supabase แล้ว) ก่อน — ลด Round-Trip ไป GAS
+                        const cacheEmpV = (typeof adminEmployeesMap !== 'undefined' && adminEmployeesMap && adminEmployeesMap.get) ? adminEmployeesMap.get(empId) : null;
+                        if (cacheEmpV) {
+                            nameEl.textContent = cacheEmpV['ชื่อ-นามสกุล'] || cacheEmpV['ชื่อ'] || cacheEmpV.name || '-';
+                        } else {
+                            try {
+                                const empRes = await fetchWithTimeout(`${SERVER_API_URL}?action=getEmployee&empId=${encodeURIComponent(empId)}`);
+                                if (!empRes || empRes.status !== 'success') {
+                                    return showToast('❌ ไม่พบข้อมูลพนักงาน: ' + empId, 'error');
+                                }
+                                nameEl.textContent = empRes.data['ชื่อ-นามสกุล'] || empRes.data.name || '-';
+                            } catch (e) {
+                                return showToast('❌ ไม่สามารถตรวจสอบข้อมูลพนักงานได้: ' + e.message, 'error');
                             }
-                            nameEl.textContent = empRes.data['ชื่อ-นามสกุล'] || empRes.data.name || '-';
-                        } catch (e) {
-                            return showToast('❌ ไม่สามารถตรวจสอบข้อมูลพนักงานได้: ' + e.message, 'error');
                         }
                     }
 
@@ -23849,16 +23861,18 @@ ${slip.textSample}
                     try {
                         let res = null;
                         let s = null;
-                        try {
-                            res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`);
-                            if (res.status === 'success') s = res.data;
-                        } catch (netErr) {
-                            console.error('[Settings] GAS API ไม่ตอบสนอง — จะโหลดค่าจริงจาก Supabase โดยตรง', netErr);
-                        }
-                        // 🔍 ต้องโชว์ "ค่าจริงที่ระบบใช้": ถ้า GAS เข้าไม่ถึง → อ่านจาก Supabase โดยตรง
-                        if (!s && typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
+                        // 🔧 Phase 1: Supabase-First — อ่านจาก Supabase ก่อน (เร็ว, ไม่พึ่ง GAS) แล้ว GAS เป็น fallback
+                        if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
                             try { s = await fetchSystemSettingsFromSupabaseDirect(); }
                             catch (dErr) { console.error('[Settings] Supabase direct load failed:', dErr); s = null; }
+                        }
+                        if (!s) {
+                            try {
+                                res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`);
+                                if (res.status === 'success') s = res.data;
+                            } catch (netErr) {
+                                console.error('[Settings] GAS API ไม่ตอบสนอง — ใช้ค่า fallback', netErr);
+                            }
                         }
                         if (s) {
                             // เวลา
@@ -24131,18 +24145,41 @@ ${slip.textSample}
                 let currentSymbolRules = {};
 
                 async function loadSymbolRules() {
+                    // 🔧 Phase 1: Supabase-First — อ่าน key 'symbolRules' จาก system_settings ตรงๆ ก่อน (ลดพึ่ง GAS)
+                    let parsedOk = false;
                     try {
-                        const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`);
-                        if (res.status === 'success') {
-                            try {
-                                currentSymbolRules = JSON.parse(res.data.symbolRules || '{}');
-                            } catch {
-                                currentSymbolRules = {};
+                        if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
+                            const { data, error } = await supabaseClient
+                                .from('system_settings')
+                                .select('key_name,default_value')
+                                .eq('key_name', 'symbolRules')
+                                .limit(1);
+                            const row = (!error && Array.isArray(data) && data.length > 0) ? data[0] : null;
+                            if (row && row.default_value) {
+                                try { currentSymbolRules = JSON.parse(row.default_value); }
+                                catch { currentSymbolRules = {}; }
+                                renderSymbolRulesTable();
+                                parsedOk = true;
                             }
-                            renderSymbolRulesTable();
                         }
-                    } catch (err) {
-                        console.error('โหลด symbolRules ล้มเหลว:', err);
+                    } catch (sbErr) {
+                        console.error('โหลด symbolRules จาก Supabase ล้มเหลว:', sbErr);
+                    }
+                    // GAS fallback (เดิม)
+                    if (!parsedOk) {
+                        try {
+                            const res = await fetchWithTimeout(`${SERVER_API_URL}?action=getSystemSettings&empId=${currentEmployeeId}`);
+                            if (res.status === 'success') {
+                                try {
+                                    currentSymbolRules = JSON.parse(res.data.symbolRules || '{}');
+                                } catch {
+                                    currentSymbolRules = {};
+                                }
+                                renderSymbolRulesTable();
+                            }
+                        } catch (err) {
+                            console.error('โหลด symbolRules (GAS fallback) ล้มเหลว:', err);
+                        }
                     }
                 }
 
