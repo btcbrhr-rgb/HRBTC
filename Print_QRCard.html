@@ -1,535 +1,253 @@
 ﻿<!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="h-full bg-slate-100">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>พิมพ์บัตรพนักงาน QR CR80</title>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700;800&family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <style>
-        *, *::before, *::after {
-            box-sizing: border-box;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบพิมพ์บัตรพนักงาน CR80</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { brand: { blue:'#054B99', green:'#00A651', darkBlue:'#03346B', darkGreen:'#008A43' } },
+          fontFamily: { kanit: ['Kanit','sans-serif'] }
         }
-        html, body {
-            margin: 0;
-            padding: 0;
-            background: #f1f5f9;
-            font-family: 'Kanit', 'Sarabun', sans-serif;
-        }
-        .screen-header {
-            background: linear-gradient(135deg, #003366 0%, #054B99 60%, #005e1f 100%);
-            color: #fff;
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.18);
-        }
-        .screen-header h1 {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 700;
-            letter-spacing: 0.01em;
-        }
-        .screen-header .subtitle {
-            font-size: 11px;
-            opacity: 0.75;
-            margin-top: 2px;
-        }
-        .btn-print {
-            background: #00A651;
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            padding: 10px 22px;
-            font-size: 14px;
-            font-weight: 700;
-            font-family: 'Kanit', 'Sarabun', sans-serif;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            white-space: nowrap;
-            transition: background 0.15s, transform 0.1s;
-            box-shadow: 0 4px 12px rgba(0,166,81,0.35);
-        }
-        .btn-print:hover { background: #008e43; }
-        .btn-print:active { transform: scale(0.97); }
-        .preview-wrap {
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-        }
-        .preview-label {
-            font-size: 11px;
-            color: #64748b;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            align-self: flex-start;
-            padding-left: 4px;
-        }
-        .cards-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            justify-content: center;
-        }
-        /* ═══ บัตรพนักงาน CR80 54x85.6mm ═══ */
-        .bq-card {
-            position: relative;
-            width: 320px;
-            height: 507px;
-            background: #ffffff;
-            color: #1e293b;
-            border-radius: 22px;
-            border: 1px solid rgba(5,75,153,0.16);
-            display: flex;
-            flex-direction: column;
-            padding: 0;
-            overflow: hidden;
-            font-family: 'Kanit', 'Sarabun', sans-serif;
-            box-shadow: 0 2px 12px rgba(15,23,42,0.06), 0 18px 40px -20px rgba(5,75,153,0.35);
-        }
-        .bq-watermark {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px 6px;
-            padding: 6px;
-            place-items: center;
-            opacity: 0.06;
-            overflow: hidden;
-        }
-        .bq-watermark img { width: 28px; height: 28px; object-fit: contain; }
-        .bq-head {
-            position: relative;
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 4px;
-            padding: 14px 12px 28px;
-            background: linear-gradient(180deg, #003366 0%, #054B99 55%, #003B7A 100%);
-            color: #ffffff;
-            border-bottom: 4px solid #00A651;
-            border-radius: 0 0 14% 14%;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 10px rgba(0,43,82,0.25);
-            text-align: center;
-            z-index: 1;
-        }
-        .bq-company {
-            font-size: 12px;
-            font-weight: 800;
-            line-height: 1.1;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: -0.02em;
-            color: #ffffff;
-            max-width: 100%;
-            padding: 0 4px;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.18);
-        }
-        .bq-tag {
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            color: #ffffff;
-            background: #00A651;
-            padding: 2px 10px;
-            border-radius: 4px;
-            white-space: nowrap;
-            margin-top: 4px;
-            box-shadow: 0 1px 2px rgba(15,23,42,0.1);
-        }
-        .bq-body {
-            position: relative;
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 14px 6px;
-            z-index: 1;
-        }
-        .bq-photo {
-            position: relative;
-            width: 176px;
-            height: 176px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: 4px solid #054B99;
-            box-sizing: border-box;
-            padding: 4px;
-            flex-shrink: 0;
-            box-shadow: 0 14px 28px -12px rgba(0,43,82,0.45);
-            z-index: 1;
-            overflow: hidden;
-        }
-        .bq-avatar {
-            position: absolute;
-            top: 4px; right: 4px; bottom: 4px; left: 4px;
-            width: auto; height: auto;
-            border-radius: 50%;
-            background: #ffffff;
-            object-fit: cover;
-            display: block;
-            z-index: 2;
-        }
-        .bq-initial {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            background: #ffffff;
-            color: #054B99;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 56px;
-            text-transform: uppercase;
-            z-index: 1;
-        }
-        .bq-meta {
-            min-width: 0;
-            text-align: center;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
-        .bq-meta p { margin: 0; text-align: center; }
-        .bq-name {
-            font-size: 15px;
-            font-weight: 800;
-            color: #054B99;
-            line-height: 1.15;
-            letter-spacing: -0.01em;
-            margin-top: 6px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-        }
-        .bq-pos {
-            font-size: 11px;
-            font-weight: 700;
-            color: #475569;
-            margin-top: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-        }
-        .bq-id-chip {
-            margin-top: 6px;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            background: #054B99;
-            color: #ffffff;
-            border: 1px solid rgba(0,166,81,0.4);
-            border-radius: 6px;
-            padding: 2px 10px;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0;
-            box-shadow: 0 6px 14px -8px rgba(0,32,64,0.5);
-        }
-        .bq-id-chip::before {
-            content: "";
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #00A651;
-            box-shadow: 0 0 0 2px rgba(0,166,81,0.25);
-            flex: none;
-        }
-        .bq-prefix { font-size: 0.75em; opacity: 0.85; }
-        .bq-id { font-size: inherit; color: #ffffff; font-weight: 800; }
-        .bq-qr-wrap {
-            margin: 0;
-            background: #ffffff;
-            border: 1px solid #a7f3d0;
-            border-radius: 12px;
-            padding: 6px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 92px;
-            height: 92px;
-            box-shadow: 0 4px 10px rgba(15,23,42,0.08);
-        }
-        .bq-canvas, .bq-qr-img {
-            width: 100% !important;
-            height: 100% !important;
-            max-width: 100%;
-            max-height: 100%;
-            display: block;
-            object-fit: contain;
-        }
-        .bq-foot {
-            position: relative;
-            flex-shrink: 0;
-            width: 100%;
-            background: rgba(255,255,255,0.8);
-            border-top: 1px solid #e2e8f0;
-            text-align: center;
-            z-index: 1;
-        }
-        .bq-foot-text {
-            padding: 5px 8px 6px;
-            font-size: 7.5px;
-            color: #64748b;
-            line-height: 1.15;
-            text-align: center;
-            max-width: 100%;
-        }
-        .bq-foot-addr, .bq-foot-tel {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .bq-foot-tel { margin-top: 1px; }
-        .bq-foot-bar {
-            display: block;
-            height: 8px;
-            background: linear-gradient(90deg, #054B99, #00A651, #054B99);
-        }
-        /* ═══ @media print CR80 54x85.6mm ═══ */
-        @media print {
-            .screen-header, .preview-label { display: none !important; }
-            body { background: white !important; padding: 0 !important; margin: 0 !important; }
-            .preview-wrap { padding: 0 !important; }
-            .cards-grid {
-                display: grid !important;
-                grid-template-columns: repeat(3, 54mm) !important;
-                gap: 6mm !important;
-                justify-content: center !important;
-                align-content: start !important;
-                grid-auto-rows: 85.6mm !important;
-            }
-            .bq-card {
-                width: 54mm !important;
-                height: 85.6mm !important;
-                max-width: 54mm !important;
-                border-radius: 0 !important;
-                overflow: hidden !important;
-                page-break-inside: avoid;
-                break-inside: avoid;
-                box-shadow: none !important;
-                border: none !important;
-            }
-            .bq-head {
-                padding: 3.5mm 2.5mm 5mm !important;
-                gap: 1mm !important;
-                border-bottom-width: 1mm !important;
-                border-radius: 0 0 8mm 8mm !important;
-            }
-            .bq-company { font-size: 2.35mm !important; line-height: 1.15 !important; letter-spacing: 0 !important; }
-            .bq-tag { font-size: 1.8mm !important; padding: 0.8mm 2mm !important; margin-top: 0 !important; }
-            .bq-body {
-                flex: 1 1 auto !important;
-                min-height: 0 !important;
-                justify-content: flex-start !important;
-                gap: 1.2mm !important;
-                padding: 2mm 2.5mm 1mm !important;
-            }
-            .bq-photo { width: 18mm !important; height: 18mm !important; padding: 0.8mm !important; border-width: 0.5mm !important; box-shadow: none !important; }
-            .bq-avatar { top: 0.8mm !important; right: 0.8mm !important; bottom: 0.8mm !important; left: 0.8mm !important; padding: 0.4mm !important; }
-            .bq-initial { font-size: 7mm !important; }
-            .bq-meta { gap: 0.6mm !important; }
-            .bq-name { font-size: 3.2mm !important; line-height: 1.15 !important; max-width: 49mm !important; margin-top: 1mm !important; }
-            .bq-pos { font-size: 2.2mm !important; line-height: 1.1 !important; max-width: 49mm !important; margin-top: 0.5mm !important; }
-            .bq-id-chip { margin-top: 0.8mm !important; gap: 1mm !important; border-width: 0.5mm !important; border-radius: 2mm !important; padding: 1mm 2mm !important; font-size: 2.2mm !important; }
-            .bq-id-chip::before { width: 1.5mm !important; height: 1.5mm !important; box-shadow: none !important; }
-            .bq-qr-wrap { width: 25mm !important; height: 25mm !important; border-width: 0.5mm !important; border-radius: 2mm !important; padding: 1mm !important; box-shadow: none !important; }
-            .bq-foot-text { padding: 1.2mm 1.5mm 1mm !important; font-size: 1.7mm !important; line-height: 1.15 !important; }
-            .bq-foot-addr, .bq-foot-tel { max-width: 51mm !important; }
-            .bq-foot-bar { height: 1.5mm !important; }
-            @page { size: A4 portrait; margin: 10mm; }
-        }
-    </style>
+      }
+    };
+  </script>
+  <style>
+    *,*::before,*::after{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+    body{font-family:'Kanit',sans-serif;}
+    .cr80-card-preview{width:320px;height:507px;}
+    .cr80-card-print{width:54mm;height:85.6mm;box-sizing:border-box;}
+    @media print{
+      html,body{background:#fff!important;padding:0!important;margin:0!important;}
+      .no-print{display:none!important;}
+      body.print-mode-single .batch-print-wrapper{display:none!important;}
+      body.print-mode-single .single-print-wrapper{display:flex!important;align-items:center!important;justify-content:center!important;min-height:100vh!important;}
+      body.print-mode-single .cr80-card-preview{width:54mm!important;height:85.6mm!important;box-shadow:none!important;border:1px solid #cbd5e1!important;page-break-inside:avoid;}
+      body.print-mode-single .cr80-card-preview .card-photo{width:28mm!important;height:28mm!important;}
+      body.print-mode-single .cr80-card-preview .card-name{font-size:7pt!important;}
+      body.print-mode-single .cr80-card-preview .card-pos{font-size:5.5pt!important;}
+      body.print-mode-single .cr80-card-preview .card-id{font-size:5pt!important;}
+      body.print-mode-single .cr80-card-preview .card-head-title{font-size:5.5pt!important;}
+      body.print-mode-single .cr80-card-preview .card-head-badge{font-size:4pt!important;}
+      body.print-mode-single .cr80-card-preview .card-foot-text{font-size:3.8pt!important;}
+      body.print-mode-single .cr80-card-preview .card-watermark{display:none!important;}
+      body.print-mode-all .single-print-wrapper{display:none!important;}
+      body.print-mode-all .batch-print-wrapper{display:grid!important;grid-template-columns:repeat(3,54mm)!important;gap:4mm 6mm!important;justify-content:center!important;align-content:start!important;padding:6mm 0!important;}
+      body.print-mode-all .cr80-card-print{box-shadow:none!important;border:1px dashed #94a3b8!important;page-break-inside:avoid;}
+      body.print-mode-all .cr80-card-print .card-photo{width:22mm!important;height:22mm!important;}
+      body.print-mode-all .cr80-card-print .card-name{font-size:6pt!important;}
+      body.print-mode-all .cr80-card-print .card-pos{font-size:5pt!important;}
+      body.print-mode-all .cr80-card-print .card-id{font-size:4.5pt!important;}
+      body.print-mode-all .cr80-card-print .card-head-title{font-size:5pt!important;}
+      body.print-mode-all .cr80-card-print .card-head-badge{font-size:3.5pt!important;}
+      body.print-mode-all .cr80-card-print .card-foot-text{font-size:3.5pt!important;}
+      body.print-mode-all .cr80-card-print .card-watermark{display:none!important;}
+      @page{size:A4 portrait;margin:8mm;}
+    }
+  </style>
 </head>
-<body>
-    <div class="screen-header">
-        <div>
-            <h1>&#128667; พิมพ์บัตรพนักงาน QR CR80</h1>
-            <div class="subtitle">ขนาด 54 x 85.6 มม. &middot; สูงสุด 3 ใบ/แถว A4</div>
+<body class="min-h-screen bg-slate-100 text-slate-800 flex flex-col items-center">
+
+  <!-- NAVBAR -->
+  <header class="no-print w-full bg-slate-900 text-white shadow-md border-b border-slate-800 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div id="nav-logo-wrap" class="w-10 h-10 rounded-xl bg-brand-blue flex items-center justify-center font-bold text-lg text-white shadow-md border border-brand-green overflow-hidden">
+          <span id="nav-logo-text" class="text-sm font-black">B</span>
         </div>
-        <button class="btn-print" onclick="window.print()">&#128424; พิมพ์บัตร</button>
+        <div>
+          <h1 id="nav-company-name" class="font-bold text-sm sm:text-base text-white leading-tight">ระบบพิมพ์บัตรพนักงาน CR80</h1>
+          <p class="text-xs text-slate-400">ISO/IEC 7810 CR80 · 54 x 85.6 mm</p>
+        </div>
+      </div>
+      <div class="flex items-center flex-wrap gap-2">
+        <select id="employeeSelect" onchange="switchEmployee(this.value)"
+          class="bg-slate-800 border border-slate-700 text-slate-100 text-xs sm:text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue outline-none cursor-pointer">
+        </select>
+        <button onclick="printSingleCard()"
+          class="px-3.5 py-2 bg-brand-blue hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow transition flex items-center gap-2">
+          <i class="fa-solid fa-id-card"></i><span>พิมพ์บัตรประจำตัว</span>
+        </button>
+        <button onclick="printAllCards()"
+          class="px-3.5 py-2 bg-brand-green hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold rounded-lg shadow transition flex items-center gap-2">
+          <i class="fa-solid fa-print"></i><span>พิมพ์บัตรทั้งหมด (<span id="totalBadge">0</span>)</span>
+        </button>
+      </div>
     </div>
-    <div class="preview-wrap">
-        <div class="preview-label" id="preview-label">กำลังสร้างบัตร...</div>
-        <div class="cards-grid" id="cards-grid"></div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="w-full max-w-5xl mx-auto p-4 sm:p-6 flex-1 flex flex-col items-center justify-center">
+    <div class="no-print text-center mb-6 max-w-xl">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-semibold mb-2">
+        <i class="fa-solid fa-circle-info"></i> แบบบัตร CR80 แนวตั้ง (54mm x 85.6mm)
+      </div>
+      <h2 class="text-xl sm:text-2xl font-bold text-slate-800">พรีวิวบัตรประจำตัวพนักงาน</h2>
+      <p class="text-xs sm:text-sm text-slate-500 mt-1">เลือกพิมพ์เฉพาะบัตรใบนี้ หรือสั่งพิมพ์รวมทั้งหมดลง A4 ได้ทันที</p>
     </div>
-    <script>
-        /* ข้อมูลถูก inject โดย Google Apps Script
-           ถ้าไม่มีจะใช้ค่า mock สำหรับทดสอบ */
-        var CARD_DATA = (typeof _CARD_DATA_ !== 'undefined') ? _CARD_DATA_ : {
-            company: {
-                name: 'บริษัท ตัวอย่าง จำกัด',
-                logoUrl: '',
-                address: '123 ถ.ตัวอย่าง กรุงเทพฯ 10000',
-                phone: '02-000-0000',
-                fax: ''
-            },
-            employees: [
-                { empId: 'EMP001', name: 'สมชาย ใจดี',    position: 'วิศวกร',          photoUrl: '', qrUrl: 'https://example.com/checkin?id=EMP001' },
-                { empId: 'EMP002', name: 'สมหญิง รักดี',   position: 'นักบัญชี',         photoUrl: '', qrUrl: 'https://example.com/checkin?id=EMP002' },
-                { empId: 'EMP003', name: 'วิชัย สุขสันต์',  position: 'ผู้จัดการ',         photoUrl: '', qrUrl: 'https://example.com/checkin?id=EMP003' }
-            ]
-        };
+    <div id="singleCardWrapper" class="single-print-wrapper flex justify-center items-center my-2"></div>
+    <div id="batchPrintWrapper" class="batch-print-wrapper hidden no-print"></div>
+  </main>
 
-        function buildWatermarkHtml(logoUrl) {
-            var html = '';
-            for (var i = 0; i < 12; i++) {
-                html += logoUrl
-                    ? '<img src="' + logoUrl + '" alt="" onerror="this.style.display=\'none\'">'
-                    : '<span></span>';
-            }
-            return html;
-        }
+  <!-- TOAST -->
+  <div id="toast"
+    class="no-print fixed bottom-5 right-5 bg-slate-900 text-white text-xs sm:text-sm px-4 py-3 rounded-xl shadow-2xl z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-2 border border-slate-700">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-brand-green"></i>
+    <span id="toastMsg">แจ้งเตือน</span>
+  </div>
 
-        function escHtml(str) {
-            return String(str || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-        }
+  <script>
+    /* ── 1. DATA ── */
+    var _CARD_DATA_ = typeof _CARD_DATA_ !== 'undefined' ? _CARD_DATA_ : null;
+    var COMPANY = (_CARD_DATA_ && _CARD_DATA_.company) ? _CARD_DATA_.company : {
+      name:'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด', logoUrl:'',
+      address:'31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
+      phone:'044-611134', fax:'044-611134',
+      deepLinkBase:'https://hrbtc.vercel.app/qr'
+    };
+    var employees = (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0)
+      ? _CARD_DATA_.employees
+      : [{empId:'DEMO001',fullName:'นายตัวอย่าง ทดสอบ',position:'พนักงานทดสอบ',photo:'',deepLink:''}];
+    var activeEmpIndex = 0;
 
-        function buildCard(emp, ci) {
-            var companyName    = ci.name    || '';
-            var logoUrl        = ci.logoUrl || '';
-            var companyAddress = ci.address || '';
-            var parts = [];
-            if (ci.phone) parts.push('โทร. ' + ci.phone);
-            if (ci.fax)   parts.push('แฟกซ์ ' + ci.fax);
-            var companyTel = parts.join(' · ');
-            var safeId    = String(emp.empId).replace(/[^a-zA-Z0-9_-]/g, '_');
-            var firstChar = (emp.name || emp.empId || '?').charAt(0).toUpperCase();
+    /* ── 2. INIT ── */
+    window.addEventListener('DOMContentLoaded', function(){
+      var navName = document.getElementById('nav-company-name');
+      if(navName) navName.textContent = COMPANY.name;
+      var logoWrap = document.getElementById('nav-logo-wrap');
+      if(COMPANY.logoUrl){
+        logoWrap.innerHTML='<img src="'+COMPANY.logoUrl+'" class="w-full h-full object-contain p-1" alt="Logo">';
+      } else {
+        var lt = document.getElementById('nav-logo-text');
+        if(lt) lt.textContent = (COMPANY.name||'B').charAt(0).toUpperCase();
+      }
+      populateDropdown();
+      renderActiveCard();
+    });
 
-            var card = document.createElement('div');
-            card.className = 'bq-card';
+    /* ── 3. FIELD HELPERS ── */
+    function gf(emp,keys){for(var i=0;i<keys.length;i++){if(emp[keys[i]]!=null&&emp[keys[i]]!=='')return emp[keys[i]];}return '';}
+    function getId(emp)    {return gf(emp,['empId','รหัสพนักงาน','emp_id']);}
+    function getName(emp)  {return gf(emp,['fullName','ชื่อ-นามสกุล','name']);}
+    function getPos(emp)   {return gf(emp,['position','ตำแหน่ง','pos']);}
+    function getPhoto(emp) {return gf(emp,['photo','รูปถ่าย','photoUrl','avatar']);}
+    function getLink(emp)  {
+      var dl=gf(emp,['deepLink','deep_link','qrUrl']);
+      if(dl)return dl;
+      var id=getId(emp);
+      return id?(COMPANY.deepLinkBase+'?emp_id='+encodeURIComponent(id)):'';
+    }
 
-            var footContent = '';
-            if (companyAddress || companyTel) {
-                footContent = '<div class="bq-foot-text">';
-                if (companyAddress) footContent += '<div class="bq-foot-addr">' + escHtml(companyAddress) + '</div>';
-                if (companyTel)    footContent += '<div class="bq-foot-tel">'  + escHtml(companyTel)    + '</div>';
-                footContent += '</div>';
-            }
+    /* ── 4. DROPDOWN ── */
+    function populateDropdown(){
+      var sel=document.getElementById('employeeSelect');
+      var badge=document.getElementById('totalBadge');
+      sel.innerHTML='';
+      employees.forEach(function(emp,i){
+        var o=document.createElement('option');
+        o.value=i; o.textContent=getId(emp)+' — '+getName(emp);
+        if(i===activeEmpIndex)o.selected=true;
+        sel.appendChild(o);
+      });
+      if(badge)badge.textContent=employees.length;
+    }
+    function switchEmployee(idx){activeEmpIndex=parseInt(idx,10);renderActiveCard();}
 
-            var photoHtml = emp.photoUrl
-                ? '<img src="' + escHtml(emp.photoUrl) + '" class="bq-avatar" alt="" onerror="this.remove()">'
-                : '';
+    /* ── 5. CARD TEMPLATE ── */
+    function cardHTML(emp, cardClass, qrSuffix){
+      var empId=getId(emp), empName=getName(emp), empPos=getPos(emp), empPhoto=getPhoto(emp);
+      var qrId='qr_'+empId+'_'+qrSuffix;
+      var photoSrc=empPhoto?empPhoto:'https://placehold.co/200x200/054b99/ffffff?text='+encodeURIComponent((empName||'E').charAt(0));
+      var footAddr=COMPANY.address?(COMPANY.address+'<br>โทร. '+(COMPANY.phone||'')+(COMPANY.fax?' · แฟกซ์ '+COMPANY.fax:'')):'&nbsp;';
+      return [
+        '<div class="'+cardClass+' bg-white rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between text-slate-800 border border-slate-200">',
+          /* header */
+          '<div class="bg-brand-blue px-3 pt-3 pb-5 text-white text-center flex flex-col items-center relative shadow-sm border-t-4 border-brand-green z-10">',
+            '<div class="card-head-title font-extrabold text-[12px] leading-tight uppercase tracking-tight line-clamp-2 drop-shadow-sm px-1">'+COMPANY.name+'</div>',
+            '<div class="card-head-badge inline-block mt-1 px-2.5 py-0.5 bg-brand-green rounded text-[9px] font-bold tracking-wider text-white uppercase shadow-sm">Attendance Pass · บัตรลงเวลา</div>',
+            '<div class="absolute -bottom-3 left-0 right-0 h-4 bg-white" style="clip-path:ellipse(55% 100% at 50% 100%);"></div>',
+          '</div>',
+          /* photo + meta */
+          '<div class="flex flex-col items-center mt-2 z-10 px-3">',
+            '<div class="card-photo w-44 h-44 rounded-full bg-white p-1.5 shadow-2xl border-4 border-brand-blue overflow-hidden flex items-center justify-center">',
+              '<img src="'+photoSrc+'" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" onerror="this.src=\'https://placehold.co/200x200/054b99/ffffff?text=Photo\'">',
+            '</div>',
+            '<h3 class="card-name font-extrabold text-[15px] text-brand-blue leading-tight mt-1.5 text-center tracking-tight">'+empName+'</h3>',
+            '<div class="card-pos text-[11px] font-bold text-slate-600 mt-1 text-center">ตำแหน่ง: '+empPos+'</div>',
+            '<div class="card-id mt-1.5 px-3 py-0.5 bg-brand-blue text-white rounded-md font-mono font-black text-[11px] shadow-sm border border-brand-green/40">รหัส: '+empId+'</div>',
+          '</div>',
+          /* QR */
+          '<div class="flex flex-col items-center justify-center py-1 text-center z-10">',
+            '<div id="'+qrId+'" class="p-1.5 bg-white border border-emerald-300 rounded-xl shadow-md"></div>',
+          '</div>',
+          /* footer */
+          '<div class="z-10 bg-white/80">',
+            '<div class="card-foot-text px-2 pb-1.5 text-center text-[7.5px] text-slate-500 leading-tight border-t border-slate-100 pt-1">'+footAddr+'</div>',
+            '<div class="h-2 w-full bg-gradient-to-r from-brand-blue via-brand-green to-brand-blue"></div>',
+          '</div>',
+        '</div>'
+      ].join('');
+    }
 
-            card.innerHTML =
-                '<div class="bq-watermark">' + buildWatermarkHtml(logoUrl) + '</div>' +
-                '<div class="bq-head">' +
-                    '<span class="bq-company">' + escHtml(companyName) + '</span>' +
-                    '<span class="bq-tag">Attendance Pass &middot; บัตรลงเวลา</span>' +
-                '</div>' +
-                '<div class="bq-body">' +
-                    '<div class="bq-photo" id="photo-' + safeId + '">' +
-                        '<div class="bq-initial">' + escHtml(firstChar) + '</div>' +
-                        photoHtml +
-                    '</div>' +
-                    '<div class="bq-meta">' +
-                        '<p class="bq-name">' + escHtml(emp.name || emp.empId) + '</p>' +
-                        '<p class="bq-pos">' + escHtml(emp.position || 'พนักงานทั่วไป') + '</p>' +
-                        '<span class="bq-id-chip">' +
-                            '<span class="bq-prefix">รหัส:</span> ' +
-                            '<span class="bq-id">' + escHtml(emp.empId) + '</span>' +
-                        '</span>' +
-                    '</div>' +
-                    '<div class="bq-qr-wrap" id="qr-wrap-' + safeId + '">' +
-                        '<canvas id="qr-canvas-' + safeId + '" class="bq-canvas" width="160" height="160"></canvas>' +
-                    '</div>' +
-                '</div>' +
-                '<div class="bq-foot">' +
-                    footContent +
-                    '<div class="bq-foot-bar"></div>' +
-                '</div>';
+    /* ── 6. QR DRAW ── */
+    function drawQr(id, url, size){
+      var el=document.getElementById(id);
+      if(!el||!url)return;
+      el.innerHTML='';
+      try{
+        new QRCode(el,{text:url,width:size,height:size,colorDark:'#054B99',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+      }catch(e){
+        el.innerHTML='<img src="https://chart.googleapis.com/chart?chs='+size+'x'+size+'&cht=qr&chl='+encodeURIComponent(url)+'" width="'+size+'" height="'+size+'">';
+      }
+    }
 
-            return card;
-        }
+    /* ── 7. RENDER SINGLE ── */
+    function renderActiveCard(){
+      var emp=employees[activeEmpIndex];
+      var wrap=document.getElementById('singleCardWrapper');
+      wrap.innerHTML=cardHTML(emp,'cr80-card-preview','preview');
+      setTimeout(function(){drawQr('qr_'+getId(emp)+'_preview',getLink(emp),80);},50);
+    }
 
-        function drawQr(safeId, qrUrl) {
-            var canvas = document.getElementById('qr-canvas-' + safeId);
-            if (!canvas) return;
-            if (typeof QRCode !== 'undefined') {
-                try {
-                    QRCode.toCanvas(canvas, qrUrl, {
-                        width: 160,
-                        margin: 2,
-                        errorCorrectionLevel: 'H',
-                        color: { dark: '#054B99', light: '#ffffff' }
-                    }, function(err) {
-                        if (err) useFallbackQr(canvas, qrUrl);
-                    });
-                } catch(e) {
-                    useFallbackQr(canvas, qrUrl);
-                }
-            } else {
-                useFallbackQr(canvas, qrUrl);
-            }
-        }
+    /* ── 8. PRINT SINGLE ── */
+    function printSingleCard(){
+      document.body.classList.remove('print-mode-all');
+      document.body.classList.add('print-mode-single');
+      showToast('กำลังเปิดหน้าต่างพิมพ์บัตรประจำตัว...');
+      setTimeout(function(){window.print();},300);
+    }
 
-        function useFallbackQr(canvas, qrUrl) {
-            var wrap = canvas ? canvas.parentElement : null;
-            if (!wrap) return;
-            canvas.style.display = 'none';
-            var img = document.createElement('img');
-            img.className = 'bq-qr-img';
-            img.alt = 'QR Code';
-            img.src = 'https://chart.googleapis.com/chart?chs=160x160&cht=qr&chl='
-                      + encodeURIComponent(qrUrl) + '&choe=UTF-8&chld=H|2';
-            wrap.appendChild(img);
-        }
+    /* ── 9. PRINT ALL ── */
+    function printAllCards(){
+      document.body.classList.remove('print-mode-single');
+      document.body.classList.add('print-mode-all');
+      var batch=document.getElementById('batchPrintWrapper');
+      batch.innerHTML='';
+      employees.forEach(function(emp){
+        var d=document.createElement('div');
+        d.innerHTML=cardHTML(emp,'cr80-card-print','batch');
+        batch.appendChild(d);
+      });
+      setTimeout(function(){
+        employees.forEach(function(emp){drawQr('qr_'+getId(emp)+'_batch',getLink(emp),68);});
+        showToast('กำลังเปิดหน้าต่างพิมพ์บัตรทั้งหมด ('+employees.length+' ใบ)...');
+        setTimeout(function(){window.print();},400);
+      },80);
+    }
 
-        function init() {
-            var ci    = CARD_DATA.company   || {};
-            var emps  = CARD_DATA.employees || [];
-            var grid  = document.getElementById('cards-grid');
-            var label = document.getElementById('preview-label');
-
-            if (emps.length === 0) {
-                label.textContent = 'ไม่มีข้อมูลพนักงาน';
-                return;
-            }
-            label.textContent = 'ตัวอย่างบัตร ' + emps.length + ' ใบ (CR80 54x85.6 มม.)';
-
-            var idx = 0;
-            function renderNext() {
-                if (idx >= emps.length) return;
-                var emp    = emps[idx];
-                var safeId = String(emp.empId).replace(/[^a-zA-Z0-9_-]/g, '_');
-                var card   = buildCard(emp, ci);
-                grid.appendChild(card);
-                var qrTarget = emp.qrUrl || String(emp.empId);
-                setTimeout(function() { drawQr(safeId, qrTarget); }, 0);
-                idx++;
-                setTimeout(renderNext, 0);
-            }
-            renderNext();
-        }
-
-        document.addEventListener('DOMContentLoaded', init);
-    </script>
+    /* ── 10. TOAST ── */
+    function showToast(msg){
+      var t=document.getElementById('toast');
+      document.getElementById('toastMsg').textContent=msg;
+      t.classList.remove('translate-y-20','opacity-0');
+      setTimeout(function(){t.classList.add('translate-y-20','opacity-0');},3000);
+    }
+  </script>
 </body>
 </html>
