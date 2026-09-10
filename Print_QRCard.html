@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th" class="h-full bg-slate-100">
 <head>
   <meta charset="UTF-8">
@@ -23,31 +23,75 @@
     body{font-family:'Kanit',sans-serif;}
     .cr80-card-preview{width:320px;height:507px;}
     .cr80-card-print{width:54mm;height:85.6mm;box-sizing:border-box;}
+
+    /* Card layout helpers */
+    .card-body-wrap{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      flex:1 1 0%;        /* กินพื้นที่ตรงกลางทั้งหมด */
+      min-height:0;       /* ป้องกัน flex overflow */
+      overflow:visible;
+      padding:4px 12px 0;
+    }
+    .card-photo{
+      flex-shrink:0;      /* ห้ามถูก compress */
+      width:160px;
+      height:160px;
+      border-radius:9999px;
+      background:#fff;
+      padding:5px;
+      border:4px solid #054B99;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 10px 30px -8px rgba(5,75,153,0.35);
+    }
+    .card-photo img{
+      width:100%;height:100%;
+      object-fit:cover;
+      border-radius:9999px;
+    }
+    .card-qr-wrap{
+      flex-shrink:0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      padding:4px 0;
+    }
     @media print{
       html,body{background:#fff!important;padding:0!important;margin:0!important;}
       .no-print{display:none!important;}
       body.print-mode-single .batch-print-wrapper{display:none!important;}
       body.print-mode-single .single-print-wrapper{display:flex!important;align-items:center!important;justify-content:center!important;min-height:100vh!important;}
       body.print-mode-single .cr80-card-preview{width:54mm!important;height:85.6mm!important;box-shadow:none!important;border:1px solid #cbd5e1!important;page-break-inside:avoid;}
+      /* resize เดี่ยว */
       body.print-mode-single .cr80-card-preview .card-photo{width:28mm!important;height:28mm!important;}
       body.print-mode-single .cr80-card-preview .card-name{font-size:7pt!important;}
       body.print-mode-single .cr80-card-preview .card-pos{font-size:5.5pt!important;}
-      body.print-mode-single .cr80-card-preview .card-id{font-size:5pt!important;}
+      body.print-mode-single .cr80-card-preview .card-id{font-size:5pt!important;padding:1px 6px!important;}
       body.print-mode-single .cr80-card-preview .card-head-title{font-size:5.5pt!important;}
       body.print-mode-single .cr80-card-preview .card-head-badge{font-size:4pt!important;}
       body.print-mode-single .cr80-card-preview .card-foot-text{font-size:3.8pt!important;}
-      body.print-mode-single .cr80-card-preview .card-watermark{display:none!important;}
+      /* resize ทั้งหมด */
       body.print-mode-all .single-print-wrapper{display:none!important;}
       body.print-mode-all .batch-print-wrapper{display:grid!important;grid-template-columns:repeat(3,54mm)!important;gap:4mm 6mm!important;justify-content:center!important;align-content:start!important;padding:6mm 0!important;}
       body.print-mode-all .cr80-card-print{box-shadow:none!important;border:1px dashed #94a3b8!important;page-break-inside:avoid;}
       body.print-mode-all .cr80-card-print .card-photo{width:22mm!important;height:22mm!important;}
       body.print-mode-all .cr80-card-print .card-name{font-size:6pt!important;}
       body.print-mode-all .cr80-card-print .card-pos{font-size:5pt!important;}
-      body.print-mode-all .cr80-card-print .card-id{font-size:4.5pt!important;}
+      body.print-mode-all .cr80-card-print .card-id{font-size:4.5pt!important;padding:0px 4px!important;}
       body.print-mode-all .cr80-card-print .card-head-title{font-size:5pt!important;}
       body.print-mode-all .cr80-card-print .card-head-badge{font-size:3.5pt!important;}
       body.print-mode-all .cr80-card-print .card-foot-text{font-size:3.5pt!important;}
-      body.print-mode-all .cr80-card-print .card-watermark{display:none!important;}
+      /* card-body-wrap ใน print: หยุด overflow */
+      body.print-mode-single .card-body-wrap,
+      body.print-mode-all    .card-body-wrap{
+        overflow:hidden!important;
+        min-height:0!important;
+      }
       @page{size:A4 portrait;margin:8mm;}
     }
   </style>
@@ -132,13 +176,15 @@
     });
 
     /* ── 3. FIELD HELPERS ── */
+    // Code.gs inject: { empId, name, position, photoUrl, qrUrl }
+    // index.html (admin) inject: { รหัสพนักงาน, ชื่อ-นามสกุล, ตำแหน่ง, ... }
     function gf(emp,keys){for(var i=0;i<keys.length;i++){if(emp[keys[i]]!=null&&emp[keys[i]]!=='')return emp[keys[i]];}return '';}
-    function getId(emp)    {return gf(emp,['empId','รหัสพนักงาน','emp_id']);}
-    function getName(emp)  {return gf(emp,['fullName','ชื่อ-นามสกุล','name']);}
+    function getId(emp)    {return gf(emp,['empId','รหัสพนักงาน','emp_id','id']);}
+    function getName(emp)  {return gf(emp,['name','fullName','ชื่อ-นามสกุล','employee_name']);}
     function getPos(emp)   {return gf(emp,['position','ตำแหน่ง','pos']);}
-    function getPhoto(emp) {return gf(emp,['photo','รูปถ่าย','photoUrl','avatar']);}
+    function getPhoto(emp) {return gf(emp,['photoUrl','photo_url','photo','ลิ้งภาพโปรไฟล์','รูปถ่าย','avatar']);}
     function getLink(emp)  {
-      var dl=gf(emp,['deepLink','deep_link','qrUrl']);
+      var dl=gf(emp,['qrUrl','deepLink','deep_link','qr_url']);
       if(dl)return dl;
       var id=getId(emp);
       return id?(COMPANY.deepLinkBase+'?emp_id='+encodeURIComponent(id)):'';
@@ -166,16 +212,16 @@
       var photoSrc=empPhoto?empPhoto:'https://placehold.co/200x200/054b99/ffffff?text='+encodeURIComponent((empName||'E').charAt(0));
       var footAddr=COMPANY.address?(COMPANY.address+'<br>โทร. '+(COMPANY.phone||'')+(COMPANY.fax?' · แฟกซ์ '+COMPANY.fax:'')):'&nbsp;';
       return [
-        '<div class="'+cardClass+' bg-white rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between text-slate-800 border border-slate-200">',
+        '<div class="'+cardClass+' bg-white rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-start text-slate-800 border border-slate-200">',
           /* header */
-          '<div class="bg-brand-blue px-3 pt-3 pb-5 text-white text-center flex flex-col items-center relative shadow-sm border-t-4 border-brand-green z-10">',
+          '<div class="bg-brand-blue px-3 pt-3 pb-5 text-white text-center flex flex-col items-center relative shadow-sm border-t-4 border-brand-green z-10" style="flex-shrink:0;">',
             '<div class="card-head-title font-extrabold text-[12px] leading-tight uppercase tracking-tight line-clamp-2 drop-shadow-sm px-1">'+COMPANY.name+'</div>',
             '<div class="card-head-badge inline-block mt-1 px-2.5 py-0.5 bg-brand-green rounded text-[9px] font-bold tracking-wider text-white uppercase shadow-sm">Attendance Pass · บัตรลงเวลา</div>',
             '<div class="absolute -bottom-3 left-0 right-0 h-4 bg-white" style="clip-path:ellipse(55% 100% at 50% 100%);"></div>',
           '</div>',
           /* photo + meta */
-          '<div class="flex flex-col items-center mt-2 z-10 px-3">',
-            '<div class="card-photo w-44 h-44 rounded-full bg-white p-1.5 shadow-2xl border-4 border-brand-blue overflow-hidden flex items-center justify-center">',
+          '<div class="card-body-wrap">',
+            '<div class="card-photo mt-2">',
               '<img src="'+photoSrc+'" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" onerror="this.src=\'https://placehold.co/200x200/054b99/ffffff?text=Photo\'">',
             '</div>',
             '<h3 class="card-name font-extrabold text-[15px] text-brand-blue leading-tight mt-1.5 text-center tracking-tight">'+empName+'</h3>',
@@ -183,7 +229,7 @@
             '<div class="card-id mt-1.5 px-3 py-0.5 bg-brand-blue text-white rounded-md font-mono font-black text-[11px] shadow-sm border border-brand-green/40">รหัส: '+empId+'</div>',
           '</div>',
           /* QR */
-          '<div class="flex flex-col items-center justify-center py-1 text-center z-10">',
+          '<div class="card-qr-wrap">',
             '<div id="'+qrId+'" class="p-1.5 bg-white border border-emerald-300 rounded-xl shadow-md"></div>',
           '</div>',
           /* footer */
