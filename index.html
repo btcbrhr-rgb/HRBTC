@@ -8537,6 +8537,7 @@ let adminPendingCounts = {
 };
 let adminPendingRecent = { leave: [], correction: [], advance: [] };
 let adminApprovalsLoadedOnce = false; // กัน dashboard ยิง loadAdminApprovals ซ้ำ
+let adminDashboardClockTimer = null;
 let adminEmployeesMap = new Map(); // คีย์หลักสำหรับทำ Indexing เพื่อดึงชื่อพนักงานได้เร็วขึ้น
 let adminCurrentDecisionData = null; // Holds target data for approval modal
 let isBatchOperation = false; // Tracks if we're doing a batch approval/rejection
@@ -15860,7 +15861,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         if (welcomeDate) welcomeDate.textContent = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                     };
                     updateDashClock();
-                    setInterval(updateDashClock, 30000);
+                    if (adminDashboardClockTimer) clearInterval(adminDashboardClockTimer);
+                    adminDashboardClockTimer = setInterval(updateDashClock, 30000);
                 } catch (e) { console.warn('[loadAdminDashboard] Welcome section error:', e); }
 
                 // Load data from Supabase - ดึงข้อมูลจริงเฉพาะ
@@ -16403,6 +16405,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     if (!supabaseClient) return;
 
+                    // 🔧 FIX: ใช้ systemSettings global พร้อม fallback ป้องกัน ReferenceError ถ้ายังโหลดไม่เสร็จ
+                    const sys = (typeof systemSettings === 'object' && systemSettings !== null) ? systemSettings : {
+                        dailyDivisor: 30,
+                        workHoursPerDay: 8,
+                        defaultOtRate: 1.0,
+                        lateCutoffTimeStr: '08:15',
+                        otStartTimeStr: '17:15',
+                        lateBaseMinutes: 15,
+                        billingCycleStartDay: 26,
+                        billingCycleEndDay: 25,
+                        holidayOtRate: 2.0,
+                        holidayWorkRate: 1.0,
+                        lunchStartTimeStr: '12:00',
+                        lunchEndTimeStr: '13:00'
+                    };
+
                     const today = new Date();
                     const curYear = today.getFullYear();
                     const curMonth = String(today.getMonth() + 1).padStart(2, '0');
@@ -16495,9 +16513,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     // ค่าแรงต่อชั่วโมงโดยเฉลี่ย = (เงินเดือนเฉลี่ย / ตัวหาร / ชม.ต่อวัน) * อัตรา OT * ชม. OT
-                    const _d = systemSettings.dailyDivisor || 30;
-                    const _h = systemSettings.workHoursPerDay || 8;
-                    const _otR = systemSettings.defaultOtRate || 1.0;
+                    const _d = sys.dailyDivisor || 30;
+                    const _h = sys.workHoursPerDay || 8;
+                    const _otR = sys.defaultOtRate || 1.0;
                     const avgHourlyWage = (avgSalary > 0 ? avgSalary : 15000) / (_d * _h);
                     const estOtCost = Math.round(totalOtHours * avgHourlyWage * _otR);
 
@@ -16619,9 +16637,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             if (emp) siteSalary += Number(emp["ฐานเงินเดือน"] ?? emp["เงินเดือน"] ?? emp.base_salary ?? 0);
                         });
                         const siteAvgSalary = s.workerIds.size > 0 ? (siteSalary / s.workerIds.size) : avgSalary;
-                        const _sd = systemSettings.dailyDivisor || 30;
-                        const _sh = systemSettings.workHoursPerDay || 8;
-                        const _sotR = systemSettings.defaultOtRate || 1.0;
+                        const _sd = sys.dailyDivisor || 30;
+                        const _sh = sys.workHoursPerDay || 8;
+                        const _sotR = sys.defaultOtRate || 1.0;
                         const hourly = (siteAvgSalary > 0 ? siteAvgSalary : 15000) / (_sd * _sh);
                         const siteOtCost = Math.round(s.otHours * hourly * _sotR);
                         return {
@@ -16880,13 +16898,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             .gte('date', sevenDaysAgoKey)
                             .lte('date', todayKey7),
                         supabaseClient.from('leave_requests').select('*')
-                            .gte('start_date', yearStart)
-                            .lte('end_date', yearEnd)
+                            .lte('start_date', yearEnd)
+                            .gte('end_date', yearStart)
                     ]);
 
                     let leaveCounts = { annual: 0, sick: 0, personal: 0 };
                     if (!leaveRes.error && Array.isArray(leaveRes.data)) {
                         leaveRes.data.forEach(item => {
+                            const status = (item.status || '').toString().trim();
+                            if (status.includes('ไม่') || status.includes('ปฏิเสธ') || status.includes('ยกเลิก')) return;
                             const leaveType = (item.leave_type || item["ประเภทการลา"] || '').toString().trim().toLowerCase();
                             if (!leaveType) return;
                             if (leaveType.includes('พักร้อน') || leaveType.includes('annual') || leaveType.includes('vacation')) leaveCounts.annual += 1;
@@ -16941,6 +16961,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         if (Array.isArray(leaveRes.data)) {
                             leaveRes.data.forEach(item => {
+                                const status = (item.status || '').toString().trim();
+                                if (status.includes('ไม่') || status.includes('ปฏิเสธ') || status.includes('ยกเลิก')) return;
                                 const type = parseLeaveTypeName(item.leave_type ?? item['ประเภทการลา']);
                                 let start = item.start_date || item['วันที่เริ่ม'];
                                 let end = item.end_date || item['วันที่สิ้นสุด'];
@@ -16949,14 +16971,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 if (!start) return;
                                 const startDate = new Date(start + 'T00:00:00');
                                 const endDate = end ? new Date(end + 'T00:00:00') : startDate;
-                                const startMonth = startDate.getMonth();
-                                const endMonth = endDate.getMonth();
-                                const totalDays = countLeaveDays(start, end);
-                                for (let m = startMonth; m <= endMonth; m++) {
-                                    const eachDays = m === startMonth && m === endMonth ? totalDays : Math.max(1, Math.round(totalDays / Math.max(1, (endMonth - startMonth + 1))));
-                                    if (type === 'annual') monthAnnual[m] += eachDays;
-                                    else if (type === 'sick') monthSick[m] += eachDays;
-                                    else monthPersonal[m] += eachDays;
+                                if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+                                const yearStartDate = new Date(yearStart + 'T00:00:00');
+                                const yearEndDate = new Date(yearEnd + 'T00:00:00');
+                                const clippedStart = startDate < yearStartDate ? yearStartDate : startDate;
+                                const clippedEnd = endDate > yearEndDate ? yearEndDate : endDate;
+                                for (let day = new Date(clippedStart); day <= clippedEnd; day.setDate(day.getDate() + 1)) {
+                                    const month = day.getMonth();
+                                    if (type === 'annual') monthAnnual[month] += 1;
+                                    else if (type === 'sick') monthSick[month] += 1;
+                                    else monthPersonal[month] += 1;
                                 }
                             });
                         }
@@ -17036,6 +17060,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const presentByDate = {};
                         const lateByDate = {};
                         const absentByDate = {};
+                        const activeEmployeeCount = Array.isArray(adminEmployeesList)
+                            ? adminEmployeesList.filter(employee => (employee["สถานะ"] || employee.status || "ทำงานปกติ") !== "ลาออก").length
+                            : 0;
                         dateKeys.forEach((key, index) => {
                             presentByDate[key] = 0; lateByDate[key] = 0; absentByDate[key] = 0;
                         });
@@ -17054,6 +17081,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             } else {
                                 presentByDate[key] += 1;
                             }
+                        });
+                        dateKeys.forEach(key => {
+                            absentByDate[key] = Math.max(0, activeEmployeeCount - presentByDate[key] - lateByDate[key]);
                         });
 
                         new Chart(trendCanvas, {
