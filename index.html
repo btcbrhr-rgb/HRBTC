@@ -25144,10 +25144,15 @@ ${slip.textSample}
                 // ═══════════════════════════════════════════════════════════
                 // 🪪 เปิดหน้าพิมพ์บัตรพนักงาน QR แบบแยก Tab (Print_QRCard.html)
                 //    empIds: Array ของรหัสพนักงาน (ถ้าไม่ส่ง = พิมพ์ทั้งหมดที่ active)
+                //    ⚠️ ต้องใช้ SERVER_API_URL (GAS exec) ไม่ใช่ window.location
+                //       เพราะเว็บอยู่บน Vercel — Vercel ไม่รู้จัก ?action=printQrCardPage
                 // ═══════════════════════════════════════════════════════════
                 function openPrintQrCardPage(empIds) {
-                    var base = window.location.origin + window.location.pathname;
-                    var url  = base + '?action=printQrCardPage';
+                    // ใช้ GAS Web App URL ตรงๆ (SERVER_API_URL) เพื่อให้ doGet() รับ action ได้
+                    var gasBase = (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL)
+                        ? SERVER_API_URL.split('?')[0]
+                        : (window.location.origin + window.location.pathname);
+                    var url = gasBase + '?action=printQrCardPage';
                     if (empIds && empIds.length > 0) {
                         url += '&empIds=' + empIds.map(encodeURIComponent).join(',');
                     }
