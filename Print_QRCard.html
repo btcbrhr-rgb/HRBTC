@@ -209,26 +209,23 @@
     }
 
     window.addEventListener('DOMContentLoaded', function() {
-      // ── กรณี _LOADING_CONFIG_: ดึงข้อมูลจาก GAS API (Phase 2) ──
-      if (_LOADING_CONFIG_ && _LOADING_CONFIG_.gasDataUrl) {
+      // ── กรณี _LOADING_CONFIG_: ดึงข้อมูลจาก GAS ผ่าน google.script.run (Phase 2) ──
+      if (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds !== undefined) {
         setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
-        fetch(_LOADING_CONFIG_.gasDataUrl)
-          .then(function(res) {
-            setLoadingStatus('กำลังประมวลผลข้อมูล...');
-            return res.json();
-          })
-          .then(function(json) {
-            if (json.status === 'success' && json.data) {
-              COMPANY   = json.data.company   || COMPANY;
-              employees = json.data.employees || [];
+        google.script.run
+          .withSuccessHandler(function(result) {
+            setLoadingStatus('กำลังแสดงบัตร...');
+            if (result && result.status === 'success') {
+              COMPANY   = result.company   || COMPANY;
+              employees = result.employees || [];
             }
-            setLoadingStatus('โหลดเสร็จแล้ว กำลังแสดงบัตร...');
             initUI();
           })
-          .catch(function(err) {
-            setLoadingStatus('❌ โหลดข้อมูลล้มเหลว: ' + err);
-            setTimeout(hideLoadingOverlay, 2000);
-          });
+          .withFailureHandler(function(err) {
+            setLoadingStatus('❌ โหลดข้อมูลล้มเหลว: ' + (err.message || err));
+            setTimeout(hideLoadingOverlay, 2500);
+          })
+          .getQrCardDataForClient(_LOADING_CONFIG_.empIds);
       } else {
         // ── กรณีปกติ: มี _CARD_DATA_ inject มาแล้ว ──
         initUI();
