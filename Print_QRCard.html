@@ -315,6 +315,52 @@
       return id?((COMPANY.deepLinkBase||defaultDeepLinkBase_())+'?empId='+encodeURIComponent(id)+'&tab=attendance'):'';
     }
 
+    /* ── 3b. PHOTO FIX — รูปไม่แสดงบนบัตร ──
+       avatar_url ใน DB มี 3 รูปแบบ: JSON {"url":..} / drive uc?id= / drive file/d/view
+       → <img> ใช้ดิบไม่ได้เลย ต้องแปลงเป็น lh3.googleusercontent.com/d/<id> ก่อน (port จาก index.html convertDriveUrl) */
+    function convDriveUrl_(url){
+      if(!url)return '';
+      var u=String(url).trim();
+      if(!u)return '';
+      // 1) JSON string รูปแบบ {"url":"https://...","fileId":"..."} จากฟอร์มอัปโหลด
+      if(u.charAt(0)==='{'||u.charAt(0)==='['){
+        try{var p=JSON.parse(u);if(p&&p.url)u=String(p.url);}catch(eP){}
+      }
+      // 2) ไม่ใช่ลิงก์ Google Drive → คืนตามเดิม (lh3 / supabase storage / data URI ใช้ตรงได้)
+      if(u.indexOf('drive.google.com')===-1&&u.indexOf('docs.google.com')===-1)return u;
+      // 3) ดึง fileId → แปลงเป็น lh3 (แสดง inline ใน <img> ได้จริง)
+      var fid=null,m;
+      if((m=u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)))fid=m[1];
+      else if((m=u.match(/[?&]id=([a-zA-Z0-9_-]+)/)))fid=m[1];
+      else if((m=u.match(/\/u\/0\/d\/([a-zA-Z0-9_-]+)/)))fid=m[1];
+      else if((m=u.match(/\/d\/([a-zA-Z0-9_-]+)/)))fid=m[1];
+      return fid?('https://lh3.googleusercontent.com/d/'+fid):u;
+    }
+    /* onerror 2 ชั้น: lh3 พัง → drive.google.com/thumbnail?id= → ตัวอักษรย่อ SVG (กันวนลูป) */
+    function qrPhotoErr_(img){
+      var step=img.getAttribute('data-pstep')||'0';
+      if(step==='0'){
+        var m=(img.getAttribute('src')||'').match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{20,})/);
+        if(m){
+          img.setAttribute('data-pstep','1');
+          img.setAttribute('src','https://drive.google.com/thumbnail?id='+m[1]+'&sz=w400');
+          return;
+        }
+      }
+      img.onerror=null;
+      img.setAttribute('src',initialAvatar_(img.getAttribute('data-init')||'E'));
+    }
+    /* ตัวอักษรย่อพื้นน้ำเงิน — SVG data URI ไม่พึ่งเน็ต/CDN (placehold.co ล่มก็ยังพิมพ์ได้) */
+    function initialAvatar_(name){
+      var ch=String(name==null?'':name).trim().charAt(0)||'E';
+      var svg='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">'
+        +'<rect width="200" height="200" fill="#054B99"/>'
+        +'<text x="100" y="128" font-size="96" font-family="Kanit,Arial,sans-serif" font-weight="700" fill="#ffffff" text-anchor="middle">'+escHtml_(ch)+'</text>'
+        +'</svg>';
+      return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+    }
+
+
     /* ── 4. DROPDOWN ── */
     function populateDropdown(){
       var sel=document.getElementById('employeeSelect');
@@ -335,7 +381,7 @@
     function cardHTML(emp,cardClass,qrSuffix){
       var empId=getId(emp), empName=getName(emp), empPos=getPos(emp), empPhoto=getPhoto(emp);
       var qrId='qr_'+sanitizeQrId_(empId)+'_'+qrSuffix;
-      var photoSrc=empPhoto?empPhoto:'https://placehold.co/200x200/054b99/ffffff?text='+encodeURIComponent((empName||'E').charAt(0));
+      var photoSrc=convDriveUrl_(empPhoto)||initialAvatar_(empName);
       var footAddr=COMPANY.address?(COMPANY.address+'<br>โทร. '+(COMPANY.phone||'')+(COMPANY.fax?' · แฟกซ์ '+COMPANY.fax:'')):'&nbsp;';
       return [
         '<div class="'+cardClass+' bg-white rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-start text-slate-800 border border-slate-200">',
@@ -348,7 +394,7 @@
           /* photo + meta */
           '<div class="card-body-wrap">',
             '<div class="card-photo mt-2">',
-              '<img src="'+String(photoSrc).replace(/"/g,'&quot;')+'" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=\'https://placehold.co/200x200/054b99/ffffff?text=Photo\'">',
+              '<img src="'+String(photoSrc).replace(/"/g,'&quot;')+'" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" referrerpolicy="no-referrer" data-init="'+escHtml_((empName||'E').trim().charAt(0))+'" onerror="qrPhotoErr_(this)">',
             '</div>',
             '<h3 class="card-name font-extrabold text-[15px] text-brand-blue leading-tight mt-1.5 text-center tracking-tight">'+escHtml_(empName)+'</h3>',
             '<div class="card-pos text-[11px] font-bold text-slate-600 mt-1 text-center">ตำแหน่ง: '+escHtml_(empPos)+'</div>',
