@@ -77,7 +77,7 @@
       body.print-mode-single .cr80-card-preview .card-foot-text{font-size:3.8pt!important;}
       /* resize ทั้งหมด */
       body.print-mode-all .single-print-wrapper{display:none!important;}
-      body.print-mode-all .batch-print-wrapper{display:grid!important;grid-template-columns:repeat(3,54mm)!important;gap:4mm 6mm!important;justify-content:center!important;align-content:start!important;padding:6mm 0!important;}
+      body.print-mode-all .batch-print-wrapper{display:grid!important;grid-template-columns:repeat(3,54mm)!important;gap:4mm 6mm!important;justify-content:center!important;align-content:start!important;padding:6mm 0!important;visibility:visible!important;}
       body.print-mode-all .cr80-card-print{box-shadow:none!important;border:1px dashed #94a3b8!important;page-break-inside:avoid;}
       body.print-mode-all .cr80-card-print .card-photo{width:22mm!important;height:22mm!important;}
       body.print-mode-all .cr80-card-print .card-name{font-size:6pt!important;}
@@ -159,7 +159,7 @@
       <p class="text-xs sm:text-sm text-slate-500 mt-1">เลือกพิมพ์เฉพาะบัตรใบนี้ หรือสั่งพิมพ์รวมทั้งหมดลง A4 ได้ทันที</p>
     </div>
     <div id="singleCardWrapper" class="single-print-wrapper flex justify-center items-center my-2"></div>
-    <div id="batchPrintWrapper" class="batch-print-wrapper hidden no-print"></div>
+    <div id="batchPrintWrapper" class="batch-print-wrapper hidden"></div>
   </main>
 
   <!-- TOAST -->
@@ -171,13 +171,14 @@
 
   <script>
     /* ── 1. DATA ── */
-    var _CARD_DATA_      = typeof _CARD_DATA_      !== 'undefined' ? _CARD_DATA_      : null;
-    var _LOADING_CONFIG_ = typeof _LOADING_CONFIG_ !== 'undefined' ? _LOADING_CONFIG_ : null;
+    var _CARD_DATA_ = null; try { _CARD_DATA_ = (typeof _CARD_DATA_ !== 'undefined') ? _CARD_DATA_ : null; } catch(eCD){ _CARD_DATA_=null; }
+    var _LOADING_CONFIG_ = null; try { _LOADING_CONFIG_ = (typeof _LOADING_CONFIG_ !== 'undefined') ? _LOADING_CONFIG_ : null; } catch(eLC){ _LOADING_CONFIG_=null; }
+    var _GAS_BASE_ = null; try { _GAS_BASE_ = (typeof _GAS_BASE_ !== 'undefined') ? _GAS_BASE_ : null; } catch(eGAS){ _GAS_BASE_=null; }
     var COMPANY = (_CARD_DATA_ && _CARD_DATA_.company) ? _CARD_DATA_.company : {
       name:'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด', logoUrl:'',
       address:'31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
       phone:'044-611134', fax:'044-611134',
-      deepLinkBase:'https://hrbtc.vercel.app/qr'
+      deepLinkBase:'' /* เติมจาก GAS (_CARD_DATA_.company.deepLinkBase) — กัน QR ผิด base */
     };
     var employees = (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0)
       ? _CARD_DATA_.employees
@@ -203,14 +204,82 @@
         var lt = document.getElementById('nav-logo-text');
         if (lt) lt.textContent = (COMPANY.name || 'B').charAt(0).toUpperCase();
       }
+      if(!employees||!employees.length){renderEmptyState_();hideLoadingOverlay();return;}
+      if(activeEmpIndex>=employees.length)activeEmpIndex=0;
+      if(!COMPANY.deepLinkBase)COMPANY.deepLinkBase=defaultDeepLinkBase_();
       populateDropdown();
+      renderActiveCard(); drawActiveQr_();
+      hideLoadingOverlay();
+    }
+    function drawActiveQr_(){
+      var emp=employees[activeEmpIndex];
+      if(!emp)return;
+      drawQr('qr_'+sanitizeQrId_(getId(emp))+'_preview',getLink(emp),80);
+    }
+    function defaultDeepLinkBase_(){
+      try{if(window.location&&window.location.origin)return window.location.origin+window.location.pathname;}catch(e0){}
+      return 'https://hrbtc.vercel.app/';
+    }
+    function renderEmptyState_(){
+      var wrap=document.getElementById('singleCardWrapper');
+      if(wrap)wrap.innerHTML='<div class="max-w-md mx-auto text-center bg-white rounded-2xl border border-amber-200 shadow p-8"><div class="w-14 h-14 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-3"><i class="fa-solid fa-triangle-exclamation text-amber-500 text-xl"></i></div><h3 class="font-bold text-slate-800">ไม่พบข้อมูลพนักงาน</h3><p class="text-xs text-slate-500 mt-1">รหัสที่ระบุอาจผิด หรือพนักงานลาออก/พักงานแล้ว<br>ลองกลับไปเลือกใหม่ หรือกดพิมพ์บัตรทั้งหมด</p></div>';
+      var sel2=document.getElementById('employeeSelect');
+      if(sel2)sel2.innerHTML='<option value="">-- ไม่มีข้อมูล --</option>';
+      var badge2=document.getElementById('totalBadge');
+      if(badge2)badge2.textContent='0';
+    }
+    function applyCardResult_(result){
+      setLoadingStatus('กำลังแสดงบัตร...');
+      if(result&&result.status==='success'){
+        COMPANY=result.company||COMPANY;
+        employees=result.employees||[];
+        activeEmpIndex=0;
+        initUI();
+      }else{
+        setLoadingStatus('ขออภัย ' + ((result&&result.message)||'ไม่พบข้อมูลพนักงาน'));
+        renderEmptyState_();
+        setTimeout(hideLoadingOverlay,2500);
+      }
+    }
+    function gasActionBase_(){
+      if(typeof _GAS_BASE_!=='undefined'&&_GAS_BASE_){try{return String(_GAS_BASE_).split('?')[0];}catch(eGB){}}
+      try{if(/script\.google/i.test(window.location.hostname||''))return window.location.origin+window.location.pathname;}catch(e9){}
+      return '';
+    }
+    function fetchCardDataByHttp_(empIds){
+      var base=gasActionBase_();
+      if(!base){setLoadingStatus('ขออภัย ไม่พบข้อมูลพนักงาน (ไม่มี _CARD_DATA_)');renderEmptyState_();setTimeout(hideLoadingOverlay,2500);return;}
+      setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
+      fetch(base+'?action=getQrCardData'+(empIds?('&empIds='+encodeURIComponent(empIds)):''),{redirect:'follow'})
+        .then(function(r){return r.json();}).then(applyCardResult_)
+        .catch(function(err){setLoadingStatus('ขออภัย โหลดข้อมูลล้มเหลว: '+((err&&err.message)||err));renderEmptyState_();setTimeout(hideLoadingOverlay,2500);});
+    }
       renderActiveCard();
       hideLoadingOverlay();
     }
 
     window.addEventListener('DOMContentLoaded', function() {
       // ── กรณี _LOADING_CONFIG_: ดึงข้อมูลจาก GAS ผ่าน google.script.run (Phase 2) ──
-      if (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds !== undefined) {
+      if (true) {
+        // ทางหลัก: GAS inject _CARD_DATA_ มาแล้ว — แสดงทันที (เร็วสุด)
+        if (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0) { initUI(); return; }
+        // ทางรอง: 2-Phase ผ่าน google.script.run (ถ้า GAS ส่ง _LOADING_CONFIG_ มา)
+        if (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds !== undefined
+            && typeof google !== 'undefined' && google.script && google.script.run) {
+          setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
+          try {
+            google.script.run
+              .withSuccessHandler(applyCardResult_)
+              .withFailureHandler(function(){ fetchCardDataByHttp_(_LOADING_CONFIG_.empIds); })
+              .getQrCardDataForClient(_LOADING_CONFIG_.empIds);
+            return;
+          } catch (e5) { /* ตกไป HTTP */ }
+        }
+        var ids2 = (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds) ? _LOADING_CONFIG_.empIds : '';
+        fetchCardDataByHttp_(ids2);
+        return;
+      }
+      if (false && false) { /* LEGACY DISABLED */
         setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
         google.script.run
           .withSuccessHandler(function(result) {
@@ -236,6 +305,7 @@
     /* ── 3. FIELD HELPERS ── */
     // Code.gs inject: { empId, name, position, photoUrl, qrUrl }
     // index.html (admin) inject: { รหัสพนักงาน, ชื่อ-นามสกุล, ตำแหน่ง, ... }
+    function escHtml_(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
     function gf(emp,keys){for(var i=0;i<keys.length;i++){if(emp[keys[i]]!=null&&emp[keys[i]]!=='')return emp[keys[i]];}return '';}
     function getId(emp)    {return gf(emp,['empId','รหัสพนักงาน','emp_id','id']);}
     function getName(emp)  {return gf(emp,['name','fullName','ชื่อ-นามสกุล','employee_name']);}
@@ -245,7 +315,7 @@
       var dl=gf(emp,['qrUrl','deepLink','deep_link','qr_url']);
       if(dl)return dl;
       var id=getId(emp);
-      return id?(COMPANY.deepLinkBase+'?emp_id='+encodeURIComponent(id)):'';
+      return id?((COMPANY.deepLinkBase||defaultDeepLinkBase_())+'?empId='+encodeURIComponent(id)+'&tab=attendance'):'';
     }
 
     /* ── 4. DROPDOWN ── */
@@ -264,27 +334,28 @@
     function switchEmployee(idx){activeEmpIndex=parseInt(idx,10);renderActiveCard();}
 
     /* ── 5. CARD TEMPLATE ── */
-    function cardHTML(emp, cardClass, qrSuffix){
+    function sanitizeQrId_(s){return String(s==null?'':s).replace(/[^a-zA-Z0-9_-]/g,'_')||'noid';}
+    function cardHTML(emp,cardClass,qrSuffix){
       var empId=getId(emp), empName=getName(emp), empPos=getPos(emp), empPhoto=getPhoto(emp);
-      var qrId='qr_'+empId+'_'+qrSuffix;
+      var qrId='qr_'+sanitizeQrId_(empId)+'_'+qrSuffix;
       var photoSrc=empPhoto?empPhoto:'https://placehold.co/200x200/054b99/ffffff?text='+encodeURIComponent((empName||'E').charAt(0));
       var footAddr=COMPANY.address?(COMPANY.address+'<br>โทร. '+(COMPANY.phone||'')+(COMPANY.fax?' · แฟกซ์ '+COMPANY.fax:'')):'&nbsp;';
       return [
         '<div class="'+cardClass+' bg-white rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-start text-slate-800 border border-slate-200">',
           /* header */
           '<div class="bg-brand-blue px-3 pt-3 pb-5 text-white text-center flex flex-col items-center relative shadow-sm border-t-4 border-brand-green z-10" style="flex-shrink:0;">',
-            '<div class="card-head-title font-extrabold text-[12px] leading-tight uppercase tracking-tight line-clamp-2 drop-shadow-sm px-1">'+COMPANY.name+'</div>',
+            '<div class="card-head-title font-extrabold text-[12px] leading-tight uppercase tracking-tight line-clamp-2 drop-shadow-sm px-1">'+escHtml_(COMPANY.name)+'</div>',
             '<div class="card-head-badge inline-block mt-1 px-2.5 py-0.5 bg-brand-green rounded text-[9px] font-bold tracking-wider text-white uppercase shadow-sm">Attendance Pass · บัตรลงเวลา</div>',
             '<div class="absolute -bottom-3 left-0 right-0 h-4 bg-white" style="clip-path:ellipse(55% 100% at 50% 100%);"></div>',
           '</div>',
           /* photo + meta */
           '<div class="card-body-wrap">',
             '<div class="card-photo mt-2">',
-              '<img src="'+photoSrc+'" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" onerror="this.src=\'https://placehold.co/200x200/054b99/ffffff?text=Photo\'">',
+              '<img src="'+String(photoSrc).replace(/"/g,'&quot;')+'" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=\'https://placehold.co/200x200/054b99/ffffff?text=Photo\'">',
             '</div>',
-            '<h3 class="card-name font-extrabold text-[15px] text-brand-blue leading-tight mt-1.5 text-center tracking-tight">'+empName+'</h3>',
-            '<div class="card-pos text-[11px] font-bold text-slate-600 mt-1 text-center">ตำแหน่ง: '+empPos+'</div>',
-            '<div class="card-id mt-1.5 px-3 py-0.5 bg-brand-blue text-white rounded-md font-mono font-black text-[11px] shadow-sm border border-brand-green/40">รหัส: '+empId+'</div>',
+            '<h3 class="card-name font-extrabold text-[15px] text-brand-blue leading-tight mt-1.5 text-center tracking-tight">'+escHtml_(empName)+'</h3>',
+            '<div class="card-pos text-[11px] font-bold text-slate-600 mt-1 text-center">ตำแหน่ง: '+escHtml_(empPos)+'</div>',
+            '<div class="card-id mt-1.5 px-3 py-0.5 bg-brand-blue text-white rounded-md font-mono font-black text-[11px] shadow-sm border border-brand-green/40">รหัส: '+escHtml_(empId)+'</div>',
           '</div>',
           /* QR */
           '<div class="card-qr-wrap">',
@@ -300,6 +371,7 @@
     }
 
     /* ── 6. QR DRAW ── */
+    function qrFallbackImg_(el,url,size){var s=size||80;el.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size='+s+'x'+s+'&margin=4&data='+encodeURIComponent(url)+'" width="'+s+'" height="'+s+'" alt="QR" referrerpolicy="no-referrer">';}
     function drawQr(id, url, size){
       var el=document.getElementById(id);
       if(!el||!url)return;
@@ -307,7 +379,7 @@
       try{
         new QRCode(el,{text:url,width:size,height:size,colorDark:'#054B99',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
       }catch(e){
-        el.innerHTML='<img src="https://chart.googleapis.com/chart?chs='+size+'x'+size+'&cht=qr&chl='+encodeURIComponent(url)+'" width="'+size+'" height="'+size+'">';
+        el.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&margin=4&data='+encodeURIComponent(url)+'" width="'+size+'" height="'+size+'" alt="QR" referrerpolicy="no-referrer">';
       }
     }
 
@@ -316,7 +388,7 @@
       var emp=employees[activeEmpIndex];
       var wrap=document.getElementById('singleCardWrapper');
       wrap.innerHTML=cardHTML(emp,'cr80-card-preview','preview');
-      setTimeout(function(){drawQr('qr_'+getId(emp)+'_preview',getLink(emp),80);},50);
+      setTimeout(function(){drawActiveQr_();},50);
     }
 
     /* ── 8. PRINT SINGLE ── */
@@ -339,7 +411,7 @@
         batch.appendChild(d);
       });
       setTimeout(function(){
-        employees.forEach(function(emp){drawQr('qr_'+getId(emp)+'_batch',getLink(emp),68);});
+        employees.forEach(function(emp){drawQr('qr_'+sanitizeQrId_(getId(emp))+'_batch',getLink(emp),68);});
         showToast('กำลังเปิดหน้าต่างพิมพ์บัตรทั้งหมด ('+employees.length+' ใบ)...');
         setTimeout(function(){window.print();},400);
       },80);
