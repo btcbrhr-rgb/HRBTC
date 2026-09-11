@@ -170,10 +170,12 @@
   </div>
 
   <script>
-    /* ── 1. DATA ── */
-    var _CARD_DATA_ = null; try { _CARD_DATA_ = (typeof _CARD_DATA_ !== 'undefined') ? _CARD_DATA_ : null; } catch(eCD){ _CARD_DATA_=null; }
-    var _LOADING_CONFIG_ = null; try { _LOADING_CONFIG_ = (typeof _LOADING_CONFIG_ !== 'undefined') ? _LOADING_CONFIG_ : null; } catch(eLC){ _LOADING_CONFIG_=null; }
-    var _GAS_BASE_ = null; try { _GAS_BASE_ = (typeof _GAS_BASE_ !== 'undefined') ? _GAS_BASE_ : null; } catch(eGAS){ _GAS_BASE_=null; }
+    /* ── 1. DATA ──
+       หมายเหตุ: ห้ามใช้ "var _CARD_DATA_ =" ตรงๆ เพราะมันจะบังค่าที่ GAS inject ไว้ก่อนหน้า
+       ต้องเช็คผ่าน window เท่านั้น */
+    var _CARD_DATA_ = (typeof window!=='undefined'&&window._CARD_DATA_) ? window._CARD_DATA_ : null;
+    var _LOADING_CONFIG_ = (typeof window!=='undefined'&&window._LOADING_CONFIG_) ? window._LOADING_CONFIG_ : null;
+    var _GAS_BASE_ = (typeof window!=='undefined'&&window._GAS_BASE_) ? window._GAS_BASE_ : null;
     var COMPANY = (_CARD_DATA_ && _CARD_DATA_.company) ? _CARD_DATA_.company : {
       name:'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด', logoUrl:'',
       address:'31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
@@ -198,7 +200,7 @@
       var navName = document.getElementById('nav-company-name');
       if (navName) navName.textContent = COMPANY.name;
       var logoWrap = document.getElementById('nav-logo-wrap');
-      if (COMPANY.logoUrl) {
+      if (COMPANY.logoUrl && logoWrap) {
         logoWrap.innerHTML = '<img src="' + COMPANY.logoUrl + '" class="w-full h-full object-contain p-1" alt="Logo">';
       } else {
         var lt = document.getElementById('nav-logo-text');
@@ -242,63 +244,50 @@
       }
     }
     function gasActionBase_(){
-      if(typeof _GAS_BASE_!=='undefined'&&_GAS_BASE_){try{return String(_GAS_BASE_).split('?')[0];}catch(eGB){}}
+      if(_GAS_BASE_){try{return String(_GAS_BASE_).split('?')[0];}catch(eGB){}}
       try{if(/script\.google/i.test(window.location.hostname||''))return window.location.origin+window.location.pathname;}catch(e9){}
       return '';
+    }
+    function safeJsonParse_(text){
+      // GAS ถ้า error / ยังไม่ deploy / OAuth จะคืน HTML แทน JSON — ต้องดักก่อน .json() แตก
+      var t = String(text || '');
+      var s = t.replace(/^\s+/, '');
+      if (s.charAt(0) !== '{' && s.charAt(0) !== '[') {
+        var m = t.match(/<title[^>]*>([^<]*)<\/title>/i);
+        var hint = m ? m[1] : t.slice(0, 120);
+        throw new Error('เซิร์ฟเวอร์ตอบกลับเป็น HTML ไม่ใช่ JSON (' + String(hint).trim().slice(0,120) + ') — กรุณา Deploy GAS ใหม่');
+      }
+      return JSON.parse(t);
     }
     function fetchCardDataByHttp_(empIds){
       var base=gasActionBase_();
       if(!base){setLoadingStatus('ขออภัย ไม่พบข้อมูลพนักงาน (ไม่มี _CARD_DATA_)');renderEmptyState_();setTimeout(hideLoadingOverlay,2500);return;}
       setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
       fetch(base+'?action=getQrCardData'+(empIds?('&empIds='+encodeURIComponent(empIds)):''),{redirect:'follow'})
-        .then(function(r){return r.json();}).then(applyCardResult_)
+        .then(function(r){return r.text().then(function(t){return safeJsonParse_(t);});}).then(applyCardResult_)
         .catch(function(err){setLoadingStatus('ขออภัย โหลดข้อมูลล้มเหลว: '+((err&&err.message)||err));renderEmptyState_();setTimeout(hideLoadingOverlay,2500);});
     }
-      renderActiveCard();
-      hideLoadingOverlay();
-    }
-
+    /* ── 2b. BOOT ── */
     window.addEventListener('DOMContentLoaded', function() {
-      // ── กรณี _LOADING_CONFIG_: ดึงข้อมูลจาก GAS ผ่าน google.script.run (Phase 2) ──
-      if (true) {
-        // ทางหลัก: GAS inject _CARD_DATA_ มาแล้ว — แสดงทันที (เร็วสุด)
-        if (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0) { initUI(); return; }
-        // ทางรอง: 2-Phase ผ่าน google.script.run (ถ้า GAS ส่ง _LOADING_CONFIG_ มา)
-        if (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds !== undefined
-            && typeof google !== 'undefined' && google.script && google.script.run) {
-          setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
-          try {
-            google.script.run
-              .withSuccessHandler(applyCardResult_)
-              .withFailureHandler(function(){ fetchCardDataByHttp_(_LOADING_CONFIG_.empIds); })
-              .getQrCardDataForClient(_LOADING_CONFIG_.empIds);
-            return;
-          } catch (e5) { /* ตกไป HTTP */ }
-        }
-        var ids2 = (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds) ? _LOADING_CONFIG_.empIds : '';
-        fetchCardDataByHttp_(ids2);
-        return;
-      }
-      if (false && false) { /* LEGACY DISABLED */
+      // ทางหลัก: GAS inject _CARD_DATA_ มาแล้ว — แสดงทันที (เร็วสุด)
+      if (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0) { initUI(); return; }
+      // ทางรอง: 2-Phase ผ่าน google.script.run (ถ้า GAS ส่ง _LOADING_CONFIG_ มา)
+      if (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds !== undefined
+          && typeof google !== 'undefined' && google.script && google.script.run) {
         setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
-        google.script.run
-          .withSuccessHandler(function(result) {
-            setLoadingStatus('กำลังแสดงบัตร...');
-            if (result && result.status === 'success') {
-              COMPANY   = result.company   || COMPANY;
-              employees = result.employees || [];
-            }
-            initUI();
-          })
-          .withFailureHandler(function(err) {
-            setLoadingStatus('❌ โหลดข้อมูลล้มเหลว: ' + (err.message || err));
-            setTimeout(hideLoadingOverlay, 2500);
-          })
-          .getQrCardDataForClient(_LOADING_CONFIG_.empIds);
-      } else {
-        // ── กรณีปกติ: มี _CARD_DATA_ inject มาแล้ว ──
-        initUI();
+        try {
+          google.script.run
+            .withSuccessHandler(applyCardResult_)
+            .withFailureHandler(function(){ fetchCardDataByHttp_(_LOADING_CONFIG_.empIds); })
+            .getQrCardDataForClient(_LOADING_CONFIG_.empIds);
+          return;
+        } catch (e5) { /* ตกไป HTTP */ }
       }
+      // ทางสุดท้าย: ไม่มี _CARD_DATA_ และไม่มี google.script — ถ้าไม่มี GAS base ด้วย = เปิดไฟล์เพียวๆ
+      if (_CARD_DATA_ && _CARD_DATA_.employees) { renderEmptyState_(); hideLoadingOverlay(); return; }
+      var ids2 = (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds) ? _LOADING_CONFIG_.empIds : '';
+      if (!gasActionBase_()) { renderEmptyState_(); hideLoadingOverlay(); return; }
+      fetchCardDataByHttp_(ids2);
     });
 
 
