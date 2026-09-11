@@ -29,8 +29,7 @@
       display:flex;
       flex-direction:column;
       align-items:center;
-      flex:1 1 0%;        /* กินพื้นที่ตรงกลางทั้งหมด */
-      min-height:0;       /* ป้องกัน flex overflow */
+      flex:0 0 auto;      /* ขนาดตามเนื้อหา (รูป+ชื่อ+ตำแหน่ง+รหัส) — ห้ามกินพื้นที่จาก QR */
       overflow:visible;
       padding:4px 12px 0;
     }
@@ -62,11 +61,14 @@
       justify-content:center;  /* QR ลอยกึ่งกลาง → สมดุลระหว่างรหัสกับข้อมูลบริษัท */
       padding:4px 0;
     }
-    /* ตารางพรีวิวบัตรทั้งหมด (โหมด all) */
-    .batch-preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:28px;width:100%;}
+    /* ตารางพรีวิวบัตรทั้งหมด (โหมด all) — 2 คอลัมน์ค่าเริ่มต้น (บัตรใหญ่ อ่านง่าย) → 3 ที่จอกว้าง → 4 ที่จอใหญ่มาก */
+    .batch-preview-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;width:100%;}
+    @media (min-width:900px){.batch-preview-grid{grid-template-columns:repeat(3,1fr);}}
+    @media (min-width:1400px){.batch-preview-grid{grid-template-columns:repeat(4,1fr);}}
     .bpv-item{cursor:pointer;border-radius:1rem;transition:transform .15s;}
     .bpv-item:hover{transform:translateY(-3px);}
     .bpv-item.active-card .cr80-card-preview{outline:4px solid #00A651;outline-offset:3px;}
+    .bpv-item .cr80-card-preview{width:100%;height:auto;aspect-ratio:320/507;box-shadow:0 8px 24px -6px rgba(0,0,0,.18);}
     @media print{
       html,body{background:#fff!important;padding:0!important;margin:0!important;}
       .no-print{display:none!important;}
@@ -214,6 +216,15 @@
     function setLoadingStatus(msg) {
       var el = document.getElementById('loadingStatus');
       if (el) el.textContent = msg;
+    }
+    function isAllMode_(){
+      try { if (_LOADING_CONFIG_ && _LOADING_CONFIG_.mode === 'all') return true; } catch (eM1) {}
+      try {
+        var q = new URLSearchParams(window.location.search || '');
+        if (q.get('mode') === 'all') return true;
+        if (q.get('openedFromIndex') === '1' && q.get('empIds') === null) return true;
+      } catch (eM2) {}
+      return false;
     }
     function initUI() {
       var navName = document.getElementById('nav-company-name');
@@ -419,15 +430,7 @@
       });
       if(badge)badge.textContent=employees.length;
     }
-    function isAllMode_(){
-      try { if (_LOADING_CONFIG_ && _LOADING_CONFIG_.mode === 'all') return true; } catch (eM1) {}
-      try {
-        var q = new URLSearchParams(window.location.search || '');
-        if (q.get('mode') === 'all') return true;
-        if (q.get('openedFromIndex') === '1' && q.get('empIds') === null) return true;
-      } catch (eM2) {}
-      return false;
-    }
+    /* isAllMode_() ถูกย้ายขึ้นไปไว้ก่อน initUI() แล้ว */
     /* พรีวิวแบบตาราง: บัตรพนักงานทั้งหมดในหน้าเดียว คลิกใบไหน = เลือกใบนั้นไว้พิมพ์เดี่ยว */
     function renderBatchPreview_(){
       var wrap = document.getElementById('singleCardWrapper');
@@ -536,6 +539,22 @@
     function printAllCards(){
       document.body.classList.remove('print-mode-single');
       document.body.classList.add('print-mode-all');
+      if (allModeUI_) {
+        // โหมดตาราง: สลับมาพิมพ์ทั้งหมดเป็นแนวตัง CR80
+        var batch=document.getElementById('batchPrintWrapper');
+        batch.innerHTML='';
+        employees.forEach(function(emp){
+          var d=document.createElement('div');
+          d.innerHTML=cardHTML(emp,'cr80-card-print','batch');
+          batch.appendChild(d);
+        });
+        setTimeout(function(){
+          employees.forEach(function(emp){drawQr('qr_'+sanitizeQrId_(getId(emp))+'_batch',getLink(emp),68);});
+          setTimeout(function(){window.print();},80);
+        },60);
+        return;
+      }
+      // โหมดปกติ (ข้อมูลมาจาก GAS โดยตรง — ยังรองรับเพื่อความเข้ากัน)
       var batch=document.getElementById('batchPrintWrapper');
       batch.innerHTML='';
       employees.forEach(function(emp){
