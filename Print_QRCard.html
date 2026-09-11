@@ -54,13 +54,19 @@
       border-radius:9999px;
     }
     .card-qr-wrap{
-      flex-shrink:0;
+      flex:1 1 auto;        /* กินพื้นที่ที่เหลือระหว่าง "รหัส:" กับ footer */
+      min-height:0;
       display:flex;
       flex-direction:column;
       align-items:center;
-      justify-content:center;
+      justify-content:center;  /* QR ลอยกึ่งกลาง → สมดุลระหว่างรหัสกับข้อมูลบริษัท */
       padding:4px 0;
     }
+    /* ตารางพรีวิวบัตรทั้งหมด (โหมด all) */
+    .batch-preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:28px;width:100%;}
+    .bpv-item{cursor:pointer;border-radius:1rem;transition:transform .15s;}
+    .bpv-item:hover{transform:translateY(-3px);}
+    .bpv-item.active-card .cr80-card-preview{outline:4px solid #00A651;outline-offset:3px;}
     @media print{
       html,body{background:#fff!important;padding:0!important;margin:0!important;}
       .no-print{display:none!important;}
@@ -155,7 +161,7 @@
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-semibold mb-2">
         <i class="fa-solid fa-circle-info"></i> แบบบัตร CR80 แนวตั้ง (54mm x 85.6mm)
       </div>
-      <h2 class="text-xl sm:text-2xl font-bold text-slate-800">พรีวิวบัตรประจำตัวพนักงาน</h2>
+      <h2 id="previewTitle" class="text-xl sm:text-2xl font-bold text-slate-800">พรีวิวบัตรประจำตัวพนักงาน</h2>
       <p class="text-xs sm:text-sm text-slate-500 mt-1">เลือกพิมพ์เฉพาะบัตรใบนี้ หรือสั่งพิมพ์รวมทั้งหมดลง A4 ได้ทันที</p>
     </div>
     <div id="singleCardWrapper" class="single-print-wrapper flex justify-center items-center my-2"></div>
@@ -190,6 +196,7 @@
       ? _CARD_DATA_.employees
       : [];
     var activeEmpIndex = 0;
+    var allModeUI_ = false; /* เปิดจากปุ่ม "พิมพ์บัตรทั้งหมด" → พรีวิวเป็นตารางบัตรทุกใบทันที */
     /* แปล console error ลึกลับเป็นข้อความไทย — เช่น GAS ตอบ HTML (OAuth dialog) แทน JSON */
     window.addEventListener('error', function(ev){
       var msg = String((ev && ev.message) || '');
@@ -222,7 +229,8 @@
       if(activeEmpIndex>=employees.length)activeEmpIndex=0;
       if(!COMPANY.deepLinkBase)COMPANY.deepLinkBase=defaultDeepLinkBase_();
       populateDropdown();
-      renderActiveCard(); drawActiveQr_();
+      allModeUI_ = isAllMode_() && employees.length > 1;
+      if (allModeUI_) { renderBatchPreview_(); } else { renderActiveCard(); drawActiveQr_(); }
       hideLoadingOverlay();
     }
     function drawActiveQr_(){
@@ -411,7 +419,36 @@
       });
       if(badge)badge.textContent=employees.length;
     }
-    function switchEmployee(idx){activeEmpIndex=parseInt(idx,10);renderActiveCard();}
+    function isAllMode_(){
+      try { if (_LOADING_CONFIG_ && _LOADING_CONFIG_.mode === 'all') return true; } catch (eM1) {}
+      try {
+        var q = new URLSearchParams(window.location.search || '');
+        if (q.get('mode') === 'all') return true;
+        if (q.get('openedFromIndex') === '1' && q.get('empIds') === null) return true;
+      } catch (eM2) {}
+      return false;
+    }
+    /* พรีวิวแบบตาราง: บัตรพนักงานทั้งหมดในหน้าเดียว คลิกใบไหน = เลือกใบนั้นไว้พิมพ์เดี่ยว */
+    function renderBatchPreview_(){
+      var wrap = document.getElementById('singleCardWrapper');
+      if (!wrap) return;
+      var g = '<div class="batch-preview-grid">';
+      employees.forEach(function(emp, i){
+        g += '<div class="bpv-item' + (i === activeEmpIndex ? ' active-card' : '') + '" onclick="switchEmployee(' + i + ')" title="คลิกเลือกบัตรนี้ (พิมพ์บัตรประจำตัวจะพิมพ์ใบนี้)">'
+          + cardHTML(emp, 'cr80-card-preview', 'preview')
+          + '</div>';
+      });
+      g += '</div>';
+      wrap.innerHTML = g;
+      var t = document.getElementById('previewTitle');
+      if (t) t.textContent = 'พรีวิวบัตรพนักงานทั้งหมด (' + employees.length + ' ใบ)';
+      setTimeout(function(){
+        employees.forEach(function(emp){
+          drawQr('qr_' + sanitizeQrId_(getId(emp)) + '_preview', getLink(emp), 80);
+        });
+      }, 60);
+    }
+    function switchEmployee(idx){ activeEmpIndex = parseInt(idx, 10); if (allModeUI_) { renderBatchPreview_(); } else { renderActiveCard(); } }
 
     /* ── 5. CARD TEMPLATE ── */
     function sanitizeQrId_(s){return String(s==null?'':s).replace(/[^a-zA-Z0-9_-]/g,'_')||'noid';}
@@ -420,8 +457,11 @@
       var qrId='qr_'+sanitizeQrId_(empId)+'_'+qrSuffix;
       var photoSrc=convDriveUrl_(empPhoto)||initialAvatar_(empName);
       var footParts=[COMPANY.address||''];
-      if(COMPANY.phone||COMPANY.fax)footParts.push('โทร. '+[COMPANY.phone,COMPANY.fax].filter(Boolean).join(', '));
-      if(COMPANY.email)footParts.push('E-Mail: '+COMPANY.email);
+      var phonePart=(COMPANY.phone||COMPANY.fax)?('โทร. '+[COMPANY.phone,COMPANY.fax].filter(Boolean).join(', ')):'';
+      var emailPart=COMPANY.email?('E-Mail: '+COMPANY.email):'';
+      /* โทร. + E-Mail อยู่บรรทัดเดียวกัน (คั่นด้วย · ) — ที่อยู่บรรทัดบน */
+      var contactLine=[phonePart,emailPart].filter(Boolean).join(' · ');
+      if(contactLine)footParts.push(contactLine);
       var footAddr=footParts.filter(Boolean).join('<br>')||'&nbsp;';
       return [
         '<div class="'+cardClass+' bg-white rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-start text-slate-800 border border-slate-200">',
@@ -476,10 +516,20 @@
 
     /* ── 8. PRINT SINGLE ── */
     function printSingleCard(){
+      var wasGrid = allModeUI_;
+      if (wasGrid) {
+        /* โหมดตาราง: สลับเป็นบัตรเดี่ยว (ใบที่เลือก) ก่อนพิมพ์ — ไม่งั้นจะพิมพ์ทั้งตาราง */
+        renderActiveCard();
+        var t = document.getElementById('previewTitle');
+        if (t) t.textContent = 'พรีวิวบัตรประจำตัวพนักงาน';
+      }
       document.body.classList.remove('print-mode-all');
       document.body.classList.add('print-mode-single');
       showToast('กำลังเปิดหน้าต่างพิมพ์บัตรประจำตัว...');
-      setTimeout(function(){window.print();},300);
+      setTimeout(function(){
+        window.print();
+        if (wasGrid) { setTimeout(renderBatchPreview_, 250); } /* คืนหน้าตารางหลังพิมพ์ */
+      }, 300);
     }
 
     /* ── 9. PRINT ALL ── */
