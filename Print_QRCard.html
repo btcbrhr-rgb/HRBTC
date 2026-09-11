@@ -1,120 +1,320 @@
 <!DOCTYPE html>
 <html lang="th" class="h-full bg-slate-100">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบพิมพ์บัตรพนักงาน CR80</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          colors: { brand: { blue:'#054B99', green:'#00A651', darkBlue:'#03346B', darkGreen:'#008A43' } },
-          fontFamily: { kanit: ['Kanit','sans-serif'] }
+          colors: { brand: { blue: '#054B99', green: '#00A651', darkBlue: '#03346B', darkGreen: '#008A43' } },
+          fontFamily: { kanit: ['Kanit', 'sans-serif'] }
         }
       }
     };
   </script>
   <style>
-    *,*::before,*::after{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-    body{font-family:'Kanit',sans-serif;}
-    .cr80-card-preview{width:290px;height:460px;box-sizing:border-box;}
-    .cr80-card-print{width:54mm;height:85.6mm;box-sizing:border-box;}
+    *,
+    *::before,
+    *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Kanit', sans-serif;
+    }
+
+    .cr80-card-preview {
+      width: 290px;
+      height: 460px;
+      box-sizing: border-box;
+    }
+
+    .cr80-card-print {
+      width: 54mm;
+      height: 85.6mm;
+      box-sizing: border-box;
+    }
 
     /* Card layout helpers */
-    .card-body-wrap{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      flex:0 0 auto;
-      padding:0 10px;
-      position:relative;
-      z-index:5;
+    .card-body-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 0 0 auto;
+      padding: 0 10px;
+      position: relative;
+      z-index: 5;
     }
-    .card-photo{
-      flex-shrink:0;
-      width:200px;
-      height:200px;
-      border-radius:9999px;
-      background:#fff;
-      border:3.5px solid #ffffff;
-      box-shadow:0 4px 14px rgba(5,75,153,0.22), 0 2px 6px rgba(0,0,0,0.12);
-      margin-top:-24px;     /* เกยทับขอบล่างของแถบ Header สวยพอดี ไม่ชน Badge */
-      position:relative;
-      z-index:10;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      overflow:hidden;
+
+    .card-photo {
+      flex-shrink: 0;
+      width: 200px;
+      height: 200px;
+      border-radius: 9999px;
+      background: #fff;
+      border: 3.5px solid #ffffff;
+      box-shadow: 0 4px 14px rgba(5, 75, 153, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12);
+      margin-top: -24px;
+      /* เกยทับขอบล่างของแถบ Header สวยพอดี ไม่ชน Badge */
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
     }
-    .card-photo img{
-      width:100%;height:100%;
-      object-fit:cover;
-      border-radius:9999px;
+
+    .card-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 9999px;
     }
-    .card-qr-wrap{
-      flex:1 1 auto;
-      min-height:0;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      padding:2px 0;
+
+    .card-qr-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 0;
     }
+
     /* ตารางพรีวิวบัตรทั้งหมด (โหมด all) — การ์ดกว้าง 280-300px สัดส่วนพอดี CR80 ไม่ถูกบีบอัด */
-    .batch-preview-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(270px, 290px));gap:20px;width:100%;justify-content:center;}
-    .bpv-item{cursor:pointer;border-radius:1rem;transition:transform .15s;display:flex;justify-content:center;}
-    .bpv-item:hover{transform:translateY(-3px);}
-    .bpv-item.active-card .cr80-card-preview{outline:4px solid #00A651;outline-offset:3px;}
-    .bpv-item .cr80-card-preview{width:290px;height:460px;box-shadow:0 8px 24px -6px rgba(0,0,0,.18);}
-    @media print{
-      html,body{background:#fff!important;padding:0!important;margin:0!important;}
-      .no-print{display:none!important;}
-      body.print-mode-single .batch-print-wrapper{display:none!important;}
-      body.print-mode-single .single-print-wrapper{display:flex!important;align-items:center!important;justify-content:center!important;min-height:100vh!important;}
-      body.print-mode-single .cr80-card-preview{width:54mm!important;height:85.6mm!important;box-shadow:none!important;border:1px solid #cbd5e1!important;page-break-inside:avoid;}
+    .batch-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 290px));
+      gap: 20px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .bpv-item {
+      cursor: pointer;
+      border-radius: 1rem;
+      transition: transform .15s;
+      display: flex;
+      justify-content: center;
+    }
+
+    .bpv-item:hover {
+      transform: translateY(-3px);
+    }
+
+    .bpv-item.active-card .cr80-card-preview {
+      outline: 4px solid #00A651;
+      outline-offset: 3px;
+    }
+
+    .bpv-item .cr80-card-preview {
+      width: 290px;
+      height: 460px;
+      box-shadow: 0 8px 24px -6px rgba(0, 0, 0, .18);
+    }
+
+    @media print {
+
+      html,
+      body {
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+
+      body.print-mode-single .batch-print-wrapper {
+        display: none !important;
+      }
+
+      body.print-mode-single .single-print-wrapper {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 100vh !important;
+      }
+
+      body.print-mode-single .cr80-card-preview {
+        width: 54mm !important;
+        height: 85.6mm !important;
+        box-shadow: none !important;
+        border: 1px solid #cbd5e1 !important;
+        page-break-inside: avoid;
+      }
+
       /* ── SINGLE CARD PRINT (54mm × 85.6mm) ── */
       /* card container */
-      body.print-mode-single .cr80-card-preview{overflow:hidden!important;}
-      /* header: ลด padding ให้พอดีกับขนาดบัตรจริง */
-      body.print-mode-single .cr80-card-preview .bg-brand-blue{padding-top:2mm!important;padding-bottom:8mm!important;padding-left:2mm!important;padding-right:2mm!important;}
-      /* photo: negative margin เกยทับขอบล่าง header */
-      body.print-mode-single .cr80-card-preview .card-photo{width:18mm!important;height:18mm!important;margin-top:-5mm!important;border:1.5px solid #fff!important;position:relative!important;z-index:10!important;box-shadow:0 1mm 3mm rgba(5,75,153,0.2)!important;}
-      body.print-mode-single .cr80-card-preview .card-body-wrap{padding:0 2mm!important;overflow:visible!important;}
-      body.print-mode-single .cr80-card-preview .card-qr-wrap{padding:0!important;min-height:0!important;}
-      body.print-mode-single .cr80-card-preview .card-name{font-size:7pt!important;margin-top:1mm!important;}
-      body.print-mode-single .cr80-card-preview .card-pos{font-size:5.5pt!important;}
-      body.print-mode-single .cr80-card-preview .card-id{font-size:5pt!important;padding:0.5mm 2mm!important;margin-top:0.5mm!important;}
-      body.print-mode-single .cr80-card-preview .card-head-title{font-size:5.5pt!important;line-height:1.2!important;}
-      body.print-mode-single .cr80-card-preview .card-head-badge{font-size:4pt!important;margin-top:0.5mm!important;}
-      body.print-mode-single .cr80-card-preview .card-foot-text{font-size:3.8pt!important;}
+      body.print-mode-single .cr80-card-preview {
+        overflow: hidden !important;
+      }
+
+      /* header: ลด padding ให้สัดส่วนพอดีกับขนาดบัตรจริง */
+      body.print-mode-single .cr80-card-preview .bg-brand-blue {
+        padding-top: 1.5mm !important;
+        padding-bottom: 10mm !important;
+        padding-left: 1.5mm !important;
+        padding-right: 1.5mm !important;
+      }
+
+      /* photo: ขนาด 26mm (สัดส่วนใกล้เคียง 200px/290px≈69% ของบัตร 54mm≈37mm แต่จำกัดให้ fit) + negative margin เกยทับ header */
+      body.print-mode-single .cr80-card-preview .card-photo {
+        width: 26mm !important;
+        height: 26mm !important;
+        margin-top: -8mm !important;
+        border: 1.5px solid #fff !important;
+        position: relative !important;
+        z-index: 10 !important;
+        box-shadow: 0 1mm 3mm rgba(5, 75, 153, 0.2) !important;
+      }
+
+      body.print-mode-single .cr80-card-preview .card-body-wrap {
+        padding: 0 2mm !important;
+        overflow: visible !important;
+      }
+
+      body.print-mode-single .cr80-card-preview .card-qr-wrap {
+        padding: 0 !important;
+        min-height: 0 !important;
+      }
+
+      /* font ปรับตามสัดส่วน 20px→9pt, 15px→7pt, 12px→6pt */
+      body.print-mode-single .cr80-card-preview .card-name {
+        font-size: 9pt !important;
+        margin-top: 1mm !important;
+      }
+
+      body.print-mode-single .cr80-card-preview .card-pos {
+        font-size: 7pt !important;
+        margin-top: 0.5mm !important;
+      }
+
+      body.print-mode-single .cr80-card-preview .card-id {
+        font-size: 6pt !important;
+        padding: 0.5mm 2mm !important;
+        margin-top: 0.5mm !important;
+      }
+
+      body.print-mode-single .cr80-card-preview .card-head-title {
+        font-size: 5.5pt !important;
+        line-height: 1.2 !important;
+      }
+
+      body.print-mode-single .cr80-card-preview .card-head-badge {
+        font-size: 4pt !important;
+        margin-top: 0.5mm !important;
+      }
+
+      body.print-mode-single .cr80-card-preview .card-foot-text {
+        font-size: 3.8pt !important;
+      }
+
       /* ── BATCH PRINT ALL (54mm × 85.6mm each) ── */
-      body.print-mode-all .single-print-wrapper{display:none!important;}
-      body.print-mode-all .batch-print-wrapper{display:grid!important;grid-template-columns:repeat(3,54mm)!important;gap:3mm 4mm!important;justify-content:center!important;align-content:start!important;padding:5mm 0!important;visibility:visible!important;}
-      body.print-mode-all .cr80-card-print{overflow:hidden!important;box-shadow:none!important;border:0.5px solid #cbd5e1!important;page-break-inside:avoid;}
+      body.print-mode-all .single-print-wrapper {
+        display: none !important;
+      }
+
+      body.print-mode-all .batch-print-wrapper {
+        display: grid !important;
+        grid-template-columns: repeat(3, 54mm) !important;
+        gap: 3mm 4mm !important;
+        justify-content: center !important;
+        align-content: start !important;
+        padding: 5mm 0 !important;
+        visibility: visible !important;
+      }
+
+      body.print-mode-all .cr80-card-print {
+        overflow: hidden !important;
+        box-shadow: none !important;
+        border: 0.5px solid #cbd5e1 !important;
+        page-break-inside: avoid;
+      }
+
       /* header */
-      body.print-mode-all .cr80-card-print .bg-brand-blue{padding-top:1.5mm!important;padding-bottom:6mm!important;padding-left:1.5mm!important;padding-right:1.5mm!important;}
-      /* photo */
-      body.print-mode-all .cr80-card-print .card-photo{width:14mm!important;height:14mm!important;margin-top:-4mm!important;border:1px solid #fff!important;position:relative!important;z-index:10!important;box-shadow:0 0.5mm 2mm rgba(5,75,153,0.2)!important;}
-      body.print-mode-all .cr80-card-print .card-body-wrap{padding:0 1.5mm!important;overflow:visible!important;}
-      body.print-mode-all .cr80-card-print .card-qr-wrap{padding:0!important;min-height:0!important;}
-      body.print-mode-all .cr80-card-print .card-name{font-size:5.5pt!important;margin-top:0.8mm!important;}
-      body.print-mode-all .cr80-card-print .card-pos{font-size:4.5pt!important;}
-      body.print-mode-all .cr80-card-print .card-id{font-size:4pt!important;padding:0 2mm!important;margin-top:0.4mm!important;}
-      body.print-mode-all .cr80-card-print .card-head-title{font-size:4.5pt!important;line-height:1.2!important;}
-      body.print-mode-all .cr80-card-print .card-head-badge{font-size:3.5pt!important;margin-top:0.4mm!important;}
-      body.print-mode-all .cr80-card-print .card-foot-text{font-size:3.5pt!important;}
-      @page{size:A4 portrait;margin:8mm;}
+      body.print-mode-all .cr80-card-print .bg-brand-blue {
+        padding-top: 1.2mm !important;
+        padding-bottom: 8mm !important;
+        padding-left: 1.2mm !important;
+        padding-right: 1.2mm !important;
+      }
+
+      /* photo: 20mm (สัดส่วนสมดุลสำหรับ batch) + negative margin */
+      body.print-mode-all .cr80-card-print .card-photo {
+        width: 20mm !important;
+        height: 20mm !important;
+        margin-top: -6mm !important;
+        border: 1px solid #fff !important;
+        position: relative !important;
+        z-index: 10 !important;
+        box-shadow: 0 0.5mm 2mm rgba(5, 75, 153, 0.2) !important;
+      }
+
+      body.print-mode-all .cr80-card-print .card-body-wrap {
+        padding: 0 1.5mm !important;
+        overflow: visible !important;
+      }
+
+      body.print-mode-all .cr80-card-print .card-qr-wrap {
+        padding: 0 !important;
+        min-height: 0 !important;
+      }
+
+      /* font batch */
+      body.print-mode-all .cr80-card-print .card-name {
+        font-size: 7pt !important;
+        margin-top: 0.8mm !important;
+      }
+
+      body.print-mode-all .cr80-card-print .card-pos {
+        font-size: 5.5pt !important;
+        margin-top: 0.4mm !important;
+      }
+
+      body.print-mode-all .cr80-card-print .card-id {
+        font-size: 5pt !important;
+        padding: 0 2mm !important;
+        margin-top: 0.4mm !important;
+      }
+
+      body.print-mode-all .cr80-card-print .card-head-title {
+        font-size: 4.5pt !important;
+        line-height: 1.2 !important;
+      }
+
+      body.print-mode-all .cr80-card-print .card-head-badge {
+        font-size: 3.5pt !important;
+        margin-top: 0.4mm !important;
+      }
+
+      body.print-mode-all .cr80-card-print .card-foot-text {
+        font-size: 3.5pt !important;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 8mm;
+      }
     }
   </style>
 </head>
+
 <body class="min-h-screen bg-slate-100 text-slate-800 flex flex-col items-center">
 
   <!-- LOADING OVERLAY (แสดงขณะดึงข้อมูลจาก GAS) -->
-  <div id="loadingOverlay" class="no-print fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-[9999] transition-opacity duration-500">
+  <div id="loadingOverlay"
+    class="no-print fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-[9999] transition-opacity duration-500">
     <div class="text-center">
       <!-- Spinner -->
       <div class="relative w-20 h-20 mx-auto mb-6">
@@ -140,11 +340,13 @@
   <header class="no-print w-full bg-slate-900 text-white shadow-md border-b border-slate-800 sticky top-0 z-50">
     <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <div id="nav-logo-wrap" class="w-10 h-10 rounded-xl bg-brand-blue flex items-center justify-center font-bold text-lg text-white shadow-md border border-brand-green overflow-hidden">
+        <div id="nav-logo-wrap"
+          class="w-10 h-10 rounded-xl bg-brand-blue flex items-center justify-center font-bold text-lg text-white shadow-md border border-brand-green overflow-hidden">
           <span id="nav-logo-text" class="text-sm font-black">B</span>
         </div>
         <div>
-          <h1 id="nav-company-name" class="font-bold text-sm sm:text-base text-white leading-tight">ระบบพิมพ์บัตรพนักงาน CR80</h1>
+          <h1 id="nav-company-name" class="font-bold text-sm sm:text-base text-white leading-tight">ระบบพิมพ์บัตรพนักงาน
+            CR80</h1>
           <p class="text-xs text-slate-400">ISO/IEC 7810 CR80 · 54 x 85.6 mm</p>
         </div>
       </div>
@@ -167,11 +369,13 @@
   <!-- MAIN -->
   <main class="w-full max-w-5xl mx-auto p-4 sm:p-6 flex-1 flex flex-col items-center justify-center">
     <div class="no-print text-center mb-6 max-w-xl">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-semibold mb-2">
+      <div
+        class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-semibold mb-2">
         <i class="fa-solid fa-circle-info"></i> แบบบัตร CR80 แนวตั้ง (54mm x 85.6mm)
       </div>
       <h2 id="previewTitle" class="text-xl sm:text-2xl font-bold text-slate-800">พรีวิวบัตรประจำตัวพนักงาน</h2>
-      <p class="text-xs sm:text-sm text-slate-500 mt-1">เลือกพิมพ์เฉพาะบัตรใบนี้ หรือสั่งพิมพ์รวมทั้งหมดลง A4 ได้ทันที</p>
+      <p class="text-xs sm:text-sm text-slate-500 mt-1">เลือกพิมพ์เฉพาะบัตรใบนี้ หรือสั่งพิมพ์รวมทั้งหมดลง A4 ได้ทันที
+      </p>
     </div>
     <div id="singleCardWrapper" class="w-full single-print-wrapper flex justify-center items-center my-2"></div>
     <div id="batchPrintWrapper" class="batch-print-wrapper hidden"></div>
@@ -188,18 +392,18 @@
     /* ── 1. DATA ──
        หมายเหตุ: ห้ามใช้ "var _CARD_DATA_ =" ตรงๆ เพราะมันจะบังค่าที่ GAS inject ไว้ก่อนหน้า
        ต้องเช็คผ่าน window เท่านั้น */
-    var _CARD_DATA_ = (typeof window!=='undefined'&&window._CARD_DATA_) ? window._CARD_DATA_ : null;
-    var _LOADING_CONFIG_ = (typeof window!=='undefined'&&window._LOADING_CONFIG_) ? window._LOADING_CONFIG_ : null;
-    var _GAS_BASE_ = (typeof window!=='undefined'&&window._GAS_BASE_) ? window._GAS_BASE_ : null;
+    var _CARD_DATA_ = (typeof window !== 'undefined' && window._CARD_DATA_) ? window._CARD_DATA_ : null;
+    var _LOADING_CONFIG_ = (typeof window !== 'undefined' && window._LOADING_CONFIG_) ? window._LOADING_CONFIG_ : null;
+    var _GAS_BASE_ = (typeof window !== 'undefined' && window._GAS_BASE_) ? window._GAS_BASE_ : null;
     /* ✅ ค่าบริษัทบนบัตร = ค่าคงที่เสมอ — ห้าม override จากข้อมูล (stash/GAS/fetch)
        หัวบัตร + ท้ายบัตร (ที่อยู่/โทร./อีเมล) ต้องออกเหมือนกันทุกใบ ทุกครั้ง ไม่ว่าข้อมูลจะมาจากทางไหน
        deepLinkBase ปล่อยว่าง → defaultDeepLinkBase_() คำนวณตามโดเมนที่เปิดจริง (Vercel→หน้าหลัก / GAS→exec) */
     const COMPANY = {
-      name:'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด', logoUrl:'',
-      address:'31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
-      phone:'044-611134, 087-2601881', fax:'',
-      email:'brtc2024@gmail.com',
-      deepLinkBase:''
+      name: 'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด', logoUrl: '',
+      address: '31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
+      phone: '044-611134, 087-2601881', fax: '',
+      email: 'brtc2024@gmail.com',
+      deepLinkBase: ''
     };
     var employees = (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0)
       ? _CARD_DATA_.employees
@@ -207,30 +411,30 @@
     var activeEmpIndex = 0;
     var allModeUI_ = false; /* เปิดจากปุ่ม "พิมพ์บัตรทั้งหมด" → พรีวิวเป็นตารางบัตรทุกใบทันที */
     /* แปล console error ลึกลับเป็นข้อความไทย — เช่น GAS ตอบ HTML (OAuth dialog) แทน JSON */
-    window.addEventListener('error', function(ev){
+    window.addEventListener('error', function (ev) {
       var msg = String((ev && ev.message) || '');
       if (msg.indexOf("Unexpected token '<'") !== -1 || msg.indexOf('is not valid JSON') !== -1) {
         setLoadingStatus('ขออภัย เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง — กรุณา Deploy GAS ใหม่แล้วลองอีกครั้ง');
-        try { showToast('ต้อง Deploy GAS ใหม่ก่อนพิมพ์บัตร'); } catch(eT){}
+        try { showToast('ต้อง Deploy GAS ใหม่ก่อนพิมพ์บัตร'); } catch (eT) { }
       }
     });
 
     /* ── 2. INIT ── */
     function hideLoadingOverlay() {
       var ov = document.getElementById('loadingOverlay');
-      if (ov) { ov.style.opacity = '0'; setTimeout(function(){ ov.style.display='none'; }, 500); }
+      if (ov) { ov.style.opacity = '0'; setTimeout(function () { ov.style.display = 'none'; }, 500); }
     }
     function setLoadingStatus(msg) {
       var el = document.getElementById('loadingStatus');
       if (el) el.textContent = msg;
     }
-    function isAllMode_(){
-      try { if (_LOADING_CONFIG_ && _LOADING_CONFIG_.mode === 'all') return true; } catch (eM1) {}
+    function isAllMode_() {
+      try { if (_LOADING_CONFIG_ && _LOADING_CONFIG_.mode === 'all') return true; } catch (eM1) { }
       try {
         var q = new URLSearchParams(window.location.search || '');
         if (q.get('mode') === 'all') return true;
         if (q.get('openedFromIndex') === '1' && q.get('empIds') === null) return true;
-      } catch (eM2) {}
+      } catch (eM2) { }
       return false;
     }
     function initUI() {
@@ -243,99 +447,99 @@
         var lt = document.getElementById('nav-logo-text');
         if (lt) lt.textContent = (COMPANY.name || 'B').charAt(0).toUpperCase();
       }
-      if(!employees||!employees.length){renderEmptyState_();hideLoadingOverlay();return;}
-      if(activeEmpIndex>=employees.length)activeEmpIndex=0;
-      if(!COMPANY.deepLinkBase)COMPANY.deepLinkBase=defaultDeepLinkBase_();
+      if (!employees || !employees.length) { renderEmptyState_(); hideLoadingOverlay(); return; }
+      if (activeEmpIndex >= employees.length) activeEmpIndex = 0;
+      if (!COMPANY.deepLinkBase) COMPANY.deepLinkBase = defaultDeepLinkBase_();
       populateDropdown();
       allModeUI_ = isAllMode_() && employees.length > 1;
       if (allModeUI_) { renderBatchPreview_(); } else { renderActiveCard(); drawActiveQr_(); }
       hideLoadingOverlay();
     }
-    function drawActiveQr_(){
-      var emp=employees[activeEmpIndex];
-      if(!emp)return;
-      drawQr('qr_'+sanitizeQrId_(getId(emp))+'_preview',getLink(emp),68);
+    function drawActiveQr_() {
+      var emp = employees[activeEmpIndex];
+      if (!emp) return;
+      drawQr('qr_' + sanitizeQrId_(getId(emp)) + '_preview', getLink(emp), 68);
     }
-    function defaultDeepLinkBase_(){
-      try{
-        if(window.location&&window.location.origin){
-          var p=window.location.pathname||'/';
+    function defaultDeepLinkBase_() {
+      try {
+        if (window.location && window.location.origin) {
+          var p = window.location.pathname || '/';
           // หน้าพิมพ์บัตร (static บน Vercel) → deep link ต้องชี้หน้าหลัก ไม่ใช่หน้าพิมพ์เอง
-          if(/Print_QRCard\.html?$/i.test(p))return window.location.origin+'/';
-          return window.location.origin+p;
+          if (/Print_QRCard\.html?$/i.test(p)) return window.location.origin + '/';
+          return window.location.origin + p;
         }
-      }catch(e0){}
+      } catch (e0) { }
       return 'https://hrbtc.vercel.app/';
     }
-    function renderEmptyState_(){
-      var wrap=document.getElementById('singleCardWrapper');
-      if(wrap)wrap.innerHTML='<div class="max-w-md mx-auto text-center bg-white rounded-2xl border border-amber-200 shadow p-8"><div class="w-14 h-14 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-3"><i class="fa-solid fa-triangle-exclamation text-amber-500 text-xl"></i></div><h3 class="font-bold text-slate-800">ไม่พบข้อมูลพนักงาน</h3><p class="text-xs text-slate-500 mt-1">รหัสที่ระบุอาจผิด หรือพนักงานลาออก/พักงานแล้ว<br>ลองกลับไปเลือกใหม่ หรือกดพิมพ์บัตรทั้งหมด</p></div>';
-      var sel2=document.getElementById('employeeSelect');
-      if(sel2)sel2.innerHTML='<option value="">-- ไม่มีข้อมูล --</option>';
-      var badge2=document.getElementById('totalBadge');
-      if(badge2)badge2.textContent='0';
+    function renderEmptyState_() {
+      var wrap = document.getElementById('singleCardWrapper');
+      if (wrap) wrap.innerHTML = '<div class="max-w-md mx-auto text-center bg-white rounded-2xl border border-amber-200 shadow p-8"><div class="w-14 h-14 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-3"><i class="fa-solid fa-triangle-exclamation text-amber-500 text-xl"></i></div><h3 class="font-bold text-slate-800">ไม่พบข้อมูลพนักงาน</h3><p class="text-xs text-slate-500 mt-1">รหัสที่ระบุอาจผิด หรือพนักงานลาออก/พักงานแล้ว<br>ลองกลับไปเลือกใหม่ หรือกดพิมพ์บัตรทั้งหมด</p></div>';
+      var sel2 = document.getElementById('employeeSelect');
+      if (sel2) sel2.innerHTML = '<option value="">-- ไม่มีข้อมูล --</option>';
+      var badge2 = document.getElementById('totalBadge');
+      if (badge2) badge2.textContent = '0';
     }
-    function applyCardResult_(result){
+    function applyCardResult_(result) {
       setLoadingStatus('กำลังแสดงบัตร...');
-      if(result&&result.status==='success'){
+      if (result && result.status === 'success') {
         /* ค่าบริษัทคงที่เสมอ — ไม่รับ company จากข้อมูล (stash/GAS/fetch) กันท้ายบัตรเพี้ยนตามแหล่งข้อมูล */
-        employees=result.employees||[];
-        activeEmpIndex=0;
+        employees = result.employees || [];
+        activeEmpIndex = 0;
         initUI();
-      }else{
-        setLoadingStatus('ขออภัย ' + ((result&&result.message)||'ไม่พบข้อมูลพนักงาน'));
+      } else {
+        setLoadingStatus('ขออภัย ' + ((result && result.message) || 'ไม่พบข้อมูลพนักงาน'));
         renderEmptyState_();
-        setTimeout(hideLoadingOverlay,2500);
+        setTimeout(hideLoadingOverlay, 2500);
       }
     }
-    function gasActionBase_(){
-      if(_GAS_BASE_){try{return String(_GAS_BASE_).split('?')[0];}catch(eGB){}}
-      try{if(/script\.google/i.test(window.location.hostname||''))return window.location.origin+window.location.pathname;}catch(e9){}
+    function gasActionBase_() {
+      if (_GAS_BASE_) { try { return String(_GAS_BASE_).split('?')[0]; } catch (eGB) { } }
+      try { if (/script\.google/i.test(window.location.hostname || '')) return window.location.origin + window.location.pathname; } catch (e9) { }
       return '';
     }
-    function safeJsonParse_(text){
+    function safeJsonParse_(text) {
       // GAS ถ้า error / ยังไม่ deploy / OAuth จะคืน HTML แทน JSON — ต้องดักก่อน .json() แตก
       var t = String(text || '');
       var s = t.replace(/^\s+/, '');
       if (s.charAt(0) !== '{' && s.charAt(0) !== '[') {
         var m = t.match(/<title[^>]*>([^<]*)<\/title>/i);
         var hint = m ? m[1] : t.slice(0, 120);
-        throw new Error('เซิร์ฟเวอร์ตอบกลับเป็น HTML ไม่ใช่ JSON (' + String(hint).trim().slice(0,120) + ') — กรุณา Deploy GAS ใหม่');
+        throw new Error('เซิร์ฟเวอร์ตอบกลับเป็น HTML ไม่ใช่ JSON (' + String(hint).trim().slice(0, 120) + ') — กรุณา Deploy GAS ใหม่');
       }
       return JSON.parse(t);
     }
-    function fetchCardDataByHttp_(empIds){
-      var base=gasActionBase_();
-      if(!base){setLoadingStatus('ขออภัย ไม่พบข้อมูลพนักงาน (ไม่มี _CARD_DATA_)');renderEmptyState_();setTimeout(hideLoadingOverlay,2500);return;}
+    function fetchCardDataByHttp_(empIds) {
+      var base = gasActionBase_();
+      if (!base) { setLoadingStatus('ขออภัย ไม่พบข้อมูลพนักงาน (ไม่มี _CARD_DATA_)'); renderEmptyState_(); setTimeout(hideLoadingOverlay, 2500); return; }
       setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
-      fetch(base+'?action=getQrCardData'+(empIds?('&empIds='+encodeURIComponent(empIds)):''),{redirect:'follow'})
-        .then(function(r){return r.text().then(function(t){return safeJsonParse_(t);});}).then(applyCardResult_)
-        .catch(function(err){setLoadingStatus('ขออภัย โหลดข้อมูลล้มเหลว: '+((err&&err.message)||err));renderEmptyState_();setTimeout(hideLoadingOverlay,2500);});
+      fetch(base + '?action=getQrCardData' + (empIds ? ('&empIds=' + encodeURIComponent(empIds)) : ''), { redirect: 'follow' })
+        .then(function (r) { return r.text().then(function (t) { return safeJsonParse_(t); }); }).then(applyCardResult_)
+        .catch(function (err) { setLoadingStatus('ขออภัย โหลดข้อมูลล้มเหลว: ' + ((err && err.message) || err)); renderEmptyState_(); setTimeout(hideLoadingOverlay, 2500); });
     }
     /* ── 2b. BOOT ── */
-    window.addEventListener('DOMContentLoaded', function() {
+    window.addEventListener('DOMContentLoaded', function () {
       /* ── 0) โหมด STATIC (เปิดจาก Vercel เหมือนพิมพ์ใบลา): อ่าน URL params + stash ── */
       var qP_ = {};
-      try { new URLSearchParams(window.location.search).forEach(function(v, k) { qP_[k] = v; }); } catch (eQ) {}
+      try { new URLSearchParams(window.location.search).forEach(function (v, k) { qP_[k] = v; }); } catch (eQ) { }
       // apiUrl จาก URL → base สำหรับยิง JSON API เอง (เผื่อไม่มี stash)
-      if (qP_.apiUrl && !_GAS_BASE_) { try { _GAS_BASE_ = qP_.apiUrl; } catch (eA) {} }
+      if (qP_.apiUrl && !_GAS_BASE_) { try { _GAS_BASE_ = qP_.apiUrl; } catch (eA) { } }
       // มี empIds บน URL แต่ไม่มี _LOADING_CONFIG_ (โหมด static) → ให้ tier ล่างใช้ id ชุดนี้
-      if (!_LOADING_CONFIG_ && qP_.empIds !== undefined) { try { _LOADING_CONFIG_ = { empIds: qP_.empIds }; } catch (eL) {} }
+      if (!_LOADING_CONFIG_ && qP_.empIds !== undefined) { try { _LOADING_CONFIG_ = { empIds: qP_.empIds }; } catch (eL) { } }
       // 0a) Fast path: Admin เตรียมข้อมูลไว้ใน localStorage ก่อนเปิด → เรนเดอร์ทันที ไม่ยิง API เลย
       try {
         var rawSt = null;
-        try { rawSt = window.localStorage ? localStorage.getItem('HRBTC_PRINT_CARD_STASH') : null; } catch (eLS) {}
-        if (!rawSt) { try { rawSt = window.sessionStorage ? sessionStorage.getItem('HRBTC_PRINT_CARD_STASH') : null; } catch (eSS) {} }
+        try { rawSt = window.localStorage ? localStorage.getItem('HRBTC_PRINT_CARD_STASH') : null; } catch (eLS) { }
+        if (!rawSt) { try { rawSt = window.sessionStorage ? sessionStorage.getItem('HRBTC_PRINT_CARD_STASH') : null; } catch (eSS) { } }
         if (rawSt) {
           var st = JSON.parse(rawSt);
-          var wantIds = String(qP_.empIds || '').split(',').map(function(s){ return String(s || '').trim(); }).filter(Boolean);
+          var wantIds = String(qP_.empIds || '').split(',').map(function (s) { return String(s || '').trim(); }).filter(Boolean);
           if (st && st.v === 1 && Array.isArray(st.employees) && st.employees.length > 0
-              && (Date.now() - (st.ts || 0)) < 120000) {
+            && (Date.now() - (st.ts || 0)) < 120000) {
             var match = wantIds.length === 0
               ? (st.mode === 'all')
               : (st.mode === 'ids'
-                 && wantIds.length === (st.empIds || []).length
-                 && wantIds.join('|').toUpperCase() === String((st.empIds || []).join('|')).toUpperCase());
+                && wantIds.length === (st.empIds || []).length
+                && wantIds.join('|').toUpperCase() === String((st.empIds || []).join('|')).toUpperCase());
             if (match) { applyCardResult_({ status: 'success', employees: st.employees, company: st.company }); return; }
           }
         }
@@ -344,12 +548,12 @@
       if (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0) { initUI(); return; }
       // ทางรอง: 2-Phase ผ่าน google.script.run (ถ้า GAS ส่ง _LOADING_CONFIG_ มา)
       if (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds !== undefined
-          && typeof google !== 'undefined' && google.script && google.script.run) {
+        && typeof google !== 'undefined' && google.script && google.script.run) {
         setLoadingStatus('กำลังดึงข้อมูลพนักงาน...');
         try {
           google.script.run
             .withSuccessHandler(applyCardResult_)
-            .withFailureHandler(function(){ fetchCardDataByHttp_(_LOADING_CONFIG_.empIds); })
+            .withFailureHandler(function () { fetchCardDataByHttp_(_LOADING_CONFIG_.empIds); })
             .getQrCardDataForClient(_LOADING_CONFIG_.empIds);
           return;
         } catch (e5) { /* ตกไป HTTP */ }
@@ -365,85 +569,85 @@
     /* ── 3. FIELD HELPERS ── */
     // Code.gs inject: { empId, name, position, photoUrl, qrUrl }
     // index.html (admin) inject: { รหัสพนักงาน, ชื่อ-นามสกุล, ตำแหน่ง, ... }
-    function escHtml_(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-    function gf(emp,keys){for(var i=0;i<keys.length;i++){if(emp[keys[i]]!=null&&emp[keys[i]]!=='')return emp[keys[i]];}return '';}
-    function getId(emp)    {return gf(emp,['empId','รหัสพนักงาน','emp_id','id']);}
-    function getName(emp)  {return gf(emp,['name','fullName','ชื่อ-นามสกุล','employee_name']);}
-    function getPos(emp)   {return gf(emp,['position','ตำแหน่ง','pos']);}
-    function getPhoto(emp) {return gf(emp,['photoUrl','photo_url','photo','ลิ้งภาพโปรไฟล์','รูปถ่าย','avatar']);}
-    function getLink(emp)  {
-      var dl=gf(emp,['qrUrl','deepLink','deep_link','qr_url']);
-      if(dl)return dl;
-      var id=getId(emp);
-      return id?((COMPANY.deepLinkBase||defaultDeepLinkBase_())+'?empId='+encodeURIComponent(id)+'&tab=attendance'):'';
+    function escHtml_(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function gf(emp, keys) { for (var i = 0; i < keys.length; i++) { if (emp[keys[i]] != null && emp[keys[i]] !== '') return emp[keys[i]]; } return ''; }
+    function getId(emp) { return gf(emp, ['empId', 'รหัสพนักงาน', 'emp_id', 'id']); }
+    function getName(emp) { return gf(emp, ['name', 'fullName', 'ชื่อ-นามสกุล', 'employee_name']); }
+    function getPos(emp) { return gf(emp, ['position', 'ตำแหน่ง', 'pos']); }
+    function getPhoto(emp) { return gf(emp, ['photoUrl', 'photo_url', 'photo', 'ลิ้งภาพโปรไฟล์', 'รูปถ่าย', 'avatar']); }
+    function getLink(emp) {
+      var dl = gf(emp, ['qrUrl', 'deepLink', 'deep_link', 'qr_url']);
+      if (dl) return dl;
+      var id = getId(emp);
+      return id ? ((COMPANY.deepLinkBase || defaultDeepLinkBase_()) + '?empId=' + encodeURIComponent(id) + '&tab=attendance') : '';
     }
 
     /* ── 3b. PHOTO FIX — รูปไม่แสดงบนบัตร ──
        avatar_url ใน DB มี 3 รูปแบบ: JSON {"url":..} / drive uc?id= / drive file/d/view
        → <img> ใช้ดิบไม่ได้เลย ต้องแปลงเป็น lh3.googleusercontent.com/d/<id> ก่อน (port จาก index.html convertDriveUrl) */
-    function convDriveUrl_(url){
-      if(!url)return '';
-      var u=String(url).trim();
-      if(!u)return '';
+    function convDriveUrl_(url) {
+      if (!url) return '';
+      var u = String(url).trim();
+      if (!u) return '';
       // 1) JSON string รูปแบบ {"url":"https://...","fileId":"..."} จากฟอร์มอัปโหลด
-      if(u.charAt(0)==='{'||u.charAt(0)==='['){
-        try{var p=JSON.parse(u);if(p&&p.url)u=String(p.url);}catch(eP){}
+      if (u.charAt(0) === '{' || u.charAt(0) === '[') {
+        try { var p = JSON.parse(u); if (p && p.url) u = String(p.url); } catch (eP) { }
       }
       // 2) ไม่ใช่ลิงก์ Google Drive → คืนตามเดิม (lh3 / supabase storage / data URI ใช้ตรงได้)
-      if(u.indexOf('drive.google.com')===-1&&u.indexOf('docs.google.com')===-1)return u;
+      if (u.indexOf('drive.google.com') === -1 && u.indexOf('docs.google.com') === -1) return u;
       // 3) ดึง fileId → แปลงเป็น lh3 (แสดง inline ใน <img> ได้จริง)
-      var fid=null,m;
-      if((m=u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)))fid=m[1];
-      else if((m=u.match(/[?&]id=([a-zA-Z0-9_-]+)/)))fid=m[1];
-      else if((m=u.match(/\/u\/0\/d\/([a-zA-Z0-9_-]+)/)))fid=m[1];
-      else if((m=u.match(/\/d\/([a-zA-Z0-9_-]+)/)))fid=m[1];
-      return fid?('https://lh3.googleusercontent.com/d/'+fid):u;
+      var fid = null, m;
+      if ((m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/))) fid = m[1];
+      else if ((m = u.match(/[?&]id=([a-zA-Z0-9_-]+)/))) fid = m[1];
+      else if ((m = u.match(/\/u\/0\/d\/([a-zA-Z0-9_-]+)/))) fid = m[1];
+      else if ((m = u.match(/\/d\/([a-zA-Z0-9_-]+)/))) fid = m[1];
+      return fid ? ('https://lh3.googleusercontent.com/d/' + fid) : u;
     }
     /* onerror 2 ชั้น: lh3 พัง → drive.google.com/thumbnail?id= → ตัวอักษรย่อ SVG (กันวนลูป) */
-    function qrPhotoErr_(img){
-      var step=img.getAttribute('data-pstep')||'0';
-      if(step==='0'){
-        var m=(img.getAttribute('src')||'').match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{20,})/);
-        if(m){
-          img.setAttribute('data-pstep','1');
-          img.setAttribute('src','https://drive.google.com/thumbnail?id='+m[1]+'&sz=w400');
+    function qrPhotoErr_(img) {
+      var step = img.getAttribute('data-pstep') || '0';
+      if (step === '0') {
+        var m = (img.getAttribute('src') || '').match(/(?:[?&]id=|\/d\/)([a-zA-Z0-9_-]{20,})/);
+        if (m) {
+          img.setAttribute('data-pstep', '1');
+          img.setAttribute('src', 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400');
           return;
         }
       }
-      img.onerror=null;
-      img.setAttribute('src',initialAvatar_(img.getAttribute('data-init')||'E'));
+      img.onerror = null;
+      img.setAttribute('src', initialAvatar_(img.getAttribute('data-init') || 'E'));
     }
     /* ตัวอักษรย่อพื้นน้ำเงิน — SVG data URI ไม่พึ่งเน็ต/CDN (placehold.co ล่มก็ยังพิมพ์ได้) */
-    function initialAvatar_(name){
-      var ch=String(name==null?'':name).trim().charAt(0)||'E';
-      var svg='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">'
-        +'<rect width="200" height="200" fill="#054B99"/>'
-        +'<text x="100" y="128" font-size="96" font-family="Kanit,Arial,sans-serif" font-weight="700" fill="#ffffff" text-anchor="middle">'+escHtml_(ch)+'</text>'
-        +'</svg>';
-      return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+    function initialAvatar_(name) {
+      var ch = String(name == null ? '' : name).trim().charAt(0) || 'E';
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">'
+        + '<rect width="200" height="200" fill="#054B99"/>'
+        + '<text x="100" y="128" font-size="96" font-family="Kanit,Arial,sans-serif" font-weight="700" fill="#ffffff" text-anchor="middle">' + escHtml_(ch) + '</text>'
+        + '</svg>';
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     }
 
 
     /* ── 4. DROPDOWN ── */
-    function populateDropdown(){
-      var sel=document.getElementById('employeeSelect');
-      var badge=document.getElementById('totalBadge');
-      sel.innerHTML='';
-      employees.forEach(function(emp,i){
-        var o=document.createElement('option');
-        o.value=i; o.textContent=getId(emp)+' — '+getName(emp);
-        if(i===activeEmpIndex)o.selected=true;
+    function populateDropdown() {
+      var sel = document.getElementById('employeeSelect');
+      var badge = document.getElementById('totalBadge');
+      sel.innerHTML = '';
+      employees.forEach(function (emp, i) {
+        var o = document.createElement('option');
+        o.value = i; o.textContent = getId(emp) + ' — ' + getName(emp);
+        if (i === activeEmpIndex) o.selected = true;
         sel.appendChild(o);
       });
-      if(badge)badge.textContent=employees.length;
+      if (badge) badge.textContent = employees.length;
     }
     /* isAllMode_() ถูกย้ายขึ้นไปไว้ก่อน initUI() แล้ว */
     /* พรีวิวแบบตาราง: บัตรพนักงานทั้งหมดในหน้าเดียว คลิกใบไหน = เลือกใบนั้นไว้พิมพ์เดี่ยว */
-    function renderBatchPreview_(){
+    function renderBatchPreview_() {
       var wrap = document.getElementById('singleCardWrapper');
       if (!wrap) return;
       var g = '<div class="batch-preview-grid">';
-      employees.forEach(function(emp, i){
+      employees.forEach(function (emp, i) {
         g += '<div class="bpv-item' + (i === activeEmpIndex ? ' active-card' : '') + '" onclick="switchEmployee(' + i + ')" title="คลิกเลือกบัตรนี้ (พิมพ์บัตรประจำตัวจะพิมพ์ใบนี้)">'
           + cardHTML(emp, 'cr80-card-preview', 'preview')
           + '</div>';
@@ -452,79 +656,79 @@
       wrap.innerHTML = g;
       var t = document.getElementById('previewTitle');
       if (t) t.textContent = 'พรีวิวบัตรพนักงานทั้งหมด (' + employees.length + ' ใบ)';
-      setTimeout(function(){
-        employees.forEach(function(emp){
+      setTimeout(function () {
+        employees.forEach(function (emp) {
           drawQr('qr_' + sanitizeQrId_(getId(emp)) + '_preview', getLink(emp), 68);
         });
       }, 60);
     }
-    function switchEmployee(idx){ activeEmpIndex = parseInt(idx, 10); if (allModeUI_) { renderBatchPreview_(); } else { renderActiveCard(); } }
+    function switchEmployee(idx) { activeEmpIndex = parseInt(idx, 10); if (allModeUI_) { renderBatchPreview_(); } else { renderActiveCard(); } }
 
     /* ── 5. CARD TEMPLATE ── */
-    function sanitizeQrId_(s){return String(s==null?'':s).replace(/[^a-zA-Z0-9_-]/g,'_')||'noid';}
-    function cardHTML(emp,cardClass,qrSuffix){
-      var empId=getId(emp), empName=getName(emp), empPos=getPos(emp), empPhoto=getPhoto(emp);
-      var qrId='qr_'+sanitizeQrId_(empId)+'_'+qrSuffix;
-      var photoSrc=convDriveUrl_(empPhoto)||initialAvatar_(empName);
-      var footParts=[COMPANY.address||''];
-      var phonePart=(COMPANY.phone||COMPANY.fax)?('โทร. '+[COMPANY.phone,COMPANY.fax].filter(Boolean).join(', ')):'';
-      var emailPart=COMPANY.email?('E-Mail: '+COMPANY.email):'';
+    function sanitizeQrId_(s) { return String(s == null ? '' : s).replace(/[^a-zA-Z0-9_-]/g, '_') || 'noid'; }
+    function cardHTML(emp, cardClass, qrSuffix) {
+      var empId = getId(emp), empName = getName(emp), empPos = getPos(emp), empPhoto = getPhoto(emp);
+      var qrId = 'qr_' + sanitizeQrId_(empId) + '_' + qrSuffix;
+      var photoSrc = convDriveUrl_(empPhoto) || initialAvatar_(empName);
+      var footParts = [COMPANY.address || ''];
+      var phonePart = (COMPANY.phone || COMPANY.fax) ? ('โทร. ' + [COMPANY.phone, COMPANY.fax].filter(Boolean).join(', ')) : '';
+      var emailPart = COMPANY.email ? ('E-Mail: ' + COMPANY.email) : '';
       /* โทร. + E-Mail อยู่บรรทัดเดียวกัน (คั่นด้วย · ) — ที่อยู่บรรทัดบน */
-      var contactLine=[phonePart,emailPart].filter(Boolean).join(' · ');
-      if(contactLine)footParts.push(contactLine);
-      var footAddr=footParts.filter(Boolean).join('<br>')||'&nbsp;';
+      var contactLine = [phonePart, emailPart].filter(Boolean).join(' · ');
+      if (contactLine) footParts.push(contactLine);
+      var footAddr = footParts.filter(Boolean).join('<br>') || '&nbsp;';
       return [
-        '<div class="'+cardClass+' bg-white rounded-2xl shadow-xl relative flex flex-col text-slate-800 border border-slate-200 overflow-hidden">',
-          /* header */
-          '<div class="bg-brand-blue px-3 pt-3 pb-7 text-white text-center flex flex-col items-center border-t-4 border-brand-green shrink-0 relative">',
-            '<div class="card-head-title font-extrabold text-[11px] leading-tight uppercase tracking-tight line-clamp-2 drop-shadow-sm px-1">'+escHtml_(COMPANY.name)+'</div>',
-            '<div class="card-head-badge inline-block mt-1 px-2 py-0.5 bg-brand-green rounded text-[8px] font-bold tracking-wider text-white uppercase shadow-sm">Attendance Pass · บัตรลงเวลา</div>',
-          '</div>',
-          /* photo + meta */
-          '<div class="card-body-wrap">',
-            '<div class="card-photo">',
-              '<img src="'+String(photoSrc).replace(/"/g,'&quot;')+'" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" referrerpolicy="no-referrer" data-init="'+escHtml_((empName||'E').trim().charAt(0))+'" onerror="qrPhotoErr_(this)">',
-            '</div>',
-            '<h3 class="card-name font-extrabold text-[20px] text-brand-blue leading-tight mt-1 text-center tracking-tight line-clamp-1">'+escHtml_(empName)+'</h3>',
-            '<div class="card-pos text-[15px] font-bold text-slate-600 mt-0.5 text-center line-clamp-1">ตำแหน่ง: '+escHtml_(empPos)+'</div>',
-            '<div class="card-id mt-1 px-2.5 py-0.5 bg-brand-blue text-white rounded-md font-mono font-black text-[12px] shadow-sm border border-brand-green/40">รหัส: '+escHtml_(empId)+'</div>',
-          '</div>',
-          /* QR */
-          '<div class="card-qr-wrap">',
-            '<div id="'+qrId+'" class="p-1 bg-white border border-emerald-300 rounded-lg shadow-sm"></div>',
-          '</div>',
-          /* footer */
-          '<div class="z-10 bg-white/90 shrink-0">',
-            '<div class="card-foot-text px-2 pb-1 text-center text-[7px] text-slate-500 leading-tight border-t border-slate-100 pt-0.5">'+footAddr+'</div>',
-            '<div class="h-1.5 w-full bg-gradient-to-r from-brand-blue via-brand-green to-brand-blue"></div>',
-          '</div>',
+        '<div class="' + cardClass + ' bg-white rounded-2xl shadow-xl relative flex flex-col text-slate-800 border border-slate-200 overflow-hidden">',
+        /* header */
+        '<div class="bg-brand-blue px-3 pt-3 pb-7 text-white text-center flex flex-col items-center border-t-4 border-brand-green shrink-0 relative">',
+        '<div class="card-head-title font-extrabold text-[11px] leading-tight uppercase tracking-tight line-clamp-2 drop-shadow-sm px-1">' + escHtml_(COMPANY.name) + '</div>',
+        '<div class="card-head-badge inline-block mt-1 px-2 py-0.5 bg-brand-green rounded text-[8px] font-bold tracking-wider text-white uppercase shadow-sm">Attendance Pass · บัตรลงเวลา</div>',
+        '</div>',
+        /* photo + meta */
+        '<div class="card-body-wrap">',
+        '<div class="card-photo">',
+        '<img src="' + String(photoSrc).replace(/"/g, '&quot;') + '" class="w-full h-full object-cover rounded-full" alt="รูปพนักงาน" referrerpolicy="no-referrer" data-init="' + escHtml_((empName || 'E').trim().charAt(0)) + '" onerror="qrPhotoErr_(this)">',
+        '</div>',
+        '<h3 class="card-name font-extrabold text-[15px] text-brand-blue leading-tight mt-1 text-center tracking-tight line-clamp-1">' + escHtml_(empName) + '</h3>',
+        '<div class="card-pos text-[14px] font-bold text-slate-600 mt-0.5 text-center line-clamp-1">ตำแหน่ง: ' + escHtml_(empPos) + '</div>',
+        '<div class="card-id mt-1 px-2.5 py-0.5 bg-brand-blue text-white rounded-md font-mono font-black text-[12px] shadow-sm border border-brand-green/40">รหัส: ' + escHtml_(empId) + '</div>',
+        '</div>',
+        /* QR */
+        '<div class="card-qr-wrap">',
+        '<div id="' + qrId + '" class="p-1 bg-white border border-emerald-300 rounded-lg shadow-sm"></div>',
+        '</div>',
+        /* footer */
+        '<div class="z-10 bg-white/90 shrink-0">',
+        '<div class="card-foot-text px-2 pb-1 text-center text-[7px] text-slate-500 leading-tight border-t border-slate-100 pt-0.5">' + footAddr + '</div>',
+        '<div class="h-1.5 w-full bg-gradient-to-r from-brand-blue via-brand-green to-brand-blue"></div>',
+        '</div>',
         '</div>'
       ].join('');
     }
 
     /* ── 6. QR DRAW ── */
-    function qrFallbackImg_(el,url,size){var s=size||80;el.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size='+s+'x'+s+'&margin=4&data='+encodeURIComponent(url)+'" width="'+s+'" height="'+s+'" alt="QR" referrerpolicy="no-referrer">';}
-    function drawQr(id, url, size){
-      var el=document.getElementById(id);
-      if(!el||!url)return;
-      el.innerHTML='';
-      try{
-        new QRCode(el,{text:url,width:size,height:size,colorDark:'#054B99',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
-      }catch(e){
-        el.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&margin=4&data='+encodeURIComponent(url)+'" width="'+size+'" height="'+size+'" alt="QR" referrerpolicy="no-referrer">';
+    function qrFallbackImg_(el, url, size) { var s = size || 80; el.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=' + s + 'x' + s + '&margin=4&data=' + encodeURIComponent(url) + '" width="' + s + '" height="' + s + '" alt="QR" referrerpolicy="no-referrer">'; }
+    function drawQr(id, url, size) {
+      var el = document.getElementById(id);
+      if (!el || !url) return;
+      el.innerHTML = '';
+      try {
+        new QRCode(el, { text: url, width: size, height: size, colorDark: '#054B99', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      } catch (e) {
+        el.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&margin=4&data=' + encodeURIComponent(url) + '" width="' + size + '" height="' + size + '" alt="QR" referrerpolicy="no-referrer">';
       }
     }
 
     /* ── 7. RENDER SINGLE ── */
-    function renderActiveCard(){
-      var emp=employees[activeEmpIndex];
-      var wrap=document.getElementById('singleCardWrapper');
-      wrap.innerHTML=cardHTML(emp,'cr80-card-preview','preview');
-      setTimeout(function(){drawActiveQr_();},50);
+    function renderActiveCard() {
+      var emp = employees[activeEmpIndex];
+      var wrap = document.getElementById('singleCardWrapper');
+      wrap.innerHTML = cardHTML(emp, 'cr80-card-preview', 'preview');
+      setTimeout(function () { drawActiveQr_(); }, 50);
     }
 
     /* ── 8. PRINT SINGLE ── */
-    function printSingleCard(){
+    function printSingleCard() {
       var wasGrid = allModeUI_;
       if (wasGrid) {
         /* โหมดตาราง: สลับเป็นบัตรเดี่ยว (ใบที่เลือก) ก่อนพิมพ์ — ไม่งั้นจะพิมพ์ทั้งตาราง */
@@ -535,53 +739,54 @@
       document.body.classList.remove('print-mode-all');
       document.body.classList.add('print-mode-single');
       showToast('กำลังเปิดหน้าต่างพิมพ์บัตรประจำตัว...');
-      setTimeout(function(){
+      setTimeout(function () {
         window.print();
         if (wasGrid) { setTimeout(renderBatchPreview_, 250); } /* คืนหน้าตารางหลังพิมพ์ */
       }, 300);
     }
 
     /* ── 9. PRINT ALL ── */
-    function printAllCards(){
+    function printAllCards() {
       document.body.classList.remove('print-mode-single');
       document.body.classList.add('print-mode-all');
       if (allModeUI_) {
         // โหมดตาราง: สลับมาพิมพ์ทั้งหมดเป็นแนวตัง CR80
-        var batch=document.getElementById('batchPrintWrapper');
-        batch.innerHTML='';
-        employees.forEach(function(emp){
-          var d=document.createElement('div');
-          d.innerHTML=cardHTML(emp,'cr80-card-print','batch');
+        var batch = document.getElementById('batchPrintWrapper');
+        batch.innerHTML = '';
+        employees.forEach(function (emp) {
+          var d = document.createElement('div');
+          d.innerHTML = cardHTML(emp, 'cr80-card-print', 'batch');
           batch.appendChild(d);
         });
-        setTimeout(function(){
-          employees.forEach(function(emp){drawQr('qr_'+sanitizeQrId_(getId(emp))+'_batch',getLink(emp),68);});
-          setTimeout(function(){window.print();},80);
-        },60);
+        setTimeout(function () {
+          employees.forEach(function (emp) { drawQr('qr_' + sanitizeQrId_(getId(emp)) + '_batch', getLink(emp), 68); });
+          setTimeout(function () { window.print(); }, 80);
+        }, 60);
         return;
       }
       // โหมดปกติ (ข้อมูลมาจาก GAS โดยตรง — ยังรองรับเพื่อความเข้ากัน)
-      var batch=document.getElementById('batchPrintWrapper');
-      batch.innerHTML='';
-      employees.forEach(function(emp){
-        var d=document.createElement('div');
-        d.innerHTML=cardHTML(emp,'cr80-card-print','batch');
+      var batch = document.getElementById('batchPrintWrapper');
+      batch.innerHTML = '';
+      employees.forEach(function (emp) {
+        var d = document.createElement('div');
+        d.innerHTML = cardHTML(emp, 'cr80-card-print', 'batch');
         batch.appendChild(d);
       });
-      setTimeout(function(){
-        employees.forEach(function(emp){drawQr('qr_'+sanitizeQrId_(getId(emp))+'_batch',getLink(emp),68);});
-        showToast('กำลังเปิดหน้าต่างพิมพ์บัตรทั้งหมด ('+employees.length+' ใบ)...');
-        setTimeout(function(){window.print();},400);
-      },80);
+      setTimeout(function () {
+        employees.forEach(function (emp) { drawQr('qr_' + sanitizeQrId_(getId(emp)) + '_batch', getLink(emp), 68); });
+        showToast('กำลังเปิดหน้าต่างพิมพ์บัตรทั้งหมด (' + employees.length + ' ใบ)...');
+        setTimeout(function () { window.print(); }, 400);
+      }, 80);
     }
 
     /* ── 10. TOAST ── */
-    function showToast(msg){
-      var t=document.getElementById('toast');
-      document.getElementById('toastMsg').textContent=msg;
-      t.classList.remove('translate-y-20','opacity-0');
-      setTimeout(function(){t.classList.add('translate-y-20','opacity-0');},3000);
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      document.getElementById('toastMsg').textContent = msg;
+      t.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(function () { t.classList.add('translate-y-20', 'opacity-0'); }, 3000);
     }
   </script>
 </body>
+
 </html>
