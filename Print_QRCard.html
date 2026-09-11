@@ -176,12 +176,15 @@
     var _CARD_DATA_ = (typeof window!=='undefined'&&window._CARD_DATA_) ? window._CARD_DATA_ : null;
     var _LOADING_CONFIG_ = (typeof window!=='undefined'&&window._LOADING_CONFIG_) ? window._LOADING_CONFIG_ : null;
     var _GAS_BASE_ = (typeof window!=='undefined'&&window._GAS_BASE_) ? window._GAS_BASE_ : null;
-    var COMPANY = (_CARD_DATA_ && _CARD_DATA_.company) ? _CARD_DATA_.company : {
+    /* ✅ ค่าบริษัทบนบัตร = ค่าคงที่เสมอ — ห้าม override จากข้อมูล (stash/GAS/fetch)
+       หัวบัตร + ท้ายบัตร (ที่อยู่/โทร./อีเมล) ต้องออกเหมือนกันทุกใบ ทุกครั้ง ไม่ว่าข้อมูลจะมาจากทางไหน
+       deepLinkBase ปล่อยว่าง → defaultDeepLinkBase_() คำนวณตามโดเมนที่เปิดจริง (Vercel→หน้าหลัก / GAS→exec) */
+    const COMPANY = {
       name:'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด', logoUrl:'',
       address:'31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
       phone:'044-611134, 087-2601881', fax:'',
       email:'brtc2024@gmail.com',
-      deepLinkBase:'' /* เติมจาก GAS (_CARD_DATA_.company.deepLinkBase) — กัน QR ผิด base */
+      deepLinkBase:''
     };
     var employees = (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0)
       ? _CARD_DATA_.employees
@@ -228,7 +231,14 @@
       drawQr('qr_'+sanitizeQrId_(getId(emp))+'_preview',getLink(emp),80);
     }
     function defaultDeepLinkBase_(){
-      try{if(window.location&&window.location.origin)return window.location.origin+window.location.pathname;}catch(e0){}
+      try{
+        if(window.location&&window.location.origin){
+          var p=window.location.pathname||'/';
+          // หน้าพิมพ์บัตร (static บน Vercel) → deep link ต้องชี้หน้าหลัก ไม่ใช่หน้าพิมพ์เอง
+          if(/Print_QRCard\.html?$/i.test(p))return window.location.origin+'/';
+          return window.location.origin+p;
+        }
+      }catch(e0){}
       return 'https://hrbtc.vercel.app/';
     }
     function renderEmptyState_(){
@@ -242,7 +252,7 @@
     function applyCardResult_(result){
       setLoadingStatus('กำลังแสดงบัตร...');
       if(result&&result.status==='success'){
-        COMPANY=result.company||COMPANY;
+        /* ค่าบริษัทคงที่เสมอ — ไม่รับ company จากข้อมูล (stash/GAS/fetch) กันท้ายบัตรเพี้ยนตามแหล่งข้อมูล */
         employees=result.employees||[];
         activeEmpIndex=0;
         initUI();
@@ -278,6 +288,32 @@
     }
     /* ── 2b. BOOT ── */
     window.addEventListener('DOMContentLoaded', function() {
+      /* ── 0) โหมด STATIC (เปิดจาก Vercel เหมือนพิมพ์ใบลา): อ่าน URL params + stash ── */
+      var qP_ = {};
+      try { new URLSearchParams(window.location.search).forEach(function(v, k) { qP_[k] = v; }); } catch (eQ) {}
+      // apiUrl จาก URL → base สำหรับยิง JSON API เอง (เผื่อไม่มี stash)
+      if (qP_.apiUrl && !_GAS_BASE_) { try { _GAS_BASE_ = qP_.apiUrl; } catch (eA) {} }
+      // มี empIds บน URL แต่ไม่มี _LOADING_CONFIG_ (โหมด static) → ให้ tier ล่างใช้ id ชุดนี้
+      if (!_LOADING_CONFIG_ && qP_.empIds !== undefined) { try { _LOADING_CONFIG_ = { empIds: qP_.empIds }; } catch (eL) {} }
+      // 0a) Fast path: Admin เตรียมข้อมูลไว้ใน localStorage ก่อนเปิด → เรนเดอร์ทันที ไม่ยิง API เลย
+      try {
+        var rawSt = null;
+        try { rawSt = window.localStorage ? localStorage.getItem('HRBTC_PRINT_CARD_STASH') : null; } catch (eLS) {}
+        if (!rawSt) { try { rawSt = window.sessionStorage ? sessionStorage.getItem('HRBTC_PRINT_CARD_STASH') : null; } catch (eSS) {} }
+        if (rawSt) {
+          var st = JSON.parse(rawSt);
+          var wantIds = String(qP_.empIds || '').split(',').map(function(s){ return String(s || '').trim(); }).filter(Boolean);
+          if (st && st.v === 1 && Array.isArray(st.employees) && st.employees.length > 0
+              && (Date.now() - (st.ts || 0)) < 120000) {
+            var match = wantIds.length === 0
+              ? (st.mode === 'all')
+              : (st.mode === 'ids'
+                 && wantIds.length === (st.empIds || []).length
+                 && wantIds.join('|').toUpperCase() === String((st.empIds || []).join('|')).toUpperCase());
+            if (match) { applyCardResult_({ status: 'success', employees: st.employees, company: st.company }); return; }
+          }
+        }
+      } catch (eSt) { /* stash พัง → ตกไปทางอื่นตามปกติ */ }
       // ทางหลัก: GAS inject _CARD_DATA_ มาแล้ว — แสดงทันที (เร็วสุด)
       if (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0) { initUI(); return; }
       // ทางรอง: 2-Phase ผ่าน google.script.run (ถ้า GAS ส่ง _LOADING_CONFIG_ มา)

@@ -24770,19 +24770,57 @@ ${slip.textSample}
                 // ═══════════════════════════════════════════════════════════
                 // 🪪 เปิดหน้าพิมพ์บัตรพนักงาน QR แบบแยก Tab (Print_QRCard.html)
                 //    empIds: Array ของรหัสพนักงาน (ถ้าไม่ส่ง = พิมพ์ทั้งหมดที่ active)
-                //    ⚠️ ต้องใช้ SERVER_API_URL (GAS exec) ไม่ใช่ window.location
-                //       เพราะเว็บอยู่บน Vercel — Vercel ไม่รู้จัก ?action=printQrCardPage
+                //    (โหมดเดิมเปิดผ่าน GAS exec?action=printQrCardPage — ย้ายไป static mode แล้ว: เร็วกว่ามาก)
                 // ═══════════════════════════════════════════════════════════
                 function openPrintQrCardPage(empIds) {
-                    // ใช้ GAS Web App URL ตรงๆ (SERVER_API_URL) เพื่อให้ doGet() รับ action ได้
-                    var gasBase = (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL)
-                        ? SERVER_API_URL.split('?')[0]
-                        : (window.location.origin + window.location.pathname);
-                    var url = gasBase + '?action=printQrCardPage';
-                    if (empIds && empIds.length > 0) {
-                        url += '&empIds=' + empIds.map(encodeURIComponent).join(',');
+                    // 🚀 เปิดแบบ STATIC เหมือนพิมพ์ใบลา — ไฟล์ Print_QRCard.html คู่กับ index.html บน Vercel
+                    //    ข้อมูลถูกเตรียมไว้ใน storage ก่อนเปิด (Fast path) → หน้าบัตรเรนเดอร์ทันทีไม่ต้องยิง API
+                    //    ถ้า stash ไม่ตรง/หมดอายุ หน้าบัตรจะยิง GAS JSON API เองผ่าน ?apiUrl= (ทางรอดอัตโนมัติ)
+                    var ids = Array.isArray(empIds) ? empIds.filter(function (x) { return x; }).map(String) : [];
+                    var all = (typeof adminEmployeesList !== 'undefined' && Array.isArray(adminEmployeesList)) ? adminEmployeesList : [];
+                    var chosen;
+                    if (ids.length > 0) {
+                        var want = ids.map(function (s) { return String(s).trim().toUpperCase(); });
+                        chosen = all.filter(function (e) {
+                            var eid = String(e && (e['รหัสพนักงาน'] || e.empId || e.emp_id) || '').trim().toUpperCase();
+                            return want.indexOf(eid) !== -1;
+                        });
+                    } else {
+                        chosen = all.filter(function (e) {
+                            var st = String((e && e['สถานะ']) || '').trim();
+                            return st === 'ทำงานปกติ' || st === 'active';
+                        });
                     }
-                    window.open(url, '_blank', 'noopener,noreferrer');
+                    // ใส่ qrUrl ให้ทุกคน (deep link ชี้หน้าหลักของเว็บนี้ — เหมือนบัตร QR ในโปรไฟล์)
+                    var employees = chosen.map(function (e) {
+                        var o = {}; for (var k in e) o[k] = e[k];
+                        var eid = String(o['รหัสพนักงาน'] || o.empId || o.emp_id || '').trim();
+                        if (eid && !o.qrUrl && !o.deepLink && typeof buildQrPassUrl === 'function') {
+                            o.qrUrl = buildQrPassUrl(eid);
+                        }
+                        return o;
+                    });
+                    var payload = {
+                        v: 1,
+                        ts: Date.now(),
+                        mode: ids.length > 0 ? 'ids' : 'all',
+                        empIds: ids,
+                        employees: employees
+                    };
+                    try {
+                        var sj = JSON.stringify(payload);
+                        sessionStorage.setItem('HRBTC_PRINT_CARD_STASH', sj);
+                        localStorage.setItem('HRBTC_PRINT_CARD_STASH', sj);
+                    } catch (eSt) { console.warn('card stash write failed', eSt); }
+                    var url = new URL('Print_QRCard.html', window.location.href);
+                    url.searchParams.set('openedFromIndex', '1');
+                    if (ids.length > 0) url.searchParams.set('empIds', ids.join(','));
+                    if (typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                        url.searchParams.set('apiUrl', SERVER_API_URL);
+                    }
+                    var w = window.open(url.toString(), '_blank');
+                    if (!w) showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                    w && w.focus && w.focus();
                 }
 
                 // ─── Helper: เปิดพิมพ์บัตรจาก batch selection ปัจจุบัน ───
