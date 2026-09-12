@@ -6812,6 +6812,7 @@
                                             <i class="fa-solid fa-pen-to-square"></i> แก้ไข Supabase
                                         </button>
                                     </div>
+                                    <p id="sb-save-status" class="hidden text-[10px] font-semibold mt-2"></p>
                                 </div>
                             </div>
 
@@ -6995,6 +6996,7 @@
                                             <i class="fa-solid fa-check-circle text-emerald-500"></i>
                                             <span class="text-[11px] font-bold text-emerald-700">บันทึกแล้ว</span>
                                             <span id="gas-config-masked-url" class="text-[10px] text-emerald-500 font-mono truncate max-w-[280px]"></span>
+                                            <span id="gas-saved-at" class="text-[10px] font-bold text-emerald-600 shrink-0"></span>
                                         </div>
                                     </div>
                                     <!-- Actions -->
@@ -31144,6 +31146,8 @@ ${slip.textSample}
         async function saveGasConfigDirect() {
             var url = (document.getElementById('gas-config-url')?.value || '').trim();
             if (url && !isValidAppsScriptUrl(url)) { showToast('URL must end with /exec', 'warning'); return; }
+            const gasSaveBtn = document.getElementById('gas-save-btn');
+            if (gasSaveBtn) { gasSaveBtn.disabled = true; gasSaveBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก…'; }
             // Save to server (PropertiesService)
             try {
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -31156,6 +31160,8 @@ ${slip.textSample}
             } catch (e) { console.warn('[GAS] save config error:', e); }
             SERVER_API_URL = url;
             showToast('Google Apps Script URL saved', 'success');
+            const savedAt = document.getElementById('gas-saved-at');
+            if (savedAt) savedAt.textContent = '· ' + new Date().toLocaleTimeString('th-TH') + ' น.';
             setGasLocked(true);
             testGoogleSheetsConnection();
         }
@@ -31763,7 +31769,7 @@ ${slip.textSample}
                     showToast('✅ บันทึก Service Key สำเร็จ (เก็บเป็นความลับฝั่ง GAS)', 'success');
                     keyInput.value = '';
                     setAmBadge('ok', 'Service Key พร้อมใช้');
-                    showAmResult('<b><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Service Role Key บันทึกแล้ว</b><br>ตอนนี้กด <b>ซิงค์ Schema ตอนนี้</b> เพื่ออัปเดตโครงสร้างตารางให้ตรงกับโค้ด', false);
+                    showAmResult('<b><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Service Role Key บันทึกแล้ว (' + new Date().toLocaleTimeString('th-TH') + ' น.)</b><br>ตอนนี้กด <b>ซิงค์ Schema ตอนนี้</b> เพื่ออัปเดตโครงสร้างตารางให้ตรงกับโค้ด', false);
                     setAmKeySavedState(true); // เปลี่ยนปุ่มเป็น "แก้ไข Service Key" (กดซ้ำ = เปลี่ยนคีย์ใหม่)
                 } else {
                     showToast('❌ บันทึกไม่สำเร็จ: ' + ((res && res.message) || 'ไม่ทราบสาเหตุ'), 'error');
@@ -31962,6 +31968,11 @@ ${slip.textSample}
                 return;
             }
 
+            const saveBtn = document.getElementById('sb-save-btn');
+            const status  = document.getElementById('sb-save-status');
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก…'; }
+            if (status) { status.className = 'text-[10px] font-semibold mt-2 text-slate-500'; status.textContent = 'กำลังบันทึก config…'; status.classList.remove('hidden'); }
+
             sbLog('💾 กำลังบันทึก config ลง server...', '#60a5fa');
             showToast('💾 กำลังบันทึก…', 'info', 3000);
 
@@ -31975,6 +31986,8 @@ ${slip.textSample}
                     await fetchWithTimeout(`${SERVER_API_URL}?action=saveSupabaseConfigToServer&url=${encodeURIComponent(url)}&key=${encodeURIComponent(key)}&mode=${mode}`, { timeout: 10000 });
                 }
             } catch (e) {
+                if (status) { status.className = 'text-[10px] font-semibold mt-2 text-rose-600'; status.textContent = '✗ บันทึกไม่สำเร็จ — ' + (e.message || e); }
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึก'; }
                 showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'error');
                 return;
             }
@@ -31988,6 +32001,17 @@ ${slip.textSample}
             // Auto-test ทันทีหลังบันทึก
             setSupabaseLocked(true);
             await testSupabaseConnection();
+            const statusText = document.getElementById('sb-status-text')?.textContent || '';
+            if (status) {
+                if (statusText.includes('เชื่อมต่อสำเร็จ')) {
+                    status.className = 'text-[10px] font-semibold mt-2 text-emerald-600';
+                    status.textContent = '✓ บันทึกแล้วเมื่อ ' + new Date().toLocaleTimeString('th-TH') + ' น. · เชื่อมต่อสำเร็จ';
+                } else {
+                    status.className = 'text-[10px] font-semibold mt-2 text-amber-600';
+                    status.textContent = 'บันทึก config แล้ว ' + new Date().toLocaleTimeString('th-TH') + ' น. แต่ Ping ไม่ผ่าน — ตรวจ URL/Key อีกครั้ง';
+                }
+            }
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึก'; }
         }
 
         async function testSupabaseConnection() {
