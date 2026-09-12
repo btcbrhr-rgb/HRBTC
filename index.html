@@ -4909,11 +4909,41 @@
                     </div>
                 </section>
 
+                <!-- PC-UI-20260912-HEAD -->
+                <style id="pc-ui-20260912-style">
+                    /* PC-UI-20260912: tune-up เวลางาน+ต้นทุนโครงการ โทนเดียวกับเมนูอนุมัติลา (scoped CSS ใน section นี้เท่านั้น) */
+                    /* PC-UI-20260912 head */
+                    /* 1. การ์ดสรุป tab-summary 4 ใบ: 2 คอลัมน์มือถือ / 4 คอลัมน์จอใหญ่ + วงตกแต่ง + hover */
+                    #admin-sec-project-cost #tab-summary > div.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+                    @media (min-width: 640px) { #admin-sec-project-cost #tab-summary > div.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+                    #admin-sec-project-cost #tab-summary > div.grid > div { position: relative; overflow: hidden; padding: 1rem; border-radius: 1rem; box-shadow: 0 1px 2px rgba(15,23,42,.05); transition: transform .2s ease, box-shadow .2s ease; }
+                    #admin-sec-project-cost #tab-summary > div.grid > div::after { content: ""; position: absolute; top: 0; right: 0; width: 5rem; height: 5rem; border-radius: 9999px; margin-right: -1.5rem; margin-top: -1.5rem; background: currentColor; opacity: .05; pointer-events: none; }
+                    #admin-sec-project-cost #tab-summary > div.grid > div:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,23,42,.08); }
+                    #admin-sec-project-cost #tab-summary > div.grid > div p.text-3xl { font-size: 1.5rem; line-height: 2rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+                    #admin-sec-project-cost #tab-summary > div.grid > div .w-11.h-11 { width: 2.5rem; height: 2.5rem; border-radius: .75rem; }
+                    #admin-sec-project-cost #tab-summary > div.grid > div .w-11.h-11 i { font-size: 1rem; }
+                    #admin-sec-project-cost #sum-total-employees { color: #1d4ed8; }
+                    #admin-sec-project-cost #sum-total-wages { color: #059669; }
+                    #admin-sec-project-cost #sum-total-allowances { color: #0E3A5D; }
+                    #admin-sec-project-cost #sum-total-labor-cost { color: #b45309; }
+                    #admin-sec-project-cost #sharedBillingMonth { font-size: 0.8125rem; padding-top: .5rem; padding-bottom: .5rem; }
+                    #admin-sec-project-cost #projectFilter, #admin-sec-project-cost #costingProjectFilter, #admin-sec-project-cost #matrixEmpSearch { font-size: 0.8125rem; }
+                    #admin-sec-project-cost #tab-costing > div.grid > div { padding: 1rem; border-radius: 1rem; }
+                    #admin-sec-project-cost #costing-total-cost, #admin-sec-project-cost #costing-wages-cost, #admin-sec-project-cost #costing-allowances-cost { font-variant-numeric: tabular-nums; }
+                    #admin-sec-project-cost #matrix-card button { font-size: 11px; }
+                    #admin-sec-project-cost #matrix-card { border-bottom-width: 1px; border-right-width: 1px; border-color: rgb(241 245 249); }
+                    /* Sticky thead เฉพาะตารางต้นทุน — ห้ามแตะ #matrix-table-wrap เพราะ Matrix มี sticky z-40/z-50 ของตัวเอง (คอลัมน์ซ้าย) */
+                    #admin-sec-project-cost #projectCostSection thead th { background: #f1f5f9; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 #e2e8f0; }
+                    #admin-sec-project-cost #projectCostSection table { border-spacing: 0; }
+                    #admin-sec-project-cost #projectCostSection td:last-child, #admin-sec-project-cost #projectCostSection .hr-table-total td:last-child { font-variant-numeric: tabular-nums; }
+                    /* PC-UI-20260912: จบ block */
+                </style>
+
                 <!-- SECTION 2.x: บันทึกเวลางานและต้นทุนโครงการ (Admin panel container for embedded view) -->
                 <section id="admin-sec-project-cost" class="admin-sec hidden space-y-6">
                     <div id="project-cost-container" class="min-h-[240px]">
-<div class="flex-grow w-full space-y-3">
-        
+                        <!-- PC-UI-20260912-INNER -->
+                        <div class="flex-grow w-full space-y-3">
         <!-- Tab Navigation & Config Header -->
         <div class="bg-white rounded-2xl shadow-sm p-2.5 mb-3 border border-slate-100 no-print">
             
@@ -4966,7 +4996,7 @@
         <!-- TAB 1: ตารางรวมทั้งเดือน (Summary Matrix View) -->
         <div id="tab-summary" class="space-y-3 no-print">
             <!-- Summary Info Bar -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div class="bg-gradient-to-br from-brand-deep to-brand-teal p-5 rounded-2xl border border-brand-deep/20 text-white shadow-md hover:shadow-lg transition-shadow">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -5038,8 +5068,8 @@
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">ตัวกรองโครงการหน้างาน</label>
                             <div class="relative">
-                                <select id="projectFilter" onchange="handleProjectChange(this.value)" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-sm font-semibold appearance-none transition-all">
-                                    <option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>
+                                <select id="projectFilter" onchange="handleProjectChange(this.value)" aria-label="ตัวกรองโครงการหน้างาน" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-sm font-semibold appearance-none transition-all">
+                                    <option value="all">แสดงข้อมูลพนักงานทุกโครงการ</option>
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
                                     <i class="fa-solid fa-chevron-down text-xs"></i>
