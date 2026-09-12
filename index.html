@@ -7601,6 +7601,47 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- กฎสถานะ (การนับวันทำงาน / ค่าข้าว / ยกเว้นนับสาย) -->
+                            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden" data-search="กฎ สถานะ ครึ่งวัน ค่าข้าว สาย status rules">
+                                <div class="px-4 py-3 bg-gradient-to-r from-brand-sky to-transparent border-b border-brand-sky2 flex items-center justify-between">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-deep to-brand-teal flex items-center justify-center shadow-sm">
+                                            <i class="fa-solid fa-list-check text-white text-xs"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-extrabold text-slate-800">กฎสถานะ</p>
+                                            <p class="text-[10px] text-slate-400">การนับวันทำงาน · ครึ่งวัน · ค่าข้าว · ยกเว้นนับสาย</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button onclick="resetStatusRulesToDefault()" class="inline-flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-rose-500 font-bold transition-colors">
+                                            <i class="fa-solid fa-rotate-left"></i> ค่าเริ่มต้น
+                                        </button>
+                                        <button onclick="saveStatusRules()" class="inline-flex items-center gap-1.5 text-[10px] text-brand-deep hover:text-brand-teal font-bold transition-colors">
+                                            <i class="fa-solid fa-floppy-disk"></i> บันทึก
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="p-4">
+                                    <div id="statusRulesTable" class="overflow-x-auto">
+                                        <table class="hr-table" style="min-width: 760px;">
+                                            <thead>
+                                                <tr>
+                                                    <th>สถานะ</th>
+                                                    <th>หมวดหมู่</th>
+                                                    <th>นับวันทำงาน</th>
+                                                    <th>ขาดงาน</th>
+                                                    <th>รับค่าข้าว</th>
+                                                    <th>ยกเว้นนับสาย</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="statusRulesBody"><tr class="tbl-empty-row"><td colspan="6">กำลังโหลด…</td></tr></tbody>
+                                        </table>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 mt-2">💡 นับวันทำงาน: 1 = เต็มวัน · 0.5 = ครึ่งวัน · 0 = ไม่นับ — นำไปใช้กับ Matrix/ต้นทุน/ใบตั้งเบิกค่าแรง/การพิมพ์ทันที โดยไม่ต้องแก้โค้ด</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -24185,6 +24226,20 @@ ${slip.textSample}
                             document.getElementById("setting-defaultCentralProject").value = s.defaultCentralProject || "(00)บุรีรัมย์";
                             showToast("✅ โหลดการตั้งค่าระบบสำเร็จ", "success");
 
+                            // โหลดกฎสถานะ (การนับวันทำงาน/ค่าข้าว/ยกเว้นสาย)
+                            try {
+                                const rawRules = s.statusRules;
+                                const src = (rawRules && typeof rawRules === 'object') ? rawRules : JSON.parse(rawRules || '{}');
+                                currentStatusRules = {};
+                                for (const k of Object.keys(DEFAULT_STATUS_RULES)) {
+                                    if (k === '__default__') continue;
+                                    currentStatusRules[k] = Object.assign({}, DEFAULT_STATUS_RULES[k], src[k] || {});
+                                }
+                            } catch {
+                                currentStatusRules = {};
+                            }
+                            renderStatusRulesTable();
+
                             // โหลดกฎสรุปสถานะ
                             try {
                                 currentSymbolRules = JSON.parse(s.symbolRules || '{}');
@@ -24529,6 +24584,108 @@ ${slip.textSample}
                         }
                     } catch (err) {
                         showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
+                    }
+                }
+
+                // ─── กฎสถานะ (การนับวันทำงาน / ค่าข้าว / ยกเว้นนับสาย) — ตั้งค่าได้โดยไม่ต้องแก้โค้ด ───
+                const STATUS_RULE_CATEGORY_LABELS = {
+                    work: 'ทำงาน', late: 'สาย', late_half: 'สายครึ่งวัน', absent: 'ขาดงาน',
+                    work_other: 'พิเศษ/อื่นๆ', work_incomplete: 'ลงเวลาไม่ครบ', off: 'วันหยุด'
+                };
+                const STATUS_RULE_ORDER = ['W', 'L', 'LH', 'A', 'MI', 'MO', 'B+', 'H+', 'S+', 'SM+', 'A½', 'P½', 'พร', 'พร½', 'คส', 'ย', 'นข'];
+                const STATUS_RULE_LABELS = {
+                    'W': 'ทำงานปกติ', 'L': 'มาสาย', 'LH': 'สายครึ่งวัน', 'A': 'ขาดงาน',
+                    'MI': 'ลืมลงเวลาเข้า', 'MO': 'ลืมลงเวลาออก', 'B+': 'ลากิจ(+)', 'H+': 'ลาพักร้อน(+)',
+                    'S+': 'ลาป่วย(+)', 'SM+': 'ลาป่วย+ใบรับรอง', 'A½': 'ลาครึ่งเช้า', 'P½': 'ลาครึ่งบ่าย',
+                    'พร': 'เพิ่มแรง', 'พร½': 'เพิ่มแรงครึ่ง', 'คส': 'สวัสดิการ',
+                    'ย': 'วันหยุดประจำสัปดาห์', 'นข': 'วันหยุดนักขัตฤกษ์'
+                };
+                let currentStatusRules = {};
+
+                function renderStatusRulesTable() {
+                    const tbody = document.getElementById('statusRulesBody');
+                    if (!tbody) return;
+                    const order = (typeof DEFAULT_STATUS_RULES === 'object') ? STATUS_RULE_ORDER.filter(k => DEFAULT_STATUS_RULES[k]) : STATUS_RULE_ORDER;
+                    if (!order.length) {
+                        tbody.innerHTML = '<tr class="tbl-empty-row"><td colspan="6">ยังไม่มีรายการ</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = order.map(code => {
+                        const base = (DEFAULT_STATUS_RULES && DEFAULT_STATUS_RULES[code]) || {};
+                        const rule = Object.assign({}, base, (currentStatusRules && currentStatusRules[code]) || {});
+                        const catSel = Object.entries(STATUS_RULE_CATEGORY_LABELS).map(([v, l]) =>
+                            `<option value="${v}" ${rule.category === v ? 'selected' : ''}>${l}</option>`).join('');
+                        const workSel =
+                            `<option value="1" ${String(rule.workUnit) === '1' ? 'selected' : ''}>เต็มวัน (1)</option>` +
+                            `<option value="0.5" ${String(rule.workUnit) === '0.5' ? 'selected' : ''}>ครึ่งวัน (0.5)</option>` +
+                            `<option value="0" ${String(rule.workUnit) === '0' ? 'selected' : ''}>ไม่นับ (0)</option>`;
+                        const absSel =
+                            `<option value="0" ${String(rule.absentUnit) === '0' ? 'selected' : ''}>ไม่นับ (0)</option>` +
+                            `<option value="0.5" ${String(rule.absentUnit) === '0.5' ? 'selected' : ''}>ครึ่งวัน (0.5)</option>` +
+                            `<option value="1" ${String(rule.absentUnit) === '1' ? 'selected' : ''}>เต็มวัน (1)</option>`;
+                        return `<tr class="${order.indexOf(code) % 2 ? 'bg-slate-50/50' : 'bg-white'}">
+                            <td class="px-2 py-2 whitespace-nowrap text-left">
+                                <span class="inline-flex items-center gap-1.5">
+                                    <span class="text-[10px] font-black text-brand-deep bg-brand-sky px-1.5 py-0.5 rounded">${code}</span>
+                                    <span class="text-[10px] font-bold text-slate-700">${STATUS_RULE_LABELS[code] || code}</span>
+                                </span>
+                            </td>
+                            <td class="px-2 py-2"><select onchange="updateStatusRule('${code}','category',this.value)" class="text-[10px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1">${catSel}</select></td>
+                            <td class="px-2 py-2"><select onchange="updateStatusRule('${code}','workUnit',parseFloat(this.value))" class="text-[10px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1">${workSel}</select></td>
+                            <td class="px-2 py-2"><select onchange="updateStatusRule('${code}','absentUnit',parseFloat(this.value))" class="text-[10px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1">${absSel}</select></td>
+                            <td class="px-2 py-2 text-center"><input type="checkbox" ${rule.food ? 'checked' : ''} onchange="updateStatusRule('${code}','food',this.checked)" class="w-4 h-4 rounded accent-emerald-500"></td>
+                            <td class="px-2 py-2 text-center"><input type="checkbox" ${rule.exemptLate ? 'checked' : ''} onchange="updateStatusRule('${code}','exemptLate',this.checked)" class="w-4 h-4 rounded accent-rose-500"></td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                function updateStatusRule(code, field, value) {
+                    if (!currentStatusRules[code]) {
+                        currentStatusRules[code] = Object.assign({}, (DEFAULT_STATUS_RULES && DEFAULT_STATUS_RULES[code]) || {});
+                    }
+                    currentStatusRules[code][field] = value;
+                }
+
+                function resetStatusRulesToDefault() {
+                    if (!confirm('รีเซ็ตการแก้ไขกฎสถานะกลับค่าเริ่มต้น? (กด "บันทึก" เพื่อยืนยันลงฐานข้อมูล)')) return;
+                    currentStatusRules = {};
+                    renderStatusRulesTable();
+                    showToast('พร้อมรีเซ็ต — กด "บันทึก" เพื่อยืนยัน', 'info');
+                }
+
+                async function saveStatusRules() {
+                    showToast("⏳ กำลังบันทึกกฎสถานะ…", "info");
+                    const jsonStr = JSON.stringify(currentStatusRules);
+                    try {
+                        let res = null;
+                        try {
+                            res = await fetchWithTimeout(SERVER_API_URL, {
+                                method: "POST",
+                                body: JSON.stringify({
+                                    action: "saveSystemSettings",
+                                    empId: currentEmployeeId,
+                                    adminId: currentEmployeeId,
+                                    settings: { statusRules: jsonStr }
+                                })
+                            });
+                        } catch (netErr) {
+                            console.warn('[Rules] GAS ไม่ตอบสนอง → ลอง Supabase โดยตรง', netErr);
+                            res = null;
+                        }
+                        const directOk = (res && res.status === 'success') ? false : (await trySaveSystemSettingsDirect({ statusRules: jsonStr }));
+                        if (!(res && res.status === 'success') && !directOk) {
+                            showToast("❌ บันทึกล้มเหลว: " + ((res && res.message) || 'เชื่อมต่อ API ไม่ได้'), "error");
+                            return;
+                        }
+                        systemSettings.statusRules = currentStatusRules;
+                        if (typeof loadSystemSettingsFromSheet === 'function') {
+                            await loadSystemSettingsFromSheet();
+                        }
+                        renderStatusRulesTable();
+                        showToast("🎉 บันทึกกฎสถานะสำเร็จ — นำไปใช้ทุกหน้าแล้ว", "success");
+                    } catch (err) {
+                        console.error('saveStatusRules error:', err);
+                        showToast("❌ บันทึกกฎสถานะล้มเหลว: " + String(err.message || err), "error");
                     }
                 }
 
@@ -27442,23 +27599,74 @@ ${slip.textSample}
             return Number.isFinite(number) ? number : 0;
         }
 
+        // 🎛️ [STATUS RULES - SSOT] — ค่านิยามสถานะทั้งหมด (หมวด/นับวันทำงาน/ค่าข้าว/ยกเว้นสาย)
+        // มาจาก systemSettings.statusRules ซึ่งแก้ไขได้ในหน้า System Settings → Tab "กฎ" โดยไม่ต้องแตะโค้ด
+        // ถ้ายังไม่มีการตั้งค่า จะใช้ค่าเริ่มต้นนี้ (จำลองพฤติกรรมเดิม + ครึ่งวัน = 0.5 ตามหลักจริง)
+        const DEFAULT_STATUS_RULES = {
+            'W':    { category: 'work',            workUnit: 1,   absentUnit: 0,   food: true,  exemptLate: false },
+            'L':    { category: 'late',            workUnit: 1,   absentUnit: 0,   food: true,  exemptLate: false },
+            'LH':   { category: 'late_half',       workUnit: 0.5, absentUnit: 0,   food: true,  exemptLate: false },
+            'A':    { category: 'absent',          workUnit: 0,   absentUnit: 1,   food: false, exemptLate: false },
+            'MI':   { category: 'work_incomplete', workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
+            'MO':   { category: 'work_incomplete', workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
+            'B+':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
+            'H+':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
+            'S+':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
+            'SM+':  { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
+            'A½':   { category: 'work_other',      workUnit: 0.5, absentUnit: 0.5, food: true,  exemptLate: false },
+            'P½':   { category: 'work_other',      workUnit: 0.5, absentUnit: 0.5, food: true,  exemptLate: false },
+            'พร':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: true,  exemptLate: true },
+            'พร½':  { category: 'work_other',      workUnit: 0.5, absentUnit: 0.5, food: true,  exemptLate: true },
+            'คส':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
+            'ย':    { category: 'work',            workUnit: 1,   absentUnit: 0,   food: false, exemptLate: true },
+            'นข':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: true },
+            '__default__': { category: 'work',     workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false }
+        };
+
+        // 🗺️ ตัว normalize ชื่อสถานะต่างๆ → รหัสหลัก (แก้ได้เฉพาะในโค้ด — เป็นเพียงการเทียบชื่อ ไม่ใช่กฎธุรกิจ)
+        function normalizeStatusCode(status) {
+            if (!status) return '';
+            const s = status.toString().trim();
+            if (['W', 'ปกติ', 'ทำงานปกติ', 'ทำงาน', '✓', '1', 'ปกติ (W)'].includes(s)) return 'W';
+            if (['LH', 'สายครึ่งวัน', 'สาย (LH)'].includes(s)) return 'LH';
+            if (['L', 'สาย', 'มาสาย', 'สาย (L)', '3'].includes(s)) return 'L';
+            if (['A', 'ขาด', 'ขาดงาน', '0', 'ลาเกินสิทธิ์', 'ลาไม่รับค่าจ้าง'].includes(s)) return 'A';
+            if (['พร', 'เพิ่มแรง', '5'].includes(s)) return 'พร';
+            if (s === 'พร½') return 'พร½';
+            if (['คส', 'สวัสดิการ', '6'].includes(s)) return 'คส';
+            if (['นข', 'วันหยุดนักขัตฤกษ์'].includes(s)) return 'นข';
+            if (['ย', 'วันหยุด', 'วันหยุดประจำสัปดาห์'].includes(s)) return 'ย';
+            if (['B+', 'B', '2', 'กิจ', 'ลากิจ', 'ลากิจ (+)'].includes(s)) return 'B+';
+            if (['H+', 'H', 'ลาพักร้อน', 'ลาพักร้อน (+)'].includes(s)) return 'H+';
+            if (['S+', 'S', 'ลาป่วย', 'ลาป่วย (+)'].includes(s)) return 'S+';
+            if (['SM+', 'SM', 'ลาป่วย+ใบรับรอง', 'ลาป่วย+ใบรับรองแพทย์'].includes(s)) return 'SM+';
+            if (['MI', 'ลืมเข้า', 'ลืมลงเวลา', 'ลืมบันทึกเข้า', 'ลงเวลาไม่สมบูรณ์'].includes(s)) return 'MI';
+            if (['MO', 'ลืมออก', 'ลืมบันทึกออก'].includes(s)) return 'MO';
+            if (['A½', 'ลาครึ่งเช้า'].includes(s)) return 'A½';
+            if (['P½', 'ลาครึ่งบ่าย'].includes(s)) return 'P½';
+            if (s.startsWith('S')) return 'S+';
+            if (s.startsWith('H')) return 'H+';
+            if (s.startsWith('B')) return 'B+';
+            if (s.includes('ลา')) return 'B+';
+            return s;
+        }
+
+        // 🎛️ ตัวอ่านกฎสถานะจาก systemSettings.statusRules (ค่าเดียวที่ทุกหน้าใช้)
+        function getStatusRule(status) {
+            if (!status) return DEFAULT_STATUS_RULES.__default__;
+            const rules = (typeof systemSettings === 'object' && systemSettings && systemSettings.statusRules && typeof systemSettings.statusRules === 'object')
+                ? systemSettings.statusRules
+                : DEFAULT_STATUS_RULES;
+            return rules[normalizeStatusCode(status)] || DEFAULT_STATUS_RULES.__default__;
+        }
+
         function getStatusCategory(status) {
             if (!status) return 'unknown';
-            const s = status.toString().trim();
-
-            if (['W', 'ปกติ', 'ทำงานปกติ', 'ทำงาน', '✓', '1', 'ปกติ (W)'].includes(s)) return 'work';
-            if (['LH', 'สายครึ่งวัน', 'สาย (LH)'].includes(s)) return 'late_half';
-            if (['L', 'สาย', 'มาสาย', 'สาย (L)', '3'].includes(s)) return 'late';
-            if (['A', 'ขาด', 'ขาดงาน', '0'].includes(s)) return 'absent';
-            
-            if (['พร', 'คส', 'S+', 'H+', 'B+', 'นข', 'ลาป่วย', 'ลาพักร้อน', 'ลากิจ', 'วันหยุดนักขัตฤกษ์', 'เพิ่มแรง', 'สวัสดิการ'].includes(s)) return 'work_other';
-            if (['MI', 'MO', 'ลืมเข้า', 'ลืมออก', 'ลืมลงเวลา'].includes(s)) return 'work_incomplete';
-            if (['ย', 'วันหยุด', 'วันหยุดประจำสัปดาห์'].includes(s)) return 'work';
-            
-            if (s.startsWith('S') || s.startsWith('H') || s.startsWith('B') || s.includes('ลา')) return 'work_other';
-            
-            return 'work';
+            return getStatusRule(status).category;
         }
+
+        // 🔧 ผูกค่ากฎสถานะเริ่มต้นเข้ากับ systemSettings (สามารถถูกแทนด้วยค่าจาก System Settings ได้)
+        if (!systemSettings.statusRules) systemSettings.statusRules = DEFAULT_STATUS_RULES;
 
         function mapEmployeeRow(row) {
             return {
@@ -27617,6 +27825,12 @@ ${slip.textSample}
                         if (!key) continue;
                         let val = (row.default_value || '').toString().trim();
                         if (val === '') continue;
+                        // 🎛️ key ประเภท Object (เช่น statusRules / symbolRules) → แปลงจาก JSON string
+                        if (key === 'statusRules' || key === 'symbolRules') {
+                            try { systemSettings[key] = JSON.parse(val) || {}; }
+                            catch (e) { console.warn('[loadSystemSettings] parse ' + key + ' failed:', e); }
+                            continue;
+                        }
                         if (val === 'true' || val === 'จริง') val = true;
                         else if (val === 'false' || val === 'เท็จ') val = false;
                             else if (/^-?\d+(\.\d+)?$/.test(val)) val = parseFloat(val);
@@ -28740,6 +28954,15 @@ ${slip.textSample}
                 }
             }
 
+            // 🍚 auto-fill ค่าข้าวตามกฎสถานะ (ถ้ายังไม่ได้กรอกค่าไว้)
+            try {
+                const _rule = getStatusRule(status);
+                const _foodEl = _elGet('modalStatusFood');
+                if (_rule && _foodEl && _rule.food && (!parseFloat(_foodEl.value) || parseFloat(_foodEl.value) === 0)) {
+                    _foodEl.value = systemSettings.defaultFoodAllowance || 50;
+                }
+            } catch (e) { console.warn('status food autofill failed', e); }
+
             const buttons = document.querySelectorAll('#modalStatusButtons button');
             const statusKeys = Object.keys(GLOBAL_STATUS);
             buttons.forEach((btn, index) => {
@@ -29252,31 +29475,26 @@ ${slip.textSample}
                     }
                     const matchesFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
                     if (matchesFilter) {
-                        const cat = getStatusCategory(log.status);
+                        const rule = getStatusRule(log.status);
+                        const cat = rule.category;
+                        const workU = (+rule.workUnit) || 0;
                         const lateMins = parseFloat(log.penalty || 0);
-                        if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
-                            workedDaysCount++;
-                        } else if (cat === 'late' || cat === 'late_half') {
-                            workedDaysCount += (cat === 'late_half' ? 0.5 : 1);
-                            lateDaysCount++;
-                        } else if (cat === 'absent') {
-                            absentDaysCount++;
+                        if (workU > 0) {
+                            workedDaysCount += workU;
+                            if (cat === 'late' || cat === 'late_half') lateDaysCount++;
+                        } else if ((+rule.absentUnit || 0) > 0) {
+                            absentDaysCount += (+rule.absentUnit || 0);
                         }
-                        // ✅ นับนาทีสายจาก penalty ทุก record ที่มีค่า > 0 (ไม่จำกัดเฉพาะ cat === 'late')
-                        if (lateMins > 0) {
+                        // ✅ นับนาทีสายจาก penalty ทุก record ที่มีค่า > 0 (ยกเว้นสถานะที่ตั้งค่า "ยกเว้นนับสาย" ใน System Settings)
+                        if (lateMins > 0 && !rule.exemptLate) {
                             lateMinutesSum += lateMins;
-                            if (cat !== 'late') lateDaysCount++;
+                            if (cat !== 'late' && cat !== 'late_half') lateDaysCount++;
                         }
 
-                        // 💰 ต้นทุนค่าจ้างรายวัน = ค่าจ้างต่อวัน + (OT ชม. × อัตรารายชั่วโมง × ค่าแรง OT) — ตรรกะเดียวกับแท็บต้นทุน
-                        if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete' || cat === 'late') {
+                        // 💰 ต้นทุนค่าจ้างรายวัน = (วันทำงาน × ค่าจ้างต่อวัน) + (OT ชม. × อัตรารายชั่วโมง × ค่าแรง OT) — ตรรกะเดียวกับแท็บต้นทุน
+                        if (workU > 0) {
                             const logOtHours = parseFloat(log.ot || 0);
-                            totalWagesCost += costParams.baseDailyWage + (logOtHours * costParams.baseHourlyWage * costParams.otRate);
-                        } else if (cat === 'late_half') {
-                            // 🔧 สายครึ่งวัน — คิดค่าจ้างครึ่งวัน (halfDayWageRate × baseDailyWage)
-                            const halfRate = parseFloat(systemSettings.halfDayWageRate) || 0.5;
-                            const logOtHours = parseFloat(log.ot || 0);
-                            totalWagesCost += (costParams.baseDailyWage * halfRate) + (logOtHours * costParams.baseHourlyWage * costParams.otRate);
+                            totalWagesCost += (costParams.baseDailyWage * workU) + (logOtHours * costParams.baseHourlyWage * costParams.otRate);
                         }
 
                         totalOtHours += parseFloat(log.ot || 0);
@@ -29462,9 +29680,9 @@ ${slip.textSample}
 
                     if (activeProject !== 'all' && !isProjectMatch(projName, activeProject)) return;
 
-                    const cat = getStatusCategory(log.status);
-                    const isWorking = ['work', 'late', 'work_other', 'work_incomplete', 'late_half'].includes(cat);
-                    if (!isWorking) return;
+                    const rule = getStatusRule(log.status);
+                    const workU = (+rule.workUnit) || 0;
+                    if (workU <= 0) return;
 
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
@@ -29479,10 +29697,8 @@ ${slip.textSample}
                     
                     const logOtHours = parseFloat(log.ot || 0);
                     const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
-                    // สายครึ่งวัน = จ่ายค่าจ้างครึ่งวัน (สอดคล้องกับ Matrix / การพิมพ์)
-                    const logWages = cat === 'late_half'
-                        ? (applyRounding(baseDailyWage * (parseFloat(systemSettings.halfDayWageRate) || 0.5), systemSettings.roundSalary) + logOtPay)
-                        : (baseDailyWage + logOtPay); 
+                    // 💰 ค่าจ้าง = นับวันทำงาน × ค่าจ้างต่อวัน (สถานะครึ่งวัน workUnit = 0.5) — จาก System Settings
+                    const logWages = applyRounding(baseDailyWage * workU, systemSettings.roundSalary) + logOtPay; 
 
                     if (!costingDatabase[projName]) {
                         costingDatabase[projName] = {};
@@ -29503,7 +29719,7 @@ ${slip.textSample}
                     }
 
                     const record = costingDatabase[projName][empId];
-                    record.days += (cat === 'late_half' ? 0.5 : 1);
+                    record.days += workU;
                     record.otHours += logOtHours;
                     record.wages += logWages;
                     record.food += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
@@ -29718,20 +29934,18 @@ ${slip.textSample}
 
                         const stat = empSummaryDB[empId];
 
-                        const cat = getStatusCategory(log.status);
-                        if (['work', 'late', 'work_other', 'work_incomplete', 'late_half'].includes(cat)) {
-                            // สายครึ่งวัน = ทำงานเพียงครึ่งวัน → นับวันทำงาน 0.5 วัน
-                            const dayUnit = cat === 'late_half' ? 0.5 : 1;
-                            actualWorkedManDays += dayUnit;
-                            stat.workedDays += dayUnit;
-                            // สายครึ่งวัน = จ่ายค่าจ้างครึ่งวัน (สอดคล้องกับ Matrix / การพิมพ์)
-                            const dayWage = cat === 'late_half'
-                                ? baseDailyWage * (parseFloat(systemSettings.halfDayWageRate) || 0.5)
-                                : baseDailyWage;
+                        const rule = getStatusRule(log.status);
+                        const workU = (+rule.workUnit) || 0;
+                        const cat = rule.category;
+                        if (workU > 0) {
+                            // 🎛️ วันทำงาน/ครึ่งวัน + ค่าจ้างตามสถานะ มาจาก System Settings (statusRules)
+                            actualWorkedManDays += workU;
+                            stat.workedDays += workU;
+                            const dayWage = baseDailyWage * workU;
                             stat.wagesPaid += dayWage;
                             totalBaseSalaryPay += dayWage;
 
-                            if (cat === 'late' || cat === 'late_half') {
+                            if ((cat === 'late' || cat === 'late_half') && !rule.exemptLate) {
                                 stat.lateDays++;
                                 stat.lateMins += parseFloat(log.penalty || 0);
                             }
@@ -29763,12 +29977,11 @@ ${slip.textSample}
 
                         // ยอดจ่ายแรงงานจริงรายโครงการ (ค่าจ้างตามสถานะการทำงานจริง + OT + สวัสดิการ) สอดคล้องกับแท็บต้นทุน
                         if (log.project) {
-                            const cat = getStatusCategory(log.status);
+                            const rule = getStatusRule(log.status);
+                            const workU = (+rule.workUnit) || 0;
                             let wageCost = 0;
-                            if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete' || cat === 'late') {
-                                wageCost = baseDailyWage + (logOtHours * baseHourlyWage * otRate);
-                            } else if (cat === 'late_half') {
-                                wageCost = (baseDailyWage * (parseFloat(systemSettings.halfDayWageRate) || 0.5)) + (logOtHours * baseHourlyWage * otRate);
+                            if (workU > 0) {
+                                wageCost = (baseDailyWage * workU) + (logOtHours * baseHourlyWage * otRate);
                             }
                             const dayCost = wageCost + dailyWelfareSum;
                             if (dayCost > 0) {
@@ -30028,8 +30241,9 @@ ${slip.textSample}
                     const log = dayData[empId];
                     if (!log || log.project !== projName) return;
 
-                    const isWorking = ['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status));
-                    if (!isWorking) return;
+                    const rule = getStatusRule(log.status);
+                    const workU = (+rule.workUnit) || 0;
+                    if (workU <= 0) return;
 
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
@@ -30063,11 +30277,11 @@ ${slip.textSample}
                         laborData.push(rec);
                     }
 
-                    rec.workDays += 1;
-                    if (isSpecialDay) rec.specialDays += 1;
+                    rec.workDays += workU;
+                    if (isSpecialDay) rec.specialDays += workU;
                     rec.otHours += otHours;
-                    rec.base += dailyWage;
-                    if (isSpecialDay) rec.specialBonus += dailyWage;
+                    rec.base += applyRounding(dailyWage * workU, systemSettings.roundSalary);
+                    if (isSpecialDay) rec.specialBonus += applyRounding(dailyWage * workU, systemSettings.roundSalary);
                     rec.ot += applyRounding(otHours * hourlyWage * otRate, systemSettings.roundSalary);
                     rec.meal += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
                     rec.travel += applyRounding(parseFloat(log.trip || 0), systemSettings.roundWelfare);
@@ -30127,7 +30341,7 @@ ${slip.textSample}
                 Object.keys(dayData).forEach(empId => {
                     const log = dayData[empId];
                     if (!log || !log.project) return;
-                    if (!['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status))) return;
+                    if (((+getStatusRule(log.status).workUnit) || 0) <= 0) return;
                     projSet.add(log.project);
                 });
             });
@@ -30384,17 +30598,17 @@ ${slip.textSample}
 
                         const matchesFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
                         if (matchesFilter) {
-                            const cat = typeof getStatusCategory === 'function' ? getStatusCategory(log.status) : '';
+                            const rule = getStatusRule(log.status);
+                            const cat = rule.category;
+                            const workU = (+rule.workUnit) || 0;
                             const lateMins = parseFloat(log.penalty || 0);
-                            if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
-                                workedDaysCount++;
-                            } else if (cat === 'late' || cat === 'late_half') {
-                                workedDaysCount += (cat === 'late_half' ? 0.5 : 1);
-                                lateDaysCount++;
-                            } else if (cat === 'absent') {
-                                absentDaysCount++;
+                            if (workU > 0) {
+                                workedDaysCount += workU;
+                                if (cat === 'late' || cat === 'late_half') lateDaysCount++;
+                            } else if ((+rule.absentUnit || 0) > 0) {
+                                absentDaysCount += (+rule.absentUnit || 0);
                             }
-                            if (lateMins > 0) {
+                            if (lateMins > 0 && !rule.exemptLate) {
                                 lateMinutesSum += lateMins;
                                 if (cat !== 'late' && cat !== 'late_half') lateDaysCount++;
                             }
