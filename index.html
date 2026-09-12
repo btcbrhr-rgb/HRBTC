@@ -5629,7 +5629,7 @@
     </div>
 
     <!-- MODAL: ปรับสถานะการทำงานเดี่ยว และแก้ไขเวลาเข้าออก -->
-    <div id="statusModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
+    <div id="statusModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100001] p-4 no-print">
         <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden transform transition-all duration-200">
             <div class="bg-gradient-to-r from-brand-navy to-brand-teal text-white px-6 py-4.5 flex justify-between items-center">
                 <h3 class="text-base font-extrabold flex items-center">
@@ -29034,6 +29034,10 @@ ${slip.textSample}
             const currentCycleMonth = document.getElementById('billingMonth').value;
             const dates = getBillingCycleDates(currentCycleMonth);
 
+            // ไฮไลต์คอลัมน์วันที่ปัจจุบัน
+            const _now = new Date();
+            const todayStr = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStart(2, '0') + '-' + String(_now.getDate()).padStart(2, '0');
+
             // ── Build month groups (for the 2-row grouped header) ──
             const monthGroups = [];
             dates.forEach((date, idx) => {
@@ -29145,9 +29149,11 @@ ${slip.textSample}
             let subHtml = '';
             dates.forEach((date, idx) => {
                 const m = dateMeta[idx];
-                const sun = m.isSunday
-                    ? 'bg-rose-50 text-rose-600 border-slate-200'
-                    : (m.monthIdx % 2 === 0 ? 'bg-slate-50 text-slate-600 border-slate-200' : 'bg-slate-100 text-slate-600 border-slate-200');
+                const sun = date === todayStr
+                    ? 'bg-brand-sky text-brand-deep border-brand-sky2'
+                    : (m.isSunday
+                        ? 'bg-rose-50 text-rose-600 border-slate-200'
+                        : (m.monthIdx % 2 === 0 ? 'bg-slate-50 text-slate-600 border-slate-200' : 'bg-slate-100 text-slate-600 border-slate-200'));
                 subHtml += `
                     <th class="py-0.5 px-px text-center border-r border-b ${sun}" style="min-width:22px;max-width:24px;">
                         <div class="font-mono text-[9px] font-bold leading-none">${m.dayNum}</div>
@@ -29177,13 +29183,15 @@ ${slip.textSample}
 
             const matrixSearchEl = document.getElementById('matrixEmpSearch');
             const matrixSearchTerm = (matrixSearchEl ? matrixSearchEl.value : '').trim().toLowerCase();
-            const filteredEmps = employees.filter(emp => {
-                const matchProject = activeProject === 'all' || isEmpWorkedInProject(emp.id, activeProject, dates);
-                const matchSearch = !matrixSearchTerm
-                    || emp.name.toLowerCase().includes(matrixSearchTerm)
-                    || String(emp.id).toLowerCase().includes(matrixSearchTerm);
-                return matchProject && matchSearch;
-            });
+            const filteredEmps = employees
+                .filter(emp => {
+                    const matchProject = activeProject === 'all' || isEmpWorkedInProject(emp.id, activeProject, dates);
+                    const matchSearch = !matrixSearchTerm
+                        || emp.name.toLowerCase().includes(matrixSearchTerm)
+                        || String(emp.id).toLowerCase().includes(matrixSearchTerm);
+                    return matchProject && matchSearch;
+                })
+                .sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
 
             let totalAllWorkingDays = 0;
             let totalLateDays = 0;
@@ -29353,7 +29361,9 @@ ${slip.textSample}
                     }
 
                     const m = dateMeta[idx];
-                    const cellBg = m.isSunday ? (empIdx % 2 === 0 ? 'bg-rose-50/40' : 'bg-rose-50/30') : zebra;
+                    const cellBg = date === todayStr
+                        ? (empIdx % 2 === 0 ? 'bg-brand-sky/50' : 'bg-brand-sky/40')
+                        : (m.isSunday ? (empIdx % 2 === 0 ? 'bg-rose-50/40' : 'bg-rose-50/30') : zebra);
 
                     const otHours = parseFloat(log.ot || 0);
                     const otDisplay = otHours > 0 ? `
@@ -29519,7 +29529,7 @@ ${slip.textSample}
 
             projectNames.forEach(projName => {
                 const empRecords = costingDatabase[projName];
-                const empIds = Object.keys(empRecords);
+                const empIds = Object.keys(empRecords).sort((a, b) => String(a).localeCompare(String(b), 'en', { numeric: true }));
 
                 let projectTotalDays = 0;
                 let projectTotalWages = 0;
@@ -30250,7 +30260,7 @@ ${slip.textSample}
                         || emp.name.toLowerCase().includes(matrixSearchTerm)
                         || String(emp.id).toLowerCase().includes(matrixSearchTerm);
                     return matchProject && matchSearch;
-                });
+                }).sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
 
                 if (filteredEmps.length === 0) {
                     if (typeof showToast === 'function') {
