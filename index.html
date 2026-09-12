@@ -3058,23 +3058,23 @@
 
                         <!-- Editable fields -->
                         <div class="space-y-1">
-                            <label for="profile-phone"
+                            <label for="form-profile-phone"
                                 class="text-xs text-slate-500 font-semibold">เบอร์โทรศัพท์</label>
-                            <input id="profile-phone" type="tel" placeholder="0xx-xxx-xxxx" title="เบอร์โทรศัพท์"
+                            <input id="form-profile-phone" type="tel" placeholder="0xx-xxx-xxxx" title="เบอร์โทรศัพท์"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
                         </div>
 
                         <div class="space-y-1">
-                            <label for="profile-address"
+                            <label for="form-profile-address"
                                 class="text-xs text-slate-500 font-semibold">ที่อยู่</label>
-                            <textarea id="profile-address" rows="2" placeholder="ระบุที่อยู่ปัจจุบัน" title="ที่อยู่"
+                            <textarea id="form-profile-address" rows="2" placeholder="ระบุที่อยู่ปัจจุบัน" title="ที่อยู่"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"></textarea>
                         </div>
 
                         <div class="space-y-1">
-                            <label for="profile-birthdate"
+                            <label for="form-profile-birthdate"
                                 class="text-xs text-slate-500 font-semibold">วันเดือนปีเกิด</label>
-                            <input id="profile-birthdate" type="date" title="วันเดือนปีเกิด"
+                            <input id="form-profile-birthdate" type="date" title="วันเดือนปีเกิด"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
                         </div>
 
@@ -25247,9 +25247,9 @@ ${slip.textSample}
                     var phoneInput = document.getElementById('profile-phone-input');
                     var addressInput = document.getElementById('profile-address-input');
                     var birthdateInput = document.getElementById('profile-birthdate-input');
-                    var phoneForm = document.getElementById('profile-phone');
-                    var addressForm = document.getElementById('profile-address');
-                    var birthdateForm = document.getElementById('profile-birthdate');
+                    var phoneForm = document.getElementById('form-profile-phone');
+                    var addressForm = document.getElementById('form-profile-address');
+                    var birthdateForm = document.getElementById('form-profile-birthdate');
                     if (phoneInput && phoneForm) phoneForm.value = phoneInput.value;
                     if (addressInput && addressForm) addressForm.value = addressInput.value;
                     if (birthdateInput && birthdateForm) birthdateForm.value = birthdateInput.value;
@@ -25294,9 +25294,9 @@ ${slip.textSample}
                         const payload = {
                             action: "updateEmployeeProfile",
                             empId: currentEmployeeId,
-                            "เบอร์โทรศัพท์": document.getElementById("profile-phone").value,
-                            "ที่อยู่": document.getElementById("profile-address").value,
-                            "วันเดือนปีเกิด": document.getElementById("profile-birthdate").value
+                            "เบอร์โทรศัพท์": document.getElementById("form-profile-phone").value,
+                            "ที่อยู่": document.getElementById("form-profile-address").value,
+                            "วันเดือนปีเกิด": document.getElementById("form-profile-birthdate").value
                         };
 
                         showToast("⏳ กำลังบันทึกข้อมูลโปรไฟล์…", "info");
@@ -29257,7 +29257,7 @@ ${slip.textSample}
                         if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
                             workedDaysCount++;
                         } else if (cat === 'late' || cat === 'late_half') {
-                            workedDaysCount++;
+                            workedDaysCount += (cat === 'late_half' ? 0.5 : 1);
                             lateDaysCount++;
                         } else if (cat === 'absent') {
                             absentDaysCount++;
@@ -29355,6 +29355,7 @@ ${slip.textSample}
                             statusClass = "bg-yellow-50 text-yellow-700 border-yellow-200 font-extrabold shadow-sm";
                             statusSymbol = 'นข';
                         } else if (cat === 'work' || cat === 'work_other') statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
+                        else if (cat === 'late_half') { statusClass = "bg-purple-100 text-purple-700 border-purple-200 font-extrabold shadow-sm"; statusSymbol = 'L½'; }
                         else if (cat === 'late' || cat === 'work_incomplete') statusClass = "bg-amber-100 text-amber-800 border-amber-200 font-extrabold shadow-sm";
                         else if (cat === 'absent') statusClass = "bg-rose-100 text-rose-700 border-rose-200 font-extrabold shadow-sm";
                         else if (cat === 'off') statusClass = "bg-rose-50/30 text-rose-500 border-rose-100/30";
@@ -29461,7 +29462,8 @@ ${slip.textSample}
 
                     if (activeProject !== 'all' && !isProjectMatch(projName, activeProject)) return;
 
-                    const isWorking = ['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status));
+                    const cat = getStatusCategory(log.status);
+                    const isWorking = ['work', 'late', 'work_other', 'work_incomplete', 'late_half'].includes(cat);
                     if (!isWorking) return;
 
                     const emp = employees.find(e => e.id === empId);
@@ -29477,7 +29479,10 @@ ${slip.textSample}
                     
                     const logOtHours = parseFloat(log.ot || 0);
                     const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
-                    const logWages = baseDailyWage + logOtPay; 
+                    // สายครึ่งวัน = จ่ายค่าจ้างครึ่งวัน (สอดคล้องกับ Matrix / การพิมพ์)
+                    const logWages = cat === 'late_half'
+                        ? (applyRounding(baseDailyWage * (parseFloat(systemSettings.halfDayWageRate) || 0.5), systemSettings.roundSalary) + logOtPay)
+                        : (baseDailyWage + logOtPay); 
 
                     if (!costingDatabase[projName]) {
                         costingDatabase[projName] = {};
@@ -29498,7 +29503,7 @@ ${slip.textSample}
                     }
 
                     const record = costingDatabase[projName][empId];
-                    record.days += 1;
+                    record.days += (cat === 'late_half' ? 0.5 : 1);
                     record.otHours += logOtHours;
                     record.wages += logWages;
                     record.food += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
@@ -29713,13 +29718,20 @@ ${slip.textSample}
 
                         const stat = empSummaryDB[empId];
 
-                        if (['work', 'late', 'work_other', 'work_incomplete'].includes(getStatusCategory(log.status))) {
-                            actualWorkedManDays++;
-                            stat.workedDays++;
-                            stat.wagesPaid += baseDailyWage;
-                            totalBaseSalaryPay += baseDailyWage;
-                            
-                            if (getStatusCategory(log.status) === 'late') {
+                        const cat = getStatusCategory(log.status);
+                        if (['work', 'late', 'work_other', 'work_incomplete', 'late_half'].includes(cat)) {
+                            // สายครึ่งวัน = ทำงานเพียงครึ่งวัน → นับวันทำงาน 0.5 วัน
+                            const dayUnit = cat === 'late_half' ? 0.5 : 1;
+                            actualWorkedManDays += dayUnit;
+                            stat.workedDays += dayUnit;
+                            // สายครึ่งวัน = จ่ายค่าจ้างครึ่งวัน (สอดคล้องกับ Matrix / การพิมพ์)
+                            const dayWage = cat === 'late_half'
+                                ? baseDailyWage * (parseFloat(systemSettings.halfDayWageRate) || 0.5)
+                                : baseDailyWage;
+                            stat.wagesPaid += dayWage;
+                            totalBaseSalaryPay += dayWage;
+
+                            if (cat === 'late' || cat === 'late_half') {
                                 stat.lateDays++;
                                 stat.lateMins += parseFloat(log.penalty || 0);
                             }
@@ -30377,7 +30389,7 @@ ${slip.textSample}
                             if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete') {
                                 workedDaysCount++;
                             } else if (cat === 'late' || cat === 'late_half') {
-                                workedDaysCount++;
+                                workedDaysCount += (cat === 'late_half' ? 0.5 : 1);
                                 lateDaysCount++;
                             } else if (cat === 'absent') {
                                 absentDaysCount++;
