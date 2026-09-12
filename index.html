@@ -5387,8 +5387,8 @@
                 <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm lg:col-span-2 space-y-3">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                         <div>
-                            <h3 class="text-sm font-extrabold text-slate-800">เปรียบเทียบ งบประมาณค่าแรงจัดตั้ง vs ยอดจ่ายแรงงานจริง</h3>
-                            <p class="text-[10px] text-slate-400 font-medium">เตือนสีแดงเมื่อยอดใช้สะสมในรอบบัญชีเกิน 90% ของเป้าหมาย</p>
+                            <h3 class="text-sm font-extrabold text-slate-800">ยอดจ่ายแรงงานจริงรายโครงการ</h3>
+                            <p class="text-[10px] text-slate-400 font-medium">ค่าจ้าง + OT + สวัสดิการ ตามบันทึกเวลาจริงของรอบบัญชี (เรียงจากสูงไปต่ำ)</p>
                         </div>
                     </div>
                     
@@ -26935,8 +26935,8 @@ ${slip.textSample}
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 space-y-3">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                         <div>
-                            <h3 class="text-sm font-extrabold text-slate-800">เปรียบเทียบ งบประมาณค่าแรงจัดตั้ง vs ยอดจ่ายแรงงานจริง</h3>
-                            <p class="text-[10px] text-slate-400 font-medium">เตือนสีแดงเมื่อยอดใช้สะสมในรอบบัญชีเกิน 90% ของเป้าหมาย</p>
+                            <h3 class="text-sm font-extrabold text-slate-800">ยอดจ่ายแรงงานจริงรายโครงการ</h3>
+                            <p class="text-[10px] text-slate-400 font-medium">ค่าจ้าง + OT + สวัสดิการ ตามบันทึกเวลาจริงของรอบบัญชี (เรียงจากสูงไปต่ำ)</p>
                         </div>
                     </div>
                     
@@ -29749,8 +29749,20 @@ ${slip.textSample}
                             });
                         }
 
-                        if (projectActualDB[log.project] !== undefined) {
-                            projectActualDB[log.project] += (baseDailyWage + (logOtHours * baseHourlyWage * otRate) + dailyWelfareSum);
+                        // ยอดจ่ายแรงงานจริงรายโครงการ (ค่าจ้างตามสถานะการทำงานจริง + OT + สวัสดิการ) สอดคล้องกับแท็บต้นทุน
+                        if (log.project) {
+                            const cat = getStatusCategory(log.status);
+                            let wageCost = 0;
+                            if (cat === 'work' || cat === 'work_other' || cat === 'work_incomplete' || cat === 'late') {
+                                wageCost = baseDailyWage + (logOtHours * baseHourlyWage * otRate);
+                            } else if (cat === 'late_half') {
+                                wageCost = (baseDailyWage * (parseFloat(systemSettings.halfDayWageRate) || 0.5)) + (logOtHours * baseHourlyWage * otRate);
+                            }
+                            const dayCost = wageCost + dailyWelfareSum;
+                            if (dayCost > 0) {
+                                if (projectActualDB[log.project] === undefined) projectActualDB[log.project] = 0;
+                                projectActualDB[log.project] += dayCost;
+                            }
                         }
                     }
                 });
@@ -29791,31 +29803,40 @@ ${slip.textSample}
             document.getElementById('insight-bar-ot').style.width = `${otPercent}%`;
             document.getElementById('insight-bar-welfare').style.width = `${welfarePercent}%`;
 
-            // แสดงผลเปรียบเทียบ "งบประมาณ vs ยอดจ่ายจริง" รายโครงการ
+            // แสดงผล "ยอดจ่ายแรงงานจริง" รายโครงการ (จากบันทึกเวลาปฏิบัติงานจริง — ใช้ log.project เป็นหลัก)
             const budgetChartContainer = document.getElementById('insightsBudgetChartContainer');
             budgetChartContainer.innerHTML = '';
 
-            Object.keys(PROJECT_BUDGETS).forEach(projName => {
-                const limitBudget = PROJECT_BUDGETS[projName];
-                const actualCost = projectActualDB[projName] || 0;
-                const spendPercent = limitBudget > 0 ? ((actualCost / limitBudget) * 100) : 0;
+            const actualEntries = Object.keys(projectActualDB)
+                .map(name => ({ name, cost: projectActualDB[name] }))
+                .filter(e => e.cost > 0)
+                .sort((a, b) => b.cost - a.cost);
 
-                const isOverBudgetLimit = spendPercent >= 90;
-                const barColorClass = isOverBudgetLimit ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-brand-deep to-brand-teal';
-                const textColorClass = isOverBudgetLimit ? 'text-rose-700 font-extrabold animate-pulse' : 'text-slate-700 font-bold';
-
-                budgetChartContainer.innerHTML += `
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="font-extrabold text-slate-800 text-xs truncate max-w-[280px]" title="${projName}">${projName}</span>
-                            <span class="${textColorClass} text-xs">${actualCost.toLocaleString('th-TH', { maximumFractionDigits: 0 })} / ${limitBudget.toLocaleString('th-TH')} (${spendPercent.toFixed(0)}%)</span>
+            if (actualEntries.length > 0) {
+                const maxCost = Math.max(...actualEntries.map(e => e.cost));
+                actualEntries.forEach(entry => {
+                    const pct = maxCost > 0 ? (entry.cost / maxCost) * 100 : 0;
+                    const isTop = entry.cost === maxCost;
+                    budgetChartContainer.innerHTML += `
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-extrabold text-slate-800 text-xs truncate max-w-[280px]" title="${entry.name}">${entry.name}</span>
+                                <span class="${isTop ? 'text-brand-deep font-black' : 'text-slate-700 font-bold'} text-xs tabular-nums">${entry.cost.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท</span>
+                            </div>
+                            <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden border border-slate-200/50">
+                                <div class="${isTop ? 'bg-gradient-to-r from-brand-deep to-brand-teal' : 'bg-gradient-to-r from-brand-sky to-brand-teal/80'} h-full rounded-full transition-all duration-500" style="width: ${Math.max(pct, 4)}%"></div>
+                            </div>
                         </div>
-                        <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden border border-slate-200/50">
-                            <div class="${barColorClass} h-full rounded-full transition-all duration-500" style="width: ${Math.min(spendPercent, 100)}%"></div>
-                        </div>
+                    `;
+                });
+            } else {
+                budgetChartContainer.innerHTML = `
+                    <div class="flex items-center justify-center gap-2 px-3 py-6 bg-slate-50/70 rounded-xl border border-dashed border-slate-200 text-center">
+                        <i class="fa-solid fa-hourglass-half text-slate-300"></i>
+                        <p class="text-xs text-slate-400 font-semibold">ยังไม่มีข้อมูลยอดจ่ายแรงงานจริงในรอบบัญชีนี้</p>
                     </div>
                 `;
-            });
+            }
 
             // ตารางประเมินตรวจสอบเบี้ยเลี้ยง (Welfare Leakage Audit Table)
             // ⚡ ดึง tbody ทั้ง 2 ชุด (Admin + Foreman) แล้ว render พร้อมกัน (กัน id ซ้ำ)
