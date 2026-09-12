@@ -29118,7 +29118,7 @@ ${slip.textSample}
             tableFoot.innerHTML = '';
 
             // ══ ROW 1: GROUP HEADER (sticky identity + month groups + stat/allowance groups) ══
-            const stickyBg = 'bg-gradient-to-b from-brand-deep to-brand-navy text-slate-100 border-white/20';
+            const stickyBg = 'bg-slate-100 text-slate-600 border-slate-200';
             let groupHtml = `
                 <th rowspan="2" class="px-1 py-2 text-center font-bold uppercase tracking-wide sticky left-0 z-50 border-r border-b ${stickyBg} text-[9px]" style="width:28px;min-width:28px;max-width:28px;">#</th>
                 <th rowspan="2" class="px-2 py-2 text-left font-bold uppercase tracking-wide sticky z-50 border-r border-b ${stickyBg} text-[9px]" style="width:180px;min-width:180px;max-width:180px;left:28px;">ชื่อ - นามสกุล</th>
@@ -29126,19 +29126,18 @@ ${slip.textSample}
             `;
 
             monthGroups.forEach((g, gi) => {
-                const c = monthColors[gi % monthColors.length];
                 const start = dateMeta[g.startIdx];
                 const end = dateMeta[g.endIdx];
                 const span = g.endIdx - g.startIdx + 1;
                 groupHtml += `
-                    <th colspan="${span}" class="py-2 px-1 text-center font-semibold uppercase tracking-wide border-r border-b ${c.group} text-[10px]">
+                    <th colspan="${span}" class="py-2 px-1 text-center font-semibold uppercase tracking-wide border-r border-b border-slate-200 ${gi % 2 === 0 ? 'bg-slate-50 text-slate-700' : 'bg-slate-100 text-slate-700'} text-[10px]">
                         <i class="fa-regular fa-calendar-days mr-1"></i> ${start.monthFull} ${start.buddhistYear} (${start.dayNum}-${end.dayNum})
                     </th>`;
             });
 
             groupHtml += `
-                <th colspan="5" class="py-2 px-1 text-center font-bold uppercase tracking-wide border-r border-b border-l-2 border-l-slate-500 bg-brand-navy text-brand-sky text-[10px]">สรุปสถิติเวลา</th>
-                <th colspan="4" class="py-2 px-1 text-center font-bold uppercase tracking-wide border-r border-b border-l-2 border-l-slate-500 bg-emerald-900 text-emerald-200 text-[10px]">ค่าเบี้ยเลี้ยงและสวัสดิการ (บาท)</th>
+                <th colspan="5" class="py-2 px-1 text-center font-bold uppercase tracking-wide border-r border-b border-l-2 border-l-slate-400 bg-slate-200 text-slate-800 text-[10px]">สรุปสถิติเวลา</th>
+                <th colspan="4" class="py-2 px-1 text-center font-bold uppercase tracking-wide border-r border-b border-l-2 border-l-slate-400 bg-emerald-50 text-emerald-800 text-[10px]">ค่าเบี้ยเลี้ยงและสวัสดิการ (บาท)</th>
             `;
             groupRow.innerHTML = groupHtml;
 
@@ -29146,8 +29145,9 @@ ${slip.textSample}
             let subHtml = '';
             dates.forEach((date, idx) => {
                 const m = dateMeta[idx];
-                const c = monthColors[m.monthIdx % monthColors.length];
-                const sun = m.isSunday ? c.sunday : c.group;
+                const sun = m.isSunday
+                    ? 'bg-rose-50 text-rose-600 border-slate-200'
+                    : (m.monthIdx % 2 === 0 ? 'bg-slate-50 text-slate-600 border-slate-200' : 'bg-slate-100 text-slate-600 border-slate-200');
                 subHtml += `
                     <th class="py-0.5 px-px text-center border-r border-b ${sun}" style="min-width:22px;max-width:24px;">
                         <div class="font-mono text-[9px] font-bold leading-none">${m.dayNum}</div>
@@ -29156,22 +29156,22 @@ ${slip.textSample}
             });
 
             const statLabels = [
-                { t: 'มา (วัน)',  cls: 'text-green-300' },
-                { t: 'สาย (วัน)', cls: 'text-amber-300' },
-                { t: 'สาย (น.)',  cls: 'text-amber-300' },
-                { t: 'ขาด (วัน)', cls: 'text-rose-300' },
-                { t: 'OT (ชม.)',  cls: 'text-brand-sky' }
+                { t: 'มา (วัน)',  cls: 'text-emerald-600' },
+                { t: 'สาย (วัน)', cls: 'text-amber-600' },
+                { t: 'สาย (น.)',  cls: 'text-amber-600' },
+                { t: 'ขาด (วัน)', cls: 'text-rose-600' },
+                { t: 'OT (ชม.)',  cls: 'text-sky-700' }
             ];
             statLabels.forEach((s, i) => {
                 subHtml += `
-                    <th class="py-1 px-0.5 min-w-[42px] text-center font-bold text-[9px] border-r border-b border-white/20 ${s.cls} bg-brand-navy ${i === 0 ? 'border-l-2 border-l-slate-500' : ''}">${s.t}</th>`;
+                    <th class="py-1 px-0.5 min-w-[42px] text-center font-bold text-[9px] border-r border-b border-slate-200 ${s.cls} bg-slate-100 ${i === 0 ? 'border-l-2 border-l-slate-400' : ''}">${s.t}</th>`;
             });
 
             const allowLabels = ['ค่าข้าว', 'ค่าเที่ยว', 'ค่าอื่นๆ', 'รวม'];
             allowLabels.forEach((t, i) => {
                 const last = i === allowLabels.length - 1;
                 subHtml += `
-                    <th class="py-1 px-1 min-w-[50px] text-right font-bold text-[9px] border-r border-b border-white/20 ${last ? 'bg-emerald-800 text-emerald-100' : 'bg-emerald-900 text-emerald-200'} ${i === 0 ? 'border-l-2 border-l-slate-500' : ''}">${t}</th>`;
+                    <th class="py-1 px-1 min-w-[50px] text-right font-bold text-[9px] border-r border-b border-slate-200 ${last ? 'bg-emerald-100 text-emerald-900' : 'bg-emerald-50 text-emerald-800'} ${i === 0 ? 'border-l-2 border-l-slate-400' : ''}">${t}</th>`;
             });
             headerRow.innerHTML = subHtml;
 
