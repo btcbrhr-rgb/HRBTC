@@ -4925,12 +4925,16 @@
                         box-shadow: 0 8px 24px rgba(15,23,42,.08);
                     }
                     #admin-sec-project-cost #sum-total-employees,
-                    #admin-sec-project-cost #costing-total-cost { color: #1d4ed8; }
+                    #admin-sec-project-cost #costing-total-cost,
+                    #admin-sec-project-cost #insight-avg-attendance-rate { color: #1d4ed8; }
                     #admin-sec-project-cost #sum-total-wages,
-                    #admin-sec-project-cost #costing-wages-cost { color: #059669; }
+                    #admin-sec-project-cost #costing-wages-cost,
+                    #admin-sec-project-cost #insight-avg-manday-cost { color: #059669; }
                     #admin-sec-project-cost #sum-total-allowances,
                     #admin-sec-project-cost #costing-allowances-cost { color: #4338ca; }
                     #admin-sec-project-cost #sum-total-labor-cost { color: #b45309; }
+                    #admin-sec-project-cost #insight-welfare-leak-count { color: #e11d48; }
+                    #admin-sec-project-cost #insight-ot-exhaustion-count { color: #d97706; }
                     #admin-sec-project-cost #sharedBillingMonth { font-size: 0.8125rem; }
                     #admin-sec-project-cost #projectFilter,
                     #admin-sec-project-cost #costingProjectFilter,
@@ -4940,6 +4944,26 @@
                     #admin-sec-project-cost #projectCostSection thead th { background: #f8fafc; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 #e2e8f0; }
                     #admin-sec-project-cost #projectCostSection table { border-spacing: 0; }
                     #admin-sec-project-cost #projectCostSection td:last-child, #admin-sec-project-cost #projectCostSection .hr-table-total td:last-child { font-variant-numeric: tabular-nums; }
+                    /* Matrix Legend Bar: แสดงผลแบบ Pill สะอาด สบายตา */
+                    #admin-sec-project-cost .matrix-legend-bar {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        gap: 0.5rem;
+                        background: #f8fafc;
+                    }
+                    #admin-sec-project-cost .matrix-legend-bar span {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 0.35rem;
+                        padding: 0.15rem 0.55rem;
+                        background: #ffffff;
+                        border-radius: 9999px;
+                        border: 1px solid #e2e8f0;
+                        font-weight: 600;
+                        font-size: 0.6875rem;
+                        box-shadow: 0 1px 1px rgba(0,0,0,0.02);
+                    }
                 </style>
 
                 <!-- SECTION 2.x: บันทึกเวลางานและต้นทุนโครงการ (Admin panel container for embedded view) -->
@@ -5019,11 +5043,11 @@
                                     </div>
                                 </div>
 
-                                <!-- แถวล่าง: ตัวกรองโครงการ + ค้นหาพนักงาน -->
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0.5">
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                                            <i class="fa-solid fa-filter text-brand-teal mr-1"></i>ตัวกรองโครงการหน้างาน
+                                <!-- แถวล่าง: ตัวกรองโครงการ + ค้นหาพนักงาน (ปรับเปลี่ยนตามแท็บที่เลือก) -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0.5" id="tab-filter-container">
+                                    <div id="project-filter-col" class="w-full">
+                                        <label id="project-filter-label" class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                                            <i class="fa-solid fa-filter text-brand-teal mr-1"></i>ตัวกรองโครงการหน้างาน (Matrix)
                                         </label>
                                         <div class="relative">
                                             <select id="projectFilter" onchange="handleProjectChange(this.value)" aria-label="ตัวกรองโครงการหน้างาน" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-xs font-semibold appearance-none transition-all">
@@ -5034,7 +5058,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div>
+                                    <div id="emp-search-col" class="w-full">
                                         <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
                                             <i class="fa-solid fa-user text-brand-teal mr-1"></i>ค้นหาพนักงาน
                                         </label>
@@ -5051,6 +5075,8 @@
                                     <select id="billingMonth" onchange="generateBillingCycleData()" class="billing-month"></select>
                                     <select id="costingBillingMonth" onchange="handleCostingBillingChange()" class="billing-month"></select>
                                     <select id="insightsBillingMonth" onchange="handleInsightsBillingChange()" class="billing-month"></select>
+                                    <select id="costingProjectFilter" class="proj-filter" onchange="handleCostingProjectChange()"></select>
+                                    <select id="insightsProjectFilter" class="proj-filter" onchange="handleInsightsProjectChange()"></select>
                                 </div>
                             </div>
 
@@ -5084,11 +5110,11 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <button onclick="printMatrixLegal()" title="พิมพ์ตาราง (รองรับกระดาษ Legal / A4)"
-                                                class="bg-green-700 hover:bg-green-800 text-white text-[11px] px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm active:scale-95">
+                                                class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95">
                                                 <i class="fa-solid fa-print"></i> พิมพ์ตาราง
                                             </button>
                                             <button id="matrix-fullscreen-btn" onclick="toggleMatrixFullscreen()" title="ขยายเต็มจอ"
-                                                class="bg-brand-deep hover:bg-brand-navy text-white text-[11px] px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm active:scale-95">
+                                                class="bg-brand-deep hover:bg-brand-navy text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95">
                                                 <i id="matrix-fullscreen-icon" class="fa-solid fa-expand"></i>
                                                 <span id="matrix-fullscreen-label">เต็มจอ</span>
                                             </button>
@@ -5146,60 +5172,46 @@
 
         <!-- TAB 4: วิเคราะห์ระดับบริหารเชิงกลยุทธ์ (HR & Executive Insights Tab) -->
         <div id="tab-insights" class="hidden space-y-3 no-print">
-            <!-- Compact Filter Bar: โครงการ (rounding cycle ใช้ shared selector ด้านบน) -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 px-4 py-3 no-print">
-                <div class="flex flex-wrap items-end gap-3">
-                    <div class="w-full sm:w-64">
-                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">ตัวกรองโครงการหน้างาน</label>
-                        <div class="relative">
-                            <select id="insightsProjectFilter" class="proj-filter block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-slate-700 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 text-sm font-semibold appearance-none transition-all" onchange="handleInsightsProjectChange()">
-                                <option value="all">🔍 แสดงข้อมูลพนักงานทุกโครงการ</option>
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500"><i class="fa-solid fa-chevron-down text-xs"></i></div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-1.5 text-xs text-slate-400 font-semibold pb-2">
-                        <i class="fa-solid fa-calendar-week text-brand-teal"></i>
-                        <span class="billing-cycle-range">-</span>
-                    </div>
-                </div>
-            </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-3">
-                    <div class="p-2 bg-rose-50 text-rose-600 rounded-xl"><i class="fa-solid fa-triangle-exclamation text-base"></i></div>
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">ความเสี่ยงทุจริต/สวัสดิการรั่วไหล</p>
-                        <p id="insight-welfare-leak-count" class="text-base font-black text-rose-600 mt-0.5">0 เคส</p>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="approval-stat-card group relative overflow-hidden bg-gradient-to-br from-rose-50 via-white to-rose-50/30 rounded-2xl border border-rose-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+                    <div class="absolute top-0 right-0 w-20 h-20 bg-rose-500/5 rounded-full -mr-6 -mt-6"></div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-lg shadow-rose-500/20"><i class="fa-solid fa-shield-halved text-white text-base"></i></div>
+                        <span class="text-[11px] text-rose-600/70 font-semibold uppercase tracking-wide">ความเสี่ยงรั่วไหล</span>
                     </div>
+                    <div id="insight-welfare-leak-count" class="text-2xl font-black text-rose-600 tabular-nums stat-value">0 เคส</div>
                 </div>
-                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-3">
-                    <div class="p-2 bg-amber-50 text-amber-600 rounded-xl"><i class="fa-solid fa-heart-pulse text-base"></i></div>
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">พนักงานเสี่ยงเหนื่อยล้า (OT สูง)</p>
-                        <p id="insight-ot-exhaustion-count" class="text-base font-black text-amber-600 mt-0.5">0 คน</p>
+                <div class="approval-stat-card group relative overflow-hidden bg-gradient-to-br from-amber-50 via-white to-amber-50/30 rounded-2xl border border-amber-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+                    <div class="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 rounded-full -mr-6 -mt-6"></div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20"><i class="fa-solid fa-heart-pulse text-white text-base"></i></div>
+                        <span class="text-[11px] text-amber-600/70 font-semibold uppercase tracking-wide">เสี่ยงเหนื่อยล้า (OT)</span>
                     </div>
+                    <div id="insight-ot-exhaustion-count" class="text-2xl font-black text-amber-600 tabular-nums stat-value">0 คน</div>
                 </div>
-                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-3">
-                    <div class="p-2 bg-brand-sky text-brand-deep rounded-xl"><i class="fa-solid fa-percent text-base"></i></div>
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">อัตราเข้างานเฉลี่ยบริษัท</p>
-                        <p id="insight-avg-attendance-rate" class="text-base font-black text-brand-deep mt-0.5">0.00%</p>
+                <div class="approval-stat-card group relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50/30 rounded-2xl border border-blue-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+                    <div class="absolute top-0 right-0 w-20 h-20 bg-blue-500/5 rounded-full -mr-6 -mt-6"></div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20"><i class="fa-solid fa-percent text-white text-base"></i></div>
+                        <span class="text-[11px] text-blue-600/70 font-semibold uppercase tracking-wide">อัตราเข้างานเฉลี่ย</span>
                     </div>
+                    <div id="insight-avg-attendance-rate" class="text-2xl font-black text-blue-700 tabular-nums stat-value">0.00%</div>
                 </div>
-                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex items-center space-x-3">
-                    <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><i class="fa-solid fa-chart-line text-base"></i></div>
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">ค่าเฉลี่ยต้นทุน Man-Day</p>
-                        <p id="insight-avg-manday-cost" class="text-base font-black text-emerald-700 mt-0.5">0.00 </p>
+                <div class="approval-stat-card group relative overflow-hidden bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 rounded-2xl border border-emerald-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+                    <div class="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full -mr-6 -mt-6"></div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20"><i class="fa-solid fa-chart-line text-white text-base"></i></div>
+                        <span class="text-[11px] text-emerald-600/70 font-semibold uppercase tracking-wide">ต้นทุนเฉลี่ย Man-Day</span>
                     </div>
+                    <div id="insight-avg-manday-cost" class="text-2xl font-black text-emerald-700 tabular-nums stat-value">0.00</div>
                 </div>
             </div>
 
             <!-- กราฟแบบ Native CSS & SVG วิเคราะห์งบประมาณและสัดส่วนต้นทุน -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <!-- กราฟงบประมาณแยกตามโครงการ -->
-                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 space-y-3">
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm lg:col-span-2 space-y-3">
                     <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                         <div>
                             <h3 class="text-sm font-extrabold text-slate-800">เปรียบเทียบ งบประมาณค่าแรงจัดตั้ง vs ยอดจ่ายแรงงานจริง</h3>
@@ -5214,7 +5226,7 @@
                 </div>
 
                 <!-- กราฟวงกลม/ส่วนสัดส่วนสวัสดิการ -->
-                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                     <div class="border-b border-slate-100 pb-2">
                         <h3 class="text-sm font-extrabold text-slate-800">สัดส่วนโครงสร้างค่าใช้จ่ายแรงงานรวม</h3>
                         <p class="text-[10px] text-slate-400 font-medium">สัดส่วนค่าจ้างหลักเทียบกับโอทีและสวัสดิการสอยย่อย</p>
@@ -5222,7 +5234,7 @@
                     
                     <div class="flex flex-col items-center justify-center space-y-4 py-2">
                         <!-- Progress Donut Simulation -->
-                        <div class="relative w-32 h-32 flex items-center justify-center rounded-full bg-slate-100 border border-slate-200">
+                        <div class="relative w-32 h-32 flex items-center justify-center rounded-full bg-slate-50 border border-slate-200">
                             <!-- Inner circle mask -->
                             <div class="absolute w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
                                 <span class="text-[10px] font-bold text-slate-400 uppercase">ค่าใช้จ่ายสุทธิ</span>
@@ -5267,7 +5279,7 @@
             <!-- รายงานตรวจสอบและจัดการความเสี่ยงบุคคล (HR Audit Panels) -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <!-- 1. บล็อกระบบควบคุมการทุจริต/รั่วไหลของสวัสดิการ -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                     <div class="px-5 py-3 border-b border-slate-100 bg-rose-50/50 flex justify-between items-center">
                         <div>
                             <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
@@ -5296,7 +5308,7 @@
                 </div>
 
                 <!-- 2. ตารางรายชื่อเสี่ยงชั่วโมงโอทีเกินและเหนื่อยล้าสะสม -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                     <div class="px-5 py-3 border-b border-slate-100 bg-amber-50/50 flex justify-between items-center">
                         <div>
                             <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
@@ -5326,7 +5338,7 @@
             </div>
 
             <!-- รายงานพฤติกรรมการมาสายสะสมรายบุคคล -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                 <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/50">
                     <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
                         <i class="fa-solid fa-user-clock text-brand-deep mr-2"></i>
@@ -28067,6 +28079,34 @@ ${slip.textSample}
                 }
             });
 
+            // 🔧 ปรับแต่งตัวกรองและช่องค้นหาตามแท็บที่กดใช้งาน
+            const empSearchCol = document.getElementById('emp-search-col');
+            const projFilterLabel = document.getElementById('project-filter-label');
+            const tabFilterContainer = document.getElementById('tab-filter-container');
+
+            if (tabName === 'summary') {
+                if (empSearchCol) empSearchCol.classList.remove('hidden');
+                if (tabFilterContainer) {
+                    tabFilterContainer.classList.remove('md:grid-cols-1');
+                    tabFilterContainer.classList.add('md:grid-cols-2');
+                }
+                if (projFilterLabel) projFilterLabel.innerHTML = '<i class="fa-solid fa-filter text-brand-teal mr-1"></i>ตัวกรองโครงการหน้างาน (Matrix)';
+            } else if (tabName === 'costing') {
+                if (empSearchCol) empSearchCol.classList.add('hidden');
+                if (tabFilterContainer) {
+                    tabFilterContainer.classList.remove('md:grid-cols-2');
+                    tabFilterContainer.classList.add('md:grid-cols-1');
+                }
+                if (projFilterLabel) projFilterLabel.innerHTML = '<i class="fa-solid fa-filter text-brand-teal mr-1"></i>ตัวกรองโครงการหน้างาน (ต้นทุนโครงการ)';
+            } else if (tabName === 'insights') {
+                if (empSearchCol) empSearchCol.classList.add('hidden');
+                if (tabFilterContainer) {
+                    tabFilterContainer.classList.remove('md:grid-cols-2');
+                    tabFilterContainer.classList.add('md:grid-cols-1');
+                }
+                if (projFilterLabel) projFilterLabel.innerHTML = '<i class="fa-solid fa-filter text-brand-teal mr-1"></i>ตัวกรองโครงการหน้างาน (วิเคราะห์ระดับบริหาร)';
+            }
+
             if (tabName === 'daily') {
                 document.getElementById('tab-daily').classList.remove('hidden');
                 renderDailyTable();
@@ -29377,7 +29417,7 @@ ${slip.textSample}
                 allowancesCost += (projectTotalFood + projectTotalTrip + projectTotalOther);
 
                 const cardDiv = document.createElement('div');
-                cardDiv.className = "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200";
+                cardDiv.className = "bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200";
                 
                 let employeeRowsHtml = '';
                 empIds.forEach((id, idx) => {
@@ -29409,7 +29449,7 @@ ${slip.textSample}
                 });
 
                 cardDiv.innerHTML = `
-                    <div class="p-6 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-slate-50/40">
+                    <div class="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-slate-50/50">
                         <div>
                             <span class="px-2.5 py-1 text-[10px] font-extrabold bg-brand-deep text-white rounded-lg mr-2 uppercase tracking-wide">ต้นทุนหน้างาน</span>
                             <h4 class="text-base font-extrabold text-slate-800 inline-block mt-2 lg:mt-0">${projName}</h4>
@@ -29420,7 +29460,7 @@ ${slip.textSample}
                                 <p class="text-[10px] text-slate-400 font-black uppercase tracking-wider">ต้นทุนโครงการสะสม</p>
                                 <p class="text-xl font-black text-slate-900">${formatMoney(projectGrandTotal, systemSettings.roundNetPay)}</p>
                             </div>
-                            <button onclick="generateProjectInvoice('${encodeURIComponent(projName)}')" class="px-3.5 py-2 bg-green-700 hover:bg-green-800 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 active:scale-95" title="พิมพ์ใบตั้งเบิกค่าแรงโครงการนี้">
+                            <button onclick="generateProjectInvoice('${encodeURIComponent(projName)}')" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 active:scale-95" title="พิมพ์ใบตั้งเบิกค่าแรงโครงการนี้">
                                 <i class="fa-solid fa-print"></i> พิมพ์ใบตั้งเบิกค่าแรง
                             </button>
                         </div>
