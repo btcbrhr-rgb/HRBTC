@@ -7588,9 +7588,12 @@
                                             <p class="text-[10px] text-slate-400">กำหนดสัญลักษณ์ · เติมเวลา · ล้างเวลา</p>
                                         </div>
                                     </div>
-                                    <button onclick="openSymbolRulesEditor()" class="inline-flex items-center gap-1.5 text-[10px] text-brand-deep hover:text-brand-teal font-bold transition-colors">
-                                        <i class="fa-solid fa-pen-to-square"></i> แก้ไข
-                                    </button>
+                                    <div class="flex items-center gap-2">
+                                        <span id="symbolRulesSaveChip"></span>
+                                        <button onclick="openSymbolRulesEditor()" class="inline-flex items-center gap-1.5 text-[10px] text-brand-deep hover:text-brand-teal font-bold transition-colors">
+                                            <i class="fa-solid fa-pen-to-square"></i> แก้ไข
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="p-4">
                                     <div id="symbolRulesTable" class="overflow-x-auto">
@@ -7599,6 +7602,7 @@
                                             <tbody id="symbolRulesBody"><tr class="tbl-empty-row"><td colspan="3">กำลังโหลด…</td></tr></tbody>
                                         </table>
                                     </div>
+                                    <p class="text-[10px] text-slate-400 mt-2">💡 แก้ไข → ยอมรับการแก้ไข แล้วกดปุ่ม <b class="text-brand-deep">“บันทึกการตั้งค่า”</b> ด้านบนเพื่อลงฐานข้อมูล (บัญชีเดียวกับทั้งหน้า)</p>
                                 </div>
                             </div>
 
@@ -7615,11 +7619,9 @@
                                         </div>
                                     </div>
                                     <div class="flex items-center gap-2">
+                                        <span id="statusRulesSaveChip"></span>
                                         <button onclick="resetStatusRulesToDefault()" class="inline-flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-rose-500 font-bold transition-colors">
                                             <i class="fa-solid fa-rotate-left"></i> ค่าเริ่มต้น
-                                        </button>
-                                        <button onclick="saveStatusRules()" class="inline-flex items-center gap-1.5 text-[10px] text-brand-deep hover:text-brand-teal font-bold transition-colors">
-                                            <i class="fa-solid fa-floppy-disk"></i> บันทึก
                                         </button>
                                     </div>
                                 </div>
@@ -7639,7 +7641,7 @@
                                             <tbody id="statusRulesBody"><tr class="tbl-empty-row"><td colspan="6">กำลังโหลด…</td></tr></tbody>
                                         </table>
                                     </div>
-                                    <p class="text-[10px] text-slate-400 mt-2">💡 นับวันทำงาน: 1 = เต็มวัน · 0.5 = ครึ่งวัน · 0 = ไม่นับ — นำไปใช้กับ Matrix/ต้นทุน/ใบตั้งเบิกค่าแรง/การพิมพ์ทันที โดยไม่ต้องแก้โค้ด</p>
+                                    <p class="text-[10px] text-slate-400 mt-2">💡 นับวันทำงาน: 1 = เต็มวัน · 0.5 = ครึ่งวัน · 0 = ไม่นับ — นำไปใช้กับ Matrix/ต้นทุน/ใบตั้งเบิกค่าแรง/การพิมพ์ทันที โดยไม่ต้องแก้โค้ด · แก้แล้วกดปุ่ม <b class="text-brand-deep">“บันทึกการตั้งค่า”</b> ด้านบนเพื่อลงฐานข้อมูล</p>
                                 </div>
                             </div>
                         </div>
@@ -7976,14 +7978,15 @@
                             class="text-rose-600">{"clearIn":true,"clearOut":true}</code></p>
                 </div>
             </div>
+            <div class="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"><i class="fa-solid fa-circle-info"></i> กด “ยอมรับการแก้ไข” = กติกาใหม่จะถูกนำมารองไว้ (ยังไม่ลงฐานข้อมูล) — ลงฐานข้อมูลจริงด้วยปุ่ม <b>“บันทึกการตั้งค่า”</b> ด้านบนของหน้า</div>
             <div class="flex justify-end gap-3 p-5 border-t border-slate-200">
                 <button onclick="closeSymbolRulesModal()"
                     class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs px-4 py-2 rounded-xl transition-all">
                     ยกเลิก
                 </button>
-                <button onclick="saveSymbolRules()"
+                <button onclick="confirmSymbolRulesEdit()"
                     class="bg-brand-deep hover:bg-brand-teal text-white font-semibold text-xs px-4 py-2 rounded-xl transition-all">
-                    <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึก
+                    <i class="fa-solid fa-check mr-1"></i> ยอมรับการแก้ไข
                 </button>
             </div>
         </div>
@@ -24100,6 +24103,40 @@ ${slip.textSample}
                 let savedSettingsFormSnapshot = '';
                 let settingsDirtyTrackingReady = false;
                 let settingsFormUserEdited = false; // ผู้ใช้พิมพ์แก้ก่อนโหลดเสร็จ → อย่าให้ load ทับสถานะ dirty
+                let statusRulesDirty = false;   // กฎสถานะ (แท็บ กฎ) มีการแก้ที่ยังไม่ได้ลง DB
+                let symbolRulesDirty = false;   // กฎสรุปสถานะ (แท็บ กฎ) มีการแก้ที่ยังไม่ได้ลง DB
+
+                function settingsHasUnsavedChanges() {
+                    if (statusRulesDirty || symbolRulesDirty) return true;
+                    // หน้า/ตารางนี้ไม่มีช่องค่ากลาง → ไม่มีอะไรจะรอบันทึก (กัน beforeunload เด้งผิดที่)
+                    let count = 0;
+                    document.querySelectorAll('[id^="setting-"]').forEach(el => {
+                        if (el.id !== 'settings-search') count++;
+                    });
+                    if (count === 0) return false;
+                    return getSettingsFormSnapshot() !== savedSettingsFormSnapshot;
+                }
+
+                function updateRulesCardState() {
+                    const sChip = document.getElementById('statusRulesSaveChip');
+                    if (sChip) sChip.innerHTML = statusRulesDirty
+                        ? '<span class="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 text-[10px] font-bold"><i class="fa-solid fa-circle text-[6px] animate-pulse text-amber-500"></i> ยังไม่ได้บันทึก</span>'
+                        : '<span class="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 text-[10px] font-bold"><i class="fa-solid fa-circle-check"></i> ตรงกับระบบแล้ว</span>';
+                    const syChip = document.getElementById('symbolRulesSaveChip');
+                    if (syChip) syChip.innerHTML = symbolRulesDirty
+                        ? '<span class="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 text-[10px] font-bold"><i class="fa-solid fa-circle text-[6px] animate-pulse text-amber-500"></i> กำลังแก้ไข</span>'
+                        : '<span class="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 text-[10px] font-bold"><i class="fa-solid fa-circle-check"></i> ตรงกับระบบแล้ว</span>';
+                }
+
+                // 🛟 เตือนผู้ใช้ก่อนปิด/โหลดหน้าใหม่ ถ้ายังมีการแก้ไขค้าง (ไม่โดนบังคับ เพราะ BROWSER ไม่อนุญาต popup เอง)
+                window.addEventListener('beforeunload', (e) => {
+                    try {
+                        if (settingsHasUnsavedChanges()) {
+                            e.preventDefault();
+                            e.returnValue = '';
+                        }
+                    } catch (_) { /* ถ้า DOM ยังไม่พร้อมให้ข้ามไป */ }
+                });
 
                 function getSettingsFormSnapshot() {
                     return JSON.stringify(Array.from(document.querySelectorAll('[id^="setting-"]'))
@@ -24112,23 +24149,39 @@ ${slip.textSample}
                 }
 
                 function updateSettingsSaveState(saved) {
+                    if (saved === true) {
+                        statusRulesDirty = false;
+                        symbolRulesDirty = false;
+                        savedSettingsFormSnapshot = getSettingsFormSnapshot();
+                    }
+                    updateRulesCardState();
                     const button = document.getElementById('settings-save-button');
                     const changeNote = document.getElementById('settings-change-note');
-                    if (!button) return;
-                    if (saved === true) savedSettingsFormSnapshot = getSettingsFormSnapshot();
-                    const isDirty = saved !== true && getSettingsFormSnapshot() !== savedSettingsFormSnapshot;
-                    button.classList.toggle('settings-save-dirty', isDirty);
-                    button.classList.toggle('settings-save-clean', !isDirty);
-                    const icon = button.querySelector('i');
-                    const label = button.querySelector('span');
-                    if (icon) icon.className = isDirty ? 'fa-solid fa-floppy-disk' : 'fa-solid fa-circle-check';
-                    if (label) label.textContent = isDirty ? 'มีการแก้ไข · บันทึก' : 'บันทึกแล้ว';
-                    button.setAttribute('aria-label', isDirty ? 'มีการแก้ไขที่ยังไม่ได้บันทึก' : 'การตั้งค่าบันทึกแล้ว');
+                    const isDirty = saved !== true && settingsHasUnsavedChanges();
+                    if (button) {
+                        button.disabled = false;
+                        button.classList.toggle('settings-save-dirty', isDirty);
+                        button.classList.toggle('settings-save-clean', !isDirty);
+                        const icon = button.querySelector('i');
+                        const label = button.querySelector('span');
+                        if (icon) icon.className = isDirty ? 'fa-solid fa-floppy-disk' : 'fa-solid fa-circle-check';
+                        if (label) label.textContent = isDirty ? 'มีการแก้ไข · บันทึก' : 'บันทึกแล้ว';
+                        button.setAttribute('aria-label', isDirty ? 'มีการแก้ไขที่ยังไม่ได้บันทึก' : 'การตั้งค่าบันทึกแล้ว');
+                    }
                     if (changeNote) {
-                        changeNote.classList.toggle('settings-change-note-dirty', isDirty);
-                        changeNote.innerHTML = isDirty
-                            ? '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>มีการแก้ไขที่ยังไม่ได้บันทึก — ตรวจทานก่อนเผยแพร่ค่ากลางให้ทั้งระบบ</span>'
-                            : '<i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>ค่าที่บันทึกมีผลกับรายการใหม่ ส่วนข้อมูลลงเวลาเดิมต้องสั่งคำนวณย้อนหลังเมื่อจำเป็น</span>';
+                        if (isDirty) {
+                            const parts = [];
+                            if (savedSettingsFormSnapshot !== getSettingsFormSnapshot()) parts.push('แบบฟอร์มค่ากลาง');
+                            if (statusRulesDirty) parts.push('กฎสถานะ');
+                            if (symbolRulesDirty) parts.push('กฎสรุปสถานะ');
+                            changeNote.className = 'settings-change-note settings-change-note-dirty';
+                            changeNote.innerHTML = `<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>มีการแก้ไขค้างอยู่: ${parts.join(', ') || 'ไม่ทราบส่วน'} — กดปุ่ม <b class="text-white">“บันทึกการตั้งค่า”</b> ด้านบนเพื่อลงฐานข้อมูล</span>`;
+                        } else {
+                            const now = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            changeNote.classList.remove('settings-change-note-dirty');
+                            changeNote.className = 'settings-change-note';
+                            changeNote.innerHTML = `<i class="fa-solid fa-circle-check" aria-hidden="true"></i><span><b>บันทึกแล้วเมื่อ ${now} น.</b> · ค่าที่บันทึกมีผลกับรายการใหม่ ส่วนข้อมูลลงเวลาเดิมต้องสั่งคำนวณย้อนหลังเมื่อจำเป็น</span>`;
+                        }
                     }
                 }
 
@@ -24304,6 +24357,17 @@ ${slip.textSample}
                         showToast('❌ ยังไม่ได้เข้าสู่ระบบ — กรุณาเข้าสู่ระบบก่อนบันทึก', 'error');
                         return;
                     }
+                    // 🛡️ ไม่มีการแก้ไขค้าง → ไม่ต้องเสียเวลาบันทึกเปล่า
+                    if (!settingsHasUnsavedChanges()) {
+                        showToast('ℹ️ ไม่มีการแก้ไขค้างอยู่ — ทุกอย่างตรงกับระบบแล้ว', 'info');
+                        return;
+                    }
+                    const saveButton = document.getElementById('settings-save-button');
+                    if (saveButton) {
+                        saveButton.disabled = true;
+                        saveButton.classList.remove('settings-save-dirty', 'settings-save-clean');
+                        saveButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="hidden sm:inline">กำลังบันทึก…</span>';
+                    }
                     showToast("⏳ กำลังบันทึกการตั้งค่าระบบ…", "info");
                     const payload = {
                         action: "saveSystemSettings",
@@ -24364,6 +24428,14 @@ ${slip.textSample}
                         }
                     };
 
+                    // 📦 บันทึกรวมครั้งเดียว: ผนวกกฎจากแท็บ "กฎ" (แก้หลายส่วนแต่กดปุ่มเดียว)
+                    if (statusRulesDirty && typeof currentStatusRules === 'object' && Object.keys(currentStatusRules).length) {
+                        payload.settings.statusRules = JSON.stringify(currentStatusRules);
+                    }
+                    if (symbolRulesDirty && typeof currentSymbolRules === 'object' && Object.keys(currentSymbolRules).length) {
+                        payload.settings.symbolRules = JSON.stringify(currentSymbolRules);
+                    }
+
                     try {
                         let res;
                         try {
@@ -24379,7 +24451,8 @@ ${slip.textSample}
                         const directSaveOk = !(res && res.status === 'success') && await trySaveSystemSettingsDirect(payload.settings);
                         const saveOk = (res && res.status === 'success') || directSaveOk;
                         if (!saveOk) {
-                            showToast("❌ บันทึกล้มเหลว: " + ((res && res.message) || 'เชื่อมต่อ API ไม่ได้'), "error");
+                            updateSettingsSaveState();
+                            showToast("❌ บันทึกไม่สำเร็จ: " + ((res && res.message) || 'GAS ไม่ตอบสนอง และเขียนตรง Supabase ก็ไม่สำเร็จ — ตรวจสิทธิ์/อินเทอร์เน็ตแล้วลองใหม่'), "error");
                             return;
                         }
                         if (saveOk) {
@@ -24402,10 +24475,13 @@ ${slip.textSample}
                                 }));
                             }
                             updateSettingsSaveState(true);
-                            showToast(directSaveOk ? "🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว (เขียนตรง Supabase)" : "🎉 บันทึกการตั้งค่าระบบสำเร็จแล้ว", "success");
+                            showToast(directSaveOk
+                                ? "🎉 บันทึกการตั้งค่าทั้งหมด (ค่ากลาง + กฎ) สำเร็จแล้ว (เขียนตรง Supabase)"
+                                : "🎉 บันทึกการตั้งค่าทั้งหมด (ค่ากลาง + กฎ) สำเร็จแล้ว", "success");
                         }
                     } catch (err) {
-                        showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
+                        updateSettingsSaveState();
+                        showToast("❌ บันทึกไม่สำเร็จ: " + err.message, "error");
                     }
                 }
 
@@ -24548,43 +24624,22 @@ ${slip.textSample}
                     document.getElementById('symbol-rules-modal').classList.add('hidden');
                 }
 
-                async function saveSymbolRules() {
+                function confirmSymbolRulesEdit() {
                     const textarea = document.getElementById('symbolRulesInput');
+                    if (!textarea) { showToast("❌ ระบบโหลดข้อมูลไม่สมบูรณ์ — ลองเปิดอีกครั้ง", "error"); return; }
                     try {
                         JSON.parse(textarea.value);
                     } catch (e) {
                         showToast("❌ JSON ไม่ถูกต้อง: " + e.message, "error");
                         return;
                     }
-
-                    const newRules = textarea.value;
-                    currentSymbolRules = JSON.parse(newRules);
-
-                    showToast("⏳ กำลังบันทึกกฎสรุปสถานะ…", "info");
-                    try {
-                        const res = await fetchWithTimeout(SERVER_API_URL, {
-                            method: "POST",
-                            body: JSON.stringify({
-                                action: "saveSystemSettings",
-                                    empId: currentEmployeeId,
-                                    adminId: currentEmployeeId,
-                                settings: { symbolRules: newRules }
-                            })
-                        });
-                        if (res.status === 'success') {
-                            systemSettings.symbolRules = newRules;
-                            if (typeof loadSystemSettingsFromSheet === 'function') {
-                                await loadSystemSettingsFromSheet();
-                            }
-                            renderSymbolRulesTable();
-                            closeSymbolRulesModal();
-                            showToast("🎉 บันทึกกฎสรุปสถานะสำเร็จแล้ว", "success");
-                        } else {
-                            showToast("❌ บันทึกล้มเหลว: " + res.message, "error");
-                        }
-                    } catch (err) {
-                        showToast("❌ เชื่อมต่อ API ล้มเหลว: " + err.message, "error");
-                    }
+                    currentSymbolRules = JSON.parse(textarea.value);
+                    symbolRulesDirty = true;
+                    systemSettings.symbolRules = JSON.stringify(currentSymbolRules);
+                    closeSymbolRulesModal();
+                    renderSymbolRulesTable();
+                    updateSettingsSaveState();
+                    showToast("✅ ยอมรับกฎสรุปสถานะแล้ว — กดปุ่ม “บันทึกการตั้งค่า” ด้านบนเพื่อลงฐานข้อมูล", "info");
                 }
 
                 // ─── กฎสถานะ (การนับวันทำงาน / ค่าข้าว / ยกเว้นนับสาย) — ตั้งค่าได้โดยไม่ต้องแก้โค้ด ───
@@ -24644,49 +24699,17 @@ ${slip.textSample}
                         currentStatusRules[code] = Object.assign({}, (DEFAULT_STATUS_RULES && DEFAULT_STATUS_RULES[code]) || {});
                     }
                     currentStatusRules[code][field] = value;
+                    statusRulesDirty = true;
+                    updateSettingsSaveState();
                 }
 
                 function resetStatusRulesToDefault() {
-                    if (!confirm('รีเซ็ตการแก้ไขกฎสถานะกลับค่าเริ่มต้น? (กด "บันทึก" เพื่อยืนยันลงฐานข้อมูล)')) return;
+                    if (!confirm('รีเซ็ตกฎสถานะทั้งหมดกลับค่าเริ่มต้น? (กด "บันทึกการตั้งค่า" ด้านบนเพื่อยืนยันลงฐานข้อมูล)')) return;
                     currentStatusRules = {};
+                    statusRulesDirty = true;
                     renderStatusRulesTable();
-                    showToast('พร้อมรีเซ็ต — กด "บันทึก" เพื่อยืนยัน', 'info');
-                }
-
-                async function saveStatusRules() {
-                    showToast("⏳ กำลังบันทึกกฎสถานะ…", "info");
-                    const jsonStr = JSON.stringify(currentStatusRules);
-                    try {
-                        let res = null;
-                        try {
-                            res = await fetchWithTimeout(SERVER_API_URL, {
-                                method: "POST",
-                                body: JSON.stringify({
-                                    action: "saveSystemSettings",
-                                    empId: currentEmployeeId,
-                                    adminId: currentEmployeeId,
-                                    settings: { statusRules: jsonStr }
-                                })
-                            });
-                        } catch (netErr) {
-                            console.warn('[Rules] GAS ไม่ตอบสนอง → ลอง Supabase โดยตรง', netErr);
-                            res = null;
-                        }
-                        const directOk = (res && res.status === 'success') ? false : (await trySaveSystemSettingsDirect({ statusRules: jsonStr }));
-                        if (!(res && res.status === 'success') && !directOk) {
-                            showToast("❌ บันทึกล้มเหลว: " + ((res && res.message) || 'เชื่อมต่อ API ไม่ได้'), "error");
-                            return;
-                        }
-                        systemSettings.statusRules = currentStatusRules;
-                        if (typeof loadSystemSettingsFromSheet === 'function') {
-                            await loadSystemSettingsFromSheet();
-                        }
-                        renderStatusRulesTable();
-                        showToast("🎉 บันทึกกฎสถานะสำเร็จ — นำไปใช้ทุกหน้าแล้ว", "success");
-                    } catch (err) {
-                        console.error('saveStatusRules error:', err);
-                        showToast("❌ บันทึกกฎสถานะล้มเหลว: " + String(err.message || err), "error");
-                    }
+                    updateSettingsSaveState();
+                    showToast('รีเซ็ตแล้ว — กด "บันทึกการตั้งค่า" ด้านบนเพื่อลงฐานข้อมูล', 'warning');
                 }
 
                 // ─── การตั้งค่ากำหนดเอง (Custom Settings — เพิ่ม/แก้ไข/ลบ ไม่ต้องแก้โค้ด) ───
