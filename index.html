@@ -32438,6 +32438,32 @@ ${slip.textSample}
                     showToast('⚠️ กรุณาระบุวันที่เริ่มต้นและสิ้นสุด', 'warning');
                     return;
                 }
+            } else if (select.value === 'current') {
+                const cycle = getCurrentBillingCycle();
+                periodStart = cycle.start;
+                periodEnd = cycle.end;
+                console.log('[Recalc] Current cycle range:', periodStart, periodEnd);
+            } else if (select.value === 'previous') {
+                const now = new Date();
+                const startDay = parseInt(systemSettings?.billingCycleStartDay) || 26;
+                let cycleStartMonth = now.getMonth();
+                let cycleStartYear = now.getFullYear();
+                if (now.getDate() < startDay) {
+                    cycleStartMonth--;
+                    if (cycleStartMonth < 0) {
+                        cycleStartMonth = 11;
+                        cycleStartYear--;
+                    }
+                }
+                cycleStartMonth--;
+                if (cycleStartMonth < 0) {
+                    cycleStartMonth = 11;
+                    cycleStartYear--;
+                }
+                const range = getCycleDateRange(cycleStartYear, cycleStartMonth);
+                periodStart = range.start;
+                periodEnd = range.end;
+                console.log('[Recalc] Previous cycle range:', periodStart, periodEnd);
             } else {
                 const opt = select.options[select.selectedIndex];
                 periodStart = opt?.dataset?.start || '';
