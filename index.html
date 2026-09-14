@@ -32384,6 +32384,17 @@ ${slip.textSample}
 
         async function runRecalculateTimeRecords() {
             console.log('[Recalc] ▶ runRecalculateTimeRecords() called');
+            
+            // 🛡️ บังคับให้แท็บ database render ก่อน (กรณี lazy render)
+            const databaseTabBtn = document.querySelector('[data-tab="database"].settings-tab-btn');
+            const databaseTabContent = document.querySelector('.settings-tab-content[data-tab="database"]');
+            if (databaseTabBtn && databaseTabContent && databaseTabContent.classList.contains('hidden')) {
+                console.log('[Recalc] Database tab not rendered yet — forcing switch...');
+                databaseTabBtn.click();
+                // รอ render เสร็จ (next tick)
+                await new Promise(r => setTimeout(r, 100));
+            }
+
             const btn = document.getElementById('recalc-run-btn');
             const cancelBtn = document.getElementById('recalc-cancel-btn');
             const select = document.getElementById('recalc-cycle-select');
@@ -32392,7 +32403,7 @@ ${slip.textSample}
 
             if (!btn || !select) {
                 console.error('[Recalc] Missing button or select element');
-                showToast('❌ ไม่พบปุ่มหรือ dropdown กรุณา refresh หน้า', 'error');
+                showToast('❌ ไม่พบปุ่มหรือ dropdown กรุณาเข้าแท็บ "ฐานข้อมูล" ก่อน', 'error');
                 return;
             }
 
