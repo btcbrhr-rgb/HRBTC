@@ -32383,11 +32383,15 @@ ${slip.textSample}
         }
 
         async function runRecalculateTimeRecords() {
+            console.log('[Recalc] ▶ runRecalculateTimeRecords() called');
             const btn = document.getElementById('recalc-run-btn');
             const cancelBtn = document.getElementById('recalc-cancel-btn');
             const select = document.getElementById('recalc-cycle-select');
 
-            if (!btn || !select) return;
+            if (!btn || !select) {
+                console.error('[Recalc] Button or select not found');
+                return;
+            }
 
             let periodStart = '';
             let periodEnd = '';
@@ -32410,6 +32414,7 @@ ${slip.textSample}
                 return;
             }
 
+            console.log('[Recalc] Period:', periodStart, 'to', periodEnd);
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังคำนวณ...';
             if (cancelBtn) cancelBtn.classList.remove('hidden');
@@ -32429,33 +32434,45 @@ ${slip.textSample}
                 };
 
                 // ใช้ fetch ตรงโดยไม่ผ่าน postAction เพื่อควบคุม timeout เอง (อาจนานหลายนาที)
-                const response = await fetchWithTimeout(SERVER_API_URL, {
+                // ⚠️ fetchWithTimeout คืนค่า result.data (API's data field) ไม่ใช่ full response
+                console.log('[Recalc] Calling API...');
+                const apiData = await fetchWithTimeout(SERVER_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 }, 600000); // 10 นาที timeout
 
+                console.log('[Recalc] API response:', apiData);
                 showRecalcProgress(true, 50, 'เซิร์ฟเวอร์กำลังคำนวณ...');
 
-                if (response && response.status === 'success') {
-                    const data = response.data || {};
+                // apiData คือ report object จาก API: { total, updated, skipped, errors, elapsedMs, settings }
+                // API ส่งมาด้วย status='success' ใน full response แต่ fetchWithTimeout unwrapping แล้ว
+                if (apiData && typeof apiData === 'object' && (apiData.total !== undefined || apiData.updated !== undefined)) {
                     showRecalcProgress(true, 100, 'เสร็จสิ้น');
                     showRecalcResult(
                         `<b><i class="fa-solid fa-circle-check" aria-hidden="true"></i> คำนวณย้อนหลังสำเร็จ</b><br>` +
-                        `• ทั้งหมด: <b>${data.total || 0}</b> records<br>` +
-                        `• อัปเดต: <b>${data.updated || 0}</b> records<br>` +
-                        `• ข้าม (ค่าเท่าเดิม): <b>${data.skipped || 0}</b> records<br>` +
-                        `• ผิดพลาด: <b>${data.errors || 0}</b> records<br>` +
-                        `• ใช้เวลา: <b>${data.elapsedMs ? (data.elapsedMs / 1000).toFixed(1) : '-'}</b> วินาที`,
+                        `• ทั้งหมด: <b>${apiData.total || 0}</b> records<br>` +
+                        `• อัปเดต: <b>${apiData.updated || 0}</b> records<br>` +
+                        `• ข้าม (ค่าเท่าเดิม): <b>${apiData.skipped || 0}</b> records<br>` +
+                        `• ผิดพลาด: <b>${apiData.errors || 0}</b> records<br>` +
+                        `• ใช้เวลา: <b>${apiData.elapsedMs ? (apiData.elapsedMs / 1000).toFixed(1) : '-'}</b> วินาที`,
                         false
                     );
                     showToast('✅ คำนวณย้อนหลังสำเร็จ', 'success');
-                } else {
+                } else if (apiData && apiData.status === 'error') {
+                    // กรณี fetchWithTimeout คืน error object (ไม่ได้ unwrap)
                     showRecalcProgress(false, 0, '');
-                    showRecalcResult('❌ ' + ((response && response.message) || 'คำนวณไม่สำเร็จ'), true);
-                    showToast('❌ คำนวณย้อนหลังไม่สำเร็จ: ' + ((response && response.message) || 'Unknown error'), 'error');
+                    showRecalcResult('❌ ' + (apiData.message || 'คำนวณไม่สำเร็จ'), true);
+                    showToast('❌ คำนวณย้อนหลังไม่สำเร็จ: ' + (apiData.message || 'Unknown error'), 'error');
+                } else {
+                    // Unexpected response
+                    console.error('[Recalc] Unexpected response format:', apiData);
+                    showRecalcProgress(false, 0, '');
+                    showRecalcResult('❌ รูปแบบข้อมูลตอบกลับไม่ถูกต้อง', true);
+                    showToast('❌ คำนวณย้อนหลังไม่สำเร็จ: รูปแบบข้อมูลตอบกลับไม่ถูกต้อง', 'error');
                 }
             } catch (e) {
+                console.error('[Recalc] Error:', e);
                 showRecalcProgress(false, 0, '');
                 showRecalcResult('❌ ' + (e.message || e), true);
                 showToast('❌ เกิดข้อผิดพลาด: ' + (e.message || e), 'error');
