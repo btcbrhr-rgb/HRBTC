@@ -5,8 +5,8 @@
 
 window.HRBT_CONFIG = {
   // Google Apps Script Web App URL
-  // แก้ที่นี่จุดเดียวเมื่อ Deploy ใหม่
-  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbzAjYIvySRYzpiAV2ppzwrYDzN41OHBy_pwTlB_t3dwMJ6fPxPUcmfzb586fcdsrXKFdQ/exec',
+  // ใช้ Vercel API Proxy เพื่อเลี่ยง CORS (Deploy อัตโนมัติกับ Vercel)
+  GAS_WEB_APP_URL: '/api/gas-proxy',
 
   // Supabase Config (public anon key - safe for client)
   SUPABASE: {
