@@ -6954,10 +6954,83 @@
                                     </div>
                                     <div id="ka-result" class="hidden rounded-xl p-3 text-[11px] leading-relaxed"></div>
                                     <p class="text-[10px] text-slate-400"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> Trigger อัตโนมัติ ping ทุก 3 วัน (04:00 น.) — ping จะ query Supabase จริง 1 ครั้ง เพื่อสร้าง API activity และกันโปรเจกต์ถูก pause โดยไม่ต้องเปิดแอปเอง</p>
+</div>
+                        </div>
+
+                        <!-- ═══ Recalculate Time Records (คำนวณย้อนหลัง) ═══ -->
+                        <div class="rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50/50 via-white to-white overflow-hidden shadow-sm" data-search="คำนวณย้อนหลัง reprocess time records billing cycle">
+                            <div class="px-4 py-3 bg-gradient-to-r from-blue-50 to-transparent border-b border-blue-100">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
+                                            <i class="fa-solid fa-calculator text-white text-xs"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-extrabold text-slate-800"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> คำนวณย้อนหลัง (Recalculate)</p>
+                                            <p class="text-[10px] text-slate-400">รีคำนวณ late/OT/status ตามการตั้งค่าล่าสุด — เลือกรอบบัญชีได้</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+                            <div class="p-4 space-y-3">
+                                <!-- Current Cycle Info -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                                        <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">รอบบัญชีปัจจุบัน</p>
+                                        <p id="recalc-current-cycle" class="text-[11px] font-extrabold text-blue-700 mt-0.5">-</p>
+                                    </div>
+                                    <div class="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                        <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">ตั้งค่ารอบบัญชี</p>
+                                        <p id="recalc-cycle-config" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
+                                    </div>
+                                </div>
 
-                            <!-- Google Apps Script API Gateway -->
+                                <!-- Cycle Selector -->
+                                <div class="space-y-2">
+                                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">เลือกรอบบัญชีที่ต้องการคำนวณ</label>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <select id="recalc-cycle-select" class="flex-1 min-w-[200px] bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
+                                            <option value="current">รอบปัจจุบัน (อัตโนมัติ)</option>
+                                            <option value="previous">รอบก่อนหน้า</option>
+                                            <option value="custom">ระบุเอง</option>
+                                        </select>
+                                        <div id="recalc-custom-range" class="hidden flex items-center gap-2">
+                                            <input type="date" id="recalc-period-start" class="bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
+                                            <span class="text-slate-400">ถึง</span>
+                                            <input type="date" id="recalc-period-end" class="bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Action Button -->
+                                <div class="flex flex-wrap items-center gap-2 pt-1">
+                                    <button id="recalc-run-btn" onclick="runRecalculateTimeRecords()"
+                                        class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shadow-sm transition-all"
+                                        title="คำนวณย้อนหลัง late/OT/status ตามการตั้งค่าปัจจุบัน">
+                                        <i class="fa-solid fa-calculator"></i> เริ่มคำนวณย้อนหลัง
+                                    </button>
+                                    <button id="recalc-cancel-btn" onclick="cancelRecalculate()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold shadow-sm transition-all">
+                                        <i class="fa-solid fa-xmark"></i> ยกเลิก
+                                    </button>
+                                </div>
+
+                                <!-- Progress / Result -->
+                                <div id="recalc-progress" class="hidden space-y-2">
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                            <div id="recalc-progress-bar" class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                        </div>
+                                        <span id="recalc-progress-text" class="text-[10px] font-bold text-slate-600 whitespace-nowrap">0%</span>
+                                    </div>
+                                    <p id="recalc-progress-detail" class="text-[10px] text-slate-500">กำลังเตรียม...</p>
+                                </div>
+                                <div id="recalc-result" class="hidden rounded-xl p-3 text-[11px] leading-relaxed"></div>
+
+                                <p class="text-[10px] text-slate-400"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> ระบบจะอ่าน time_records ทั้งหมดในรอบที่เลือก → คำนวณ late/OT/status ใหม่ตามค่าล่าสุด → อัปเดตเฉพาะ record ที่ค่าเปลี่ยน (ข้ามที่เท่าเดิม) — ใช้ bulk upsert เร็ว ไม่กระทบ time_in/time_out ต้นฉบับ</p>
+                            </div>
+                        </div>
+
+                        <!-- Google Apps Script API Gateway -->
                             <div class="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/50 via-white to-white overflow-hidden shadow-sm" data-search="apps script api gateway webhook url">
                                 <div class="px-4 py-3 bg-gradient-to-r from-emerald-50 to-transparent border-b border-emerald-100">
                                     <div class="flex items-center justify-between">
@@ -7037,8 +7110,8 @@
                             </div>
 
                             <!-- Live Sync Monitor -->
-                            <aside class="xl:sticky xl:top-2 min-w-0 rounded-2xl border border-slate-200 bg-slate-950 shadow-xl shadow-slate-900/10 overflow-hidden" data-search="log sync supabase activity">
-                                <div class="px-4 py-3 border-b border-white/10 bg-gradient-to-r from-slate-900 to-slate-800">
+                            <aside class="xl:sticky xl:top-2 min-w-0 rounded-2xl border border-slate-200 bg-slate-950 shadow-xl shadow-slate-900/10 overflow-hidden flex flex-col h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]" data-search="log sync supabase activity" style="max-height: calc(100vh - 2rem);">
+                                <div class="px-4 py-3 border-b border-white/10 bg-gradient-to-r from-slate-900 to-slate-800 flex-shrink-0">
                                     <div class="flex items-center justify-between gap-3">
                                         <div class="flex items-center gap-2.5 min-w-0">
                                             <div class="w-8 h-8 rounded-xl bg-cyan-400/15 border border-cyan-300/20 flex items-center justify-center shrink-0">
@@ -7055,7 +7128,7 @@
                                     </div>
                                 </div>
 
-                                <div class="p-4 space-y-3">
+                                <div class="p-4 space-y-3 flex-shrink-0">
                                     <div id="sync-flow-overview" class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                                         <div class="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-2.5 min-w-0">
                                             <div class="flex items-center gap-2">
@@ -7108,9 +7181,11 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <div id="sb-result-log" class="min-h-[250px] max-h-[min(55vh,520px)] overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 space-y-1.5 scroll-smooth overscroll-contain">
-                                        <span data-log-empty class="text-slate-500 text-xs italic block py-4 text-center"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังรอการทำงานของฐานข้อมูล (CRUD / Sync / Health Check)...</span>
-                                    </div>
+                                </div>
+
+                                <!-- Activity Log - Flexible scroll area -->
+                                <div id="sb-result-log" class="flex-1 min-h-0 overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 space-y-1.5 scroll-smooth overscroll-contain pr-1">
+                                    <span data-log-empty class="text-slate-500 text-xs italic block py-4 text-center"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังรอการทำงานของฐานข้อมูล (CRUD / Sync / Health Check)...</span>
                                 </div>
                             </aside>
                         </div>
@@ -31700,6 +31775,9 @@ ${slip.textSample}
             loadAutomaticSyncStatus();
             loadAmStatus();
             loadKeepAliveStatus();
+            // Initialize Recalculate Time Records
+            updateRecalcCycleInfo();
+            populateRecalcCycles();
             const urlEl  = document.getElementById('sb-config-url');
             const keyEl  = document.getElementById('sb-config-key');
             const badge = document.getElementById('sb-status-badge');
@@ -31807,6 +31885,12 @@ ${slip.textSample}
                 if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
                 sbLog(`❌ Supabase เชื่อมต่อไม่ได้: ${err.message}`, '#f87171');
                 console.error('[Supabase] Connection failed:', err);
+            }
+            
+            // Event listener for recalc cycle select
+            const recalcSelect = document.getElementById('recalc-cycle-select');
+            if (recalcSelect) {
+                recalcSelect.addEventListener('change', onRecalcCycleChange);
             }
         }
 
@@ -32131,6 +32215,263 @@ ${slip.textSample}
                 if (btn) btn.disabled = false;
                 loadKeepAliveStatus();
             }
+        }
+
+        /* ── Recalculate Time Records (คำนวณย้อนหลัง) ─── */
+        function getCycleDateRange(year, month) {
+            const startDay = parseInt(systemSettings?.billingCycleStartDay) || 26;
+            const endDay = parseInt(systemSettings?.billingCycleEndDay) || 25;
+            const startYear = year;
+            const startMonth = month;
+            let endYear = year;
+            let endMonth = month + 1;
+            if (endMonth > 11) {
+                endMonth = 0;
+                endYear = year + 1;
+            }
+            const startDate = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+            const endDate = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+            return { start: startDate, end: endDate };
+        }
+
+        function getCurrentBillingCycle() {
+            const now = new Date();
+            const startDay = parseInt(systemSettings?.billingCycleStartDay) || 26;
+            let cycleStartMonth = now.getMonth();
+            let cycleStartYear = now.getFullYear();
+            if (now.getDate() < startDay) {
+                cycleStartMonth--;
+                if (cycleStartMonth < 0) {
+                    cycleStartMonth = 11;
+                    cycleStartYear--;
+                }
+            }
+            return getCycleDateRange(cycleStartYear, cycleStartMonth);
+        }
+
+        function formatThaiDateShort(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr + 'T12:00:00');
+            if (isNaN(d.getTime())) return dateStr;
+            const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+            return `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+        }
+
+        function populateRecalcCycles() {
+            const select = document.getElementById('recalc-cycle-select');
+            if (!select) return;
+
+            // Clear existing options except first 3
+            while (select.options.length > 3) {
+                select.remove(3);
+            }
+
+            // Add last 12 billing cycles as options
+            const now = new Date();
+            const startDay = parseInt(systemSettings?.billingCycleStartDay) || 26;
+            let cycleStartMonth = now.getMonth();
+            let cycleStartYear = now.getFullYear();
+            if (now.getDate() < startDay) {
+                cycleStartMonth--;
+                if (cycleStartMonth < 0) {
+                    cycleStartMonth = 11;
+                    cycleStartYear--;
+                }
+            }
+
+            const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+            for (let i = 0; i < 12; i++) {
+                let m = cycleStartMonth - i;
+                let y = cycleStartYear;
+                if (m < 0) {
+                    m += 12;
+                    y--;
+                }
+                const range = getCycleDateRange(y, m);
+                const label = `รอบ ${thMonths[m]} ${y + 543} (${formatThaiDateShort(range.start)} - ${formatThaiDateShort(range.end)})`;
+                const opt = document.createElement('option');
+                opt.value = `cycle_${y}_${m}`;
+                opt.dataset.start = range.start;
+                opt.dataset.end = range.end;
+                opt.textContent = label;
+                select.appendChild(opt);
+            }
+        }
+
+        function updateRecalcCycleInfo() {
+            const currentCycle = getCurrentBillingCycle();
+            const cycleEl = document.getElementById('recalc-current-cycle');
+            const configEl = document.getElementById('recalc-cycle-config');
+            if (cycleEl) cycleEl.textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
+            if (configEl) {
+                const sd = parseInt(systemSettings?.billingCycleStartDay) || 26;
+                const ed = parseInt(systemSettings?.billingCycleEndDay) || 25;
+                configEl.textContent = `เริ่มวันที่ ${sd} → สิ้นสุดวันที่ ${ed} ของเดือนถัดไป`;
+            }
+        }
+
+        function onRecalcCycleChange() {
+            const select = document.getElementById('recalc-cycle-select');
+            const customRange = document.getElementById('recalc-custom-range');
+            const periodStart = document.getElementById('recalc-period-start');
+            const periodEnd = document.getElementById('recalc-period-end');
+            if (!select || !customRange) return;
+
+            if (select.value === 'custom') {
+                customRange.classList.remove('hidden');
+            } else {
+                customRange.classList.add('hidden');
+                if (select.value === 'current') {
+                    const cycle = getCurrentBillingCycle();
+                    if (periodStart) periodStart.value = cycle.start;
+                    if (periodEnd) periodEnd.value = cycle.end;
+                } else if (select.value === 'previous') {
+                    const now = new Date();
+                    const startDay = parseInt(systemSettings?.billingCycleStartDay) || 26;
+                    let cycleStartMonth = now.getMonth();
+                    let cycleStartYear = now.getFullYear();
+                    if (now.getDate() < startDay) {
+                        cycleStartMonth--;
+                        if (cycleStartMonth < 0) {
+                            cycleStartMonth = 11;
+                            cycleStartYear--;
+                        }
+                    }
+                    cycleStartMonth--;
+                    if (cycleStartMonth < 0) {
+                        cycleStartMonth = 11;
+                        cycleStartYear--;
+                    }
+                    const cycle = getCycleDateRange(cycleStartYear, cycleStartMonth);
+                    if (periodStart) periodStart.value = cycle.start;
+                    if (periodEnd) periodEnd.value = cycle.end;
+                } else if (select.value.startsWith('cycle_')) {
+                    const start = select.options[select.selectedIndex].dataset.start;
+                    const end = select.options[select.selectedIndex].dataset.end;
+                    if (periodStart) periodStart.value = start;
+                    if (periodEnd) periodEnd.value = end;
+                }
+            }
+        }
+
+        function showRecalcProgress(show, percent, detail) {
+            const progress = document.getElementById('recalc-progress');
+            const bar = document.getElementById('recalc-progress-bar');
+            const text = document.getElementById('recalc-progress-text');
+            const detailEl = document.getElementById('recalc-progress-detail');
+            if (!progress) return;
+            if (show) {
+                progress.classList.remove('hidden');
+                if (bar) bar.style.width = percent + '%';
+                if (text) text.textContent = percent + '%';
+                if (detailEl) detailEl.textContent = detail || '';
+            } else {
+                progress.classList.add('hidden');
+            }
+        }
+
+        function showRecalcResult(html, isError) {
+            const box = document.getElementById('recalc-result');
+            if (!box) return;
+            box.className = 'rounded-xl p-3 text-[11px] leading-relaxed ' + (isError ? 'bg-rose-50 border border-rose-200 text-rose-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+            box.innerHTML = html;
+            box.classList.remove('hidden');
+        }
+
+        async function runRecalculateTimeRecords() {
+            const btn = document.getElementById('recalc-run-btn');
+            const cancelBtn = document.getElementById('recalc-cancel-btn');
+            const select = document.getElementById('recalc-cycle-select');
+
+            if (!btn || !select) return;
+
+            let periodStart = '';
+            let periodEnd = '';
+
+            if (select.value === 'custom') {
+                periodStart = document.getElementById('recalc-period-start')?.value || '';
+                periodEnd = document.getElementById('recalc-period-end')?.value || '';
+                if (!periodStart || !periodEnd) {
+                    showToast('⚠️ กรุณาระบุวันที่เริ่มต้นและสิ้นสุด', 'warning');
+                    return;
+                }
+            } else {
+                const opt = select.options[select.selectedIndex];
+                periodStart = opt.dataset.start || '';
+                periodEnd = opt.dataset.end || '';
+            }
+
+            if (!periodStart || !periodEnd) {
+                showToast('⚠️ ไม่สามารถกำหนดช่วงวันที่ได้', 'warning');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังคำนวณ...';
+            if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+            showRecalcProgress(true, 0, 'กำลังเชื่อมต่อ...');
+            showRecalcResult('', false);
+
+            try {
+                // เรียก API แบบ long-running - ใช้ fetchWithTimeout ยาวขึ้น
+                showRecalcProgress(true, 10, 'ส่งคำขอคำนวณ...');
+
+                const payload = {
+                    action: 'reprocessAllTimeRecords',
+                    adminId: currentEmployeeId,
+                    periodStart: periodStart,
+                    periodEnd: periodEnd
+                };
+
+                // ใช้ fetch ตรงโดยไม่ผ่าน postAction เพื่อควบคุม timeout เอง (อาจนานหลายนาที)
+                const response = await fetchWithTimeout(SERVER_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }, 600000); // 10 นาที timeout
+
+                showRecalcProgress(true, 50, 'เซิร์ฟเวอร์กำลังคำนวณ...');
+
+                if (response && response.status === 'success') {
+                    const data = response.data || {};
+                    showRecalcProgress(true, 100, 'เสร็จสิ้น');
+                    showRecalcResult(
+                        `<b><i class="fa-solid fa-circle-check" aria-hidden="true"></i> คำนวณย้อนหลังสำเร็จ</b><br>` +
+                        `• ทั้งหมด: <b>${data.total || 0}</b> records<br>` +
+                        `• อัปเดต: <b>${data.updated || 0}</b> records<br>` +
+                        `• ข้าม (ค่าเท่าเดิม): <b>${data.skipped || 0}</b> records<br>` +
+                        `• ผิดพลาด: <b>${data.errors || 0}</b> records<br>` +
+                        `• ใช้เวลา: <b>${data.elapsedMs ? (data.elapsedMs / 1000).toFixed(1) : '-'}</b> วินาที`,
+                        false
+                    );
+                    showToast('✅ คำนวณย้อนหลังสำเร็จ', 'success');
+                } else {
+                    showRecalcProgress(false, 0, '');
+                    showRecalcResult('❌ ' + ((response && response.message) || 'คำนวณไม่สำเร็จ'), true);
+                    showToast('❌ คำนวณย้อนหลังไม่สำเร็จ: ' + ((response && response.message) || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showRecalcProgress(false, 0, '');
+                showRecalcResult('❌ ' + (e.message || e), true);
+                showToast('❌ เกิดข้อผิดพลาด: ' + (e.message || e), 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-calculator"></i> เริ่มคำนวณย้อนหลัง';
+                if (cancelBtn) cancelBtn.classList.add('hidden');
+            }
+        }
+
+        function cancelRecalculate() {
+            // สำหรับความปลอดภัย ให้ refresh หน้า หรือ reset UI
+            showRecalcProgress(false, 0, '');
+            showRecalcResult('', false);
+            const btn = document.getElementById('recalc-run-btn');
+            const cancelBtn = document.getElementById('recalc-cancel-btn');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-calculator"></i> เริ่มคำนวณย้อนหลัง'; }
+            if (cancelBtn) cancelBtn.classList.add('hidden');
+            showToast('ℹ️ ยกเลิกการคำนวณ (หมายเหตุ: กระบวนการบนเซิร์ฟเวอร์อาจยังทำงานต่อไปจนเสร็จ)', 'info');
         }
 
         function onSupabaseModeChange(value) {
