@@ -30,6 +30,7 @@
             };
         })();
     </script>
+    <script src="config.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -1085,7 +1086,8 @@
         }
     </style>
     <script>
-        const COMPANY_INFO = {
+        // Use centralized config
+        const COMPANY_INFO = window.HRBT_CONFIG?.COMPANY || {
             name: 'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด',
             address: '31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
             taxId: '0315559001144',
@@ -9288,13 +9290,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             currentEmployeeId = "";
             // 🔧 SUPABASE-FIRST: Try Supabase first, fallback to Google Apps Script API if needed
-            SERVER_API_URL = 'https://script.google.com/macros/s/AKfycbzAjYIvySRYzpiAV2ppzwrYDzN41OHBy_pwTlB_t3dwMJ6fPxPUcmfzb586fcdsrXKFdQ/exec';
+            SERVER_API_URL = window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
 
             // ⚡ SUPABASE — public client config; server config remains an optional override for admin settings
             let SUPABASE_CONFIG = {
-                url: 'https://uldeugqrkabplavusoci.supabase.co',
-                anonKey: 'sb_publishable__MbMYXLfBvlHHb6bKwigfA_vtGnn5Ll',
-                mode: 'hybrid'
+                url: window.HRBT_CONFIG?.SUPABASE?.url || 'https://uldeugqrkabplavusoci.supabase.co',
+                anonKey: window.HRBT_CONFIG?.SUPABASE?.anonKey || 'sb_publishable__MbMYXLfBvlHHb6bKwigfA_vtGnn5Ll',
+                mode: window.HRBT_CONFIG?.SUPABASE?.mode || 'hybrid'
             };
             let supabaseClient = null;
             let supabaseClientConfigKey = '';
@@ -14223,7 +14225,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     showToast("⏳ กำลังบันทึกคำขอลาเข้าสู่ฐานข้อมูล…", "info");
 
-                    const activeApiUrl = SERVER_API_URL || 'https://script.google.com/macros/s/AKfycbzAjYIvySRYzpiAV2ppzwrYDzN41OHBy_pwTlB_t3dwMJ6fPxPUcmfzb586fcdsrXKFdQ/exec';
+                    const activeApiUrl = SERVER_API_URL || window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
 
                     let res = null;
                     let attempt = 0;
@@ -14562,7 +14564,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // 2. ลบผ่าน GAS API
                 try {
-                    const activeApiUrl = SERVER_API_URL || 'https://script.google.com/macros/s/AKfycbzAjYIvySRYzpiAV2ppzwrYDzN41OHBy_pwTlB_t3dwMJ6fPxPUcmfzb586fcdsrXKFdQ/exec';
+                    const activeApiUrl = SERVER_API_URL || window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
                     const res = await fetchWithTimeout(activeApiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -14701,7 +14703,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 let errorMsg = "";
 
                 // 1. ส่งไปยัง Google Apps Script (บันทึกลง Drive และอัปเดต Supabase)
-                const activeApiUrl = SERVER_API_URL || 'https://script.google.com/macros/s/AKfycbzAjYIvySRYzpiAV2ppzwrYDzN41OHBy_pwTlB_t3dwMJ6fPxPUcmfzb586fcdsrXKFdQ/exec';
+                const activeApiUrl = SERVER_API_URL || window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
                 try {
                     const res = await fetchWithTimeout(activeApiUrl, {
                         method: 'POST',
@@ -23670,7 +23672,7 @@ ${slip.textSample}
                         try {
                             // ═══ อัปโหลด PDF ไป Google Drive + บันทึกลง Supabase ผ่าน GAS backend ═══
                             // GAS uploadPayslipFile ทำทุกอย่าง: Drive upload → Supabase insert → LINE notify
-                            const gasBaseUrl = 'https://script.google.com/macros/s/AKfycbzAjYIvySRYzpiAV2ppzwrYDzN41OHBy_pwTlB_t3dwMJ6fPxPUcmfzb586fcdsrXKFdQ/exec';
+                            const gasBaseUrl = window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
                             const gasPayload = {
                                 action: 'uploadPayslipFile',
                                 adminId: currentEmployeeId,
