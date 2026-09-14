@@ -17,11 +17,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Vercel parses text/plain body as a string; double stringifying it would
+  // make GAS unable to read `action` ("ต้องระบุ action"). Always forward the
+  // raw body text unchanged.
+  const rawBody =
+    req.body === undefined || req.body === null
+      ? '{}'
+      : typeof req.body === 'string'
+        ? req.body
+        : JSON.stringify(req.body);
+
   try {
     const response = await fetch(GAS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body),
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: rawBody,
     });
 
     const data = await response.text();
