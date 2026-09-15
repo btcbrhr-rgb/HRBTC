@@ -28692,7 +28692,7 @@ ${slip.textSample}
             if (typeof window !== 'undefined') window.isProjectCostInitialized = true;
 
             // Initialize billing month selector with dynamic options
-            initializeBillingMonthSelector();
+            await initializeBillingMonthSelector();
             
             const billingSelect = document.getElementById('billingMonth');
             const currentBillingMonth = getCurrentBillingMonthValue();
@@ -28716,11 +28716,51 @@ ${slip.textSample}
             }
         }
 
-        // Initialize billing month dropdown with options from 12 months back to 6 months forward
-        function initializeBillingMonthSelector() {
+        // Initialize billing month dropdown — SHOW ONLY months that actually have time records in the DB
+        async function initializeBillingMonthSelector() {
             // 🔧 ต้องเพิ่ม sharedBillingMonth ด้วย
             const selects = document.querySelectorAll('.billing-month, #sharedBillingMonth');
             if (selects.length === 0) return;
+
+            // ดึงชุด "เดือน/ปี ของรอบบัญชี" ที่มีข้อมูลจริงจาก time_records (โดยตรงจาก Supabase)
+            // ถ้าดึงไม่ได้ → monthsWithData = null → แสดงทุกเดือนตามเดิม (Fallback กันหน้าเสีย)
+            let monthsWithData = null;
+            if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
+                try {
+                    const cycleStartDay = parseInt(systemSettings?.billingCycleStartDay) || 26;
+                    const have = new Set();
+                    const pageSize = 1000;
+                    let offset = 0;
+                    while (offset < 50000) { // cap กันตารางใหญ่ผิดปกติ
+                        const { data, error } = await supabaseClient
+                            .from('time_records')
+                            .select('date')
+                            .range(offset, offset + pageSize - 1);
+                        if (error) throw error;
+                        const rows = data || [];
+                        rows.forEach(r => {
+                            const d = String(r.date || '').trim();
+                            if (!/^\d{4}-\d{2}-\d{2}/.test(d)) return;
+                            const parts = d.split('-');
+                            let y = parseInt(parts[0], 10);
+                            let m = parseInt(parts[1], 10);
+                            const day = parseInt(parts[2], 10);
+                            // วันที่ >= billingCycleStartDay (เช่น 26) → อยู่รอบบัญชีของเดือนถัดไป
+                            if (day >= cycleStartDay) {
+                                m += 1;
+                                if (m > 12) { m = 1; y += 1; }
+                            }
+                            have.add(`${y}-${String(m).padStart(2, '0')}`);
+                        });
+                        if (rows.length < pageSize) break;
+                        offset += pageSize;
+                    }
+                    monthsWithData = have.size > 0 ? have : null;
+                } catch (e) {
+                    console.warn('[BillingMonth] ดึงเดือนที่มีข้อมูลไม่สำเร็จ จะแสดงทุกเดือน:', e.message || e);
+                    monthsWithData = null;
+                }
+            }
 
             selects.forEach(select => { select.innerHTML = ''; });
 
@@ -28756,7 +28796,10 @@ ${slip.textSample}
                 const monthNameTh = THAI_MONTHS[month];
                 const yearTh = year + 543; // Convert to Buddhist Era
                 const valueStr = `${year}-${String(monthNum).padStart(2, '0')}`;
-                
+
+                // ตัวเลือกแสดงเฉพาะเดือน/ปี ที่มีข้อมูลจริงในฐานข้อมมูลเท่านั้น
+                if (monthsWithData && !monthsWithData.has(valueStr)) continue;
+
                 // Get date range for display
                 const dates = getBillingCycleDates(valueStr);
                 const startDay = dates[0].split('-')[2];
@@ -28770,6 +28813,20 @@ ${slip.textSample}
                 // Show only "เดือน ปี" in the selector; detailed range is shown below
                 option.textContent = `${monthNameTh} ${yearTh}`;
                 selects.forEach(select => { select.appendChild(option.cloneNode(true)); });
+            }
+
+            // กันเดือนปัจจุบัน (ที่ dropdown ตั้งค่าไว้) หายจากลิสต์ เช่น เดือนใหม่ที่ยังไม่มีข้อมูล
+            const currentBillingMonth = getCurrentBillingMonthValue();
+            const hasCurrentMonth = selects[0] && [...selects[0].options].some(opt => opt.value === currentBillingMonth);
+            if (!hasCurrentMonth && selects.length > 0) {
+                const cp = currentBillingMonth.split('-');
+                const curOption = document.createElement('option');
+                curOption.value = currentBillingMonth;
+                curOption.textContent = `${THAI_MONTHS[parseInt(cp[1], 10) - 1]} ${parseInt(cp[0], 10) + 543}`;
+                selects.forEach(select => {
+                    const clone = curOption.cloneNode(true);
+                    select.insertBefore(clone, select.firstChild);
+                });
             }
         }
 
