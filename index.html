@@ -32526,25 +32526,32 @@ ${slip.textSample}
                 console.log('[Recalc] API response:', apiData);
                 showRecalcProgress(true, 50, 'เซิร์ฟเวอร์กำลังคำนวณ...');
 
-                // apiData คือ report object จาก API: { total, updated, skipped, errors, elapsedMs, settings }
-                // API ส่งมาด้วย status='success' ใน full response แต่ fetchWithTimeout unwrapping แล้ว
-                if (apiData && typeof apiData === 'object' && (apiData.total !== undefined || apiData.updated !== undefined)) {
+                // ✔ fetchWithTimeout คืน JSON ทั้งก้อนของ API: { status, data: report, message }
+                //    report แท้อยู่ที่ apiData.data (GAS reprocessAllTimeRecords → { status:'success', data: report, message })
+                //    กัน fallback: ถ้า API คืน report ตรง ๆ (มี total/updated ชั้นบน) ก็ใช้ได้ทั้งคู่
+                const report =
+                    (apiData && apiData.data && typeof apiData.data === 'object' &&
+                     (apiData.data.total !== undefined || apiData.data.updated !== undefined))
+                        ? apiData.data
+                        : apiData;
+
+                if (report && typeof report === 'object' && (report.total !== undefined || report.updated !== undefined)) {
                     showRecalcProgress(true, 100, 'เสร็จสิ้น');
                     showRecalcResult(
                         `<b><i class="fa-solid fa-circle-check" aria-hidden="true"></i> คำนวณย้อนหลังสำเร็จ</b><br>` +
-                        `• ทั้งหมด: <b>${apiData.total || 0}</b> records<br>` +
-                        `• อัปเดต: <b>${apiData.updated || 0}</b> records<br>` +
-                        `• ข้าม (ค่าเท่าเดิม): <b>${apiData.skipped || 0}</b> records<br>` +
-                        `• ผิดพลาด: <b>${apiData.errors || 0}</b> records<br>` +
-                        `• ใช้เวลา: <b>${apiData.elapsedMs ? (apiData.elapsedMs / 1000).toFixed(1) : '-'}</b> วินาที`,
+                        `• ทั้งหมด: <b>${report.total || 0}</b> records<br>` +
+                        `• อัปเดต: <b>${report.updated || 0}</b> records<br>` +
+                        `• ข้าม (ค่าเท่าเดิม): <b>${report.skipped || 0}</b> records<br>` +
+                        `• ผิดพลาด: <b>${report.errors || 0}</b> records<br>` +
+                        `• ใช้เวลา: <b>${report.elapsedMs ? (report.elapsedMs / 1000).toFixed(1) : '-'}</b> วินาที`,
                         false
                     );
                     showToast('✅ คำนวณย้อนหลังสำเร็จ', 'success');
-                } else if (apiData && apiData.status === 'error') {
-                    // กรณี fetchWithTimeout คืน error object (ไม่ได้ unwrap)
+                } else if (report && report.status === 'error') {
+                    // กรณี API คืน error object (เช่น fetchWithTimeout คืน error แบบไม่ได้ unwrap)
                     showRecalcProgress(false, 0, '');
-                    showRecalcResult('❌ ' + (apiData.message || 'คำนวณไม่สำเร็จ'), true);
-                    showToast('❌ คำนวณย้อนหลังไม่สำเร็จ: ' + (apiData.message || 'Unknown error'), 'error');
+                    showRecalcResult('❌ ' + (report.message || 'คำนวณไม่สำเร็จ'), true);
+                    showToast('❌ คำนวณย้อนหลังไม่สำเร็จ: ' + (report.message || 'Unknown error'), 'error');
                 } else {
                     // Unexpected response
                     console.error('[Recalc] Unexpected response format:', apiData);
