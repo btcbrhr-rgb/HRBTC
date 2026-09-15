@@ -28076,6 +28076,15 @@ ${slip.textSample}
         // 🎛️ ตัวอ่านกฎสถานะจาก systemSettings.statusRules (ค่าเดียวที่ทุกหน้าใช้)
         function getStatusRule(status) {
             if (!status) return DEFAULT_STATUS_RULES.__default__;
+            // 🔧 ยอมรับ statusRules ทั้งแบบ object และ JSON string (GAS/DB ส่ง string มา) — parse ครั้งเดียวเมื่อเจอ
+            if (typeof systemSettings === 'object' && systemSettings && systemSettings.statusRules && typeof systemSettings.statusRules === 'string') {
+                try {
+                    systemSettings.statusRules = JSON.parse(systemSettings.statusRules) || DEFAULT_STATUS_RULES;
+                } catch (e) {
+                    console.warn('[getStatusRule] parse statusRules failed, using defaults', e);
+                    systemSettings.statusRules = DEFAULT_STATUS_RULES;
+                }
+            }
             const rules = (typeof systemSettings === 'object' && systemSettings && systemSettings.statusRules && typeof systemSettings.statusRules === 'object')
                 ? systemSettings.statusRules
                 : DEFAULT_STATUS_RULES;
@@ -28092,12 +28101,20 @@ ${slip.textSample}
 
         function mapEmployeeRow(row) {
             return {
-                id: (row['รหัสพนักงาน'] || row.empId || row['employee id'] || '').toString().trim(),
-                name: (row['ชื่อ-นามสกุล'] || row['ชื่อ'] || row['Name'] || '').toString().trim(),
-                role: (row['ตำแหน่ง'] || row['Position'] || '').toString().trim(),
-                project: (row['โครงการ'] || row['Project'] || '').toString().trim(),
-                avatar: '',
-                baseSalary: parseFloatOrZero(row['ฐานเงินเดือน'] || row['Base Salary'] || row['Salary']),
+                id: (row['รหัสพนักงาน'] || row.emp_id || row.empId || row['employee id'] || '').toString().trim(),
+                name: (row['ชื่อ-นามสกุล'] || row['ชื่อ'] || row.name || row['Name'] || '').toString().trim(),
+                position: (row['ตำแหน่ง'] || row.position || row['Position'] || '').toString().trim(),
+                role: (row['ตำแหน่ง'] || row.position || row.role || row['Position'] || '').toString().trim(),
+                status: (row['สถานะ'] || row.status || 'ทำงานปกติ').toString().trim(),
+                dayOff: (row['วันหยุดประจำสัปดาห์'] || row.dayOff || row.day_off || 'อาทิตย์').toString().trim(),
+                company: (row['บริษัท'] || row.company || '').toString().trim(),
+                startDate: (row['วันที่เริ่มงาน'] || row.start_date || '').toString().trim(),
+                phone: (row['เบอร์โทร'] || row.phone || '').toString().trim(),
+                project: (row['โครงการ'] || row.project || row['Project'] || '').toString().trim(),
+                avatar: (row.avatar_url || row['รูปถ่าย'] || '').toString().trim(),
+                avatarUrl: (row.avatar_url || row['รูปถ่าย'] || '').toString().trim(),
+                lineUserId: (row.line_user_id || row['LINE ID'] || '').toString().trim(),
+                baseSalary: parseFloatOrZero(row['ฐานเงินเดือน'] || row.base_salary || row['Base Salary'] || row['Salary']),
                 divisor: systemSettings.dailyDivisor,
                 workHoursPerDay: systemSettings.workHoursPerDay,
                 otMultiplier: systemSettings.defaultOtRate
@@ -28105,27 +28122,27 @@ ${slip.textSample}
         }
 
         function mapAttendanceRow(row) {
-            const empId = (row['รหัสพนักงาน'] || row.empId || row['employee id'] || '').toString().trim();
+            const empId = (row['รหัสพนักงาน'] || row.emp_id || row.empId || row['employee id'] || '').toString().trim();
             const date = parseDateString(row['วันที่'] || row['date'] || row['วันที่บันทึก'] || '');
             if (!empId || !date) return null;
 
-            const projectIn = (row['โครงการ (เข้า)'] || row['โครงการเข้า'] || row['project'] || '').toString().trim();
-            const projectOut = (row['โครงการ (ออก)'] || row['โครงการออก'] || row['projectOut'] || '').toString().trim();
+            const projectIn = (row['โครงการ (เข้า)'] || row['โครงการเข้า'] || row.project_in || row['project'] || '').toString().trim();
+            const projectOut = (row['โครงการ (ออก)'] || row['โครงการออก'] || row.project_out || row['projectOut'] || '').toString().trim();
             const project = projectOut || projectIn || '';
 
             return {
                 empId,
                 date,
-                status: (row['สถานะสรุป'] || row['สถานะ'] || row['status'] || '').toString().trim() || 'W',
-                timeIn: (row['เวลาเข้า'] || row['timeIn'] || '').toString().trim(),
-                timeOut: (row['เวลาออก'] || row['timeOut'] || '').toString().trim(),
-                ot: _calcOtFromTimeOut(row['เวลาออก'] || row['timeOut'] || row['time_out'] || '') || parseFloatOrZero(row['ชั่วโมง OT'] || row['OT'] || row['ot']) || 0,
+                status: (row['สถานะสรุป'] || row['สถานะ'] || row.status || row.status_key || row['StatusKey'] || '').toString().trim() || 'W',
+                timeIn: (row['เวลาเข้า'] || row.timeIn || row.time_in || '').toString().trim(),
+                timeOut: (row['เวลาออก'] || row.timeOut || row.time_out || '').toString().trim(),
+                ot: _calcOtFromTimeOut(row['เวลาออก'] || row.timeOut || row.time_out || '') || parseFloatOrZero(row['ชั่วโมง OT'] || row['โอที(ชม.)'] || row['OT'] || row.ot) || 0,
                 // ⚡ คำนวณ late จากเวลาเข้าจริง + settings เสมอ (ไม่เชื่อ DB value)
-                penalty: _calcLateFromTimeIn(row['เวลาเข้า'] || row['timeIn'] || row['time_in'] || '') || parseFloatOrZero(row['นาทีสาย'] || row['late_minutes'] || row['lateMinutes'] || row['late']) || 0,
+                penalty: _calcLateFromTimeIn(row['เวลาเข้า'] || row.timeIn || row.time_in || '') || parseFloatOrZero(row['นาทีสาย'] || row['สาย(น.)'] || row.late_minutes || row.lateMinutes || row.late) || 0,
                 project,
-                food: parseFloatOrZero(row['ค่าข้าว'] || row['food'] || row['meal'] || 0),
-                trip: parseFloatOrZero(row['ค่าเที่ยว'] || row['trip'] || row['transport'] || 0),
-                other: parseFloatOrZero(row['เบี้ยอื่นๆ'] || row['otherAllowance'] || row['other'] || 0),
+                food: parseFloatOrZero(row['ค่าข้าว'] || row['เบี้ยเลี้ยงอาหาร'] || row.food || row.meal || 0),
+                trip: parseFloatOrZero(row['ค่าเที่ยว'] || row['ค่ากะ'] || row.trip || row.transport || 0),
+                other: parseFloatOrZero(row['เบี้ยอื่นๆ'] || row['เงินเพิ่มอื่นๆ'] || row.otherAllowance || row.other || 0),
                 otherMemo: (row['หมายเหตุ'] || row['เหตุผล'] || row['otherMemo'] || row['note'] || '').toString().trim()
             };
         }
