@@ -30143,43 +30143,48 @@ ${slip.textSample}
                 record.other += applyRounding(parseFloat(log.other || 0), systemSettings.roundWelfare);
             };
 
+            // 📅 นับวันทำงานแบบเดียวกับ Matrix (ตารางรวมรอบเดือน) เป๊ะๆ:
+            //    ① มี record จริง → ใช้ record นั้น (สถานะ/โครงการ/OT ตามจริง)
+            //    ② ไม่มี record แต่วันนั้นเป็นวันหยุดนักขัตฤกษ์ → นับเป็น นข (เต็มวัน ได้ค่าจ้าง)
+            //    ③ ผู้บริหารเหมาจ่าย (day_off='ผู้บริหาร') → นับเป็น W ทั้งรอบ (วันหยุด → นข ตามข้อ ②)
+            //    ④ วันหยุดประจำสัปดาห์ของพนักงาน (day_off เช่น อาทิตย์) → นับเป็น ย (เต็มวัน ได้ค่าจ้าง)
+            //    ⑤ วันอื่นที่ไม่ได้ลงเวลา → ขาด (workUnit=0) ไม่เกิดต้นทุน
+            //    workUnit/OT ของสถานะ อ่านจาก System Settings — ฝั่ง Matrix กับ Costing ใช้ร่วมกัน จึงตรงกันเสมอ
+            //    โครงการที่ใช้ของวันที่ไม่มี record = "โครงการหลัง/ล่าสุด" (getLatestProjectForEmp) เหมือนคอลัมน์โครงการใน Matrix
+            // ✅ คำนวณ "โครงการหลัง/ล่าสุด" ครั้งเดียวต่อพนักงาน (เหมือน Matrix ใช้คอลัมน์เดียว) — ไม่ต้องคำนวณซ้ำทุกวัน
+            const empLatestProj = {};
+            employees.forEach(emp => {
+                empLatestProj[emp.id] = (typeof getLatestProjectForEmp === 'function')
+                    ? getLatestProjectForEmp(emp.id, dates) || emp.project
+                    : emp.project;
+            });
+
             dates.forEach(date => {
                 const dayData = attendanceData[date];
-                if (!dayData) return;
-
-                Object.keys(dayData).forEach(empId => {
-                    const log = dayData[empId];
+                const holidayInfo = getHoliday(date);
+                employees.forEach(emp => {
+                    let log = dayData ? dayData[emp.id] : null;
+                    if (!log) {
+                        const latestProj = empLatestProj[emp.id];
+                        if (holidayInfo) {
+                            log = { status: 'นข', project: latestProj, _holiday: holidayInfo };
+                        } else if (isExecutiveLumpSum(emp)) {
+                            log = { status: 'W', project: latestProj, _execLumpSum: true };
+                        } else if (isDateEmployeeDayOff(date, emp)) {
+                            log = { status: 'ย', project: latestProj, _isDayOff: true };
+                        } else {
+                            return; // วันทำงานที่ไม่ได้ลงเวลา = ขาด (A) → ไม่เกิดต้นทุน เหมือน Matrix
+                        }
+                    }
                     if (!log || !log.project) return;
 
                     const projName = log.project;
 
                     if (activeProject !== 'all' && !isProjectMatch(projName, activeProject)) return;
 
-                    const emp = employees.find(e => e.id === empId);
-                    if (!emp) return;
-
                     addToCostingRecord(projName, log, emp);
                 });
             });
-
-            // 🟢 ผู้บริหารเหมาจ่าย (day_off='ผู้บริหาร', ไม่ต้องลงเวลา): นับเป็นวันทำงานจริงเต็มรอบบัญชี
-            //    ให้ยอด "วันทำงาน/ค่าจ้าง" ตรงกับ Matrix ที่แสดง W ทั้งเดือน (ข้ามวันหยุดนักขัตฤกษ์เหมือน Matrix)
-            //    โครงการที่ใช้ = "โครงการหลัง/ล่าสุด" (getLatestProjectForEmp) เหมือนคอลัมน์โครงการใน Matrix
-            if (typeof isExecutiveLumpSum === 'function') {
-                employees.forEach(emp => {
-                    if (!isExecutiveLumpSum(emp)) return;
-                    const latestProj = (typeof getLatestProjectForEmp === 'function')
-                        ? getLatestProjectForEmp(emp.id, dates) || emp.project
-                        : emp.project;
-                    if (!latestProj) return;
-                    if (activeProject !== 'all' && !isProjectMatch(latestProj, activeProject)) return;
-                    dates.forEach(date => {
-                        if (attendanceData[date]?.[emp.id]) return; // มี record จริง → ปล่อยให้ main loop จัดการ
-                        if (typeof getHoliday === 'function' && getHoliday(date)) return; // ⏭️ วันหยุดนักขัตฤกษ์ — Matrix แสดง นข ไม่นับทำงาน
-                        addToCostingRecord(latestProj, { status: 'W', project: latestProj, _execLumpSum: true }, emp);
-                    });
-                });
-            }
 
             let grandCost = 0;
             let wagesCost = 0;
