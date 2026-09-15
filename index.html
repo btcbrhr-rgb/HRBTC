@@ -12949,7 +12949,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // 🔧 OPTIMIZE: Pre-compute day-off pattern once (ไม่ต้อง parse Date ทุกรอบ)
             function _getDayOffPattern(empData) {
                 const data = empData || employeeData || {};
-                const raw = (data["วันหยุดประจําสัปดาห์"] || data["วันหยุดประจำสัปดาห์"] || "").toString().trim() || "อาทิตย์";
+                const raw = (data["วันหยุดประจําสัปดาห์"] || data["วันหยุดประจำสัปดาห์"] || data.dayOff || data.day_off || "").toString().trim() || "อาทิตย์";
                 if (raw === "ผู้บริหาร") return { type: 'all' };
                 if (raw === "ทำงานทุกวัน") return { type: 'none' };
                 if (raw === "อาทิตย์") return { type: 'specific', days: new Set([0]) };
@@ -12960,6 +12960,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (raw.includes("เสาร์")) days.add(6);
                 if (days.size > 0) return { type: 'specific', days };
                 return { type: 'specific', days: new Set([0]) };
+            }
+
+            // 🟢 ผู้บริหาร (เหมาจ่าย 30 วัน ไม่ต้องลงเวลาก็ได้) — day_off = 'ผู้บริหาร'
+            //    รองรับทั้งคีย์ไทย (employeeData) และคีย์ JSON (Supabase dayOff/day_off)
+            function isExecutiveLumpSum(empData) {
+                if (!empData) return false;
+                const raw = (empData["วันหยุดประจําสัปดาห์"] || empData["วันหยุดประจำสัปดาห์"] || empData.dayOff || empData.day_off || "").toString().trim();
+                return raw === 'ผู้บริหาร';
             }
 
             function isDateEmployeeDayOff(dateStr, empData) {
@@ -29767,6 +29775,9 @@ ${slip.textSample}
                         // ไม่มีข้อมูล time record → ต้องเช็กว่าวันนี้เป็นวันหยุดหรือไม่
                         if (holidayInfo) {
                             log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                        } else if (isExecutiveLumpSum(emp)) {
+                            // ผู้บริหารเหมาจ่าย 30 วัน ไม่ต้องลงเวลา → นับเป็นวันทำงานทั้งรอบ ไม่หักเป็นขาด
+                            log = { status: 'W', project: emp.project, _execLumpSum: true };
                         } else if (isDateEmployeeDayOff(date, emp)) {
                             log = { status: 'ย', project: emp.project };
                         } else {
@@ -29850,6 +29861,9 @@ ${slip.textSample}
                         // ไม่มีข้อมูล time record → ต้องเช็กว่าวันนี้เป็นวันหยุดหรือไม่
                         if (holidayInfo) {
                             log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                        } else if (isExecutiveLumpSum(emp)) {
+                            // ผู้บริหารเหมาจ่าย 30 วัน ไม่ต้องลงเวลา → โชว์เป็น W (ทำงาน) ทั้งรอบ ไม่ใช่ขาด
+                            log = { status: 'W', project: emp.project, _execLumpSum: true };
                         } else if (isDateEmployeeDayOff(date, emp)) {
                             log = { status: 'ย', project: emp.project };
                         } else {
@@ -30704,10 +30718,12 @@ ${slip.textSample}
             const headerHtml = `<div class="flex items-center gap-2.5 mb-3"><div class="flex-shrink-0">${avatarHtml}</div><div><p class="font-extrabold text-slate-800 text-xs leading-tight">${emp.name}</p><p class="text-[10px] text-slate-400 leading-tight mt-0.5">${dateLabel}</p></div></div>`;
 
             if (!log) {
-                // ไม่มี time record → จำลองสถานะเดียวกับที่ตารางแสดง (วันหยุด/หยุดประจำสัปดาห์/ขาด)
+                // ไม่มี time record → จำลองสถานะเดียวกับที่ตารางแสดง (ทำงาน/วันหยุด/หยุดประจำสัปดาห์/ขาด)
                 const holidayInfo = getHoliday(dateStr);
                 if (holidayInfo) {
                     log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                } else if (isExecutiveLumpSum(emp)) {
+                    log = { status: 'W', project: emp.project, _execLumpSum: true };
                 } else if (isDateEmployeeDayOff(dateStr, emp)) {
                     log = { status: 'ย', project: emp.project };
                 } else {
@@ -30889,6 +30905,8 @@ ${slip.textSample}
                         if (!log) {
                             if (holidayInfo) {
                                 log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
+                            } else if (typeof isExecutiveLumpSum === 'function' && isExecutiveLumpSum(emp)) {
+                                log = { status: 'W', project: emp.project, _execLumpSum: true };
                             } else if (typeof isDateEmployeeDayOff === 'function' && isDateEmployeeDayOff(date, emp)) {
                                 log = { status: 'ย', project: emp.project };
                             } else {
