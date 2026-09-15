@@ -29982,6 +29982,51 @@ ${slip.textSample}
 
             const costingDatabase = {}; 
 
+            const addToCostingRecord = (projName, log, emp) => {
+                const rule = getStatusRule(log.status);
+                const workU = (+rule.workUnit) || 0;
+                if (workU <= 0) return;
+
+                // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
+                const divisor = systemSettings.dailyDivisor || 30;
+                const workHours = systemSettings.workHoursPerDay || 8;
+                const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
+
+                const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary); 
+                const baseHourlyWage = baseDailyWage / workHours; 
+                
+                const logOtHours = parseFloat(log.ot || 0);
+                const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
+                // 💰 ค่าจ้าง = นับวันทำงาน × ค่าจ้างต่อวัน (สถานะครึ่งวัน workUnit = 0.5) — จาก System Settings
+                const logWages = applyRounding(baseDailyWage * workU, systemSettings.roundSalary) + logOtPay; 
+
+                if (!costingDatabase[projName]) {
+                    costingDatabase[projName] = {};
+                }
+                if (!costingDatabase[projName][emp.id]) {
+                    costingDatabase[projName][emp.id] = {
+                        empName: emp.name,
+                        empId: emp.id,
+                        empAvatar: emp.avatar,
+                        role: emp.role,
+                        days: 0,
+                        otHours: 0,
+                        wages: 0,
+                        food: 0,
+                        trip: 0,
+                        other: 0
+                    };
+                }
+
+                const record = costingDatabase[projName][emp.id];
+                record.days += workU;
+                record.otHours += logOtHours;
+                record.wages += logWages;
+                record.food += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
+                record.trip += applyRounding(parseFloat(log.trip || 0), systemSettings.roundWelfare);
+                record.other += applyRounding(parseFloat(log.other || 0), systemSettings.roundWelfare);
+            };
+
             dates.forEach(date => {
                 const dayData = attendanceData[date];
                 if (!dayData) return;
@@ -29994,53 +30039,31 @@ ${slip.textSample}
 
                     if (activeProject !== 'all' && !isProjectMatch(projName, activeProject)) return;
 
-                    const rule = getStatusRule(log.status);
-                    const workU = (+rule.workUnit) || 0;
-                    if (workU <= 0) return;
-
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
 
-                    // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
-                    const divisor = systemSettings.dailyDivisor || 30;
-                    const workHours = systemSettings.workHoursPerDay || 8;
-                    const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
-
-                    const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary); 
-                    const baseHourlyWage = baseDailyWage / workHours; 
-                    
-                    const logOtHours = parseFloat(log.ot || 0);
-                    const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
-                    // 💰 ค่าจ้าง = นับวันทำงาน × ค่าจ้างต่อวัน (สถานะครึ่งวัน workUnit = 0.5) — จาก System Settings
-                    const logWages = applyRounding(baseDailyWage * workU, systemSettings.roundSalary) + logOtPay; 
-
-                    if (!costingDatabase[projName]) {
-                        costingDatabase[projName] = {};
-                    }
-                    if (!costingDatabase[projName][empId]) {
-                        costingDatabase[projName][empId] = {
-                            empName: emp.name,
-                            empId: emp.id,
-                            empAvatar: emp.avatar,
-                            role: emp.role,
-                            days: 0,
-                            otHours: 0,
-                            wages: 0,
-                            food: 0,
-                            trip: 0,
-                            other: 0
-                        };
-                    }
-
-                    const record = costingDatabase[projName][empId];
-                    record.days += workU;
-                    record.otHours += logOtHours;
-                    record.wages += logWages;
-                    record.food += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
-                    record.trip += applyRounding(parseFloat(log.trip || 0), systemSettings.roundWelfare);
-                    record.other += applyRounding(parseFloat(log.other || 0), systemSettings.roundWelfare);
+                    addToCostingRecord(projName, log, emp);
                 });
             });
+
+            // 🟢 ผู้บริหารเหมาจ่าย (day_off='ผู้บริหาร', ไม่ต้องลงเวลา): นับเป็นวันทำงานจริงเต็มรอบบัญชี
+            //    ให้ยอด "วันทำงาน/ค่าจ้าง" ตรงกับ Matrix ที่แสดง W ทั้งเดือน (ข้ามวันหยุดนักขัตฤกษ์เหมือน Matrix)
+            //    โครงการที่ใช้ = "โครงการหลัง/ล่าสุด" (getLatestProjectForEmp) เหมือนคอลัมน์โครงการใน Matrix
+            if (typeof isExecutiveLumpSum === 'function') {
+                employees.forEach(emp => {
+                    if (!isExecutiveLumpSum(emp)) return;
+                    const latestProj = (typeof getLatestProjectForEmp === 'function')
+                        ? getLatestProjectForEmp(emp.id, dates) || emp.project
+                        : emp.project;
+                    if (!latestProj) return;
+                    if (activeProject !== 'all' && !isProjectMatch(latestProj, activeProject)) return;
+                    dates.forEach(date => {
+                        if (attendanceData[date]?.[emp.id]) return; // มี record จริง → ปล่อยให้ main loop จัดการ
+                        if (typeof getHoliday === 'function' && getHoliday(date)) return; // ⏭️ วันหยุดนักขัตฤกษ์ — Matrix แสดง นข ไม่นับทำงาน
+                        addToCostingRecord(latestProj, { status: 'W', project: latestProj, _execLumpSum: true }, emp);
+                    });
+                });
+            }
 
             let grandCost = 0;
             let wagesCost = 0;
