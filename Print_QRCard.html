@@ -406,6 +406,15 @@
       email: 'brtc2024@gmail.com',
       deepLinkBase: ''
     };
+    /* 🏢 ข้อมูลบริษัทอัปเดตได้จาก System Settings (ส่งผ่าน stash/_CARD_DATA_) —
+       ถ้าไม่มีการส่งมา ให้ใช้ค่าคงที่ COMPANY เดิม (ความปลอดภัยท้ายบัตร: ไม่เพี้ยนตามแหล่งข้อมูล) */
+    function applyCompanyOverride_(cmp) {
+      if (!cmp || typeof cmp !== 'object') return;
+      ['name', 'address', 'phone', 'fax', 'email', 'logoUrl', 'taxId', 'deepLinkBase'].forEach(function (k) {
+        var v = cmp[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') COMPANY[k] = String(v).trim();
+      });
+    }
     var employees = (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0)
       ? _CARD_DATA_.employees
       : [];
@@ -483,7 +492,8 @@
     function applyCardResult_(result) {
       setLoadingStatus('กำลังแสดงบัตร...');
       if (result && result.status === 'success') {
-        /* ค่าบริษัทคงที่เสมอ — ไม่รับ company จากข้อมูล (stash/GAS/fetch) กันท้ายบัตรเพี้ยนตามแหล่งข้อมูล */
+        /* ค่าบริษัทจาก System Settings (ผ่าน stash/company) — ถ้าไม่มา ใช้ค่าคงที่ COMPANY */
+        applyCompanyOverride_((result && result.company) || null);
         employees = result.employees || [];
         activeEmpIndex = 0;
         initUI();
@@ -546,7 +556,7 @@
         }
       } catch (eSt) { /* stash พัง → ตกไปทางอื่นตามปกติ */ }
       // ทางหลัก: GAS inject _CARD_DATA_ มาแล้ว — แสดงทันที (เร็วสุด)
-      if (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0) { initUI(); return; }
+      if (_CARD_DATA_ && _CARD_DATA_.employees && _CARD_DATA_.employees.length > 0) { applyCompanyOverride_((_CARD_DATA_.company) || null); initUI(); return; }
       // ทางรอง: 2-Phase ผ่าน google.script.run (ถ้า GAS ส่ง _LOADING_CONFIG_ มา)
       if (_LOADING_CONFIG_ && _LOADING_CONFIG_.empIds !== undefined
         && typeof google !== 'undefined' && google.script && google.script.run) {

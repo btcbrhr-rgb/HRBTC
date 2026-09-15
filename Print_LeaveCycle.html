@@ -698,6 +698,41 @@
             return Array.isArray(payload.data) ? payload.data : [];
         }
 
+        /* 🏢 เอาข้อมูลบริษัทจาก System Settings มาลงหัวเอกสาร (ไม่มา → ใช้ค่าคงที่เหมือนเดิม) */
+        async function applyCompanySettings(apiUrl) {
+            try {
+                const url = new URL(apiUrl, window.location.href);
+                url.searchParams.set('action', 'getSystemSettings');
+                const res = await fetch(url.toString());
+                if (!res.ok) return;
+                const payload = await res.json();
+                const s = (payload && payload.status === 'success' && payload.data) ? payload.data : null;
+                if (!s) return;
+                const name = s.companyName;
+                const addr = s.companyAddress;
+                const phone = s.companyPhone || s.companyFax;
+                const taxId = s.companyTaxId;
+                const logo = s.companyLogoUrl;
+                if (name) {
+                    const el = document.querySelector('.company-name');
+                    if (el) el.textContent = name;
+                    document.title = 'รายงานสรุปการลาตามรอบบัญชี - ' + name;
+                }
+                if (addr) {
+                    const el = document.querySelector('.company-address');
+                    if (el) el.textContent = 'ที่อยู่: ' + addr;
+                }
+                if (taxId || phone) {
+                    const el = document.querySelector('.company-tax-tel');
+                    if (el) el.textContent = 'เลขประจำตัวผู้เสียภาษี: ' + (taxId || '-') + ' | โทร. ' + (phone || '-');
+                }
+                if (logo) {
+                    const img = document.querySelector('.company-logo');
+                    if (img) { img.onerror = null; img.src = logo; }
+                }
+            } catch (e) { /* ไม่มีผลกระทบ — ใช้ค่าคงที่เดิม */ }
+        }
+
         function buildReportData(records, statusFilter) {
             const employees = {};
             const totals = { sickCert: 0, sickNoCert: 0, personal: 0 };
@@ -892,6 +927,9 @@
                 renderError('ไม่พบ API URL สำหรับโหลดข้อมูล กรุณาเปิดหน้าจากระบบหลัก');
                 return;
             }
+
+            // 🏢 อัปเดตข้อมูลบริษัทจาก System Settings (ไม่บล็อกการโหลดรายงาน)
+            applyCompanySettings(params.apiUrl);
 
             try {
                 const records = await fetchLeaveRecords({ ...params, periodStart, periodEnd });

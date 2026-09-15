@@ -1098,7 +1098,27 @@
             adminTitle: 'Buriram Thongchai Admin'
         };
 
+        // 🏢 อ่านข้อมูลบริษัทจาก systemSettings (ตั้งค่าระบบ → ฐานข้อมูล) มีค่า COMPANY_INFO เป็นค่าเริ่มต้นสำรอง
+        function getCompanyInfo() {
+            const pick = (key, fallback) => {
+                const v = (typeof systemSettings === 'object' && systemSettings) ? systemSettings[key] : undefined;
+                return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v).trim() : fallback;
+            };
+            const name = pick('companyName', COMPANY_INFO.name);
+            return {
+                name: name,
+                address: pick('companyAddress', COMPANY_INFO.address),
+                taxId: pick('companyTaxId', COMPANY_INFO.taxId),
+                phone: pick('companyPhone', COMPANY_INFO.phone),
+                fax: pick('companyFax', COMPANY_INFO.fax),
+                logoUrl: pick('companyLogoUrl', COMPANY_INFO.logoUrl),
+                portalName: name.split(' ')[0] || COMPANY_INFO.portalName,
+                adminTitle: name + ' Admin'
+            };
+        }
+
         function initializeCompanyInfo() {
+            const ci = getCompanyInfo();
             const logo = document.getElementById('company-logo');
             const companyName = document.getElementById('company-name');
             const companyContact = document.getElementById('company-contact');
@@ -1110,15 +1130,23 @@
 
             if (logo) {
                 logo.referrerPolicy = 'no-referrer';
-                if (logo.getAttribute('src') !== COMPANY_INFO.logoUrl) logo.src = COMPANY_INFO.logoUrl;
+                if (logo.getAttribute('src') !== ci.logoUrl) logo.src = ci.logoUrl;
             }
-            if (companyName) companyName.textContent = COMPANY_INFO.name;
-            if (companyContact) companyContact.textContent = `${COMPANY_INFO.address} · โทร. ${COMPANY_INFO.phone} · แฟกซ์ ${COMPANY_INFO.fax}`;
-            if (copyright) copyright.textContent = `© ${new Date().getFullYear()} ${COMPANY_INFO.name}. All Rights Reserved.`;
-            if (portalName) portalName.textContent = COMPANY_INFO.portalName;
-            if (companyDetailLabel) companyDetailLabel.textContent = COMPANY_INFO.name;
-            if (adminTitle) adminTitle.textContent = COMPANY_INFO.adminTitle;
-            if (empCompanyInput) empCompanyInput.placeholder = COMPANY_INFO.name;
+            if (companyName) companyName.textContent = ci.name;
+            if (companyContact) companyContact.textContent = `${ci.address} · โทร. ${ci.phone} · แฟกซ์ ${ci.fax}`;
+            if (copyright) copyright.textContent = `© ${new Date().getFullYear()} ${ci.name}. All Rights Reserved.`;
+            if (portalName) portalName.textContent = ci.portalName;
+            if (companyDetailLabel) companyDetailLabel.textContent = ci.name;
+            if (adminTitle) adminTitle.textContent = ci.adminTitle;
+            if (empCompanyInput) empCompanyInput.placeholder = ci.name;
+
+            // 📄 อัปเดตข้อมูลบริษัทในส่วนเอกสารพิมพ์/รายงาน (ใช้ data-attribute คลุมทุกจุด)
+            document.querySelectorAll('[data-company-name]').forEach(el => { el.textContent = ci.name; });
+            document.querySelectorAll('[data-company-addr]').forEach(el => { el.textContent = 'สำนักงานใหญ่: ' + ci.address; });
+            document.querySelectorAll('[data-company-contact]').forEach(el => { el.textContent = `โทร: ${ci.phone} | อีเมล: account@hrbtc.co.th`; });
+            document.querySelectorAll('[data-company-cert]').forEach(el => {
+                el.textContent = `* เอกสารนี้ผ่านการรับรองระบบฐานข้อมูลอิเล็กทรอนิกส์ของทางบริษัท ${ci.name} โดยอ้างอิงรอบบันทึกเวลาปฏิบัติงานจริง`;
+            });
 
             // API URL ใช้ค่าจาก hardcoded config หรือ server-side config เท่านั้น (ไม่ใช้ localStorage)
         }
@@ -5492,9 +5520,9 @@
         <!-- Document Header -->
         <div class="flex justify-between items-start border-b-2 border-slate-800 pb-5">
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-wider">บริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด</h1>
-                <p class="text-xs text-slate-600 mt-1.5">สำนักงานใหญ่: 124 ถนนรอบเมืองบุรีรัมย์ ต.ในเมือง อ.เมืองบุรีรัมย์ จ.บุรีรัมย์ 31000</p>
-                <p class="text-xs text-slate-600">โทร: 044-XXXXXX | อีเมล: account@hrbtc.co.th</p>
+                <h1 data-company-name class="text-2xl font-black text-slate-900 tracking-wider">บริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด</h1>
+                <p data-company-addr class="text-xs text-slate-600 mt-1.5">สำนักงานใหญ่: 124 ถนนรอบเมืองบุรีรัมย์ ต.ในเมือง อ.เมืองบุรีรัมย์ จ.บุรีรัมย์ 31000</p>
+                <p data-company-contact class="text-xs text-slate-600">โทร: 044-XXXXXX | อีเมล: account@hrbtc.co.th</p>
             </div>
             <div class="text-right">
                 <h2 class="text-lg font-extrabold text-slate-800 uppercase tracking-wide">ใบสรุปค่าแรงและต้นทุนโครงการ</h2>
@@ -5570,7 +5598,7 @@
         </div>
 
         <div class="mt-14 text-center text-[10px] text-slate-400 border-t border-slate-200 pt-4">
-            * เอกสารนี้ผ่านการรับรองระบบฐานข้อมูลอิเล็กทรอนิกส์ของทางบริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด โดยอ้างอิงรอบบันทึกเวลาปฏิบัติงานจริง
+            <span data-company-cert>* เอกสารนี้ผ่านการรับรองระบบฐานข้อมูลอิเล็กทรอนิกส์ของทางบริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด โดยอ้างอิงรอบบันทึกเวลาปฏิบัติงานจริง</span>
         </div>
     </div>
 
@@ -6582,6 +6610,9 @@
                                     <button onclick="switchSettingsTab('database')" data-tab="database" class="settings-tab-btn active">
                                         <i class="fa-solid fa-satellite-dish text-[10px]"></i> ข้อมูลระบบ & การเชื่อมต่อ
                                     </button>
+                                    <button onclick="switchSettingsTab('company')" data-tab="company" class="settings-tab-btn">
+                                        <i class="fa-solid fa-building text-[10px]"></i> ข้อมูลบริษัท
+                                    </button>
                                 </div>
                                 <div class="settings-menu-group">
                                     <p class="settings-menu-group-label">ค่ากลาง</p>
@@ -7145,6 +7176,63 @@
                                     <span data-log-empty class="text-slate-500 text-xs italic block py-4 text-center"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังรอการทำงานของฐานข้อมูล (CRUD / Sync / Health Check)...</span>
                                 </div>
                             </aside>
+                        </div>
+                    </div>
+
+                    <!-- ═══ TAB: ข้อมูลบริษัท ═══ -->
+                    <div class="settings-tab-content hidden" data-tab="company">
+                        <div class="space-y-4">
+
+                            <!-- ข้อมูลบริษัท -->
+                            <div class="rounded-2xl border-2 border-brand-sky/70 bg-gradient-to-br from-brand-sky/15 via-white to-white overflow-hidden shadow-sm" data-search="บริษัท company ชื่อ ที่อยู่ โทร แฟกซ์ เลขผู้เสียภาษี โลโก้">
+                                <div class="px-4 py-3 bg-gradient-to-r from-brand-sky/20 to-transparent border-b border-brand-sky/20">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-deep to-brand-teal flex items-center justify-center shadow-sm">
+                                            <i class="fa-solid fa-building text-white text-xs"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-extrabold text-slate-800">ข้อมูลบริษัท</p>
+                                            <p class="text-[10px] text-slate-400">เปลี่ยนที่เดียว → ออกผลกับเว็บหลัก + เอกสารพิมพ์ (บัตรพนักงาน / ใบลา / ใบตั้งเบิกค่าแรง) ทันที โดยไม่ต้องแก้โค้ด</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div class="space-y-1 md:col-span-2">
+                                            <label for="setting-companyName" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ชื่อบริษัท</label>
+                                            <input type="text" id="setting-companyName" value="บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด" placeholder="บริษัท ... จำกัด"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                        <div class="space-y-1 md:col-span-2">
+                                            <label for="setting-companyAddress" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ที่อยู่</label>
+                                            <input type="text" id="setting-companyAddress" value="31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000" placeholder="เลขที่ ถนน ต. อ. จ. รหัสไปรษณีย์"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label for="setting-companyPhone" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">โทรศัพท์</label>
+                                            <input type="text" id="setting-companyPhone" value="044-611134, 611835" placeholder="044-XXXXXXX"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label for="setting-companyFax" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">แฟกซ์</label>
+                                            <input type="text" id="setting-companyFax" value="044-611134" placeholder="044-XXXXXXX"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label for="setting-companyTaxId" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">เลขประจำตัวผู้เสียภาษี</label>
+                                            <input type="text" id="setting-companyTaxId" value="0315559001144" placeholder="13 หลัก"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                        <div class="space-y-1 md:col-span-2">
+                                            <label for="setting-companyLogoUrl" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">URL โลโก้</label>
+                                            <input type="text" id="setting-companyLogoUrl" value="https://img2.pic.in.th/pic/Screenshot-2025-03-03-132721e6cc77cbcea28f01.png" placeholder="https://.../logo.png"
+                                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-[11px] font-mono focus:ring-2 focus:ring-brand-teal focus:border-brand-teal focus:outline-none transition-all">
+                                        </div>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 mt-2">💡 ข้อมูลนี้ใช้กับส่วนหัวเว็บ + เอกสารพิมพ์ทั้งหมด (บัตรพนักงาน QR / รายงานการลารอบบัญชี / ใบตั้งเบิกค่าแรง) · แก้แล้วกดปุ่ม <b class="text-brand-deep">“บันทึกการตั้งค่า”</b> ด้านบนเพื่อลงฐานข้อมูล</p>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
@@ -10093,11 +10181,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     return String(item || '').trim();
                 }).filter(Boolean);
 
-                // Ensure (00)บุรีรัมย์ is the first option
+                // Ensure โครงการเริ่มต้น (จากตั้งค่าระบบ defaultCentralProject) คือ option แรก
+                const centralProj = (systemSettings && systemSettings.defaultCentralProject)
+                    ? systemSettings.defaultCentralProject.toString().trim()
+                    : "(00)บุรีรัมย์";
                 const sortedProjects = [...new Set(normalized)];
                 sortedProjects.sort((a, b) => {
-                    const isBuriramA = a === "(00)บุรีรัมย์" || a.includes("(00)บุรีรัมย์");
-                    const isBuriramB = b === "(00)บุรีรัมย์" || b.includes("(00)บุรีรัมย์");
+                    const isBuriramA = a === centralProj || (centralProj && a.includes(centralProj));
+                    const isBuriramB = b === centralProj || (centralProj && b.includes(centralProj));
                     if (isBuriramA && !isBuriramB) return -1;
                     if (!isBuriramA && isBuriramB) return 1;
                     return a.localeCompare(b, "th");
@@ -10119,7 +10210,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     sortedProjects.forEach(proj => {
                         const opt = document.createElement("option");
                         opt.value = proj;
-                        if (id === "attendance-project-select" && (proj === "(00)บุรีรัมย์" || proj.includes("(00)บุรีรัมย์"))) {
+                        if (id === "attendance-project-select" && (proj === centralProj || (centralProj && proj.includes(centralProj)))) {
                             opt.textContent = `${proj} (โครงการหลัก)`;
                         } else {
                             opt.textContent = proj;
@@ -11361,6 +11452,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     merged[k] = v;
                                 });
                                 systemSettings = Object.assign({}, systemSettings, merged);
+                                    if (typeof initializeCompanyInfo === 'function') initializeCompanyInfo();
                             }
                         } catch (e) { console.warn('[loadAllData] settings load error:', e); }
 
@@ -15097,7 +15189,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     <div class="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl p-4 text-center text-white shadow-lg shadow-emerald-200 mt-4">
                         <p class="text-xs opacity-80">ยอดเงินสุทธิที่ได้รับ</p>
                         <p class="text-2xl font-bold mt-1 tracking-wide">${Number(net || 0).toLocaleString('th-TH')} บาท</p>
-                        <p class="text-[10px] opacity-60 mt-1">บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด</p>
+                        <p data-company-name class="text-[10px] opacity-60 mt-1">บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด</p>
                     </div>
 
                     <div class="mt-4 bg-slate-50 rounded-xl p-3.5 space-y-0">
@@ -24388,6 +24480,13 @@ ${slip.textSample}
                             document.getElementById("setting-billingCycleStartDay").value = s.billingCycleStartDay || 26;
                             document.getElementById("setting-billingCycleEndDay").value = s.billingCycleEndDay || 25;
                             document.getElementById("setting-defaultCentralProject").value = s.defaultCentralProject || "(00)บุรีรัมย์";
+                            // ข้อมูลบริษัท
+                            document.getElementById("setting-companyName").value = s.companyName ?? COMPANY_INFO.name;
+                            document.getElementById("setting-companyAddress").value = s.companyAddress ?? COMPANY_INFO.address;
+                            document.getElementById("setting-companyPhone").value = s.companyPhone ?? COMPANY_INFO.phone;
+                            document.getElementById("setting-companyFax").value = s.companyFax ?? COMPANY_INFO.fax;
+                            document.getElementById("setting-companyTaxId").value = s.companyTaxId ?? COMPANY_INFO.taxId;
+                            document.getElementById("setting-companyLogoUrl").value = s.companyLogoUrl ?? COMPANY_INFO.logoUrl;
                             showToast("✅ โหลดการตั้งค่าระบบสำเร็จ", "success");
 
                             // โหลดกฎสถานะ (การนับวันทำงาน/ค่าข้าว/ยกเว้นสาย)
@@ -24447,6 +24546,7 @@ ${slip.textSample}
                 // 🏷️ ตั้งค่าหัวเรื่องส่วนที่เลือก (สไตล์อนุมัติใบลางาน: icon + title + desc)
                 const SETTINGS_SECTION_META = {
                     'database':      ['fa-satellite-dish', 'ข้อมูลระบบ & การเชื่อมต่อ', 'ฐานข้อมูลหลัก · Google Apps Script · Service Key · Keep-Alive'],
+                    'company':       ['fa-building', 'ข้อมูลบริษัท', 'ชื่อบริษัท · ที่อยู่ · โทร · แฟกซ์ · เลขผู้เสียภาษี · โลโก้ — ใช้กับทุกเอกสาร/หน้าเว็บ'],
                     'worktime':      ['fa-clock', 'เวลาทำงาน', 'เวลาเข้า-ออก · กะ · พักเที่ยง · เกณฑ์สาย'],
                     'ot':            ['fa-money-bill-wave', 'โอที', 'อัตราโอที · วันหยุด · ช่วงเวลาล่วงเวลา'],
                     'leave':         ['fa-plane', 'วันลา', 'สิทธิ์ลาแต่ละประเภท · อัตราสะสม · วันตัดสิทธิ์'],
@@ -24537,6 +24637,13 @@ ${slip.textSample}
                             militaryLeaveDays: parseInt(document.getElementById("setting-militaryLeaveDays").value),
                             leaveAccrualRate: parseFloat(document.getElementById("setting-leaveAccrualRate").value),
                             leaveCutoff: document.getElementById("setting-leaveCutoff").value,
+                            // ข้อมูลบริษัท
+                            companyName: document.getElementById("setting-companyName").value,
+                            companyAddress: document.getElementById("setting-companyAddress").value,
+                            companyPhone: document.getElementById("setting-companyPhone").value,
+                            companyFax: document.getElementById("setting-companyFax").value,
+                            companyTaxId: document.getElementById("setting-companyTaxId").value,
+                            companyLogoUrl: document.getElementById("setting-companyLogoUrl").value,
                             // ค่าหัก
                             latePenaltyPerMinute: parseFloat(document.getElementById("setting-latePenaltyPerMinute").value),
                             lateBaseMinutes: parseInt(document.getElementById("setting-lateBaseMinutes").value),
@@ -25434,7 +25541,8 @@ ${slip.textSample}
                         ts: Date.now(),
                         mode: ids.length > 0 ? 'ids' : 'all',
                         empIds: ids,
-                        employees: employees
+                        employees: employees,
+                        company: (typeof getCompanyInfo === 'function') ? getCompanyInfo() : null
                     };
                     try {
                         var sj = JSON.stringify(payload);
@@ -27559,9 +27667,9 @@ ${slip.textSample}
         <!-- Document Header -->
         <div class="flex justify-between items-start border-b-2 border-slate-800 pb-5">
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-wider">บริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด</h1>
-                <p class="text-xs text-slate-600 mt-1.5">สำนักงานใหญ่: 124 ถนนรอบเมืองบุรีรัมย์ ต.ในเมือง อ.เมืองบุรีรัมย์ จ.บุรีรัมย์ 31000</p>
-                <p class="text-xs text-slate-600">โทร: 044-XXXXXX | อีเมล: account@hrbtc.co.th</p>
+                <h1 data-company-name class="text-2xl font-black text-slate-900 tracking-wider">บริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด</h1>
+                <p data-company-addr class="text-xs text-slate-600 mt-1.5">สำนักงานใหญ่: 124 ถนนรอบเมืองบุรีรัมย์ ต.ในเมือง อ.เมืองบุรีรัมย์ จ.บุรีรัมย์ 31000</p>
+                <p data-company-contact class="text-xs text-slate-600">โทร: 044-XXXXXX | อีเมล: account@hrbtc.co.th</p>
             </div>
             <div class="text-right">
                 <h2 class="text-lg font-extrabold text-slate-800 uppercase tracking-wide">ใบสรุปค่าแรงและต้นทุนโครงการ</h2>
@@ -27637,7 +27745,7 @@ ${slip.textSample}
         </div>
 
         <div class="mt-14 text-center text-[10px] text-slate-400 border-t border-slate-200 pt-4">
-            * เอกสารนี้ผ่านการรับรองระบบฐานข้อมูลอิเล็กทรอนิกส์ของทางบริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด โดยอ้างอิงรอบบันทึกเวลาปฏิบัติงานจริง
+            <span data-company-cert>* เอกสารนี้ผ่านการรับรองระบบฐานข้อมูลอิเล็กทรอนิกส์ของทางบริษัท บุรีรัมย์ บิลดิ้ง แอนด์ เทรดดิ้ง จำกัด โดยอ้างอิงรอบบันทึกเวลาปฏิบัติงานจริง</span>
         </div>
     </div>
 
@@ -27763,6 +27871,12 @@ ${slip.textSample}
             otIntervalValue: 0.5,
             defaultFoodAllowance: 50,
             defaultCentralProject: '(00)บุรีรัมย์',
+            companyName: 'บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด',
+            companyAddress: '31/2 ถนนอินจันทร์ณรงค์ ต.ในเมือง อ.เมือง จ.บุรีรัมย์ 31000',
+            companyPhone: '044-611134, 611835',
+            companyFax: '044-611134',
+            companyTaxId: '0315559001144',
+            companyLogoUrl: 'https://img2.pic.in.th/pic/Screenshot-2025-03-03-132721e6cc77cbcea28f01.png',
             latePenaltyPerMinute: 1.0,
             lateHalfDayThreshold: 240,
             halfDayWageRate: 0.5,
@@ -28146,6 +28260,8 @@ ${slip.textSample}
                     }
                     console.log('[loadSystemSettings ⚡ Supabase]', data.length, 'settings loaded');
                 }
+                // 🏢 อัปเดตข้อมูลบริษัทตามตั้งค่าระบบ (ถ้าเว็บหลักโหลดเสร็จแล้ว)
+                if (typeof initializeCompanyInfo === 'function') initializeCompanyInfo();
             } catch (err) {
                 console.error('[loadSystemSettings] Supabase error:', err);
             }
@@ -28305,7 +28421,7 @@ ${slip.textSample}
                                 role: r.position || r.role || 'Employee',
                                 avatar: r.avatar_url || '',
                                 avatarUrl: r.avatar_url || '',
-                                project: (r.project || r['โครงการ'] || r.company || '').toString().trim(),
+                                project: (r.project || r['โครงการ'] || systemSettings.defaultCentralProject || '').toString().trim(),
                                 lineUserId: r.line_user_id || ''
                             })).filter(e => e.id);
                         }
@@ -31159,7 +31275,7 @@ ${slip.textSample}
     <!-- Official Document Header -->
     <div style="border-bottom:2.5px solid #0E3A5D;padding-bottom:6px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-end;">
         <div>
-            <div class="doc-company-name" style="font-size:16px;font-weight:800;color:#0E3A5D;letter-spacing:0.5px;">บริษัท บุรีรัมย์รังชัยก่อสร้าง จำกัด</div>
+            <div data-company-name class="doc-company-name" style="font-size:16px;font-weight:800;color:#0E3A5D;letter-spacing:0.5px;">บริษัท บุรีรัมย์รังชัยก่อสร้าง จำกัด</div>
             <div style="font-size:9.5px;font-weight:600;color:#475569;letter-spacing:0.5px;">BURIRAM RUNGCHAICONSTRUCTION CO., LTD.</div>
             <div class="doc-sheet-title" style="font-size:13px;font-weight:800;color:#0f172a;margin-top:3px;">แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด (Matrix Timesheet)</div>
         </div>
