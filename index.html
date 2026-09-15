@@ -7066,6 +7066,17 @@
                                             <p id="gas-last-tested" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
                                         </div>
                                     </div>
+                                    <!-- Build Version Compare (Frontend vs GAS) -->
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                                            <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Frontend (Vercel)</p>
+                                            <p id="gas-version-web" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
+                                        </div>
+                                        <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                                            <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Apps Script (GAS)</p>
+                                            <p id="gas-version-gas" class="text-[11px] font-extrabold text-slate-600 mt-0.5">-</p>
+                                        </div>
+                                    </div>
                                     <!-- Config Field (Edit Mode) -->
                                     <div id="gas-config-field" class="space-y-1">
                                         <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Apps Script Web App URL</label>
@@ -8846,6 +8857,9 @@ let selectedAdvanceItems = new Set(); // For batch advance approval
 let currentEmployeeId;
 var isProjectCostInitialized = false;
 let SERVER_API_URL; // Will be set from config or Apps Script URL
+
+// 🏷️ Build version ของ Frontend — ใช้เทียบกับ GAS_BUILD ในหน้า Settings (กัน deploy ตกรุ่น)
+const WEB_BUILD = '2026-09-14.1';
 let adminSettingsInitPromise = null;
 let adminEmployeeListPromise = null;
 
@@ -31443,6 +31457,20 @@ ${slip.textSample}
             testGoogleSheetsConnection();
         }
 
+        // 🏷️ เปรียบเทียบเวอร์ชัน Web (WEB_BUILD) กับ GAS (gasBuild) — ตรงกัน=เขียว, ไม่ตรง=แดง
+        function updateGasVersionBadges(gasBuild) {
+            const webEl = document.getElementById('gas-version-web');
+            const gasEl = document.getElementById('gas-version-gas');
+            if (!webEl || !gasEl) return;
+            const webBuild = (typeof WEB_BUILD !== 'undefined') ? WEB_BUILD : '(ไม่พบ)';
+            webEl.textContent = webBuild;
+            gasEl.textContent = gasBuild || '(ไม่ได้รับ)';
+            const match = !!gasBuild && gasBuild === webBuild;
+            const cls = 'text-[11px] font-extrabold mt-0.5 ' + (match ? 'text-emerald-600' : 'text-rose-600');
+            webEl.className = cls;
+            gasEl.className = cls;
+        }
+
         async function testGoogleSheetsConnection() {
             const btn = document.getElementById('gas-test-btn');
             const dot = document.getElementById('gas-status-dot');
@@ -31465,10 +31493,10 @@ ${slip.textSample}
                 return;
             }
 
-            gasLog(`🔍 ส่งคำสั่ง Ping (Health Check) → ${url}`);
+            gasLog(`🔍 ส่งคำสั่ง Ping (Self-Test: pingPayload) → ${url}`);
             const t0 = performance.now();
             try {
-                const res = await fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'health' }), timeout: 15000 });
+                const res = await fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'pingPayload' }), timeout: 15000 });
                 const ms = Math.round(performance.now() - t0);
 
                 if (res && res.status === 'success') {
@@ -31477,7 +31505,11 @@ ${slip.textSample}
                     if (badge) badge.className = badge.className.replace(/bg-\S+ text-\S+ border-\S+/, '') + ' bg-emerald-50 text-emerald-700 border-emerald-200';
                     if (pingEl) pingEl.textContent = `${ms} ms`;
                     if (lastEl) lastEl.textContent = new Date().toLocaleTimeString('th-TH');
-                    gasLog(`✅ เชื่อมต่อ Google Apps Script สำเร็จ — ตอบสนองใน ${ms}ms`, '#34d399');
+                    const g = res?.data || res;
+                    const gasBuild = g?.gasBuild || '';
+                    const layerInfo = g?.payloadLayers || '';
+                    updateGasVersionBadges(gasBuild);
+                    gasLog(`✅ เชื่อมต่อ Google Apps Script สำเร็จ — ตอบสนองใน ${ms}ms | GAS_BUILD=${gasBuild || '(ไม่ได้รับ)'} | payloadLayers=${layerInfo}`, '#34d399');
                     showToast(`⚡ Apps Script API ตอบสนอง (${ms}ms)`, 'success');
                     startSyncWhenConnectionsReady();
                 } else {
