@@ -11051,20 +11051,57 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function showPinConfirmModal(empId) {
-                const data = employeeData || {};
+                const data = (typeof employeeData === 'object' && employeeData) ? employeeData : {};
                 const name = data["ชื่อ-นามสกุล"] || empId;
-                const dept = data["แผนก"] || "-";
                 const pos = data["ตำแหน่ง"] || "-";
+                const company = data["ชื่อบริษัท"] || "-";
 
                 const nameEl = document.getElementById("pin-confirm-name");
-                const deptEl = document.getElementById("pin-confirm-dept");
-                const posEl = document.getElementById("pin-confirm-pos");
+                const empidEl = document.getElementById("pin-confirm-empid");
+                const posEl = document.getElementById("pin-confirm-position");
+                const companyEl = document.getElementById("pin-confirm-company");
+                const avatarEl = document.getElementById("pin-confirm-avatar");
 
                 if (nameEl) nameEl.textContent = name;
-                if (deptEl) deptEl.textContent = dept;
+                if (empidEl) empidEl.textContent = "รหัส: " + empId;
                 if (posEl) posEl.textContent = pos;
+                if (companyEl) companyEl.textContent = company;
+
+                const rawAvatar = data["ลิ้งภาพโปรไฟล์"] || data["avatar_url"] || '';
+                if (avatarEl && rawAvatar) {
+                    const url = (typeof convertDriveUrl === 'function' ? convertDriveUrl(rawAvatar) : rawAvatar) || rawAvatar;
+                    avatarEl.src = url;
+                }
 
                 showModal("pin-confirm-modal");
+
+                // หากยังไม่มีข้อมูลโปรไฟล์ (เช่น ตั้ง PIN ครั้งแรก) → ดึงข้อมูลจริงจาก GAS แล้วเติมให้ครบ
+                if (!data["ชื่อ-นามสกุล"]) {
+                    fetchEmployeeProfileForPinConfirm(empId);
+                }
+            }
+
+            async function fetchEmployeeProfileForPinConfirm(empId) {
+                try {
+                    const res = await postAction('getEmployee', { empId: empId, adminId: empId }, { timeout: 30000 });
+                    const d = (res && res.status === 'success' && res.data) ? res.data : null;
+                    if (!d || !d["ชื่อ-นามสกุล"]) return;
+
+                    const nameEl = document.getElementById("pin-confirm-name");
+                    const posEl = document.getElementById("pin-confirm-position");
+                    const companyEl = document.getElementById("pin-confirm-company");
+                    const avatarEl = document.getElementById("pin-confirm-avatar");
+                    if (nameEl) nameEl.textContent = d["ชื่อ-นามสกุล"] || empId;
+                    if (posEl) posEl.textContent = d["ตำแหน่ง"] || "-";
+                    if (companyEl) companyEl.textContent = d["ชื่อบริษัท"] || "-";
+                    const rawAvatar = d["ลิ้งภาพโปรไฟล์"] || d["avatar_url"] || '';
+                    if (avatarEl && rawAvatar) {
+                        const url = (typeof convertDriveUrl === 'function' ? convertDriveUrl(rawAvatar) : rawAvatar) || rawAvatar;
+                        avatarEl.src = url;
+                    }
+                } catch (e) {
+                    console.warn('[fetchEmployeeProfileForPinConfirm] fetch failed:', e);
+                }
             }
 
             // 🔧 Bug fix: ปุ่ม "← กลับไปแก้ไขข้อมูล" เรียก cancelPinConfirm() ที่ไม่เคยมีนิยาม → ReferenceError และ modal ค้าง
