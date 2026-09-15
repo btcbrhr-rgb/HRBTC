@@ -29856,7 +29856,7 @@ ${slip.textSample}
                 const workHours = systemSettings.workHoursPerDay || 8;
                 const otRate = systemSettings.defaultOtRate || 1.0;
                 const baseDailyWage = (parseFloat(emp.baseSalary) || 0) / divisor;
-                return { baseDailyWage, baseHourlyWage: workHours > 0 ? baseDailyWage / workHours : 0, otRate };
+                return { divisor, baseDailyWage, baseHourlyWage: workHours > 0 ? baseDailyWage / workHours : 0, otRate };
             };
 
             if (filteredEmps.length === 0) {
@@ -29883,6 +29883,8 @@ ${slip.textSample}
                 let totalOtherSum = 0;
                 let totalWagesCost = 0;
                 const costParams = _empDailyCostParams(emp);
+                // 🔢 จำกัด "วันทำงาน/ค่าจ้าง" รายเดือนไว้ที่ ตัวหารค่าแรง/วัน (เช่น 30) — เดือนมี 31 วัน นับแค่ 30
+                let cappedDaysUsed = 0;
 
                 dates.forEach(date => {
                     const holidayInfo = getHoliday(date);
@@ -29906,8 +29908,11 @@ ${slip.textSample}
                         const cat = rule.category;
                         const workU = (+rule.workUnit) || 0;
                         const lateMins = parseFloat(log.penalty || 0);
-                        if (workU > 0) {
-                            workedDaysCount += workU;
+                        // 🔢 เพดานวันทำงาน = ตัวหารค่าแรง/วัน: วันที่เกินเพดาน (เช่นวันที่ 31 ของเดือน) ไม่นับวัน/ไม่จ่าย/ไม่นับ OT/เบี้ยเลี้ยง
+                        const usable = (cappedDaysUsed >= costParams.divisor) ? 0 : Math.min(workU, costParams.divisor - cappedDaysUsed);
+                        if (usable > 0) {
+                            cappedDaysUsed += usable;
+                            workedDaysCount += usable;
                             if (cat === 'late' || cat === 'late_half') lateDaysCount++;
                         } else if ((+rule.absentUnit || 0) > 0) {
                             absentDaysCount += (+rule.absentUnit || 0);
@@ -29918,16 +29923,15 @@ ${slip.textSample}
                             if (cat !== 'late' && cat !== 'late_half') lateDaysCount++;
                         }
 
-                        // 💰 ต้นทุนค่าจ้างรายวัน = (วันทำงาน × ค่าจ้างต่อวัน) + (OT ชม. × อัตรารายชั่วโมง × ค่าแรง OT) — ตรรกะเดียวกับแท็บต้นทุน
-                        if (workU > 0) {
+                        if (usable > 0) {
+                            // 💰 ต้นทุนค่าจ้างรายวัน = (วันทำงาน × ค่าจ้างต่อวัน) + (OT ชม. × อัตรารายชั่วโมง × ค่าแรง OT) — ตรรกะเดียวกับแท็บต้นทุน
                             const logOtHours = parseFloat(log.ot || 0);
-                            totalWagesCost += (costParams.baseDailyWage * workU) + (logOtHours * costParams.baseHourlyWage * costParams.otRate);
+                            totalWagesCost += (costParams.baseDailyWage * usable) + (logOtHours * costParams.baseHourlyWage * costParams.otRate);
+                            totalOtHours += logOtHours;
+                            totalFoodSum += parseFloat(log.food || 0);
+                            totalTripSum += parseFloat(log.trip || 0);
+                            totalOtherSum += parseFloat(log.other || 0);
                         }
-
-                        totalOtHours += parseFloat(log.ot || 0);
-                        totalFoodSum += parseFloat(log.food || 0);
-                        totalTripSum += parseFloat(log.trip || 0);
-                        totalOtherSum += parseFloat(log.other || 0);
                     }
                 });
 
@@ -30098,6 +30102,10 @@ ${slip.textSample}
 
             const costingDatabase = {}; 
 
+            // 🔢 จำกัด "วันทำงาน/ค่าจ้าง" รายเดือนของพนักงานแต่ละคนไว้ที่ ตัวหารค่าแรง/วัน (เช่น 30)
+            //    รวมทุกโครงการ — เดือนมี 31 วัน นับแค่ 30 (วันที่เกินเพดาน ไม่นับวัน/ไม่จ่าย/ไม่นับ OT)
+            const empCappedDaysUsed = {};
+
             const addToCostingRecord = (projName, log, emp) => {
                 const rule = getStatusRule(log.status);
                 const workU = (+rule.workUnit) || 0;
@@ -30105,6 +30113,11 @@ ${slip.textSample}
 
                 // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
                 const divisor = systemSettings.dailyDivisor || 30;
+                const usedSoFar = empCappedDaysUsed[emp.id] || 0;
+                const usable = (usedSoFar >= divisor) ? 0 : Math.min(workU, divisor - usedSoFar);
+                if (usable <= 0) return; // เกินเพดานตัวหารแล้ว (เช่นวันที่ 31 ของเดือน) → ไม่นับ
+                empCappedDaysUsed[emp.id] = usedSoFar + usable;
+
                 const workHours = systemSettings.workHoursPerDay || 8;
                 const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
 
@@ -30114,7 +30127,7 @@ ${slip.textSample}
                 const logOtHours = parseFloat(log.ot || 0);
                 const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
                 // 💰 ค่าจ้าง = นับวันทำงาน × ค่าจ้างต่อวัน (สถานะครึ่งวัน workUnit = 0.5) — จาก System Settings
-                const logWages = applyRounding(baseDailyWage * workU, systemSettings.roundSalary) + logOtPay; 
+                const logWages = applyRounding(baseDailyWage * usable, systemSettings.roundSalary) + logOtPay; 
 
                 if (!costingDatabase[projName]) {
                     costingDatabase[projName] = {};
@@ -30135,7 +30148,7 @@ ${slip.textSample}
                 }
 
                 const record = costingDatabase[projName][emp.id];
-                record.days += workU;
+                record.days += usable;
                 record.otHours += logOtHours;
                 record.wages += logWages;
                 record.food += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
