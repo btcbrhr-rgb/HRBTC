@@ -441,6 +441,19 @@
         .hr-table tbody tr:hover {
             background: #f8fafc;
         }
+        /* แถวที่ถูกเลือกใน detail panel ฝั่งขวา */
+        .hr-table tbody tr.selected-row,
+        #admin-employees-table-body tr.selected-row {
+            background: #ecfdf5 !important;
+            box-shadow: inset 3px 0 0 #059669;
+        }
+        .hr-table tbody tr.selected-row:hover {
+            background: #d1fae5 !important;
+        }
+        #emp-grid-wrap .selected-row {
+            border-color: #059669 !important;
+            box-shadow: 0 0 0 2px rgba(5,150,105,0.15);
+        }
         .hr-table tbody td {
             padding: .5rem .75rem;
             font-size: .75rem;
@@ -6390,7 +6403,9 @@
                     </div>
 
                     <!-- ═══ TAB 1: รายชื่อพนักงาน ═══ -->
-                    <div id="emp-tab-panel-list" class="space-y-4">
+                    <div id="emp-tab-panel-list" class="flex flex-col xl:flex-row gap-4 xl:items-start">
+                        <!-- LEFT: สถิติ + ตารางรายชื่อ -->
+                        <div class="flex-1 min-w-0 space-y-4">
 
                         <!-- สถิติสรุป 4 เสาหลัก -->
                         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -6441,10 +6456,6 @@
                                     <button onclick="openPrintQrCardPage([])" title="พิมพ์บัตรพนักงานทั้งหมด (โหลดข้อมูลจากฐานข้อมูลอัตโนมัติ)" aria-label="พิมพ์บัตรทั้งหมด"
                                         class="bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-200/80 flex items-center gap-1.5 transition-all shadow-2xs">
                                         <i class="fa-solid fa-id-card text-cyan-600 text-[11px]"></i> พิมพ์บัตรทั้งหมด
-                                    </button>
-                                    <button onclick="openEmployeeEditModal(null)"
-                                        class="bg-brand-deep hover:bg-brand-navy text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs">
-                                        <i class="fa-solid fa-user-plus text-[11px]"></i> เพิ่มพนักงานใหม่
                                     </button>
                                     <button onclick="loadAdminEmployees()" title="รีเฟรชรายชื่อพนักงาน"
                                         aria-label="รีเฟรชรายชื่อพนักงาน"
@@ -6553,6 +6564,213 @@
                             <!-- มุมมองการ์ด -->
                             <div id="emp-grid-wrap" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
                         </div>
+                        </div><!-- /LEFT: สถิติ+ตาราง -->
+
+                        <!-- RIGHT: ฟอร์มข้อมูลพนักงาน (inline detail panel) -->
+                        <div id="emp-detail-panel" class="w-full xl:w-[460px] shrink-0 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden xl:sticky xl:top-4 xl:self-start">
+                            <!-- Empty state: เลือกพนักงานจากตาราง -->
+                            <div id="emp-detail-empty" class="flex flex-col items-center justify-center py-14 px-6 text-center min-h-[360px]">
+                                <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                                    <i class="fa-solid fa-user-check text-xl text-slate-300"></i>
+                                </div>
+                                <p class="text-sm font-bold text-slate-400 mb-1">เลือกพนักงานจากตารางทางซ้าย</p>
+                                <p class="text-[11px] text-slate-400 mb-5">เพื่อดูและแก้ไขข้อมูลพนักงาน</p>
+                                <button onclick="openEmployeeEditModal(null)"
+                                    class="px-4 py-2 bg-brand-deep hover:bg-brand-navy text-white text-xs font-bold rounded-xl flex items-center gap-2 transition shadow-sm">
+                                    <i class="fa-solid fa-user-plus"></i> เพิ่มพนักงานใหม่
+                                </button>
+                            </div>
+
+                            <!-- Detail form (แสดงเมื่อเลือกพนักงาน) -->
+                            <div id="emp-detail-body" class="hidden flex flex-col">
+                                <!-- Form Header -->
+                                <div class="bg-gradient-to-r from-brand-navy via-brand-deep to-brand-teal text-white px-5 py-3.5 flex items-center justify-between shrink-0">
+                                    <div class="flex items-center gap-3 min-w-0">
+                                        <img id="emp-detail-avatar" src="" class="w-9 h-9 rounded-xl object-cover border border-white/30 hidden" alt="รูปพนักงาน">
+                                        <div class="min-w-0">
+                                            <h3 id="emp-detail-title" class="text-sm font-black text-white truncate">ข้อมูลพนักงาน</h3>
+                                            <p class="text-[10px] text-blue-100/80 truncate"><span id="emp-detail-id" class="font-mono font-bold text-amber-300">-</span></p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <button onclick="clearEmployeePin(currentSelectedEmpId, currentSelectedEmpName)" title="ล้าง PIN" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition"><i class="fa-solid fa-key text-xs"></i></button>
+                                        <button onclick="openPrintQrCardPageSingle(currentSelectedEmpId)" title="พิมพ์บัตรประจำตัว" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition"><i class="fa-solid fa-id-card text-xs"></i></button>
+                                        <button onclick="openEmployeeEditModal(null)" title="เพิ่มพนักงานใหม่" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition"><i class="fa-solid fa-user-plus text-xs"></i></button>
+                                        <button onclick="clearEmpFormSelection()" title="ปิด" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition"><i class="fa-solid fa-xmark text-xs"></i></button>
+                                    </div>
+                                </div>
+
+                                <!-- Form Body (ย้ายจาก admin-employee-modal เดิม) -->
+                                <div class="overflow-y-auto p-4 space-y-4 text-xs custom-scrollbar max-h-[calc(100vh-260px)]">
+
+                                    <!-- ═══ หมวด 1: ข้อมูลทั่วไปและรูปโปรไฟล์ ═══ -->
+                                    <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                                        <h4 class="font-black text-slate-800 text-xs flex items-center gap-2">
+                                            <i class="fa-solid fa-user text-indigo-600"></i> <span>1. ข้อมูลทั่วไปและรูปถ่ายประจำตัว</span>
+                                        </h4>
+                                        <div class="flex flex-col sm:flex-row gap-3 items-start">
+                                            <!-- อัปโหลดรูปโปรไฟล์ -->
+                                            <div class="flex flex-col items-center gap-1.5 shrink-0 mx-auto sm:mx-0">
+                                                <div class="relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-slate-200 bg-white shadow-inner flex items-center justify-center group">
+                                                    <img id="form-emp-avatar-preview" src="" alt="ตัวอย่างรูปโปรไฟล์" class="w-full h-full object-cover hidden">
+                                                    <i id="form-emp-avatar-placeholder" class="fa-solid fa-user text-2xl text-slate-300"></i>
+                                                    <label for="form-emp-photo-input" class="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition cursor-pointer">
+                                                        <i class="fa-solid fa-camera mb-1 text-xs"></i>
+                                                        <span class="text-[10px] font-bold">เปลี่ยนรูป</span>
+                                                    </label>
+                                                </div>
+                                                <input id="form-emp-photo-input" type="file" accept="image/*" class="hidden" onchange="handleEmpPhotoInputChange(this)" title="เลือกรูปโปรไฟล์" aria-label="เลือกรูปโปรไฟล์">
+                                                <span class="text-[10px] text-slate-400">≤2MB</span>
+                                            </div>
+                                            <!-- ฟิลด์หลัก -->
+                                            <div class="grid grid-cols-2 gap-2.5 flex-1 w-full">
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">รหัสพนักงาน *</label>
+                                                    <input type="text" id="form-emp-id" required placeholder="เช่น EMP001" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">ชื่อ-นามสกุล *</label>
+                                                    <input type="text" id="form-emp-name" required placeholder="นาย สมัคร ทำงาน" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">เลขบัตรประชาชน</label>
+                                                    <input type="text" id="form-emp-idcard" placeholder="13 หลัก" maxlength="17" inputmode="numeric" title="เลขบัตรประชาชน 13 หลัก" aria-label="เลขบัตรประชาชน" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">เบอร์โทรศัพท์</label>
+                                                    <input type="text" id="form-emp-phone" placeholder="089-999-9999" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">สถานะ</label>
+                                                    <select id="form-emp-status" title="สถานะพนักงาน" aria-label="สถานะพนักงาน" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                        <option value="ทำงานปกติ">🟢 ทำงานปกติ</option>
+                                                        <option value="ลาออก">🔴 ลาออก</option>
+                                                        <option value="พักงาน">🟡 พักงาน</option>
+                                                    </select>
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">วันเกิด</label>
+                                                    <input type="date" id="form-emp-birthdate" title="วันเดือนปีเกิด" aria-label="วันเดือนปีเกิด" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">วันที่เริ่มงาน</label>
+                                                    <input type="date" id="form-emp-start-date" title="วันที่เริ่มงาน" aria-label="วันที่เริ่มงาน" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <label class="text-[10px] font-bold text-slate-400 uppercase">ลิงก์ภาพโปรไฟล์</label>
+                                                    <input type="text" id="form-emp-avatar" placeholder="https://..." title="ลิงก์ภาพโปรไฟล์" aria-label="ลิงก์ภาพโปรไฟล์" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- ═══ หมวด 2: ตำแหน่ง สังกัด และสิทธิ์ ═══ -->
+                                    <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                                        <h4 class="font-black text-slate-800 text-xs flex items-center gap-2">
+                                            <i class="fa-solid fa-briefcase text-indigo-600"></i> <span>2. ตำแหน่ง, สังกัด และสิทธิ์ระบบ</span>
+                                        </h4>
+                                        <div class="grid grid-cols-2 gap-2.5">
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">ตำแหน่ง</label>
+                                                <input type="text" id="form-emp-pos" placeholder="เลือกหรือพิมพ์" list="emp-position-options" oninput="updateEmpDepartmentPreview()" title="ตำแหน่ง" aria-label="ตำแหน่ง" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                <datalist id="emp-position-options"></datalist>
+                                                <p class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fa-solid fa-building-user text-slate-300"></i> แผนก: <span id="form-emp-dept-preview" class="font-semibold text-indigo-600">-</span></p>
+                                            </div>
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">สังกัดบริษัท</label>
+                                                <input type="text" id="form-emp-company" placeholder="บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด" list="emp-company-options" title="สังกัดบริษัท" aria-label="สังกัดบริษัท" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                <datalist id="emp-company-options"></datalist>
+                                            </div>
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">วันหยุดประจำสัปดาห์</label>
+                                                <select id="form-emp-dayoff" title="วันหยุดประจำสัปดาห์" aria-label="วันหยุดประจำสัปดาห์" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                    <option value="ผู้บริหาร">ผู้บริหาร (เหมาจ่าย 30 วัน)</option>
+                                                    <option value="อาทิตย์">อาทิตย์ (หยุดวันอาทิตย์)</option>
+                                                    <option value="เสาร์">เสาร์ (หยุดวันเสาร์)</option>
+                                                    <option value="เสาร์-อาทิตย์">เสาร์-อาทิตย์</option>
+                                                    <option value="ทำงานทุกวัน">ทำงานทุกวัน</option>
+                                                </select>
+                                            </div>
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-brand-teal uppercase">สิทธิ์การใช้งาน *</label>
+                                                <select id="form-emp-role" onchange="toggleMenuPermissionsUi()" title="สิทธิ์การใช้งานระบบ" aria-label="สิทธิ์การใช้งานระบบ" class="w-full bg-white border border-indigo-200 text-brand-teal rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                    <option value="Employee">Employee (พนักงานทั่วไป)</option>
+                                                    <option value="Manager">Manager (ผู้จัดการ/หัวหน้างาน)</option>
+                                                    <option value="admin">admin (ผู้ดูแลบางเมนู)</option>
+                                                    <option value="Administrator">Administrator (ผู้ดูแลระบบสูงสุด)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <!-- กล่องสิทธิ์เมนู (แสดงเมื่อเลือก admin) -->
+                                        <div id="menu-permissions-container" class="hidden bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+                                            <span class="text-[10px] font-bold text-brand-teal uppercase tracking-widest block">เมนูแอปพนักงานที่อนุญาต:</span>
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer text-[11px]"><input type="checkbox" id="perm-menu-home" value="home" class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal"> หน้าแรก</label>
+                                                <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer text-[11px]"><input type="checkbox" id="perm-menu-calendar" value="calendar" class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal"> ปฏิทินงาน</label>
+                                                <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer text-[11px]"><input type="checkbox" id="perm-menu-attendance" value="attendance" class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal"> ลงเวลางาน</label>
+                                                <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer text-[11px]"><input type="checkbox" id="perm-menu-leave" value="leave" class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal"> ยื่นใบลา</label>
+                                                <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer text-[11px]"><input type="checkbox" id="perm-menu-advance" value="advance" class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal"> เบิกเงินล่วงหน้า</label>
+                                                <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer text-[11px]"><input type="checkbox" id="perm-menu-payslip" value="payslip" class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal"> สลิปเงินเดือน</label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- ═══ หมวด 3: ฐานค่าจ้างและข้อมูลธนาคาร ═══ -->
+                                    <div class="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                                        <h4 class="font-black text-slate-800 text-xs flex items-center gap-2">
+                                            <i class="fa-solid fa-money-bill-wave text-emerald-600"></i> <span>3. ฐานค่าจ้างและข้อมูลธนาคาร</span>
+                                        </h4>
+                                        <div class="grid grid-cols-3 gap-2.5">
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">ฐานเงินเดือน</label>
+                                                <input type="number" id="form-emp-salary" value="15000" title="ฐานเงินเดือน (บาท)" aria-label="ฐานเงินเดือน" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                            </div>
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">ตัวหารวันจ่าย</label>
+                                                <input type="number" id="form-emp-divisor" value="30" title="ตัวหารวันจ่ายค่าแรง" aria-label="ตัวหารวันจ่ายค่าแรง" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                            </div>
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">ชม./วัน</label>
+                                                <input type="number" id="form-emp-hours" value="8" title="ชั่วโมงทำงานต่อวัน" aria-label="ชั่วโมงทำงานต่อวัน" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-2.5">
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">ธนาคาร</label>
+                                                <input type="text" id="form-emp-bank" placeholder="กสิกรไทย" list="bank-options" title="ธนาคาร" aria-label="ธนาคาร" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                                <datalist id="bank-options">
+                                                    <option value="กสิกรไทย"></option>
+                                                    <option value="กรุงเทพ"></option>
+                                                    <option value="กรุงไทย"></option>
+                                                    <option value="ไทยพาณิชย์"></option>
+                                                    <option value="ทหารไทยธนชาต"></option>
+                                                    <option value="ออมสิน"></option>
+                                                    <option value="กรุงศรีอยุธยา"></option>
+                                                    <option value="ธกส."></option>
+                                                </datalist>
+                                            </div>
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">สาขา</label>
+                                                <input type="text" id="form-emp-branch" placeholder="ลาดพร้าว" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                            </div>
+                                            <div class="space-y-0.5">
+                                                <label class="text-[10px] font-bold text-slate-400 uppercase">เลขบัญชี</label>
+                                                <input type="text" id="form-emp-accno" placeholder="000-0-00000-0" class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2 focus:ring-1 focus:ring-brand-teal focus:outline-none">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <!-- Form Footer -->
+                                <div class="bg-slate-50 border-t border-slate-200 px-5 py-3 flex items-center justify-end gap-2.5 shrink-0">
+                                    <button type="button" onclick="clearEmpFormSelection()" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition text-xs">ปิด</button>
+                                    <button type="button" onclick="saveEmployeeForm(event)" id="btn-save-employee" class="px-5 py-2 bg-gradient-to-r from-brand-deep to-brand-teal hover:from-brand-teal hover:to-brand-deep text-white rounded-xl font-bold transition shadow-md flex items-center gap-2 text-xs">
+                                        <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
+                                    </button>
+                                </div>
+                            </div>
+                        </div><!-- /RIGHT: ฟอร์มข้อมูลพนักงาน -->
                     </div>
 
                     <!-- ═══ TAB 2: RBAC PERMISSION MATRIX (ตารางสิทธิ์ระบบ) ═══ -->
@@ -8589,273 +8807,7 @@
     <!-- [MODAL: ฟอร์มเพิ่ม/แก้ไขพนักงานแบบละเอียด]                       -->
     <!-- (ปรับปรุงตามแนวคิด EmployeeEditModal: หัวแถบ gradient + แบ่งหมวด + อัปโหลดรูป) -->
     <!-- =============================================================== -->
-    <div id="admin-employee-modal"
-        class="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs hidden">
-        <div
-            class="bg-white border border-slate-200 max-w-3xl w-full rounded-3xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
-
-            <!-- Header Bar -->
-            <div
-                class="bg-gradient-to-r from-brand-navy via-brand-deep to-brand-teal text-white px-6 py-4 flex items-center justify-between shrink-0">
-                <div class="flex items-center gap-3 min-w-0">
-                    <div
-                        class="w-10 h-10 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-white shrink-0">
-                        <i class="fa-solid fa-user-pen text-sm"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h3 id="admin-emp-modal-title" class="text-base font-black text-white truncate">เพิ่มพนักงานใหม่</h3>
-                        <p class="text-[11px] text-blue-100/80 truncate">รหัสพนักงาน: <span id="admin-emp-modal-id"
-                                class="font-mono font-bold text-amber-300">-</span></p>
-                    </div>
-                </div>
-                <button onclick="closeEmployeeModal()"
-                    class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 text-white flex items-center justify-center shrink-0 transition"
-                    title="ปิด" aria-label="ปิด">
-                    <i class="fa-solid fa-xmark text-sm"></i>
-                </button>
-            </div>
-
-            <!-- Form Body -->
-            <div class="flex-1 overflow-y-auto p-5 space-y-5 text-xs custom-scrollbar">
-
-                <!-- ═══ หมวด 1: ข้อมูลทั่วไปและรูปโปรไฟล์ ═══ -->
-                <div class="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-4">
-                    <h4 class="font-black text-slate-800 text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-user text-indigo-600"></i> <span>1. ข้อมูลทั่วไปและรูปถ่ายประจำตัว</span>
-                    </h4>
-
-                    <div class="flex flex-col sm:flex-row gap-4 items-start">
-                        <!-- อัปโหลดรูปโปรไฟล์ -->
-                        <div class="flex flex-col items-center gap-1.5 shrink-0 mx-auto sm:mx-0">
-                            <div
-                                class="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 bg-white shadow-inner flex items-center justify-center group">
-                                <img id="form-emp-avatar-preview" src="" alt="ตัวอย่างรูปโปรไฟล์"
-                                    class="w-full h-full object-cover hidden">
-                                <i id="form-emp-avatar-placeholder" class="fa-solid fa-user text-3xl text-slate-300"></i>
-                                <label for="form-emp-photo-input"
-                                    class="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition cursor-pointer">
-                                    <i class="fa-solid fa-camera mb-1 text-sm"></i>
-                                    <span class="text-[10px] font-bold">เปลี่ยนรูป</span>
-                                </label>
-                            </div>
-                            <input id="form-emp-photo-input" type="file" accept="image/*" class="hidden"
-                                onchange="handleEmpPhotoInputChange(this)" title="เลือกรูปโปรไฟล์"
-                                aria-label="เลือกรูปโปรไฟล์">
-                            <span class="text-[10px] text-slate-400">ขนาดไม่เกิน 2MB</span>
-                        </div>
-
-                        <!-- ฟิลด์หลัก -->
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 w-full">
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">รหัสพนักงาน *</label>
-                                <input type="text" id="form-emp-id" required placeholder="เช่น EMP001"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            </div>
-                            <div class="space-y-1 sm:col-span-2">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">ชื่อ-นามสกุล *</label>
-                                <input type="text" id="form-emp-name" required placeholder="นาย สมัคร ทำงาน"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">เลขบัตรประชาชน</label>
-                                <input type="text" id="form-emp-idcard" placeholder="13 หลัก" maxlength="17"
-                                    inputmode="numeric" title="เลขบัตรประชาชน 13 หลัก" aria-label="เลขบัตรประชาชน"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">เบอร์โทรศัพท์</label>
-                                <input type="text" id="form-emp-phone" placeholder="089-999-9999"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">สถานะพนักงาน</label>
-                                <select id="form-emp-status" title="สถานะพนักงาน" aria-label="สถานะพนักงาน"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                                    <option value="ทำงานปกติ">🟢 ทำงานปกติ</option>
-                                    <option value="ลาออก">🔴 ลาออก</option>
-                                    <option value="พักงาน">🟡 พักงาน</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">วันเดือนปีเกิด</label>
-                                <input type="date" id="form-emp-birthdate" title="วันเดือนปีเกิด" aria-label="วันเดือนปีเกิด"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">วันที่เริ่มงาน</label>
-                                <input type="date" id="form-emp-start-date" title="วันที่เริ่มงาน" aria-label="วันที่เริ่มงาน"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase">ลิงก์ภาพโปรไฟล์ (หรือ
-                                    Google Drive)</label>
-                                <input type="text" id="form-emp-avatar" placeholder="https://..." title="ลิงก์ภาพโปรไฟล์"
-                                    aria-label="ลิงก์ภาพโปรไฟล์"
-                                    class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ═══ หมวด 2: ตำแหน่ง สังกัด และสิทธิ์ ═══ -->
-                <div class="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-4">
-                    <h4 class="font-black text-slate-800 text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-briefcase text-indigo-600"></i> <span>2. ตำแหน่ง, สังกัด และสิทธิ์ระบบ</span>
-                    </h4>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">ตำแหน่ง</label>
-                            <input type="text" id="form-emp-pos" placeholder="เลือกจากรายการหรือพิมพ์" list="emp-position-options"
-                                oninput="updateEmpDepartmentPreview()" title="ตำแหน่ง" aria-label="ตำแหน่ง"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            <datalist id="emp-position-options"></datalist>
-                            <p class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                                <i class="fa-solid fa-building-user text-slate-300"></i> แผนกในระบบ: <span
-                                    id="form-emp-dept-preview" class="font-semibold text-indigo-600">-</span>
-                            </p>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">สังกัดบริษัท</label>
-                            <input type="text" id="form-emp-company" placeholder="บริษัท บุรีรัมย์ธงชัยก่อสร้าง จำกัด"
-                                list="emp-company-options" title="สังกัดบริษัท" aria-label="สังกัดบริษัท"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            <datalist id="emp-company-options"></datalist>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">วันหยุดประจำสัปดาห์</label>
-                            <select id="form-emp-dayoff" title="วันหยุดประจำสัปดาห์" aria-label="วันหยุดประจำสัปดาห์"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                                <option value="ผู้บริหาร">ผู้บริหาร (เหมาจ่าย 30 วัน ไม่ต้องลงเวลาก็ได้)</option>
-                                <option value="อาทิตย์">อาทิตย์ (ทำงาน 6 วัน หยุดวันอาทิตย์)</option>
-                                <option value="เสาร์">เสาร์ (ทำงาน 6 วัน หยุดวันเสาร์)</option>
-                                <option value="เสาร์-อาทิตย์">เสาร์-อาทิตย์ (หยุดเสาร์-อาทิตย์)</option>
-                                <option value="ทำงานทุกวัน">ทำงานทุกวัน (ไม่มีวันหยุด)</option>
-                            </select>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-brand-teal uppercase">สิทธิ์การใช้งานระบบ *</label>
-                            <select id="form-emp-role" onchange="toggleMenuPermissionsUi()" title="สิทธิ์การใช้งานระบบ"
-                                aria-label="สิทธิ์การใช้งานระบบ"
-                                class="w-full bg-white border border-indigo-200 text-brand-teal rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                                <option value="Employee">Employee (พนักงานทั่วไป)</option>
-                                <option value="Manager">Manager (ผู้จัดการ/หัวหน้างาน — ดูแดชบอร์ด + อนุมัติ)</option>
-                                <option value="admin">admin (ผู้ดูแลเฉพาะบางเมนู)</option>
-                                <option value="Administrator">Administrator (ผู้ดูแลระบบสูงสุดเห็นทุกอย่าง)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- กล่องตั้งค่าสิทธิ์เข้าถึงเมนูพนักงาน (แสดงเมื่อเลือกบทบาท admin เท่านั้น) -->
-                    <div id="menu-permissions-container"
-                        class="hidden bg-white border border-slate-200 rounded-xl p-3 space-y-2">
-                        <span
-                            class="text-[10px] font-bold text-brand-teal uppercase tracking-widest block">เมนูแอปพนักงานที่อนุญาตให้เข้าใช้งานได้:</span>
-                        <div class="grid grid-cols-3 gap-2.5">
-                            <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
-                                <input type="checkbox" id="perm-menu-home" value="home"
-                                    class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal">
-                                <span>หน้าแรก</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
-                                <input type="checkbox" id="perm-menu-calendar" value="calendar"
-                                    class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal">
-                                <span>ปฏิทินงาน</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
-                                <input type="checkbox" id="perm-menu-attendance" value="attendance"
-                                    class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal">
-                                <span>ลงเวลางาน</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
-                                <input type="checkbox" id="perm-menu-leave" value="leave"
-                                    class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal">
-                                <span>ยื่นใบลางาน</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
-                                <input type="checkbox" id="perm-menu-advance" value="advance"
-                                    class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal">
-                                <span>เบิกเงินล่วงหน้า</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-slate-600 cursor-pointer">
-                                <input type="checkbox" id="perm-menu-payslip" value="payslip"
-                                    class="rounded border-slate-300 bg-white text-brand-teal focus:ring-brand-teal">
-                                <span>สลิปเงินเดือน</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ═══ หมวด 3: ฐานค่าจ้างและข้อมูลธนาคาร ═══ -->
-                <div class="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-4">
-                    <h4 class="font-black text-slate-800 text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-money-bill-wave text-emerald-600"></i> <span>3. ฐานค่าจ้างและข้อมูลธนาคาร</span>
-                    </h4>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">ฐานเงินเดือน (บาท)</label>
-                            <input type="number" id="form-emp-salary" value="15000" title="ฐานเงินเดือน (บาท)"
-                                aria-label="ฐานเงินเดือน (บาท)"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">ตัวหารวันจ่ายค่าแรง</label>
-                            <input type="number" id="form-emp-divisor" value="30" title="ตัวหารวันจ่ายค่าแรง"
-                                aria-label="ตัวหารวันจ่ายค่าแรง"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">ชั่วโมงทำงานต่อวัน</label>
-                            <input type="number" id="form-emp-hours" value="8" title="ชั่วโมงทำงานต่อวัน"
-                                aria-label="ชั่วโมงทำงานต่อวัน"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">ธนาคาร</label>
-                            <input type="text" id="form-emp-bank" placeholder="กสิกรไทย" list="bank-options"
-                                title="ธนาคาร" aria-label="ธนาคาร"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                            <datalist id="bank-options">
-                                <option value="กสิกรไทย"></option>
-                                <option value="กรุงเทพ"></option>
-                                <option value="กรุงไทย"></option>
-                                <option value="ไทยพาณิชย์"></option>
-                                <option value="ทหารไทยธนชาต"></option>
-                                <option value="ออมสิน"></option>
-                                <option value="กรุงศรีอยุธยา"></option>
-                                <option value="ธกส."></option>
-                            </datalist>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">สาขา</label>
-                            <input type="text" id="form-emp-branch" placeholder="ลาดพร้าว"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">เลขที่บัญชี</label>
-                            <input type="text" id="form-emp-accno" placeholder="000-0-00000-0"
-                                class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-2.5 focus:ring-1 focus:ring-brand-teal focus:outline-none">
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Footer Actions -->
-            <div class="bg-slate-50 border-t border-slate-200 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
-                <button type="button" onclick="closeEmployeeModal()"
-                    class="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition">ยกเลิก</button>
-                <button type="button" id="btn-save-employee" onclick="saveEmployeeForm(event)"
-                    class="px-6 py-2.5 bg-gradient-to-r from-brand-deep to-brand-teal hover:from-brand-teal hover:to-brand-deep text-white rounded-xl font-bold transition shadow-md flex items-center gap-2">
-                    <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลพนักงาน
-                </button>
-            </div>
-        </div>
-    </div>
+<!-- admin-employee-modal: ย้ายฟอร์มไป inline ใน emp-detail-panel (ขวาของหน้าจัดการรายชื่อ) -->
         <!-- =============================================================== -->
         <!-- admin-qr-modal และ batch-qr-modal ถูกลบออก: ทุกปุ่มเปิด Print_QRCard.html (GAS) โดยตรงแล้ว -->
 
@@ -18718,6 +18670,8 @@ async function loadAdminEmployees() {
             let adminEmpViewMode = 'table';    // 'table' | 'grid'
             let adminEmpSearchQuery = '';      // ค่าค้นหาปัจจุบัน (ใช้ร่วมกับตาราง/การ์ด/CSV)
             const adminSelectedEmpIds = new Set(); // Batch multi-select
+            let currentSelectedEmpId = null;   // พนักงานที่เลือกใน detail panel ฝั่งขวา
+            let currentSelectedEmpName = null;
 
             function getAdminRoleCategory(role) {
                 const r = (role || '').toString().trim().toLowerCase();
@@ -18741,8 +18695,38 @@ async function loadAdminEmployees() {
                 }
             }
 
+            // คลิกแถวในตาราง → เลือกพนักงานเข้า detail panel ฝั่งขวา
+            function selectEmpFromTable(empId) {
+                const list = Array.isArray(adminEmployeesList) ? adminEmployeesList : [];
+                const emp = list.find(e => String(e["รหัสพนักงาน"] || "") === String(empId || ""));
+                if (emp) {
+                    openEmployeeEditModal(emp);
+                } else {
+                    showToast("⚠️ ไม่พบข้อมูลพนักงานนี้ในระบบ", "warning");
+                }
+            }
+
             function employeeHasPin(emp) {
                 return !!(emp && (emp["PIN"] === 'configured' || emp.pin));
+            }
+
+            // Highlight แถวที่เลือกในตาราง (emp-detail-panel ฝั่งขวา)
+            function highlightEmpRow(empId) {
+                const rows = document.querySelectorAll('#admin-employees-table-body tr[data-emp-id]');
+                rows.forEach(r => r.classList.remove('selected-row'));
+                if (!empId) return;
+                rows.forEach(r => {
+                    if (r.getAttribute('data-emp-id').toString() === empId.toString()) {
+                        r.classList.add('selected-row');
+                    }
+                });
+                // ถ้า responsive view ตารางมุมมองเป็น grid ให้ highlight การ์ดแทน
+                document.querySelectorAll('#emp-grid-wrap [data-emp-grid-card]').forEach(c => {
+                    c.classList.remove('selected-row');
+                    if (empId && String(c.getAttribute('data-emp-id')).toString() === empId.toString()) {
+                        c.classList.add('selected-row');
+                    }
+                });
             }
 
             function getEmpStatusBadgeHtml(status) {
@@ -18862,6 +18846,10 @@ async function loadAdminEmployees() {
             function buildEmpTableRow(emp) {
                 const tr = document.createElement("tr");
                 tr.className = "hr-table-row";
+                tr.setAttribute("data-emp-id", emp["รหัสพนักงาน"] || "N/A");
+                tr.style.cursor = "pointer";
+                tr.setAttribute("onclick", `selectEmpFromTable('${(emp["รหัสพนักงาน"] || '').replace(/'/g, "\\'")}')`);
+                tr.setAttribute("title", "คลิกเพื่อดู/แก้ไข");
 
                 const empId = emp["รหัสพนักงาน"] || "N/A";
                 const name = emp["ชื่อ-นามสกุล"] || "N/A";
@@ -18877,7 +18865,7 @@ async function loadAdminEmployees() {
                 const roleBadge = getAdminRoleBadgeHtml(emp["สิทธิ์การใช้งาน"] || "Employee");
 
                 tr.innerHTML = `
-              <td style="text-align:center">
+              <td style="text-align:center" onclick="event.stopPropagation()">
                 <input type="checkbox" data-emp-select="${empId}" ${checked} onchange="toggleSelectEmployee('${empId}', this)" title="เลือก" aria-label="เลือก" class="accent-teal-600 cursor-pointer">
               </td>
               <td>
@@ -18898,14 +18886,8 @@ async function loadAdminEmployees() {
               <td style="text-align: center; font-weight: 600;">${hours} ชม.</td>
               <td style="color: #64748b;">${phone}</td>
               <td>${roleBadge}</td>
-              <td style="text-align: right;">
+              <td style="text-align: right;" onclick="event.stopPropagation()">
                 <div style="display: flex; gap: 4px; justify-content: flex-end;">
-                  <button onclick='clearEmployeePin("${empId}", "${name}")' title="ล้าง PIN" class="${employeeHasPin(emp) ? 'tbl-btn tbl-btn-danger' : 'tbl-btn tbl-btn-edit'}">
-                    <i class="fa-solid fa-key"></i> ล้าง PIN
-                  </button>
-                  <button onclick="openPrintQrCardPageSingle('${empId}')" title="พิมพ์บัตรประจำตัว" class="tbl-btn tbl-btn-print">
-                    <i class="fa-solid fa-id-card"></i> พิมพ์บัตร
-                  </button>
                   <button onclick="editEmployeeRow('${empId}')" class="tbl-btn tbl-btn-edit">
                     <i class="fa-solid fa-pencil"></i> แก้ไข
                   </button>
@@ -18938,7 +18920,7 @@ async function loadAdminEmployees() {
                     const searchable = [empId, name, pos, company, emp["เบอร์โทรศัพท์"], emp["สิทธิ์การใช้งาน"], emp["สถานะ"]]
                         .filter(Boolean).join(' ').toLowerCase().replace(/"/g, '&quot;');
                     return `
-                    <div data-emp-grid-card data-search="${searchable}" class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm hover:shadow-md transition relative">
+                    <div data-emp-grid-card data-search="${searchable}" class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm hover:shadow-md transition relative cursor-pointer" data-emp-id="${empId}" onclick="selectEmpFromTable('${empId}')">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex items-center gap-3 min-w-0">
                                 <img src="${avatar}" class="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0">
@@ -18948,7 +18930,7 @@ async function loadAdminEmployees() {
                                     <p class="text-[11px] text-slate-500 truncate">${pos}</p>
                                 </div>
                             </div>
-                            <input type="checkbox" data-emp-select="${empId}" ${checked} onchange="toggleSelectEmployee('${empId}', this)" title="เลือก" aria-label="เลือก" class="accent-teal-600 cursor-pointer shrink-0">
+                            <input type="checkbox" data-emp-select="${empId}" ${checked} onchange="toggleSelectEmployee('${empId}', this)" title="เลือก" aria-label="เลือก" class="accent-teal-600 cursor-pointer shrink-0" onclick="event.stopPropagation()">
                         </div>
                         <div class="flex flex-wrap items-center gap-1.5">${roleBadge}${statusBadge}</div>
                         <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-200/60 text-[11px] space-y-1 text-slate-600">
@@ -18957,9 +18939,7 @@ async function loadAdminEmployees() {
                         </div>
                         <div class="flex items-center justify-between pt-1 border-t border-slate-100">
                             <span class="text-[11px] text-slate-400">${emp["เบอร์โทรศัพท์"] || 'ไม่มีเบอร์'}</span>
-                            <div class="flex items-center gap-1">
-                                <button onclick="clearEmployeePin('${empId}', '${name.replace(/'/g, "\\'")}')" title="ล้าง PIN" class="p-1.5 ${employeeHasPin(emp) ? 'text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'} rounded-lg transition"><i class="fa-solid fa-key text-xs"></i></button>
-                                <button onclick="openPrintQrCardPageSingle('${empId}')" title="พิมพ์บัตรประจำตัว" class="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition"><i class="fa-solid fa-id-card text-xs"></i></button>
+                            <div class="flex items-center gap-1" onclick="event.stopPropagation()">
                                 <button onclick="editEmployeeRow('${empId}')" title="แก้ไข" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pencil text-xs"></i></button>
                             </div>
                         </div>
@@ -20613,14 +20593,36 @@ async function loadAdminEmployees() {
                             updateEmpDepartmentPreview();
                         }).catch(() => {});
                     }
-                    // ฟอร์มเป็น div-based (ไม่มีแท็ก <form id="admin-employee-form">) — ล้างค่าใน else branch แทน
-                    const titleEl = document.getElementById("admin-emp-modal-title");
-                    const idInput = document.getElementById("form-emp-id");
+
+                    // แสดง inline detail panel ฝั่งขวา (แทน modal)
+                    const emptyEl = document.getElementById("emp-detail-empty");
+                    const bodyEl = document.getElementById("emp-detail-body");
 
                     if (emp) {
-                        titleEl.innerHTML = `<i class="fa-solid fa-user-pen"></i> แก้ไขข้อมูลพนักงาน: ${emp["ชื่อ-นามสกุล"]}`;
+                        currentSelectedEmpId = emp["รหัสพนักงาน"] || null;
+                        currentSelectedEmpName = emp["ชื่อ-นามสกุล"] || null;
+
+                        // หัวข้อ + avatar
+                        const titleEl = document.getElementById("emp-detail-title");
+                        const idLabelEl = document.getElementById("emp-detail-id");
+                        const avatarEl = document.getElementById("emp-detail-avatar");
+                        if (titleEl) titleEl.textContent = emp["ชื่อ-นามสกุล"] || "ข้อมูลพนักงาน";
+                        if (idLabelEl) idLabelEl.textContent = emp["รหัสพนักงาน"] || "-";
+                        if (avatarEl) {
+                            const av = emp["ลิ้งภาพโปรไฟล์"] || "";
+                            if (av) {
+                                avatarEl.src = (typeof convertDriveUrl === "function") ? convertDriveUrl(av) : av;
+                                avatarEl.classList.remove("hidden");
+                            } else {
+                                avatarEl.src = "";
+                                avatarEl.classList.add("hidden");
+                            }
+                        }
+
+                        // เติมค่าในฟอร์ม
+                        const idInput = document.getElementById("form-emp-id");
                         idInput.value = emp["รหัสพนักงาน"] || "";
-                        idInput.disabled = true; // ห้ามแก้ไข ID ของผู้ใช้เดิม
+                        idInput.disabled = true;
 
                         document.getElementById("form-emp-name").value = emp["ชื่อ-นามสกุล"] || "";
                         document.getElementById("form-emp-pos").value = emp["ตำแหน่ง"] || "";
@@ -20631,7 +20633,7 @@ async function loadAdminEmployees() {
                         document.getElementById("form-emp-dayoff").value = emp["วันหยุดประจําสัปดาห์"] || "อาทิตย์";
                         document.getElementById("form-emp-avatar").value = emp["ลิ้งภาพโปรไฟล์"] || "";
 
-                        // แสดงตัวอย่างรูปโปรไฟล์เดิม (ถ้ามี) + ล้างสถานะไฟล์ใหม่ที่เลือกค้างไว้
+                        // แสดงตัวอย่างรูปโปรไฟล์เดิม
                         window._empFormAvatarBase64 = null;
                         const avatarPreviewEl = document.getElementById("form-emp-avatar-preview");
                         const avatarPlaceholderEl = document.getElementById("form-emp-avatar-placeholder");
@@ -20659,35 +20661,35 @@ async function loadAdminEmployees() {
                         document.getElementById("form-emp-start-date").value = normalizeIsoDateForInput_(emp["วันที่เริ่มงาน"]);
                         document.getElementById("form-emp-status").value = emp["สถานะ"] || "ทำงานปกติ";
 
-                        // สิทธิ์การใช้งานและการเข้าถึงเมนู
+                        // สิทธิ์การใช้งาน
                         const role = emp["สิทธิ์การใช้งาน"] || "Employee";
                         let mainRole = "Employee";
                         let subPermissions = [];
-
-                        if (role.toLowerCase() === 'administrator') {
-                            mainRole = "Administrator";
-                        } else if (role.toLowerCase() === 'manager') {
-                            mainRole = "Manager";
-                        } else if (role.startsWith("admin")) {
+                        if (role.toLowerCase() === 'administrator') mainRole = "Administrator";
+                        else if (role.toLowerCase() === 'manager') mainRole = "Manager";
+                        else if (role.startsWith("admin")) {
                             mainRole = "admin";
-                            if (role.includes(":")) {
-                                subPermissions = role.split(":")[1].split(",");
-                            }
+                            if (role.includes(":")) subPermissions = role.split(":")[1].split(",");
                         }
                         document.getElementById("form-emp-role").value = mainRole;
-
-                        // เช็คการติ๊ก checkbox สิทธิ์
                         const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
-                        pages.forEach(p => {
-                            document.getElementById(`perm-menu-${p}`).checked = subPermissions.includes(p);
-                        });
+                        pages.forEach(p => { document.getElementById(`perm-menu-${p}`).checked = subPermissions.includes(p); });
 
                     } else {
-                        titleEl.innerHTML = `<i class="fa-solid fa-user-plus"></i> เพิ่มพนักงานใหม่เข้าตาราง`;
+                        currentSelectedEmpId = null;
+                        currentSelectedEmpName = null;
+
+                        const titleEl = document.getElementById("emp-detail-title");
+                        const idLabelEl = document.getElementById("emp-detail-id");
+                        const avatarEl = document.getElementById("emp-detail-avatar");
+                        if (titleEl) titleEl.textContent = "เพิ่มพนักงานใหม่";
+                        if (idLabelEl) idLabelEl.textContent = "-";
+                        if (avatarEl) { avatarEl.src = ""; avatarEl.classList.add("hidden"); }
+
+                        const idInput = document.getElementById("form-emp-id");
                         idInput.value = "";
                         idInput.disabled = false;
 
-                        // ล้างค่าฟอร์มทั้งหมด (กันข้อมูลพนักงานคนก่อนค้างอยู่)
                         ["form-emp-name", "form-emp-pos", "form-emp-company", "form-emp-avatar",
                          "form-emp-bank", "form-emp-branch", "form-emp-accno", "form-emp-phone",
                          "form-emp-idcard", "form-emp-birthdate", "form-emp-start-date"].forEach(fid => {
@@ -20695,7 +20697,6 @@ async function loadAdminEmployees() {
                             if (el) el.value = "";
                         });
 
-                        // รีเซ็ตรูปโปรไฟล์: ซ่อนตัวอย่าง + ล้างไฟล์ที่เลือก + ล้าง base64 ค้าง
                         window._empFormAvatarBase64 = null;
                         const avatarPreviewEl = document.getElementById("form-emp-avatar-preview");
                         const avatarPlaceholderEl = document.getElementById("form-emp-avatar-placeholder");
@@ -20710,18 +20711,25 @@ async function loadAdminEmployees() {
                         setVal("form-emp-dayoff", "อาทิตย์");
                         setVal("form-emp-status", "ทำงานปกติ");
                         setVal("form-emp-role", "Employee");
-
-                        // ตั้งค่าเมนูเป็นติ๊กหมดตามค่าเริ่มต้น
-                        const pages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
-                        pages.forEach(p => {
-                            const cb = document.getElementById(`perm-menu-${p}`);
-                            if (cb) cb.checked = true;
-                        });
+                        const defPages = ["home", "calendar", "attendance", "leave", "advance", "payslip"];
+                        defPages.forEach(p => { const cb = document.getElementById(`perm-menu-${p}`); if (cb) cb.checked = true; });
                     }
 
                     toggleMenuPermissionsUi();
                     updateEmpDepartmentPreview();
-                    document.getElementById("admin-employee-modal").classList.remove("hidden");
+
+                    // แสดง inline panel: ซ่อน empty, แสดง body
+                    if (emptyEl) emptyEl.classList.add("hidden");
+                    if (bodyEl) bodyEl.classList.remove("hidden");
+
+                    // Highlight แถวที่เลือกในตาราง
+                    highlightEmpRow(currentSelectedEmpId);
+
+                    // Scroll detail panel ขึ้นบนสุด (บน mobile)
+                    const panel = document.getElementById("emp-detail-panel");
+                    if (panel && window.innerWidth < 1280) {
+                        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 }
 
                 // --- HR: เปิดโมดอลบันทึกใบลาแทนพนักงาน ---
@@ -21596,7 +21604,22 @@ async function loadAdminEmployees() {
                 
 
 function closeEmployeeModal() {
-                    document.getElementById("admin-employee-modal").classList.add("hidden");
+                    const emptyEl = document.getElementById("emp-detail-empty");
+                    const bodyEl = document.getElementById("emp-detail-body");
+
+                    // ซ่อนฟอร์ม แสดง placeholder
+                    if (bodyEl) bodyEl.classList.add("hidden");
+                    if (emptyEl) emptyEl.classList.remove("hidden");
+
+                    // ล้าง highlight แถวที่เลือก
+                    currentSelectedEmpId = null;
+                    currentSelectedEmpName = null;
+                    document.querySelectorAll('#admin-employees-table-body tr.selected-row').forEach(r => r.classList.remove('selected-row'));
+                }
+
+                // ปุ่มปิด (x) ใน header ของ detail panel — กลับไป placeholder
+                function clearEmpFormSelection() {
+                    closeEmployeeModal();
                 }
 
                 // ซ่อน/แสดง Checkbox การตั้งค่าเมนูตามประเภทสิทธิ์
