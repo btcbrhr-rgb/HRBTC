@@ -467,31 +467,34 @@
         #emp-table-wrap::-webkit-scrollbar-track { background: transparent; }
         #emp-table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         #emp-table-wrap::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        /* 🧠 Emp Workspace — ตัดสินใจ 2 คอลัมน์จาก "ความกว้างพื้นที่จริง" ของ container (ResizeObserver)
-           ไม่ใช่ viewport — กัน zoom เบราว์เซอร์/สเกลจอ Windows ทำ viewport < 768px แล้วฟอร์มขวาตกใต้ตาราง */
-        #emp-workspace { display: block; }
+        /* 🧠 Emp Workspace — บังคับแสดงคู่กันเสมอ (ตารางรายชื่อซ้าย 7/12 + ฟอร์มจัดการขวา 5/12) */
+        #emp-workspace,
         #emp-workspace.emp-ws-side {
             display: grid;
             grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
             gap: 16px;
             align-items: start;
         }
+        #emp-workspace #emp-detail-panel,
         #emp-workspace.emp-ws-side #emp-detail-panel {
             position: sticky;
             top: 16px;
             align-self: start;
         }
-        /* โหมดซ้อน (พื้นที่แคบ): ตารางคง min-width 640px + เลื่อนแนวนอนในตัว */
-        #emp-table-wrap .hr-table { min-width: 640px; }
-        /* โหมดคู่: บีบตารางให้พอดีคอลัมน์ซ้าย — ยกเลิก min-width + ลด padding/ฟอนต์
+        /* บีบตารางให้พอดีคอลัมน์ซ้าย — ยกเลิก min-width + ลด padding/ฟอนต์
            + ซ่อนคอลัมน์เบอร์โทร (คอลัมน์ที่ 4 — ดู/แก้เบอร์ได้ในฟอร์มขวาอยู่แล้ว) */
+        #emp-workspace #emp-table-wrap .hr-table,
         #emp-workspace.emp-ws-side #emp-table-wrap .hr-table { min-width: 0; }
+        #emp-workspace .hr-table thead th,
+        #emp-workspace .hr-table tbody td,
         #emp-workspace.emp-ws-side .hr-table thead th,
         #emp-workspace.emp-ws-side .hr-table tbody td {
             padding-left: .4rem;
             padding-right: .4rem;
             font-size: .72rem;
         }
+        #emp-workspace .hr-table thead th:nth-child(4),
+        #emp-workspace .hr-table tbody td:nth-child(4),
         #emp-workspace.emp-ws-side .hr-table thead th:nth-child(4),
         #emp-workspace.emp-ws-side .hr-table tbody td:nth-child(4) { display: none; }
         .hr-table tbody td {
@@ -6480,8 +6483,8 @@
                             </div>
                         </div>
 
-<!-- แถว 2 คอลัมน์: ตารางรายชื่อ (ซ้าย 7/12) + ฟอร์ม/จัดการ (ขวา 5/12) — ตัดสินใจจากความกว้างพื้นที่จริง (ResizeObserver) ไม่ใช่ viewport -->
-                        <div id="emp-workspace" class="gap-4 items-start">
+<!-- แถว 2 คอลัมน์: ตารางรายชื่อ (ซ้าย 7/12) + ฟอร์ม/จัดการ (ขวา 5/12) — แสดงคู่กันเสมอ -->
+                        <div id="emp-workspace" class="emp-ws-side gap-4 items-start">
 
                         <!-- LEFT: ตารางรายชื่อพนักงาน (7/12) -->
                         <div class="min-w-0 space-y-4">
@@ -16228,6 +16231,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     titleEl.textContent = "จัดการรายชื่อพนักงาน";
                     descEl.textContent = "ดูรายชื่อพนักงานทั้งหมดของบริษัท เพิ่ม แก้ไข ล้าง PIN หรือตั้งค่าสิทธิ์ผู้ดูแลระบบ";
                     loadAdminEmployees();
+                    if (typeof applyEmpWorkspaceLayout === 'function') applyEmpWorkspaceLayout();
                 } else if (tabId === 'settings') {
                     titleEl.textContent = "ตั้งค่าระบบส่วนกลาง";
                     descEl.textContent = "กำหนดเวลาเข้างาน-ออกงาน เวลาสาย ค่าเวลา และตั้งค่าพารามิเตอร์หลักขององค์กร";
@@ -18729,14 +18733,12 @@ async function loadAdminEmployees() {
                 return !!(emp && (emp["PIN"] === 'configured' || emp.pin));
             }
 
-            // 🧠 Emp Workspace layout — ตัดสินใจ 2 คอลัมน์จาก "ความกว้างพื้นที่จริง" ของ container
-            // (ไม่ใช่ viewport) — กัน zoom เบราว์เซอร์/สเกลจอ Windows ทำให้ฟอร์มขวาตกไปอยู่ใต้ตาราง
-            const EMP_WS_MIN_SIDE_WIDTH = 0; // บังคับวางคู่เสมอ: ตารางรายชื่อ (ซ้าย) + ฟอร์มแสดงข้อมูล (ขวา) แสดงคู่กันทุกขนาดจอ (เดิม 560px — User ต้องการคู่กันตลอด ตั้ง 0 = ทุกความกว้าง ≥1px เติม emp-ws-side)
+            // 🧠 Emp Workspace layout — บังคับ 2 คอลัมน์แสดงคู่กันเสมอ (ตารางซ้าย + ฟอร์มขวา)
+            const EMP_WS_MIN_SIDE_WIDTH = 0; // บังคับวางคู่เสมอ: ตารางรายชื่อ (ซ้าย) + ฟอร์มแสดงข้อมูล (ขวา) แสดงคู่กันทุกขนาดจอ
             function applyEmpWorkspaceLayout() {
                 const ws = document.getElementById('emp-workspace');
                 if (!ws) return;
-                const w = ws.clientWidth;
-                if (w > 1) ws.classList.toggle('emp-ws-side', w >= EMP_WS_MIN_SIDE_WIDTH);
+                ws.classList.add('emp-ws-side');
             }
             if (typeof ResizeObserver !== 'undefined') {
                 const wsEl = document.getElementById('emp-workspace');
