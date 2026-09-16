@@ -467,6 +467,20 @@
         #emp-table-wrap::-webkit-scrollbar-track { background: transparent; }
         #emp-table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         #emp-table-wrap::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* 🧠 Emp Workspace — ตัดสินใจ 2 คอลัมน์จาก "ความกว้างพื้นที่จริง" ของ container (ResizeObserver)
+           ไม่ใช่ viewport — กัน zoom เบราว์เซอร์/สเกลจอ Windows ทำ viewport < 768px แล้วฟอร์มขวาตกใต้ตาราง */
+        #emp-workspace { display: block; }
+        #emp-workspace.emp-ws-side {
+            display: grid;
+            grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+            gap: 16px;
+            align-items: start;
+        }
+        #emp-workspace.emp-ws-side #emp-detail-panel {
+            position: sticky;
+            top: 16px;
+            align-self: start;
+        }
         .hr-table tbody td {
             padding: .5rem .75rem;
             font-size: .75rem;
@@ -6453,11 +6467,11 @@
                             </div>
                         </div>
 
-<!-- แถว 2 คอลัมน์: ตารางรายชื่อ (ซ้าย 7/12) + ฟอร์ม/จัดการ (ขวา 5/12) — เริ่มแสดงคู่กันเมื่อจอตั้งแต่ 768px ขึ้นไป (md) จอเล็กกว่าซ้อนแนวตั้ง -->
-                        <div class="grid grid-cols-12 gap-4 items-start">
+<!-- แถว 2 คอลัมน์: ตารางรายชื่อ (ซ้าย 7/12) + ฟอร์ม/จัดการ (ขวา 5/12) — ตัดสินใจจากความกว้างพื้นที่จริง (ResizeObserver) ไม่ใช่ viewport -->
+                        <div id="emp-workspace" class="gap-4 items-start">
 
                         <!-- LEFT: ตารางรายชื่อพนักงาน (7/12) -->
-                        <div class="col-span-12 md:col-span-7 min-w-0 space-y-4">
+                        <div class="min-w-0 space-y-4">
 
                         <!-- Card ตารางรายชื่อและตัวกรอง -->
                         <div class="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4 shadow-xs">
@@ -6557,8 +6571,8 @@
                         </div>
                         </div><!-- /LEFT: ตารางรายชื่อพนักงาน -->
 
-                        <!-- RIGHT: ฟอร์มข้อมูลพนักงาน (5/12 — md+ ขึ้นไป) -->
-                        <div id="emp-detail-panel" class="col-span-12 md:col-span-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden md:sticky md:top-4 md:self-start">
+                        <!-- RIGHT: ฟอร์มข้อมูลพนักงาน (5/12 — แสดงคู่กันเมื่อพื้นที่กว้างพอ จัดการโดย emp-ws-side) -->
+                        <div id="emp-detail-panel" class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
                             <!-- Empty state: เลือกพนักงานจากตาราง -->
                             <div id="emp-detail-empty" class="flex flex-col items-center justify-center py-14 px-6 text-center min-h-[360px]">
                                 <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
@@ -18702,6 +18716,28 @@ async function loadAdminEmployees() {
                 return !!(emp && (emp["PIN"] === 'configured' || emp.pin));
             }
 
+            // 🧠 Emp Workspace layout — ตัดสินใจ 2 คอลัมน์จาก "ความกว้างพื้นที่จริง" ของ container
+            // (ไม่ใช่ viewport) — กัน zoom เบราว์เซอร์/สเกลจอ Windows ทำให้ฟอร์มขวาตกไปอยู่ใต้ตาราง
+            const EMP_WS_MIN_SIDE_WIDTH = 720; // px ความกว้างพื้นที่ขั้นต่ำที่วางซ้าย-ขวาคู่กันได้สบาย
+            function applyEmpWorkspaceLayout() {
+                const ws = document.getElementById('emp-workspace');
+                if (!ws) return;
+                const w = ws.clientWidth;
+                if (w > 1) ws.classList.toggle('emp-ws-side', w >= EMP_WS_MIN_SIDE_WIDTH);
+            }
+            if (typeof ResizeObserver !== 'undefined') {
+                const wsEl = document.getElementById('emp-workspace');
+                if (wsEl) new ResizeObserver(applyEmpWorkspaceLayout).observe(wsEl);
+            }
+            window.addEventListener('resize', applyEmpWorkspaceLayout);
+            window.addEventListener('orientationchange', applyEmpWorkspaceLayout);
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', applyEmpWorkspaceLayout);
+            } else {
+                applyEmpWorkspaceLayout();
+            }
+            setTimeout(applyEmpWorkspaceLayout, 300); // เช็คซ้ำหลัง sidebar/ฟอนต์ render เสร็จ
+
             // Highlight แถวที่เลือกในตาราง (emp-detail-panel ฝั่งขวา)
             function highlightEmpRow(empId) {
                 const rows = document.querySelectorAll('#admin-employees-table-body tr[data-emp-id]');
@@ -20696,9 +20732,10 @@ async function loadAdminEmployees() {
                     // Highlight แถวที่เลือกในตาราง
                     highlightEmpRow(currentSelectedEmpId);
 
-                    // Scroll detail panel ขึ้นบนสุด (จอเดียวกับที่ฟอร์มอยู่ล่างตาราง — md breakpoint)
+                    // Scroll detail panel ขึ้นบนสุด เมื่อ workspace อยู่โหมดซ้อนแนวตั้ง (พื้นที่แคบจริง — ไม่ใช่ viewport)
                     const panel = document.getElementById("emp-detail-panel");
-                    if (panel && window.innerWidth < 768) {
+                    const wsEl = document.getElementById("emp-workspace");
+                    if (panel && wsEl && !wsEl.classList.contains('emp-ws-side')) {
                         panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
                 }
