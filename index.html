@@ -6970,29 +6970,150 @@
                     <!-- ═══ TAB 2: RBAC PERMISSION MATRIX (ตารางสิทธิ์ระบบ) ═══ -->
                     <div id="emp-tab-panel-matrix" class="hidden">
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div class="px-5 py-4 border-b border-slate-200 flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
-                                <div>
-                                    <h3 class="text-sm font-bold text-slate-800">ตารางเมทริกซ์สิทธิ์การใช้งาน (Role-Based Access Control)</h3>
-                                    <p class="text-[11px] text-slate-500">สิทธิ์การเข้าถึงฟังก์ชันของระบบ จำแนกตามบทบาท — ตรงกับระบบจริงที่บังคับใช้อยู่</p>
+                            <div class="px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <h3 class="text-sm font-bold text-slate-800">ตารางเมทริกซ์สิทธิ์การใช้งาน (Role-Based Access Control)</h3>
+                                            <span id="rbac-mode-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">โหมดดูอย่างเดียว</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-500">สิทธิ์การเข้าถึงฟังก์ชันของระบบ จำแนกตามบทบาท — ปรับแต่งและกำหนดสิทธิ์ได้จริง</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button id="rbac-btn-edit" onclick="toggleRbacEditMode()" class="bg-brand-deep hover:bg-brand-navy text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition shadow-2xs flex items-center gap-1.5">
+                                        <i class="fa-solid fa-pen-to-square text-[11px]"></i> แก้ไขสิทธิ์บทบาท
+                                    </button>
+                                    <button id="rbac-btn-save" onclick="saveRbacMatrixPermissions()" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition shadow-2xs flex items-center gap-1.5">
+                                        <i class="fa-solid fa-floppy-disk text-[11px]"></i> บันทึกการเปลี่ยนแปลง
+                                    </button>
+                                    <button id="rbac-btn-cancel" onclick="cancelRbacEditMode()" class="hidden bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1">
+                                        <i class="fa-solid fa-xmark text-[11px]"></i> ยกเลิก
+                                    </button>
+                                    <button id="rbac-btn-reset" onclick="resetRbacMatrixDefault()" class="hidden bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1">
+                                        <i class="fa-solid fa-rotate-left text-[11px]"></i> คืนค่าเริ่มต้น
+                                    </button>
                                 </div>
                             </div>
                             <div class="overflow-x-auto p-4">
                                 <table class="hr-table" style="min-width:780px">
                                     <thead>
                                         <tr>
-                                            <th>ฟังก์ชัน / สิทธิ์การกระทำ</th>
-                                            <th style="text-align:center">👑 Administrator</th>
-                                            <th style="text-align:center">👷 Manager</th>
-                                            <th style="text-align:center">🛡️ admin:xxx</th>
-                                            <th style="text-align:center"><i class="fa-solid fa-user" aria-hidden="true"></i> พนักงานทั่วไป</th>
+                                            <th class="w-2/5">ฟังก์ชัน / สิทธิ์การกระทำ</th>
+                                            <th style="text-align:center" class="w-[15%]">
+                                                <div class="flex flex-col items-center gap-1">
+                                                    <span>👑 Administrator</span>
+                                                    <span id="rbac-count-admin" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200/80">0 คน</span>
+                                                    <button type="button" onclick="openRoleEmployeesModal('Administrator')" class="text-[10px] font-semibold text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1">
+                                                        <i class="fa-solid fa-users-gear text-[9px]"></i> จัดการ
+                                                    </button>
+                                                </div>
+                                            </th>
+                                            <th style="text-align:center" class="w-[15%]">
+                                                <div class="flex flex-col items-center gap-1">
+                                                    <span>👷 Manager</span>
+                                                    <span id="rbac-count-manager" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">0 คน</span>
+                                                    <button type="button" onclick="openRoleEmployeesModal('Manager')" class="text-[10px] font-semibold text-amber-600 hover:text-amber-800 hover:underline inline-flex items-center gap-1">
+                                                        <i class="fa-solid fa-users-gear text-[9px]"></i> จัดการ
+                                                    </button>
+                                                </div>
+                                            </th>
+                                            <th style="text-align:center" class="w-[15%]">
+                                                <div class="flex flex-col items-center gap-1">
+                                                    <span>🛡️ admin:xxx</span>
+                                                    <span id="rbac-count-subadmin" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80">0 คน</span>
+                                                    <button type="button" onclick="openRoleEmployeesModal('admin')" class="text-[10px] font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1">
+                                                        <i class="fa-solid fa-users-gear text-[9px]"></i> จัดการ
+                                                    </button>
+                                                </div>
+                                            </th>
+                                            <th style="text-align:center" class="w-[15%]">
+                                                <div class="flex flex-col items-center gap-1">
+                                                    <span><i class="fa-solid fa-user text-slate-400" aria-hidden="true"></i> พนักงานทั่วไป</span>
+                                                    <span id="rbac-count-employee" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/80">0 คน</span>
+                                                    <button type="button" onclick="openRoleEmployeesModal('Employee')" class="text-[10px] font-semibold text-slate-600 hover:text-slate-800 hover:underline inline-flex items-center gap-1">
+                                                        <i class="fa-solid fa-users-gear text-[9px]"></i> จัดการ
+                                                    </button>
+                                                </div>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody id="rbac-matrix-body">
                                         <tr class="tbl-empty-row"><td colspan="5" class="py-6 text-center text-slate-400"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังสร้างตารางสิทธิ์…</td></tr>
                                     </tbody>
                                 </table>
-                                <p class="text-[11px] text-slate-400 mt-3"><i class="fa-solid fa-circle-info text-slate-300"></i> ◐ = มีสิทธิ์เฉพาะเมื่อได้รับมอบหมายสิทธิ์ย่อย (sub-permission) เช่น admin:leave, admin:calendar — ส่วน Administrator เห็นทุกฟังก์ชัน</p>
+                                <div class="flex flex-wrap items-center justify-between gap-2 mt-3 text-[11px] text-slate-400 border-t border-slate-100 pt-2.5">
+                                    <p><i class="fa-solid fa-circle-info text-slate-300"></i> <b>Administrator:</b> สิทธิ์สูงสุดเข้าถึงได้ทุกฟังก์ชันเสมอ · <b>◐ (admin:xxx):</b> สิทธิ์ตามที่ได้รับมอบหมายย่อย · <b>จัดการ:</b> กดที่หัวคอลัมน์เพื่อดู/เพิ่ม/เปลี่ยนบทบาทพนักงานในกลุ่มนั้นได้ทันที</p>
+                                    <span id="rbac-unsaved-badge" class="hidden text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/70">⚠️ มีการแก้ไขที่ยังไม่ได้บันทึก</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ MODAL: จัดการพนักงานในบทบาท (Role Employee Assignment) ═══ -->
+                    <div id="role-employees-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+                            <!-- Modal Header -->
+                            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                <div class="flex items-center gap-2.5">
+                                    <div id="role-modal-icon-wrap" class="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-sm shrink-0">
+                                        <i id="role-modal-icon" class="fa-solid fa-users-gear"></i>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <h3 id="role-modal-title" class="text-sm font-bold text-slate-800">จัดการพนักงานในบทบาท</h3>
+                                            <span id="role-modal-count" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700">0 คน</span>
+                                        </div>
+                                        <p id="role-modal-desc" class="text-[11px] text-slate-500">รายชื่อพนักงานที่ได้รับบทบาทนี้</p>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="closeRoleEmployeesModal()" class="w-8 h-8 rounded-xl hover:bg-slate-200/60 text-slate-400 hover:text-slate-600 flex items-center justify-center transition">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+
+                            <!-- Modal Body -->
+                            <div class="p-5 overflow-y-auto space-y-4 flex-1">
+                                <!-- Add Employee Bar -->
+                                <div class="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                                            <i class="fa-solid fa-user-plus text-brand-teal"></i> เพิ่มพนักงานเข้าสู่บทบาทนี้
+                                        </span>
+                                        <button type="button" onclick="toggleQuickAddEmpSection()" class="text-[11px] text-brand-teal hover:underline font-semibold" id="toggle-add-emp-btn">
+                                            + เลือกพนักงาน
+                                        </button>
+                                    </div>
+                                    <div id="quick-add-emp-panel" class="hidden pt-2 border-t border-slate-200/60 flex flex-wrap items-center gap-2">
+                                        <select id="quick-add-emp-select" class="flex-1 min-w-[200px] border border-slate-200 rounded-xl px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-brand-teal">
+                                            <option value="">-- เลือกพนักงาน --</option>
+                                        </select>
+                                        <button type="button" onclick="confirmAddEmployeeToRole()" class="bg-brand-deep hover:bg-brand-navy text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl transition shadow-2xs">
+                                            ยืนยันเพิ่ม
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Search within Role -->
+                                <div class="relative">
+                                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                    <input type="text" id="role-emp-search" oninput="filterRoleEmployeesList(this.value)" placeholder="ค้นหาชื่อ หรือรหัสพนักงานในบทบาทนี้…" class="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-teal transition">
+                                </div>
+
+                                <!-- Employee List Table / Cards -->
+                                <div class="border border-slate-100 rounded-xl overflow-hidden shadow-2xs">
+                                    <div id="role-employees-list" class="divide-y divide-slate-100 max-h-[320px] overflow-y-auto">
+                                        <!-- Dynamic rows -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal Footer -->
+                            <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-end bg-slate-50/50">
+                                <button type="button" onclick="closeRoleEmployeesModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-4 py-2 rounded-xl transition">
+                                    ปิดหน้าต่าง
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -16008,7 +16129,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (isAdminRole(role)) return true;
                 // Manager เข้าถึงได้เฉพาะเมนูที่กำหนด
                 if (isManagerRole(role)) {
-                    return MANAGER_ADMIN_MENUS.includes(menuId);
+                    const allowedMenus = window.DYNAMIC_MANAGER_ADMIN_MENUS || MANAGER_ADMIN_MENUS;
+                    return allowedMenus.includes(menuId);
                 }
                 // admin:home,calendar format — ตรวจ sub-permissions
                 if (role.toLowerCase().startsWith('admin:')) {
@@ -16030,9 +16152,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
                 // Manager เห็นเฉพาะเมนูที่กำหนด
                 if (isManagerRole(role)) {
+                    const allowedMenus = window.DYNAMIC_MANAGER_ADMIN_MENUS || MANAGER_ADMIN_MENUS;
                     document.querySelectorAll('[id^="admin-menu-"]').forEach(el => {
                         const menuId = el.id.replace('admin-menu-', '');
-                        el.style.display = MANAGER_ADMIN_MENUS.includes(menuId) ? '' : 'none';
+                        el.style.display = allowedMenus.includes(menuId) ? '' : 'none';
                     });
                     return;
                 }
@@ -19319,43 +19442,424 @@ async function loadAdminEmployees() {
                 if (adminEmpTab === 'matrix') renderRbacMatrix();
             }
 
-            // ═══ TAB 2: RBAC PERMISSION MATRIX (ตรงกับระบบจริง) ═══
-            const RBAC_MATRIX_ROWS = [
-                { feature: 'ดูแดชบอร์ดภาพรวม', icon: 'fa-gauge-high', manager: true, sub: 'dashboard' },
-                { feature: 'อนุมัติใบลางาน', icon: 'fa-plane-departure', manager: true, sub: 'leave' },
-                { feature: 'อนุมัติแก้ไขเวลา', icon: 'fa-clock-rotate-left', manager: true, sub: 'correction' },
-                { feature: 'อนุมัติเบิกเงินสำรอง', icon: 'fa-hand-holding-dollar', manager: true, sub: 'advance' },
-                { feature: 'เวลางานและต้นทุนโครงการ', icon: 'fa-chart-line', manager: true, sub: 'calendar' },
-                { feature: 'นำเข้าเวลางาน (.txt)', icon: 'fa-file-import', manager: false, sub: 'import' },
-                { feature: 'นำเข้าสลิปเงินเดือน (.pdf)', icon: 'fa-file-invoice', manager: false, sub: 'payslip' },
-                { feature: 'จัดการวันหยุด', icon: 'fa-calendar-days', manager: false, sub: null },
-                { feature: 'ประกาศข่าวสาร', icon: 'fa-bullhorn', manager: false, sub: 'announcement' },
-                { feature: 'จัดการรายชื่อ & สิทธิ์', icon: 'fa-users', manager: false, sub: 'employees' },
-                { feature: 'ตั้งค่าระบบ', icon: 'fa-gear', manager: false, sub: null },
-                { feature: 'เครื่องสแกนนิ้ว', icon: 'fa-fingerprint', manager: false, sub: 'scan' },
-                { feature: 'ประวัติการใช้งาน (Audit Logs)', icon: 'fa-clipboard-list', manager: false, sub: 'audit' },
-                { feature: 'แอปพนักงาน: หน้าแรก/ปฏิทิน/ลงเวลา/ลา/เบิก/สลิป', icon: 'fa-mobile-screen-button', manager: false, sub: 'home,calendar,attendance,leave,advance,payslip', selfService: true }
+            // ═══ TAB 2: RBAC PERMISSION MATRIX (ตรงกับระบบจริง + ปรับแต่งได้) ═══
+            const RBAC_DEFAULT_MATRIX = [
+                { id: 'dashboard', feature: 'ดูแดชบอร์ดภาพรวม', icon: 'fa-gauge-high', manager: true, sub: 'dashboard', selfService: false },
+                { id: 'leave', feature: 'อนุมัติใบลางาน', icon: 'fa-plane-departure', manager: true, sub: 'leave', selfService: false },
+                { id: 'correction', feature: 'อนุมัติแก้ไขเวลา', icon: 'fa-clock-rotate-left', manager: true, sub: 'correction', selfService: false },
+                { id: 'advance', feature: 'อนุมัติเบิกเงินสำรอง', icon: 'fa-hand-holding-dollar', manager: true, sub: 'advance', selfService: false },
+                { id: 'calendar', feature: 'เวลางานและต้นทุนโครงการ', icon: 'fa-chart-line', manager: true, sub: 'calendar', selfService: false },
+                { id: 'import', feature: 'นำเข้าเวลางาน (.txt)', icon: 'fa-file-import', manager: false, sub: 'import', selfService: false },
+                { id: 'payslip', feature: 'นำเข้าสลิปเงินเดือน (.pdf)', icon: 'fa-file-invoice', manager: false, sub: 'payslip', selfService: false },
+                { id: 'holiday', feature: 'จัดการวันหยุด', icon: 'fa-calendar-days', manager: false, sub: null, selfService: false },
+                { id: 'announcement', feature: 'ประกาศข่าวสาร', icon: 'fa-bullhorn', manager: false, sub: 'announcement', selfService: false },
+                { id: 'employees', feature: 'จัดการรายชื่อ & สิทธิ์', icon: 'fa-users', manager: false, sub: 'employees', selfService: false },
+                { id: 'settings', feature: 'ตั้งค่าระบบ', icon: 'fa-gear', manager: false, sub: null, selfService: false },
+                { id: 'scan', feature: 'เครื่องสแกนนิ้ว', icon: 'fa-fingerprint', manager: false, sub: 'scan', selfService: false },
+                { id: 'audit', feature: 'ประวัติการใช้งาน (Audit Logs)', icon: 'fa-clipboard-list', manager: false, sub: 'audit', selfService: false },
+                { id: 'self_service', feature: 'แอปพนักงาน: หน้าแรก/ปฏิทิน/ลงเวลา/ลา/เบิก/สลิป', icon: 'fa-mobile-screen-button', manager: false, sub: 'home,calendar,attendance,leave,advance,payslip', selfService: true }
             ];
+
+            let rbacMatrixData = JSON.parse(JSON.stringify(RBAC_DEFAULT_MATRIX));
+            let rbacEditMode = false;
+            let rbacDirty = false;
+            let currentRoleModalType = null;
+
+            function updateRbacRoleCounts() {
+                const empList = (typeof adminEmployeesList !== 'undefined' && Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) ? adminEmployeesList : (Array.isArray(window.adminEmployeesList) ? window.adminEmployeesList : []); if (!Array.isArray(empList) || empList.length === 0) return;
+                let cAdmin = 0, cManager = 0, cSubAdmin = 0, cEmployee = 0;
+                empList.forEach(e => {
+                    const r = (e["สิทธิ์การใช้งาน"] || "Employee").toString().trim();
+                    const cat = getAdminRoleCategory(r);
+                    if (cat === 'administrator') cAdmin++;
+                    else if (cat === 'manager') cManager++;
+                    else if (cat === 'admin') cSubAdmin++;
+                    else cEmployee++;
+                });
+                const elA = document.getElementById('rbac-count-admin');
+                const elM = document.getElementById('rbac-count-manager');
+                const elS = document.getElementById('rbac-count-subadmin');
+                const elE = document.getElementById('rbac-count-employee');
+                if (elA) elA.textContent = `${cAdmin} คน`;
+                if (elM) elM.textContent = `${cManager} คน`;
+                if (elS) elS.textContent = `${cSubAdmin} คน`;
+                if (elE) elE.textContent = `${cEmployee} คน`;
+            }
+
+            function loadRbacMatrixFromMemory() {
+                try {
+                    if (window.SYSTEM_SETTINGS && window.SYSTEM_SETTINGS.rbac_role_permissions) {
+                        const parsed = (typeof window.SYSTEM_SETTINGS.rbac_role_permissions === 'string')
+                            ? JSON.parse(window.SYSTEM_SETTINGS.rbac_role_permissions)
+                            : window.SYSTEM_SETTINGS.rbac_role_permissions;
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            rbacMatrixData = parsed;
+                            syncDynamicRbacMenus();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Cannot parse rbac_role_permissions:', e);
+                }
+            }
 
             function renderRbacMatrix() {
                 const tbody = document.getElementById('rbac-matrix-body');
                 if (!tbody) return;
-                const check = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black">✓</span>';
-                const dash = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-300">–</span>';
-                const cond = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-black" title="ขึ้นกับสิทธิ์ย่อย (sub-permission)">◐</span>';
-                tbody.innerHTML = RBAC_MATRIX_ROWS.map(row => {
-                    const adminCell = check;   // Administrator เห็นทุกฟังก์ชัน
-                    const managerCell = row.manager ? check : dash;
-                    const subCell = row.sub ? cond : dash;
-                    const empCell = row.selfService ? check : dash;
-                    return `<tr class="hover:bg-slate-50/60 transition">
-                        <td class="font-semibold text-slate-800 py-2.5"><i class="fa-solid ${row.icon} w-4 text-slate-400 mr-1.5"></i>${row.feature}</td>
+                loadRbacMatrixFromMemory();
+                updateRbacRoleCounts();
+
+                const badge = document.getElementById('rbac-mode-badge');
+                const btnEdit = document.getElementById('rbac-btn-edit');
+                const btnSave = document.getElementById('rbac-btn-save');
+                const btnCancel = document.getElementById('rbac-btn-cancel');
+                const btnReset = document.getElementById('rbac-btn-reset');
+                const unsaved = document.getElementById('rbac-unsaved-badge');
+
+                if (badge) {
+                    badge.textContent = rbacEditMode ? 'โหมดแก้ไขสิทธิ์' : 'โหมดดูอย่างเดียว';
+                    badge.className = rbacEditMode
+                        ? 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 animate-pulse'
+                        : 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
+                }
+                if (btnEdit) btnEdit.classList.toggle('hidden', rbacEditMode);
+                if (btnSave) btnSave.classList.toggle('hidden', !rbacEditMode);
+                if (btnCancel) btnCancel.classList.toggle('hidden', !rbacEditMode);
+                if (btnReset) btnReset.classList.toggle('hidden', !rbacEditMode);
+                if (unsaved) unsaved.classList.toggle('hidden', !rbacDirty);
+
+                const checkIcon = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black">✓</span>';
+                const dashIcon = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-300">–</span>';
+                const condIcon = '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-black" title="ขึ้นกับสิทธิ์ย่อย (sub-permission)">◐</span>';
+
+                tbody.innerHTML = rbacMatrixData.map((row, idx) => {
+                    let adminCell, managerCell, subCell, empCell;
+
+                    if (!rbacEditMode) {
+                        adminCell = checkIcon;
+                        managerCell = row.manager ? checkIcon : dashIcon;
+                        subCell = row.sub ? condIcon : dashIcon;
+                        empCell = row.selfService ? checkIcon : dashIcon;
+                    } else {
+                        adminCell = `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 font-bold text-xs" title="Administrator เข้าได้ทุกฟังก์ชันเสมอ">✓</span>`;
+                        managerCell = `<label class="inline-flex items-center justify-center cursor-pointer">
+                            <input type="checkbox" onchange="toggleRbacCell(${idx}, 'manager', this.checked)" ${row.manager ? 'checked' : ''} class="w-4 h-4 rounded text-brand-teal focus:ring-brand-teal border-slate-300">
+                        </label>`;
+                        subCell = row.sub ? `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-blue-700 font-semibold text-[11px]" title="กำหนดสิทธิ์ย่อยในข้อมูลพนักงานได้">◐</span>` : dashIcon;
+                        empCell = `<label class="inline-flex items-center justify-center cursor-pointer">
+                            <input type="checkbox" onchange="toggleRbacCell(${idx}, 'selfService', this.checked)" ${row.selfService ? 'checked' : ''} class="w-4 h-4 rounded text-brand-teal focus:ring-brand-teal border-slate-300">
+                        </label>`;
+                    }
+
+                    return `<tr class="hover:bg-slate-50/70 transition">
+                        <td class="font-semibold text-slate-800 py-2.5">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid ${row.icon} w-4 text-slate-400"></i>
+                                <span>${row.feature}</span>
+                            </div>
+                        </td>
                         <td style="text-align:center">${adminCell}</td>
                         <td style="text-align:center">${managerCell}</td>
                         <td style="text-align:center">${subCell}</td>
                         <td style="text-align:center">${empCell}</td>
                     </tr>`;
                 }).join('');
+            }
+
+            function toggleRbacEditMode() {
+                rbacEditMode = true;
+                renderRbacMatrix();
+            }
+
+            function cancelRbacEditMode() {
+                rbacEditMode = false;
+                rbacDirty = false;
+                rbacMatrixData = JSON.parse(JSON.stringify(RBAC_DEFAULT_MATRIX));
+                loadRbacMatrixFromMemory();
+                renderRbacMatrix();
+                showToast('ยกเลิกการแก้ไขสิทธิ์แล้ว', 'info');
+            }
+
+            function toggleRbacCell(idx, field, checked) {
+                if (!rbacMatrixData[idx]) return;
+                rbacMatrixData[idx][field] = !!checked;
+                rbacDirty = true;
+                const unsaved = document.getElementById('rbac-unsaved-badge');
+                if (unsaved) unsaved.classList.remove('hidden');
+            }
+
+            function syncDynamicRbacMenus() {
+                const mapIdToAdminMenu = {
+                    'dashboard': 'dashboard',
+                    'leave': 'approve-leave',
+                    'correction': 'approve-correction',
+                    'advance': 'approve-advance',
+                    'calendar': 'project-cost',
+                    'import': 'import-time',
+                    'payslip': 'import-payslip',
+                    'announcement': 'announcements',
+                    'employees': 'employees',
+                    'settings': 'settings',
+                    'scan': 'scan-devices',
+                    'audit': 'audit-logs'
+                };
+                const newManagerMenus = [];
+                rbacMatrixData.forEach(r => {
+                    if (r.manager && mapIdToAdminMenu[r.id]) {
+                        newManagerMenus.push(mapIdToAdminMenu[r.id]);
+                    }
+                });
+                if (newManagerMenus.length > 0) {
+                    window.DYNAMIC_MANAGER_ADMIN_MENUS = newManagerMenus;
+                }
+            }
+
+            async function saveRbacMatrixPermissions() {
+                showToast('⏳ กำลังบันทึกการตั้งค่าสิทธิ์ Matrix...', 'info');
+                try {
+                    const jsonStr = JSON.stringify(rbacMatrixData);
+                    let savedOk = false;
+
+                    if (window.supabaseClient) {
+                        const { error } = await supabaseClient
+                            .from('system_settings')
+                            .upsert([{ key_name: 'rbac_role_permissions', default_value: jsonStr, updated_at: new Date().toISOString() }], { onConflict: 'key_name' });
+                        if (!error) savedOk = true;
+                    }
+
+                    try {
+                        await postAction('saveSystemSettings', {
+                            adminId: currentEmployeeId,
+                            settings: [{ key_name: 'rbac_role_permissions', default_value: jsonStr }]
+                        });
+                        savedOk = true;
+                    } catch (e) {
+                        // ignore if supabase succeeded
+                    }
+
+                    if (savedOk) {
+                        if (window.SYSTEM_SETTINGS) window.SYSTEM_SETTINGS.rbac_role_permissions = jsonStr;
+                        rbacDirty = false;
+                        rbacEditMode = false;
+                        syncDynamicRbacMenus();
+                        renderRbacMatrix();
+                        showToast('✅ บันทึกการตั้งค่าสิทธิ์ RBAC สำเร็จและมีผลทันที', 'success');
+                    } else {
+                        throw new Error('ไม่สามารถบันทึกไปยังฐานข้อมูลได้');
+                    }
+                } catch (err) {
+                    showToast('❌ บันทึกสิทธิ์ไม่สำเร็จ: ' + err.message, 'error');
+                }
+            }
+
+            async function resetRbacMatrixDefault() {
+                if (!confirm('ยืนยันการคืนค่าสิทธิ์ RBAC Matrix กลับเป็นค่าเริ่มต้นมาตรฐานของระบบ?')) return;
+                rbacMatrixData = JSON.parse(JSON.stringify(RBAC_DEFAULT_MATRIX));
+                rbacDirty = true;
+                await saveRbacMatrixPermissions();
+            }
+
+            // ═══ ROLE EMPLOYEES MODAL MANAGEMENT ═══
+            function openRoleEmployeesModal(roleType) {
+                const normRole = (roleType || '').toString().trim().toLowerCase();
+                currentRoleModalType = normRole;
+                const modal = document.getElementById('role-employees-modal');
+                if (!modal) return;
+
+                const titleEl = document.getElementById('role-modal-title');
+                const descEl = document.getElementById('role-modal-desc');
+                const iconEl = document.getElementById('role-modal-icon');
+                const wrapEl = document.getElementById('role-modal-icon-wrap');
+
+                if (normRole === 'administrator') {
+                    if (titleEl) titleEl.textContent = 'จัดการพนักงาน: Administrator (ผู้ดูแลระบบสูงสุด)';
+                    if (descEl) descEl.textContent = 'ผู้มีสิทธิ์เข้าถึงทุกฟังก์ชันของระบบ';
+                    if (iconEl) iconEl.className = 'fa-solid fa-crown';
+                    if (wrapEl) wrapEl.className = 'w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-sm shrink-0';
+                } else if (normRole === 'manager') {
+                    if (titleEl) titleEl.textContent = 'จัดการพนักงาน: Manager (ผู้จัดการ/หัวหน้างาน)';
+                    if (descEl) descEl.textContent = 'ผู้มีสิทธิ์อนุมัติและดูข้อมูลตามที่กำหนดใน Matrix';
+                    if (iconEl) iconEl.className = 'fa-solid fa-user-tie';
+                    if (wrapEl) wrapEl.className = 'w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0';
+                } else if (normRole === 'admin') {
+                    if (titleEl) titleEl.textContent = 'จัดการพนักงาน: admin:xxx (ผู้ดูแลจำกัดสิทธิ์)';
+                    if (descEl) descEl.textContent = 'ผู้ดูแลที่ได้รับสิทธิ์เฉพาะเมนูย่อย';
+                    if (iconEl) iconEl.className = 'fa-solid fa-shield-halved';
+                    if (wrapEl) wrapEl.className = 'w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0';
+                } else {
+                    if (titleEl) titleEl.textContent = 'จัดการพนักงาน: พนักงานทั่วไป (Employee)';
+                    if (descEl) descEl.textContent = 'ผู้ใช้งานแอปพนักงานสำหรับลงเวลา/ลา/เบิก';
+                    if (iconEl) iconEl.className = 'fa-solid fa-user';
+                    if (wrapEl) wrapEl.className = 'w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm shrink-0';
+                }
+
+                const addPanel = document.getElementById('quick-add-emp-panel');
+                if (addPanel) addPanel.classList.add('hidden');
+
+                populateQuickAddEmpOptions(normRole);
+
+                const searchInput = document.getElementById('role-emp-search');
+                if (searchInput) searchInput.value = '';
+                filterRoleEmployeesList('');
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+
+            function closeRoleEmployeesModal() {
+                const modal = document.getElementById('role-employees-modal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+                currentRoleModalType = null;
+            }
+
+            function toggleQuickAddEmpSection() {
+                const panel = document.getElementById('quick-add-emp-panel');
+                if (panel) panel.classList.toggle('hidden');
+            }
+
+            function populateQuickAddEmpOptions(targetRole) {
+                const select = document.getElementById('quick-add-emp-select');
+                const empList = (typeof adminEmployeesList !== 'undefined' && Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) ? adminEmployeesList : (Array.isArray(window.adminEmployeesList) ? window.adminEmployeesList : []); if (!select || !Array.isArray(empList)) return;
+                const normTarget = (targetRole || '').toString().trim().toLowerCase();
+                const notInRole = empList.filter(e => {
+                    const cat = getAdminRoleCategory(e["สิทธิ์การใช้งาน"] || "Employee");
+                    return cat !== normTarget;
+                });
+                select.innerHTML = '<option value="">-- เลือกพนักงานเพื่อมอบบทบาท --</option>' +
+                    notInRole.map(e => {
+                        const id = e["รหัสพนักงาน"] || "";
+                        const name = e["ชื่อ-นามสกุล"] || "";
+                        const curRole = e["สิทธิ์การใช้งาน"] || "Employee";
+                        return `<option value="${id}">${id} - ${name} (ปัจจุบัน: ${curRole})</option>`;
+                    }).join('');
+            }
+
+            function filterRoleEmployeesList(query) {
+                const listEl = document.getElementById('role-employees-list');
+                const countEl = document.getElementById('role-modal-count');
+                const empList = (typeof adminEmployeesList !== 'undefined' && Array.isArray(adminEmployeesList) && adminEmployeesList.length > 0) ? adminEmployeesList : (Array.isArray(window.adminEmployeesList) ? window.adminEmployeesList : []); if (!listEl || !Array.isArray(empList)) return;
+
+                const q = (query || '').toLowerCase().trim();
+                const matched = empList.filter(e => {
+                    const cat = getAdminRoleCategory(e["สิทธิ์การใช้งาน"] || "Employee");
+                    if (cat !== currentRoleModalType) return false;
+                    if (!q) return true;
+                    const id = (e["รหัสพนักงาน"] || '').toLowerCase();
+                    const name = (e["ชื่อ-นามสกุล"] || '').toLowerCase();
+                    const pos = (e["ตำแหน่ง"] || '').toLowerCase();
+                    return id.includes(q) || name.includes(q) || pos.includes(q);
+                });
+
+                if (countEl) countEl.textContent = `${matched.length} คน`;
+
+                if (matched.length === 0) {
+                    listEl.innerHTML = '<div class="p-6 text-center text-slate-400 text-xs"><i class="fa-solid fa-users-slash text-slate-300 text-xl mb-2 block"></i>ไม่พบพนักงานในบทบาทนี้</div>';
+                    return;
+                }
+
+                listEl.innerHTML = matched.map(emp => {
+                    const id = emp["รหัสพนักงาน"] || '';
+                    const name = emp["ชื่อ-นามสกุล"] || '-';
+                    const pos = emp["ตำแหน่ง"] || '-';
+                    const role = emp["สิทธิ์การใช้งาน"] || 'Employee';
+                    const avatar = emp["ลิ้งภาพโปรไฟล์"] || '';
+                    const avHtml = avatar
+                        ? `<img src="${(typeof convertDriveUrl === 'function') ? convertDriveUrl(avatar) : avatar}" class="w-8 h-8 rounded-full object-cover border border-slate-200" onerror="this.outerHTML='<div class=\\'w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500\\'>${(name[0]||'').toUpperCase()}</div>'">`
+                        : `<div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">${(name[0]||'').toUpperCase()}</div>`;
+
+                    return `<div class="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition">
+                        <div class="flex items-center gap-3 min-w-0">
+                            ${avHtml}
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-slate-800 truncate">${name}</p>
+                                <p class="text-[10px] text-slate-400 truncate">${id} · ${pos}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <select onchange="changeEmployeeRoleDirectly('${id}', this.value)" class="text-[11px] font-semibold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-teal">
+                                <option value="Administrator" ${role === 'Administrator' ? 'selected' : ''}>👑 Administrator</option>
+                                <option value="Manager" ${role === 'Manager' ? 'selected' : ''}>👷 Manager</option>
+                                <option value="admin" ${role.startsWith('admin') ? 'selected' : ''}>🛡️ admin:xxx</option>
+                                <option value="Employee" ${(!role || role === 'Employee') ? 'selected' : ''}>👤 Employee</option>
+                            </select>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            async function confirmAddEmployeeToRole() {
+                const select = document.getElementById('quick-add-emp-select');
+                const empId = select ? select.value : null;
+                if (!empId) {
+                    showToast('⚠️ กรุณาเลือกพนักงานที่ต้องการมอบบทบาท', 'warning');
+                    return;
+                }
+                let roleToSet = 'Employee';
+                if (currentRoleModalType === 'administrator') roleToSet = 'Administrator';
+                else if (currentRoleModalType === 'manager') roleToSet = 'Manager';
+                else if (currentRoleModalType === 'admin') roleToSet = 'admin';
+                await changeEmployeeRoleDirectly(empId, roleToSet);
+            }
+
+            async function changeEmployeeRoleDirectly(empId, newRole) {
+                const emp = adminEmployeesList.find(e => (e["รหัสพนักงาน"] || "") === empId);
+                if (!emp) {
+                    showToast('❌ ไม่พบข้อมูลพนักงาน', 'error');
+                    return;
+                }
+
+                showToast(`⏳ กำลังเปลี่ยนบทบาทของ ${emp["ชื่อ-นามสกุล"] || empId} เป็น ${newRole}...`, 'info');
+
+                try {
+                    let finalRole = newRole;
+                    if (newRole === 'admin') {
+                        finalRole = 'admin:home,calendar,attendance,leave';
+                    }
+
+                    const payload = {
+                        action: "saveEmployee",
+                        adminId: currentEmployeeId,
+                        "รหัสพนักงาน": emp["รหัสพนักงาน"],
+                        "ชื่อ-นามสกุล": emp["ชื่อ-นามสกุล"],
+                        "ตำแหน่ง": emp["ตำแหน่ง"] || "",
+                        "ชื่อบริษัท": emp["ชื่อบริษัท"] || "",
+                        "ฐานเงินเดือน": emp["ฐานเงินเดือน"] || 0,
+                        "ตัวหารค่าแรง": emp["ตัวหารค่าแรง"] || 30,
+                        "ชั่วโมงทำงานต่อวัน": emp["ชั่วโมงทำงานต่อวัน"] || 8,
+                        "วันหยุดประจําสัปดาห์": emp["วันหยุดประจําสัปดาห์"] || "อาทิตย์",
+                        "ลิ้งภาพโปรไฟล์": emp["ลิ้งภาพโปรไฟล์"] || "",
+                        "ธนาคาร": emp["ธนาคาร"] || "",
+                        "สาขาธนาคาร": emp["สาขาธนาคาร"] || "",
+                        "หมายเลขบัญชี": emp["หมายเลขบัญชี"] || "",
+                        "เบอร์โทรศัพท์": emp["เบอร์โทรศัพท์"] || "",
+                        "เลขบัตรประชาชน": emp["เลขบัตรประชาชน"] || "",
+                        "วันเดือนปีเกิด": emp["วันเดือนปีเกิด"] || "",
+                        "วันที่เริ่มงาน": emp["วันที่เริ่มงาน"] || "",
+                        "สถานะ": emp["สถานะ"] || "ทำงานอยู่",
+                        "สิทธิ์การใช้งาน": finalRole
+                    };
+
+                    const res = await fetchWithTimeout(SERVER_API_URL, {
+                        method: "POST",
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (res && res.status === 'success') {
+                        emp["สิทธิ์การใช้งาน"] = finalRole;
+                        showToast(`✅ ปรับสิทธิ์ของ ${emp["ชื่อ-นามสกุล"] || empId} เป็น ${newRole} สำเร็จ`, 'success');
+                        populateQuickAddEmpOptions(currentRoleModalType);
+                        filterRoleEmployeesList(document.getElementById('role-emp-search')?.value || '');
+                        updateRbacRoleCounts();
+                        renderAdminEmployeesTable();
+                    } else {
+                        showToast('❌ บันทึกสิทธิ์ไม่สำเร็จ: ' + (res?.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'), 'error');
+                    }
+                } catch (err) {
+                    showToast('❌ เปลี่ยนบทบาทไม่สำเร็จ: ' + err.message, 'error');
+                }
             }
 
             function editEmployeeRow(empId) {
