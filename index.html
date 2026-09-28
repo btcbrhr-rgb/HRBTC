@@ -4578,7 +4578,7 @@
                             <div class="hr-table-search-bar flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border-b border-slate-200">
                                 <div class="relative flex-1 min-w-[220px]">
                                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                    <input type="text" placeholder="ค้นหารหัสพนักงาน, วันที่, สถานะ…" oninput="hrTableFilter('yearly-attendance-body', this.value, 'yearly-attendance-count')" aria-label="ค้นหาข้อมูลเวลางาน">
+                                    <input type="text" id="yearly-attendance-search" placeholder="ค้นหารหัสพนักงาน, วันที่, สถานะ…" oninput="hrTableFilter('yearly-attendance-body', this.value, 'yearly-attendance-count')" aria-label="ค้นหาข้อมูลเวลางาน">
                                 </div>
                                 <span class="row-count" id="yearly-attendance-count"></span>
                             </div>
@@ -16014,14 +16014,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function hrTableFilter(tbodyId, query, countId) {
                 const tbody = document.getElementById(tbodyId);
                 if (!tbody) return;
-                const q = query.trim().toLowerCase();
+                const q = (query || '').trim().toLowerCase();
+                // 🔧 FIX: จำโหมด "ดูเฉพาะรายการขอแก้" ของตารางเวลางาน 12 เดือน
+                // (เดิมการค้นหาไม่กรองเพราะเซ็ต display='' ทับตัวกรองรายการขอแก้ที่เปิดไว้)
+                // หมายเหตุ: อ้างผ่านตัวแปรตรง (let ระดับ script ไม่ผูกกับ window)
+                const correctionOnly = tbodyId === 'yearly-attendance-body'
+                    && typeof yearlyFilterCorrectionOnly !== 'undefined'
+                    && yearlyFilterCorrectionOnly === true;
+                // เก็บคำค้นหาไว้ให้ตัวกรองรายการขอแก้ใช้ร่วม (สองตัวกรองทำงานพร้อมกันได้)
+                if (tbodyId === 'yearly-attendance-body') {
+                    yearlyAttendanceSearchQuery = q;
+                }
                 let visibleCount = 0;
                 Array.from(tbody.rows).forEach(row => {
                     if (row.classList.contains('tbl-empty-row')) return;
-                    const text = row.textContent.toLowerCase();
-                    const match = !q || text.includes(q);
-                    row.style.display = match ? '' : 'none';
-                    if (match) visibleCount++;
+                    // ค้นหาจาก data-search ก่อน (ข้อความดิบจากข้อมูลจริง) fallback textContent
+                    const hay = (row.dataset.search || row.textContent || '').toLowerCase();
+                    const match = !q || hay.includes(q);
+                    const corrOk = !correctionOnly || row.classList.contains('has-correction-row');
+                    const show = match && corrOk;
+                    row.style.display = show ? '' : 'none';
+                    if (show) visibleCount++;
                 });
                 if (countId) {
                     const countEl = document.getElementById(countId);
@@ -23130,6 +23143,8 @@ function closeEmployeeModal() {
                 let yearlyMonthDataCache = {}; // { 'YYYY-MM': [records] }
                 let yearlySelectedMonth = null;
                 let approvedCorrectionSet = new Set(); // Set of 'EMPID|YYYY-MM-DD' for approved corrections
+                let yearlyFilterCorrectionOnly = false; // สถานะตัวกรอง "ดูเฉพาะรายการขอแก้" (ต้องประกาศก่อน toggle ใช้)
+                let yearlyAttendanceSearchQuery = ''; // เก็บคำค้นหาล่าสุดของตาราง 12 เดือน (ให้สองตัวกรองทำงานร่วมกัน)
 
                 function initYearSelector() {
                     const sel = document.getElementById('yearly-overview-year');
@@ -23365,7 +23380,12 @@ function closeEmployeeModal() {
                         else if (status === 'ย' || status === 'นข') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">หยุด</span>';
                         else statusBadge = `<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">${escapeHtml(status)}</span>`;
 
-                        html += `<tr id="yearly-row-${idx}" class="group hover:bg-slate-50/80 transition-colors">
+                        // 🔧 FIX: เก็บข้อความค้นหา (รหัส/วันที่/เวลา/สถานะ/โครงการ) ไว้ที่ data-search
+                        // เพื่อให้ช่องค้นหากรองจาก data จริง ไม่ติดคำใน title/tooltip ของ badge
+                        // (เดิมช่องค้นหาไม่กรองเพราะค้นหาเจอคำจาก title ทำให้ผลเพี้ยน + ไม่มี checkpoint)
+                        const searchText = `${empId} ${date} ${timeIn} ${timeOut} ${status} ${late} ${ot} ${project}`.toLowerCase();
+
+                        html += `<tr id="yearly-row-${idx}" class="group hover:bg-slate-50/80 transition-colors ${corrBadge ? 'has-correction-row' : ''}" data-search="${escapeHtml(searchText)}">
                             <td class="text-center font-bold text-brand-deep">${escapeHtml(empId || '-')}</td>
                             <td>
                                 <div class="flex items-center gap-1.5 whitespace-nowrap">
@@ -23423,6 +23443,14 @@ function closeEmployeeModal() {
                         </tr>`;
                     });
                     tbody.innerHTML = html;
+
+                    // 🔧 FIX: ถ้ามีคำค้นหาค้างไว้ในช่องค้นหา (พิมพ์ก่อนสลับเดือน/รีเฟรชตาราง)
+                    // ให้กรองซ้ำหลังวาดตารางใหม่ — เดิมสลับเดือนแล้วตารางรีเซ็ตโชว์ทุกแถว
+                    // ทั้งที่ช่องค้นหายังมีคำค้าง = ดูเหมือน "ช่องค้นหาไม่กรองข้อมูล"
+                    const searchInput = document.getElementById('yearly-attendance-search');
+                    if (searchInput && searchInput.value) {
+                        hrTableFilter('yearly-attendance-body', searchInput.value, 'yearly-attendance-count');
+                    }
                 }
 
                 function toggleYearlyCorrectionFilter() {
@@ -23444,22 +23472,19 @@ function closeEmployeeModal() {
                     }
                     const rows = document.querySelectorAll('#yearly-attendance-body tr');
                     let visibleCount = 0;
+                    // 🔧 FIX: เคารพคำค้นหาที่พิมพ์ค้างไว้ด้วย (เดิมกดปุ่มนี้แล้วโชว์ทุกแถวทับคำค้นหา)
+                    const q = (yearlyAttendanceSearchQuery || '').trim().toLowerCase();
                     rows.forEach(r => {
                         if (r.classList.contains('tbl-empty-row')) return;
-                        if (!showCorrectionOnly) {
-                            r.style.display = '';
-                            visibleCount++;
-                        } else {
-                            if (r.classList.contains('has-correction-row')) {
-                                r.style.display = '';
-                                visibleCount++;
-                            } else {
-                                r.style.display = 'none';
-                            }
-                        }
+                        const corrOk = !showCorrectionOnly || r.classList.contains('has-correction-row');
+                        const hay = (r.dataset.search || r.textContent || '').toLowerCase();
+                        const searchOk = !q || hay.includes(q);
+                        const show = corrOk && searchOk;
+                        r.style.display = show ? '' : 'none';
+                        if (show) visibleCount++;
                     });
                     const countEl = document.getElementById('yearly-attendance-count');
-                    if (countEl) countEl.textContent = `${visibleCount} รายการ`;
+                    if (countEl) countEl.textContent = q ? `${visibleCount} / ${rows.length} รายการ` : `${visibleCount} รายการ`;
                 }
                 window.toggleYearlyCorrectionFilter = toggleYearlyCorrectionFilter;
 
@@ -23579,10 +23604,12 @@ function closeEmployeeModal() {
                     console.log(`[TXT Import] Starting ${modeStr} with ${selectedTxtFileContent.length} bytes`);
 
                     const selectedProject = document.getElementById("txt-project-select")?.value || "";
+                    // 🔧 BUG FIX: ต้องส่ง dryRun ตามโหมดจริง — เดิม hard-code true ทำให้ปุ่ม "บันทึกข้อมูลจริง"
+                    // ยิง dry-run ตลอด → GAS แค่ parse แต่ไม่ลงฐานข้อมูล (บันทึกจริงไม่มีข้อมูล)
                     const payload = {
                         action: "importTimeRecords",
                         fileContent: selectedTxtFileContent,
-                        dryRun: true,
+                        dryRun: dryRun,
                         project: selectedProject,
                         adminId: currentEmployeeId
                     };
@@ -23770,7 +23797,8 @@ function closeEmployeeModal() {
                                 res.data.summary.written = totalWritten;
                                 res.data.summary.updated = totalUpdated;
                                 res.data.summary.savedRecords = totalWritten + totalUpdated;
-                                res = initialRes;
+                                // 🔧 BUG FIX: เดิม `res = initialRes;` ทับผล batch ทิ้ง (summary.written/updated หาย)
+                                // คงใช้ `res` เดิมที่มีข้อมูล batch รวมอยู่แล้ว (records/warnings/summary ครบ)
 
                             } catch (batchError) {
                                 clearInterval(globalProgressTimer);
