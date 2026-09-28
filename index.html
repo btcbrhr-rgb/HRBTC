@@ -4828,6 +4828,68 @@
                         </div>
                     </div>
 
+                    <!-- 🆕 แผงจัดการการจับคู่ (แสดงเมื่อเลือกเครื่องจากตารางด้านบน) -->
+                    <div id="scanner-mapping-panel" class="hidden mt-5 border-2 border-violet-200 rounded-2xl bg-white p-4 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-users-gear text-violet-500"></i>
+                                จัดการการจับคู่ — <span id="sm-panel-device-name" class="text-violet-700"></span>
+                                <span id="sm-panel-device-ip" class="text-[10px] font-mono text-slate-400"></span>
+                            </h3>
+                            <button onclick="window.closeScannerMappingPanel()" class="text-slate-400 hover:text-slate-600 text-xs font-semibold" title="ปิดแผง">
+                                <i class="fa-solid fa-xmark"></i> ปิด
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input id="sm-emp-search" type="text" placeholder="🔍 พิมพ์รหัสหรือชื่อพนักงานเพื่อเลือก…" class="text-xs border border-slate-300 rounded-lg px-3 py-2 w-72 focus:outline-none focus:ring-2 focus:ring-violet-300" oninput="window.smRenderEmpDropdown()">
+                            <div id="sm-emp-dropdown" class="hidden absolute z-50 mt-1 w-80 max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg"></div>
+                            <button onclick="window.smAssignSelected()" id="sm-assign-btn" disabled class="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow transition-all">
+                                <i class="fa-solid fa-link"></i> จับคู่กับแถวที่เลือก
+                            </button>
+                            <button onclick="window.smDeleteSelected()" id="sm-delete-btn" disabled class="px-3 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow transition-all">
+                                <i class="fa-solid fa-link-slash"></i> ลบการจับคู่ที่เลือก
+                            </button>
+                            <button onclick="window.smReconcile()" id="sm-reconcile-btn" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow transition-all" title="ประมวลผล attendance_raw → time_records ทันทีหลังจับคู่">
+                                <i class="fa-solid fa-rotate"></i> ประมวลผลเวลา (Reconcile)
+                            </button>
+                            <span id="sm-stats" class="text-[11px] text-slate-500"></span>
+                        </div>
+                        <div id="sm-reconcile-result" class="hidden text-xs p-2.5 rounded-xl"></div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- ตาราง 1: รายชื่อในเครื่องสแกน (จาก attendance_raw + mapping) -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <p class="text-[11px] font-bold text-slate-600"><i class="fa-solid fa-fingerprint text-slate-400"></i> รายชื่อในเครื่องสแกน (จาก Agent)</p>
+                                    <input type="text" placeholder="ค้นหา…" class="text-[10px] border border-slate-200 rounded px-2 py-1 w-32" oninput="hrTableFilter('sm-scanner-users-body', this.value, null)">
+                                </div>
+                                <div class="hr-table-wrap overflow-x-auto max-h-80 border border-slate-100 rounded-xl">
+                                    <table class="hr-table">
+                                        <thead><tr><th>UID</th><th>ชื่อในเครื่อง</th><th>จับคู่กับ</th><th>สแกนล่าสุด</th></tr></thead>
+                                        <tbody id="sm-scanner-users-body">
+                                            <tr class="tbl-empty-row"><td colspan="4">เลือกเครื่องจากตารางด้านบน</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <!-- ตาราง 2: การจับคู่ที่บันทึกแล้ว (scanner_mappings) -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <p class="text-[11px] font-bold text-slate-600"><i class="fa-solid fa-link text-emerald-500"></i> จับคู่แล้ว (บันทึกในฐานข้อมูล)</p>
+                                    <input type="text" placeholder="ค้นหา…" class="text-[10px] border border-slate-200 rounded px-2 py-1 w-32" oninput="hrTableFilter('sm-mappings-body', this.value, null)">
+                                </div>
+                                <div class="hr-table-wrap overflow-x-auto max-h-80 border border-slate-100 rounded-xl">
+                                    <table class="hr-table">
+                                        <thead><tr><th>เลือก</th><th>UID</th><th>ชื่อในเครื่อง</th><th>รหัสพนักงาน</th><th>ชื่อพนักงาน</th></tr></thead>
+                                        <tbody id="sm-mappings-body">
+                                            <tr class="tbl-empty-row"><td colspan="5">เลือกเครื่องจากตารางด้านบน</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400"><i class="fa-solid fa-circle-info"></i> คลิกแถวในตาราง "รายชื่อในเครื่องสแกน" เพื่อเลือก UID แล้วค้นหา/เลือกพนักงานจากช่องด้านบน → กด "จับคู่" · ตารางขวาลบการจับคู่ได้ (แถวจะกลับไปยังไม่จับคู่) · หลังจับคู่กด "ประมวลผลเวลา" เพื่อยึดเวลาสแกนเก่าเข้าตารางเวลางานทันที</p>
+                    </div>
+
                     <!-- กล่องดาวน์โหลด Agent -->
                     <div
                         class="bg-gradient-to-r from-brand-sky to-white border border-brand-sky rounded-2xl p-5 space-y-3">
@@ -22619,9 +22681,9 @@ function closeEmployeeModal() {
                             ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>ออนไลน์</span>'
                             : '<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full"><span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>ออฟไลน์</span>';
 
-                        return `<tr class="border-b border-slate-100 hover:bg-slate-50 transition-all">
+                        return `<tr class="border-b border-slate-100 hover:bg-slate-50 transition-all cursor-pointer" onclick="window.smOpenPanel({ deviceId: '${escapeHtml(d.deviceId)}', deviceName: '${escapeHtml(String(d.deviceName || '').replace(/'/g, "\\'"))}', ipAddress: '${escapeHtml(d.ipAddress || '')}' })" title="คลิกเพื่อจัดการการจับคู่ของเครื่องนี้">
                         <td class="py-2.5 px-2">${statusBadge}</td>
-                        <td class="py-2.5 px-2 font-semibold text-slate-800">${escapeHtml(d.deviceName || '-')}</td>
+                        <td class="py-2.5 px-2 font-semibold text-slate-800">${escapeHtml(d.deviceName || '-')} <i class="fa-solid fa-chevron-right text-[9px] text-violet-400 ml-1" title="จัดการการจับคู่"></i></td>
                         <td class="py-2.5 px-2"><span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-mono rounded">${escapeHtml(d.branchCode || '-')}</span></td>
                         <td class="py-2.5 px-2 text-[10px] text-slate-600">${escapeHtml(d.model || '-')}<br><span class="text-slate-400 font-mono">${escapeHtml(d.serialNo || '-')}</span></td>
                         <td class="py-2.5 px-2 text-[10px] font-mono text-slate-600">${escapeHtml(d.ipAddress || '-')}:${d.port || '-'}</td>
@@ -22629,7 +22691,7 @@ function closeEmployeeModal() {
                         <td class="py-2.5 px-2 text-[10px] text-slate-500">${lastHb}</td>
                         <td class="py-2.5 px-2 text-right font-semibold text-violet-700">${(d.totalRecordsPushed || 0).toLocaleString()}</td>
                         <td class="py-2.5 px-2">
-                            <button onclick="window.deleteScanDevice('${escapeHtml(d.deviceId)}', '${escapeHtml(d.deviceName)}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-semibold" title="ลบเครื่องนี้ออกจากระบบ">
+                            <button onclick="event.stopPropagation(); window.deleteScanDevice('${escapeHtml(d.deviceId)}', '${escapeHtml(d.deviceName)}')" class="text-rose-500 hover:text-rose-700 text-[10px] font-semibold" title="ลบเครื่องนี้ออกจากระบบ">
                                 <i class="fa-solid fa-trash"></i>
                             </button>
                         </td>
@@ -22763,6 +22825,256 @@ function closeEmployeeModal() {
                         showToast('❌ ลบไม่สำเร็จ: ' + (res?.message || ''), 'error');
                     }
                 }
+
+                /**
+                 * 🆕 Scanner Mapping Manager — จัดการการจับคู่บนหน้าเว็บ (ต่อ Supabase ตรง)
+                 * ตารางซ้าย: รายชื่อในเครื่องสแกน (attendance_raw UNION scanner_mappings)
+                 * ตารางขวา: การจับคู่ที่บันทึกแล้ว (scanner_mappings)
+                 */
+                const smState = { deviceId: '', deviceName: '', mappings: [], rawUids: {}, rawLastScan: {}, empList: [], selectedUid: '', selectedUids: [] };
+
+                window.smOpenPanel = function smOpenPanel(device) {
+                    smState.deviceId = device.deviceId || '';
+                    smState.deviceName = device.deviceName || smState.deviceId;
+                    smState.mappings = []; smState.rawUids = {}; smState.rawLastScan = {};
+                    smState.selectedUid = ''; smState.selectedUids = [];
+                    document.getElementById('sm-panel-device-name').textContent = smState.deviceName;
+                    document.getElementById('sm-panel-device-ip').textContent = device.ipAddress ? ` (${device.ipAddress})` : '';
+                    const panel = document.getElementById('scanner-mapping-panel');
+                    panel.classList.remove('hidden');
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    smRenderEmpDropdown();
+                    window.smLoadData();
+                };
+
+                window.closeScannerMappingPanel = function closeScannerMappingPanel() {
+                    document.getElementById('scanner-mapping-panel').classList.add('hidden');
+                    smState.deviceId = '';
+                };
+
+                window.smLoadData = async function smLoadData() {
+                    if (!smState.deviceId || !supabaseClient) {
+                        showToast('❌ ยังไม่ได้เลือกเครื่อง / Supabase ยังไม่พร้อม', 'error');
+                        return;
+                    }
+                    const usersBody = document.getElementById('sm-scanner-users-body');
+                    const mapBody = document.getElementById('sm-mappings-body');
+                    usersBody.innerHTML = '<tr class="tbl-empty-row"><td colspan="4"><i class="fa-solid fa-spinner animate-spin text-violet-500"></i> กำลังโหลด…</td></tr>';
+                    mapBody.innerHTML = '<tr class="tbl-empty-row"><td colspan="5"><i class="fa-solid fa-spinner animate-spin text-emerald-500"></i> กำลังโหลด…</td></tr>';
+
+                    try {
+                        // โหลดพนักงาน (ครั้งแรกเท่านั้น — ใช้แคชเดิมถ้ามี)
+                        if (!smState.empList.length) {
+                            try {
+                                const empRes = await supabaseClient.from('employees').select('emp_id,name,status').order('emp_id');
+                                if (!empRes.error && Array.isArray(empRes.data)) smState.empList = empRes.data.filter(e => e.emp_id);
+                            } catch (e1) { console.warn('[sm] employees load failed', e1); }
+                        }
+
+                        const devEq = `device_id=eq.${encodeURIComponent(smState.deviceId)}`;
+                        const [mapRes, rawRes] = await Promise.all([
+                            supabaseClient.from('scanner_mappings').select('id,scanner_uid,raw_name,emp_id,updated_at').eq('device_id', smState.deviceId).order('scanner_uid'),
+                            supabaseClient.from('attendance_raw').select('scanner_uid,raw_name,emp_id,timestamp').eq('device_id', smState.deviceId).order('timestamp', { ascending: false }).limit(5000)
+                        ]);
+                        if (mapRes.error) throw mapRes.error;
+                        if (rawRes.error) throw rawRes.error;
+
+                        // raw: ล่าสุดต่อ UID + raw_name ที่ไม่ placeholder + นับจำนวนสแกน
+                        const rawUids = {}, rawLastScan = {}, rawNames = {};
+                        (rawRes.data || []).forEach(r => {
+                            const uid = String(r.scanner_uid || '').replace(/\.0$/, '').trim();
+                            if (!uid) return;
+                            if (!rawLastScan[uid] || String(r.timestamp || '') > rawLastScan[uid]) rawLastScan[uid] = String(r.timestamp || '');
+                            const nm = String(r.raw_name || '').trim();
+                            if (nm && !/^(?:zk\s+)?user\s+/i.test(nm) && !rawNames[uid]) rawNames[uid] = nm;
+                        });
+                        smState.rawLastScan = rawLastScan;
+
+                        // 🔑 รวมรายชื่อ: mapping ทั้งหมด + UID ที่มีสแกนแต่ยังไม่จับคู่ (ชื่อจาก raw_name/mapping)
+                        smState.mappings = (mapRes.data || []).map(m => ({ ...m, scanner_uid: String(m.scanner_uid || '').replace(/\.0$/, '').trim() }));
+                        const mappedUids = new Set(smState.mappings.map(m => m.scanner_uid));
+                        Object.keys(rawLastScan).forEach(uid => {
+                            if (!mappedUids.has(uid)) {
+                                smState.mappings.push({ id: null, device_id: smState.deviceId, scanner_uid: uid, raw_name: rawNames[uid] || '', emp_id: '', updated_at: null });
+                            }
+                        });
+
+                        // ข้อมูลช่องขวาของตารางซ้าย (emp ที่จับคู่แล้ว)
+                        const empById = {};
+                        smState.empList.forEach(e => { empById[e.emp_id] = e; });
+
+                        smState.mappings.sort((a, b) => {
+                            const na = parseInt(a.scanner_uid, 10), nb = parseInt(b.scanner_uid, 10);
+                            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                            return String(a.scanner_uid).localeCompare(String(b.scanner_uid));
+                        });
+
+                        // ตารางซ้าย: รายชื่อในเครื่องสแกน
+                        usersBody.innerHTML = smState.mappings.map((m, idx) => {
+                            const emp = m.emp_id ? empById[m.emp_id] : null;
+                            const last = smState.rawLastScan[m.scanner_uid];
+                            const isSel = smState.selectedUid === m.scanner_uid;
+                            return `<tr class="border-b border-slate-100 hover:bg-violet-50 cursor-pointer transition-all ${isSel ? 'bg-violet-100 ring-1 ring-violet-300' : ''}" onclick="window.smPickUid('${escapeHtml(m.scanner_uid)}')">
+                                <td class="py-2 px-2 text-[11px] font-mono">${escapeHtml(m.scanner_uid)}</td>
+                                <td class="py-2 px-2 text-[11px]">${escapeHtml(m.raw_name || '(ไม่มีชื่อ)')}</td>
+                                <td class="py-2 px-2 text-[11px]">${emp ? `<span class="font-semibold text-emerald-700">${escapeHtml(emp.name || m.emp_id)}</span> <span class="text-slate-400 font-mono text-[10px]">${escapeHtml(m.emp_id)}</span>` : '<span class="text-rose-500 font-semibold">ยังไม่จับคู่</span>'}</td>
+                                <td class="py-2 px-2 text-[10px] text-slate-500">${last ? escapeHtml(last.replace('T', ' ').substring(0, 16)) : '-'}</td>
+                            </tr>`;
+                        }).join('') || '<tr class="tbl-empty-row"><td colspan="4">ไม่มีข้อมูล — Agent ยังไม่เคยสแกนเครื่องนี้</td></tr>';
+
+                        // ตารางขวา: จับคู่แล้วเท่านั้น
+                        const mapped = smState.mappings.filter(m => m.emp_id);
+                        mapBody.innerHTML = mapped.map(m => {
+                            const emp = empById[m.emp_id];
+                            const checked = smState.selectedUids.includes(m.scanner_uid);
+                            return `<tr class="border-b border-slate-100 hover:bg-slate-50 transition-all">
+                                <td class="py-2 px-2 text-center"><input type="checkbox" ${checked ? 'checked' : ''} onchange="window.smToggleSelected('${escapeHtml(m.scanner_uid)}', this.checked)" class="accent-rose-600"></td>
+                                <td class="py-2 px-2 text-[11px] font-mono">${escapeHtml(m.scanner_uid)}</td>
+                                <td class="py-2 px-2 text-[11px]">${escapeHtml(m.raw_name || '(ไม่มีชื่อ)')}</td>
+                                <td class="py-2 px-2 text-[11px] font-mono font-semibold text-slate-700">${escapeHtml(m.emp_id)}</td>
+                                <td class="py-2 px-2 text-[11px]">${emp ? escapeHtml(emp.name || '') : `<span class="text-amber-600">${escapeHtml(m.emp_id)} (ไม่พบในระบบ)</span>`}</td>
+                            </tr>`;
+                        }).join('') || '<tr class="tbl-empty-row"><td colspan="5">ยังไม่มีการจับคู่ — เลือกแถวซ้าย แล้วจับคู่จากช่องด้านบน</td></tr>';
+
+                        const unmatched = smState.mappings.length - mapped.length;
+                        document.getElementById('sm-stats').textContent = `ทั้งหมด ${smState.mappings.length} UID · จับคู่แล้ว ${mapped.length} · ยังไม่จับคู่ ${unmatched}`;
+                        smSyncButtonStates();
+                    } catch (err) {
+                        console.error('[sm] loadData error', err);
+                        usersBody.innerHTML = `<tr class="tbl-empty-row"><td colspan="4" class="text-rose-600">โหลดไม่สำเร็จ: ${escapeHtml(err.message || String(err))}</td></tr>`;
+                        mapBody.innerHTML = `<tr class="tbl-empty-row"><td colspan="5" class="text-rose-600">โหลดไม่สำเร็จ</td></tr>`;
+                    }
+                };
+
+                window.smPickUid = function smPickUid(uid) {
+                    smState.selectedUid = (smState.selectedUid === uid) ? '' : uid;
+                    smSyncButtonStates();
+                    // รีเฟรชไฮไลต์แถวซ้ายเท่านั้น (โหลดข้อมูลใหม่ไม่ต้อง — เก็บสถานะไว้)
+                    const usersBody = document.getElementById('sm-scanner-users-body');
+                    usersBody.querySelectorAll('tr').forEach(tr => {
+                        const onclk = tr.getAttribute('onclick') || '';
+                        const m = onclk.match(/smPickUid\('(.+)'\)/);
+                        if (m) {
+                            const isSel = m[1] === smState.selectedUid;
+                            tr.classList.toggle('bg-violet-100', isSel);
+                            tr.classList.toggle('ring-1', isSel);
+                            tr.classList.toggle('ring-violet-300', isSel);
+                        }
+                    });
+                };
+
+                window.smRenderEmpDropdown = function smRenderEmpDropdown() {
+                    const dd = document.getElementById('sm-emp-dropdown');
+                    const q = (document.getElementById('sm-emp-search').value || '').trim().toLowerCase();
+                    if (!dd) return;
+                    let items = smState.empList.filter(e => e.status !== 'ลาออก');
+                    if (q) items = items.filter(e => String(e.emp_id || '').toLowerCase().includes(q) || String(e.name || '').toLowerCase().includes(q));
+                    items = items.slice(0, 30);
+                    if (!q || items.length === 0) { dd.classList.add('hidden'); dd.innerHTML = ''; return; }
+                    dd.innerHTML = items.map(e => `<button type="button" class="w-full text-left px-3 py-2 hover:bg-violet-50 border-b border-slate-50" onclick="window.smPickEmp('${escapeHtml(e.emp_id)}', '${escapeHtml(String(e.name || '').replace(/'/g, "\\'"))}')">
+                        <span class="text-xs font-semibold text-slate-700">${escapeHtml(e.name || '')}</span> <span class="text-[10px] font-mono text-slate-400">${escapeHtml(e.emp_id)}</span>
+                    </button>`).join('');
+                    dd.classList.remove('hidden');
+                };
+
+                window.smPickEmp = function smPickEmp(empId, empName) {
+                    document.getElementById('sm-emp-search').value = `${empName || ''} (${empId})`;
+                    document.getElementById('sm-emp-search').dataset.empId = empId;
+                    document.getElementById('sm-emp-dropdown').classList.add('hidden');
+                    smSyncButtonStates();
+                };
+
+                window.smSyncButtonStates = function smSyncButtonStates() {
+                    const empPicked = !!document.getElementById('sm-emp-search').dataset.empId;
+                    document.getElementById('sm-assign-btn').disabled = !(smState.selectedUid && empPicked);
+                    document.getElementById('sm-delete-btn').disabled = smState.selectedUids.length === 0;
+                };
+
+                window.smToggleSelected = function smToggleSelected(uid, checked) {
+                    uid = String(uid || '');
+                    const i = smState.selectedUids.indexOf(uid);
+                    if (checked && i === -1) smState.selectedUids.push(uid);
+                    if (!checked && i !== -1) smState.selectedUids.splice(i, 1);
+                    smSyncButtonStates();
+                };
+
+                window.smAssignSelected = async function smAssignSelected() {
+                    const empId = document.getElementById('sm-emp-search').dataset.empId;
+                    const uid = smState.selectedUid;
+                    if (!uid || !empId) return;
+                    const emp = smState.empList.find(e => e.emp_id === empId) || {};
+                    const rawName = (smState.mappings.find(m => m.scanner_uid === uid) || {}).raw_name || '';
+                    const btn = document.getElementById('sm-assign-btn');
+                    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก…';
+                    try {
+                        const { error } = await supabaseClient.from('scanner_mappings').upsert({
+                            device_id: smState.deviceId, scanner_uid: uid, emp_id: empId, raw_name: rawName, updated_at: new Date().toISOString()
+                        }, { onConflict: 'device_id,scanner_uid' });
+                        if (error) throw error;
+                        showToast(`✅ จับคู่ UID ${uid} → ${emp.name || empId} สำเร็จ`, 'success');
+                        document.getElementById('sm-emp-search').value = '';
+                        delete document.getElementById('sm-emp-search').dataset.empId;
+                        smState.selectedUid = '';
+                        await window.smLoadData();
+                    } catch (err) {
+                        console.error('[sm] assign error', err);
+                        showToast('❌ จับคู่ไม่สำเร็จ: ' + (err.message || ''), 'error');
+                    } finally {
+                        btn.innerHTML = '<i class="fa-solid fa-link"></i> จับคู่กับแถวที่เลือก';
+                        smSyncButtonStates();
+                    }
+                };
+
+                window.smDeleteSelected = async function smDeleteSelected() {
+                    const uids = smState.selectedUids.slice();
+                    if (!uids.length) return;
+                    const names = uids.map(u => {
+                        const m = smState.mappings.find(x => x.scanner_uid === u);
+                        return m ? `${m.raw_name || '(ไม่มีชื่อ)'} (${u} → ${m.emp_id})` : u;
+                    }).join(', ');
+                    if (!confirm(`ต้องการลบการจับคู่ ${uids.length} รายการ?\n${names}\n\nแถวจะกลับไปเป็น "ยังไม่จับคู่" เพื่อจับใหม่ได้`)) return;
+                    const btn = document.getElementById('sm-delete-btn');
+                    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลบ…';
+                    try {
+                        const del1 = await supabaseClient.from('scanner_mappings').delete().eq('device_id', smState.deviceId).in('scanner_uid', uids);
+                        if (del1.error) throw del1.error;
+                        showToast(`✅ ลบการจับคู่ ${uids.length} รายการสำเร็จ`, 'success');
+                        smState.selectedUids = [];
+                        await window.smLoadData();
+                    } catch (err) {
+                        console.error('[sm] delete error', err);
+                        showToast('❌ ลบไม่สำเร็จ: ' + (err.message || ''), 'error');
+                    } finally {
+                        btn.innerHTML = '<i class="fa-solid fa-link-slash"></i> ลบการจับคู่ที่เลือก';
+                        smSyncButtonStates();
+                    }
+                };
+
+                window.smReconcile = async function smReconcile() {
+                    const btn = document.getElementById('sm-reconcile-btn');
+                    const box = document.getElementById('sm-reconcile-result');
+                    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังประมวลผล…';
+                    box.classList.remove('hidden');
+                    box.className = 'mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs';
+                    box.innerHTML = '🔄 กำลังประมวลผล attendance_raw → time_records…';
+                    try {
+                        const adminId = (typeof currentEmployeeId !== 'undefined' && currentEmployeeId) ? currentEmployeeId : 'admin';
+                        const result = await apiRequest({ action: 'reconcileAttendanceRaw', adminId: adminId });
+                        if (result && result.status === 'success') {
+                            const d = result.data || {};
+                            box.className = 'mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs';
+                            box.innerHTML = `<p class="font-bold text-emerald-700"><i class="fa-solid fa-circle-check"></i> ประมวลผลสำเร็จ — บันทึกใหม่ ${d.inserted || 0} · อัปเดต ${d.updated || 0} · ข้าม ${d.skipped || 0} · ผิดพลาด ${d.errors || 0}</p>`;
+                        } else {
+                            box.className = 'mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs';
+                            box.innerHTML = `<p class="font-bold text-rose-700"><i class="fa-solid fa-circle-xmark"></i> ${(result && result.message) || 'Reconcile ไม่สำเร็จ'}</p>`;
+                        }
+                    } catch (err) {
+                        box.className = 'mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs';
+                        box.innerHTML = `<p class="font-bold text-rose-700"><i class="fa-solid fa-circle-xmark"></i> ผิดพลาด: ${escapeHtml(err.message || String(err))}</p>`;
+                    } finally {
+                        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate"></i> ประมวลผลเวลา (Reconcile)';
+                    }
+                };
 
                 /**
                  * ดาวน์โหลด Agent (zip) — สร้าง zip แบบ in-browser
