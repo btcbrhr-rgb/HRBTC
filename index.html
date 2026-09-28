@@ -23690,12 +23690,15 @@ function closeEmployeeModal() {
                     console.log(`[TXT Import] Starting ${modeStr} with ${selectedTxtFileContent.length} bytes`);
 
                     const selectedProject = document.getElementById("txt-project-select")?.value || "";
-                    // 🔧 BUG FIX: ต้องส่ง dryRun ตามโหมดจริง — เดิม hard-code true ทำให้ปุ่ม "บันทึกข้อมูลจริง"
-                    // ยิง dry-run ตลอด → GAS แค่ parse แต่ไม่ลงฐานข้อมูล (บันทึกจริงไม่มีข้อมูล)
+                    // 🔧 FIX (2026-09-28d): คำขอแรกต้องเป็น parse-only (dryRun: true) เสมอ ทั้งพรีวิวและบันทึกจริง
+                    // เดิมแก้เป็น dryRun: dryRun ทำให้ตอนบันทึกจริง GAS เข้าเส้นทาง slow path
+                    // (บันทึกทีละรายการ + reconcile ทุกครั้ง — comment ใน Code.gs ระบุว่า timeout > 6 นาที)
+                    // → Google คืน HTTP 500 → "API Error: Network response was not ok" + เคาน์เตอร์ค้าง 0/0
+                    // การบันทึกจริงเกิดใน batch loop ด้านล่าง (batchOnly: true · 100 รายการ/ชุด · เร็ว + นับได้)
                     const payload = {
                         action: "importTimeRecords",
                         fileContent: selectedTxtFileContent,
-                        dryRun: dryRun,
+                        dryRun: true,
                         project: selectedProject,
                         adminId: currentEmployeeId
                     };
@@ -23766,6 +23769,10 @@ function closeEmployeeModal() {
                         console.log(`[TXT Import] dryRun=${dryRun}, res.data:`, res.data);
 
                         // ─── ขั้นที่ 2: ถ้าบันทึกจริง ให้แบ่ง batch (parse-only ครั้งแรก) ────
+                        // 🔧 FIX (2026-09-28d): เงื่อนไขเดิม `!dryRun && ...` ไม่มีวันเป็นจริงในโหมดบันทึกจริง
+                        // เพราะคำขอแรกถูกส่งเป็น dry-run เสมอ (parse-only กัน GAS timeout) — ผลลัพธ์คือ
+                        // "บันทึกสำเร็จ" แต่ไม่มีอะไรลงฐานข้อมูล (บั๊กเดิมที่ User แจ้ง)
+                        // ใหม่: โหมดบันทึกจริง → เข้า batch loop ที่ GAS optimize ไว้ (batchOnly: true)
                         if (!dryRun && res.data.records.length > 0) {
                             const records = res.data.records;
                             const batchSize = 100;
