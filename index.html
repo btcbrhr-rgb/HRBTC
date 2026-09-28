@@ -4841,8 +4841,10 @@
                             </button>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <input id="sm-emp-search" type="text" placeholder="🔍 พิมพ์รหัสหรือชื่อพนักงานเพื่อเลือก…" class="text-xs border border-slate-300 rounded-lg px-3 py-2 w-72 focus:outline-none focus:ring-2 focus:ring-violet-300" oninput="window.smRenderEmpDropdown()">
-                            <div id="sm-emp-dropdown" class="hidden absolute z-50 mt-1 w-80 max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg"></div>
+                            <div class="relative">
+                                <input id="sm-emp-search" type="text" autocomplete="off" placeholder="🔍 พิมพ์รหัสหรือชื่อพนักงานเพื่อเลือก…" class="text-xs border border-slate-300 rounded-lg px-3 py-2 w-72 focus:outline-none focus:ring-2 focus:ring-violet-300" oninput="window.smRenderEmpDropdown()" onfocus="window.smRenderEmpDropdown()">
+                                <div id="sm-emp-dropdown" class="hidden absolute left-0 top-full z-50 mt-1 w-80 max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg"></div>
+                            </div>
                             <button onclick="window.smAssignSelected()" id="sm-assign-btn" disabled class="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow transition-all">
                                 <i class="fa-solid fa-link"></i> จับคู่กับแถวที่เลือก
                             </button>
@@ -22971,11 +22973,18 @@ function closeEmployeeModal() {
                     if (q) items = items.filter(e => String(e.emp_id || '').toLowerCase().includes(q) || String(e.name || '').toLowerCase().includes(q));
                     items = items.slice(0, 30);
                     if (!q || items.length === 0) { dd.classList.add('hidden'); dd.innerHTML = ''; return; }
-                    dd.innerHTML = items.map(e => `<button type="button" class="w-full text-left px-3 py-2 hover:bg-violet-50 border-b border-slate-50" onclick="window.smPickEmp('${escapeHtml(e.emp_id)}', '${escapeHtml(String(e.name || '').replace(/'/g, "\\'"))}')">
+                    dd.innerHTML = items.map(e => `<button type="button" class="w-full text-left px-3 py-2 hover:bg-violet-50 border-b border-slate-50" onclick="event.stopPropagation(); window.smPickEmp('${escapeHtml(e.emp_id)}', '${escapeHtml(String(e.name || '').replace(/'/g, String.fromCharCode(92) + "'"))}')">
                         <span class="text-xs font-semibold text-slate-700">${escapeHtml(e.name || '')}</span> <span class="text-[10px] font-mono text-slate-400">${escapeHtml(e.emp_id)}</span>
                     </button>`).join('');
                     dd.classList.remove('hidden');
                 };
+
+                // คลิกนอก dropdown → ปิดรายการ (กัน dropdown ค้างเปิดขวางตาราง)
+                document.addEventListener('click', (ev) => {
+                    const dd = document.getElementById('sm-emp-dropdown');
+                    const inp = document.getElementById('sm-emp-search');
+                    if (dd && inp && !dd.contains(ev.target) && ev.target !== inp) dd.classList.add('hidden');
+                });
 
                 window.smPickEmp = function smPickEmp(empId, empName) {
                     document.getElementById('sm-emp-search').value = `${empName || ''} (${empId})`;
