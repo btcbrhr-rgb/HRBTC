@@ -4404,6 +4404,56 @@
 
                 <!-- SECTION 1: นำเข้าเวลางาน (.txt) -->
                 <section id="admin-sec-import-time" class="admin-sec hidden space-y-6">
+
+                    <!-- ═══ MODAL: สรุปผลการนำเข้าเวลางาน (หลังบันทึกจริงเสร็จ) ═══ -->
+                    <div id="txt-import-summary-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+                        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                                <div class="flex items-center gap-2.5">
+                                    <span id="txt-summary-modal-icon" class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm font-bold shadow-sm"><i class="fa-solid fa-circle-check"></i></span>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-800">บันทึกข้อมูลจริงเสร็จสิ้น</h3>
+                                        <p class="text-[11px] text-slate-400">สรุปผลการนำเข้าเวลางาน (.txt)</p>
+                                    </div>
+                                </div>
+                                <button onclick="closeTxtImportSummaryModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors">
+                                    <i class="fa-solid fa-xmark text-sm"></i>
+                                </button>
+                            </div>
+                            <div class="p-5 space-y-3">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                                        <p class="text-[10px] font-bold text-emerald-600 uppercase">เพิ่มใหม่</p>
+                                        <p class="text-xl font-bold text-emerald-700 mt-1" id="txt-summary-inserted">0</p>
+                                        <p class="text-[9px] text-emerald-500">รายการ</p>
+                                    </div>
+                                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+                                        <p class="text-[10px] font-bold text-blue-600 uppercase">อัปเดต</p>
+                                        <p class="text-xl font-bold text-blue-700 mt-1" id="txt-summary-updated">0</p>
+                                        <p class="text-[9px] text-blue-500">รายการ</p>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                                        <p class="text-[9px] font-bold text-slate-500 uppercase">รวมทั้งหมด</p>
+                                        <p class="text-sm font-bold text-slate-700 mt-0.5" id="txt-summary-total">0</p>
+                                    </div>
+                                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-center">
+                                        <p class="text-[9px] font-bold text-amber-600 uppercase">ข้าม</p>
+                                        <p class="text-sm font-bold text-amber-700 mt-0.5" id="txt-summary-skipped">0</p>
+                                    </div>
+                                    <div class="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-center">
+                                        <p class="text-[9px] font-bold text-rose-600 uppercase">ผิดพลาด</p>
+                                        <p class="text-sm font-bold text-rose-700 mt-0.5" id="txt-summary-errors">0</p>
+                                    </div>
+                                </div>
+                                <p class="text-[10px] text-slate-400 text-center leading-relaxed">ตารางเวลางาน 12 เดือนถูกรีเฟรชให้อัตโนมัติแล้ว</p>
+                            </div>
+                            <div class="px-5 py-3.5 bg-slate-50/80 border-t border-slate-100 flex gap-2">
+                                <button onclick="closeTxtImportSummaryModal()" class="flex-1 bg-brand-deep hover:bg-brand-teal text-white text-xs font-semibold py-2.5 rounded-xl transition-all shadow-sm">รับทราบ</button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <!-- Upload Card -->
                         <div
@@ -23084,6 +23134,42 @@ function closeEmployeeModal() {
                     ].join('\n');
                 }
 
+                // ═══ MODAL สรุปผลนำเข้าเวลางาน (.txt) — แสดง เพิ่มใหม่/อัปเดต/รวม/ข้าม/ผิดพลาด ═══
+                function openTxtImportSummaryModal(stats) {
+                    const modal = document.getElementById('txt-import-summary-modal');
+                    if (!modal) return;
+                    const ins = document.getElementById('txt-summary-inserted');
+                    const upd = document.getElementById('txt-summary-updated');
+                    const tot = document.getElementById('txt-summary-total');
+                    const skp = document.getElementById('txt-summary-skipped');
+                    const err = document.getElementById('txt-summary-errors');
+                    const ico = document.getElementById('txt-summary-modal-icon');
+                    if (ins) ins.textContent = (stats.inserted || 0).toLocaleString('th-TH');
+                    if (upd) upd.textContent = (stats.updated || 0).toLocaleString('th-TH');
+                    if (tot) tot.textContent = ((stats.inserted || 0) + (stats.updated || 0)).toLocaleString('th-TH');
+                    if (skp) skp.textContent = (stats.skipped || 0).toLocaleString('th-TH');
+                    if (err) err.textContent = (stats.errors || 0).toLocaleString('th-TH');
+                    // ถ้ามีข้อผิดพลาด/ข้ามเยอะ เปลี่ยนโทนไอคอนหัวโมดัลเป็นสีเตือน
+                    if (ico) {
+                        const hasWarn = (stats.errors || 0) > 0 || (stats.skipped || 0) > 0;
+                        ico.className = hasWarn
+                            ? 'w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm font-bold shadow-sm'
+                            : 'w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm font-bold shadow-sm';
+                        ico.innerHTML = hasWarn ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-circle-check"></i>';
+                    }
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                }
+
+                function closeTxtImportSummaryModal() {
+                    const modal = document.getElementById('txt-import-summary-modal');
+                    if (modal) {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                    }
+                }
+                window.closeTxtImportSummaryModal = closeTxtImportSummaryModal;
+
                 // ฟังก์ชันล้างสถานะและ UI ของการนำเข้าเวลางาน .txt เพื่อพร้อมเริ่มงานใหม่
                 function clearTxtImportSystem() {
                     selectedTxtFileContent = "";
@@ -23686,6 +23772,8 @@ function closeEmployeeModal() {
                             const totalBatches = Math.ceil(records.length / batchSize);
                             let totalWritten = 0;
                             let totalUpdated = 0;
+                            let totalSkipped = 0;
+                            let totalErrors = 0;
 
                             console.log(`[TXT Import] Starting batch save: ${records.length} records in ${totalBatches} batches`);
                             statusDiv.classList.remove("hidden");
@@ -23766,6 +23854,8 @@ function closeEmployeeModal() {
 
                                     totalWritten += batchRes.data.summary.written || 0;
                                     totalUpdated += batchRes.data.summary.updated || 0;
+                                    totalSkipped += batchRes.data.summary.skipped || 0;
+                                    totalErrors += batchRes.data.summary.errors || 0;
 
                                     // เร่งตัวนับแอนิเมชันให้ไล่ทันค่า batchEnd ของ batch ที่เสร็จแล้วทันที เพื่อให้ลื่นไหลต่อเนื่อง
                                     currentProgressCount = batchEnd;
@@ -23796,6 +23886,8 @@ function closeEmployeeModal() {
                                 // สรุปผลหลังบันทึกจริง
                                 res.data.summary.written = totalWritten;
                                 res.data.summary.updated = totalUpdated;
+                                res.data.summary.skipped = totalSkipped;
+                                res.data.summary.errors = totalErrors;
                                 res.data.summary.savedRecords = totalWritten + totalUpdated;
                                 // 🔧 BUG FIX: เดิม `res = initialRes;` ทับผล batch ทิ้ง (summary.written/updated หาย)
                                 // คงใช้ `res` เดิมที่มีข้อมูล batch รวมอยู่แล้ว (records/warnings/summary ครบ)
@@ -23982,6 +24074,14 @@ function closeEmployeeModal() {
                                     : `<i class="fa-solid fa-circle-check mr-2"></i>✓ บันทึกข้อมูลจริงสำเร็จ · ${summary.processedDays} วัน`;
                                 resultDiv.innerHTML = successMsg;
                                 document.getElementById("txt-import-status-text").textContent = `บันทึกสำเร็จ ${summary.processedDays} วัน`;
+
+                                // 🪟 เปิด Modal สรุปผล: เพิ่มใหม่/อัปเดต/รวม/ข้าม/ผิดพลาด (หลังบันทึกจริงเสร็จ)
+                                openTxtImportSummaryModal({
+                                    inserted: summary.written || 0,
+                                    updated: summary.updated || 0,
+                                    skipped: summary.skipped || 0,
+                                    errors: summary.errors || 0
+                                });
 
                                 // 🔄 ล้างแคชและสั่งรีเฟรชตารางเวลางาน 12 เดือนทันทีหลังบันทึกจริงเสร็จ
                                 yearlyMonthDataCache = {};
