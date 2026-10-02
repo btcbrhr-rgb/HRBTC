@@ -24788,21 +24788,15 @@ ${slip.textSample}
                         return;
                     }
 
-                    const MAX_PAYLOAD_BYTES = 4.5 * 1024 * 1024; // Vercel serverless จำกัด request body 4.5MB → 413 FUNCTION_PAYLOAD_TOO_LARGE
-                    // เช็คขนาด payload ล่วงหน้า — ตัดรายการที่เกินออกก่อนยิง เพื่อให้เห็นสาเหตุชัดเจน
+                    // ⚡ ยิงตรง GAS /exec (รับได้ ~50MB) — ไม่ต้องตัดรายการที่ใหญ่แล้ว
+                    // (เช็คแค่ว่าไฟล์ไม่ใหญ่เกินขีดจำกัดของ GAS เอง ~50MB กัน memory เติม)
+                    const MAX_UPLOAD_BYTES = 45 * 1024 * 1024;
                     const oversized = [];
                     const uploadable = [];
                     for (const s of targets) {
-                        const payloadSize = JSON.stringify({
-                            action: 'uploadPayslipFile',
-                            adminId: currentEmployeeId,
-                            empId: s.empId,
-                            month: s.month,
-                            netAmount: s.netAmount,
-                            pdfFile: s.pdfBase64
-                        }).length;
-                        if (payloadSize >= MAX_PAYLOAD_BYTES) {
-                            oversized.push(`รหัส ${s.empId || 'ไม่ระบุ'}: ไฟล์ใหญ่เกิน ${(payloadSize / 1024 / 1024).toFixed(1)} MB (ระบบรับได้สูงสุด ~4.5 MB ต่อสลิป)`);
+                        const payloadSize = (s.pdfBase64 || '').length;
+                        if (payloadSize >= MAX_UPLOAD_BYTES) {
+                            oversized.push(`รหัส ${s.empId || 'ไม่ระบุ'}: ไฟล์ใหญ่เกิน ${(payloadSize / 1024 / 1024).toFixed(1)} MB (ระบบรับได้สูงสุด ~45 MB ต่อสลิป)`);
                         } else {
                             uploadable.push(s);
                         }
@@ -24832,6 +24826,16 @@ ${slip.textSample}
                         try {
                             // ═══ อัปโหลด PDF ไป Google Drive + บันทึกลง Supabase ผ่าน GAS backend ═══
                             // GAS uploadPayslipFile ทำทุกอย่าง: Drive upload → Supabase insert → LINE notify
+                            //
+                            // ⚡ BYPASS PROXY: สลิป PDF เป็น base64 มักใหญ่เกิน 4.5MB (ขีดจำกัด body ของ
+                            // Vercel serverless → 413 FUNCTION_PAYLOAD_TOO_LARGE) จึงต้องยิงตรงไป
+                            // GAS /exec (รับได้ ~50MB) — ทดสอบแล้วว่า CORS ผ่าน (Access-Control-Allow-Origin: *)
+                            //
+                            // ลำดับ URL สำหรับอัปโหลดไฟล์:
+                            // 1) GAS /exec จริง (จาก gas-config-url หรือ GAS_EXEC_URL_FALLBACK)
+                            // 2) ถ้าไม่มี → ใช้ proxy ต่อเมื่อ payload ไม่เกิน 4.5MB เท่านั้น
+                            const gasDirectUrl = (document.getElementById('gas-config-url')?.value || '').trim()
+                                || (typeof GAS_EXEC_URL_FALLBACK !== 'undefined' ? GAS_EXEC_URL_FALLBACK : '');
                             const gasBaseUrl = window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
                             const gasPayload = {
                                 action: 'uploadPayslipFile',
@@ -24841,9 +24845,13 @@ ${slip.textSample}
                                 netAmount: slip.netAmount,
                                 pdfFile: slip.pdfBase64
                             };
-                            const res = await fetchWithTimeout(gasBaseUrl, {
+                            const payloadStr = JSON.stringify(gasPayload);
+                            const useDirect = !!gasDirectUrl && !gasDirectUrl.startsWith('/');
+                            const uploadUrl = useDirect ? gasDirectUrl : gasBaseUrl;
+                            const res = await fetchWithTimeout(uploadUrl, {
                                 method: 'POST',
-                                body: JSON.stringify(gasPayload),
+                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                body: payloadStr,
                                 timeout: 0
                             });
 
