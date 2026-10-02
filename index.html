@@ -32642,7 +32642,9 @@ ${slip.textSample}
                 if (cancelBtn) cancelBtn.classList.add('hidden');
                 if (saveBtn) saveBtn.classList.add('hidden');
                 var url = (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
-                if (maskedEl && url) maskedEl.textContent = url.replace(/\/macros\/s\/[^/]+/, '/macros/s/****');
+                if (maskedEl && url) maskedEl.textContent = isProxyPathUrl(url)
+                    ? '/api/gas-proxy → GAS (เชื่อมต่อผ่าน Vercel proxy)'
+                    : url.replace(/\/macros\/s\/[^/]+/, '/macros/s/****');
             } else {
                 if (field) field.classList.remove('hidden');
                 if (lockedEl) lockedEl.classList.add('hidden');
@@ -32651,10 +32653,21 @@ ${slip.textSample}
                 if (saveBtn) saveBtn.classList.remove('hidden');
             }
         }
+        // 🌐 ค่า URL จริงของ Apps Script — ใช้ fallback เมื่อค่าที่โหลดมาเป็น proxy path
+        // (SERVER_API_URL อาจถูกตั้งเป็น '/api/gas-proxy' จาก config.js เพื่อเลี่ยง CORS
+        //  แต่ค่านี้ไม่ใช่ GAS URL จริง — ห้ามแสดง/บันทึกทับ config ของ GAS)
+        const GAS_EXEC_URL_FALLBACK = 'https://script.google.com/macros/s/AKfycbzAjYIvySRYzpiAV2ppzwrYDzN41OHBy_pwTlB_t3dwMJ6fPxPUcmfzb586fcdsrXKFdQ/exec';
+        function isProxyPathUrl(url) {
+            return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//');
+        }
+        function displayGasUrl(url) {
+            return (url && !isProxyPathUrl(url)) ? url : GAS_EXEC_URL_FALLBACK;
+        }
+
         function enterGasEditMode() { setGasLocked(false); }
         function cancelGasEdit() {
             var urlEl = document.getElementById('gas-config-url');
-            if (urlEl) urlEl.value = (typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
+            if (urlEl) urlEl.value = displayGasUrl(typeof SERVER_API_URL !== 'undefined' ? SERVER_API_URL : '');
             setGasLocked(true);
         }
 
@@ -32673,12 +32686,16 @@ ${slip.textSample}
                     });
                 }
                 if (config && config.url) {
-                    SERVER_API_URL = config.url;
+                    // ⚠️ ค่าจาก GAS อาจถูกบันทึกทับด้วย '/api/gas-proxy' (proxy path ไม่ใช่ GAS URL)
+                    // แสดง/ใช้ค่า GAS จริงเสมอ — proxy path ใช้เป็น SERVER_API_URL ตาม config.js เท่านั้น
+                    if (!isProxyPathUrl(config.url)) {
+                        SERVER_API_URL = config.url;
+                    }
                 }
             } catch (e) { console.warn('[GAS] load config error:', e); }
 
             var urlEl = document.getElementById('gas-config-url');
-            if (urlEl) urlEl.value = SERVER_API_URL || '';
+            if (urlEl) urlEl.value = displayGasUrl(SERVER_API_URL || '');
             var dot = document.getElementById('gas-status-dot');
             var text = document.getElementById('gas-status-text');
             var badge = document.getElementById('gas-status-badge');
@@ -32709,6 +32726,11 @@ ${slip.textSample}
         async function saveGasConfigDirect() {
             var url = (document.getElementById('gas-config-url')?.value || '').trim();
             if (url && !isValidAppsScriptUrl(url)) { showToast('URL must end with /exec', 'warning'); return; }
+            // 🛡️ กันบันทึก proxy path ทับ config ของ GAS (ทำให้ GAS หา URL ตัวเองไม่เจอ)
+            if (isProxyPathUrl(url)) {
+                showToast('⚠️ ไม่สามารถบันทึก /api/gas-proxy เป็น GAS URL ได้ — ใส่ https://script.google.com/macros/s/.../exec', 'warning');
+                return;
+            }
             const gasSaveBtn = document.getElementById('gas-save-btn');
             if (gasSaveBtn) { gasSaveBtn.disabled = true; gasSaveBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก…'; }
             // Save to server (PropertiesService)
@@ -32722,6 +32744,8 @@ ${slip.textSample}
                 }
             } catch (e) { console.warn('[GAS] save config error:', e); }
             SERVER_API_URL = url;
+            var urlEl2 = document.getElementById('gas-config-url');
+            if (urlEl2) urlEl2.value = displayGasUrl(url);
             showToast('Google Apps Script URL saved', 'success');
             const savedAt = document.getElementById('gas-saved-at');
             if (savedAt) savedAt.textContent = '· ' + new Date().toLocaleTimeString('th-TH') + ' น.';
