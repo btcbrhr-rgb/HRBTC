@@ -12655,7 +12655,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (!response.ok) {
                         const bodyText = await response.text().catch(() => 'Unable to read response body');
                         if (!skipPerf) PerfStats.record(action, ms, 'error', { httpStatus: response.status, responseSnippet: bodyText.slice(0, 200) });
-                        return { response, status: 'error', message: 'Network response was not ok', code: response.status, raw: bodyText };
+                        // แปล HTTP status ที่พบบ่อยเป็นข้อความที่อ่านรู้เรื่อง (แทน "Network response was not ok")
+                        const httpErrorMessages = {
+                            405: 'Proxy ไม่รับ method นี้ (405)',
+                            413: 'ไฟล์ใหญ่เกินขีดจำกัด 4.5MB ของเซิร์ฟเวอร์ (413) — ลองอัปโหลดทีละสลิป หรือใช้ PDF ขนาดเล็กลง',
+                            429: 'ส่งคำขอถี่เกินไป (429) — รอสักครู่แล้วลองใหม่',
+                            500: 'เซิร์ฟเวอร์เกิดข้อผิดพลาด (500) — อาจ timeout จาก GAS',
+                            502: 'เซิร์ฟเวอร์เชื่อมต่อ backend ไม่ได้ (502)',
+                            504: 'เซิร์ฟเวอร์ timeout (504) — ไฟล์ใหญ่/เน็ตช้า ลองใหม่อีกครั้ง'
+                        };
+                        const msg = httpErrorMessages[response.status] || ('Network response was not ok (HTTP ' + response.status + ')');
+                        return { response, status: 'error', message: msg, code: response.status, raw: bodyText };
                     }
 
                     try {
@@ -24778,19 +24788,39 @@ ${slip.textSample}
                         return;
                     }
 
-                    showToast(`⏳ เริ่มต้นการอัปโหลดไฟล์สลิปขึ้นคลาวด์ ${targets.length} รายการ…`, "info");
+                    const MAX_PAYLOAD_BYTES = 4.5 * 1024 * 1024; // Vercel serverless จำกัด request body 4.5MB → 413 FUNCTION_PAYLOAD_TOO_LARGE
+                    // เช็คขนาด payload ล่วงหน้า — ตัดรายการที่เกินออกก่อนยิง เพื่อให้เห็นสาเหตุชัดเจน
+                    const oversized = [];
+                    const uploadable = [];
+                    for (const s of targets) {
+                        const payloadSize = JSON.stringify({
+                            action: 'uploadPayslipFile',
+                            adminId: currentEmployeeId,
+                            empId: s.empId,
+                            month: s.month,
+                            netAmount: s.netAmount,
+                            pdfFile: s.pdfBase64
+                        }).length;
+                        if (payloadSize >= MAX_PAYLOAD_BYTES) {
+                            oversized.push(`รหัส ${s.empId || 'ไม่ระบุ'}: ไฟล์ใหญ่เกิน ${(payloadSize / 1024 / 1024).toFixed(1)} MB (ระบบรับได้สูงสุด ~4.5 MB ต่อสลิป)`);
+                        } else {
+                            uploadable.push(s);
+                        }
+                    }
+
+                    showToast(`⏳ เริ่มต้นการอัปโหลดไฟล์สลิปขึ้นคลาวด์ ${uploadable.length} รายการ${oversized.length ? ' (ข้าม ' + oversized.length + ' รายการที่ไฟล์ใหญ่เกิน)' : ''}…`, "info");
                     document.getElementById("pdf-btn-upload").disabled = true;
 
                     let successCount = 0;
                     let replaceCount = 0;
-                    let failCount = 0;
-                    const failDetails = [];
+                    let failCount = oversized.length;
+                    const failDetails = [...oversized];
 
-                    for (let i = 0; i < targets.length; i++) {
-                        const slip = targets[i];
-                        const progressPercent = Math.round(((i + 1) / targets.length) * 100);
+                    for (let i = 0; i < uploadable.length; i++) {
+                        const slip = uploadable[i];
+                        const progressPercent = Math.round(((i + 1) / uploadable.length) * 100);
                         document.getElementById("pdf-parse-progress").style.width = `${progressPercent}%`;
-                        document.getElementById("pdf-parse-status").textContent = `กำลังอัปโหลด ${i + 1}/${targets.length} (รหัส: ${slip.empId || 'ไม่ระบุ'})...`;
+                        document.getElementById("pdf-parse-status").textContent = `กำลังอัปโหลด ${i + 1}/${uploadable.length} (รหัส: ${slip.empId || 'ไม่ระบุ'})...`;
                         const payload = {
                             action: "uploadPayslipFile",
                             empId: slip.empId,
