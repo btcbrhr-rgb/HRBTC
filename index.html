@@ -3959,6 +3959,8 @@
                         </div>
                     </div>
 
+                    <div class="grid grid-cols-1 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.5fr)] gap-4 items-start">
+                    <div class="space-y-4 min-w-0">
                     <!-- Approval Inbox: งานที่ต้องตัดสินใจวันนี้ -->
                     <div class="admin-approval-inbox-head" aria-live="polite">
                         <div class="flex items-center gap-3 min-w-0">
@@ -3975,7 +3977,7 @@
                     </div>
 
                     <!-- Pending Approval Cards -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 gap-4">
                         <!-- ใบลา -->
                         <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs flex flex-col">
                             <div class="flex items-center gap-2.5 mb-3">
@@ -4032,6 +4034,34 @@
                                 เปิดหน้าอนุมัติ <i class="fa-solid fa-arrow-right text-[10px] text-slate-400"></i>
                             </button>
                         </div>
+                    </div>
+                    </div>
+
+                    <!-- Today's employee attendance history -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-xs min-w-0">
+                        <div class="flex items-center justify-between gap-3 pb-3 mb-3 border-b border-slate-100">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <span class="w-8 h-8 rounded-xl bg-brand-sky text-brand-deep border border-brand-sky2 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-clock text-xs"></i>
+                                </span>
+                                <div class="min-w-0">
+                                    <h4 class="text-sm font-extrabold text-slate-800">ประวัติการลงเวลาวันนี้</h4>
+                                    <p id="dash-attendance-history-date" class="text-[10px] text-slate-500 mt-0.5">กำลังโหลดวันที่…</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <span id="dash-attendance-history-count" class="text-[10px] font-bold text-slate-500">0 รายการ</span>
+                                <button type="button" onclick="renderAdminDashboardTodayHistory()" aria-label="รีเฟรชประวัติการลงเวลาวันนี้" title="รีเฟรช"
+                                    class="w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:text-brand-deep hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-teal flex items-center justify-center transition-colors">
+                                    <i class="fa-solid fa-rotate"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="dash-attendance-history-list" class="space-y-2 max-h-[680px] overflow-y-auto pr-1" aria-live="polite">
+                            <div class="py-10 text-center text-slate-400 text-xs italic">กำลังโหลดประวัติการลงเวลา…</div>
+                        </div>
+                        <p id="dash-attendance-history-updated" class="text-[10px] text-slate-400 text-right mt-2"></p>
+                    </div>
                     </div>
 
                     <!-- HR & Executive Health Cockpit (ภาพรวมสุขภาพองค์กรและตัวชี้วัดเชิงกลยุทธ์ - Light Theme) -->
@@ -16770,6 +16800,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         console.log('[loadAdminDashboard] Rendering dashboard sections...');
                         renderAdminDashboardPending();  // Now adminPendingCounts should be populated
                         await renderAdminDashboardAttendance();  // ต้อง await เพราะเป็น async
+                        await renderAdminDashboardTodayHistory();
                         await renderAdminDashboardLeaveToday();   // ดึงข้อมูลคนลาวันนี้พร้อมแสดงชื่อจริง
                         await renderDashboardExecutiveHealth();  // ตัวชี้วัดสุขภาพองค์กรเชิงกลยุทธ์ (Real-time)
                         // ดึงประกาศจาก Supabase ก่อน render เสมอ
@@ -16839,6 +16870,92 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (barEl) barEl.style.width = `${Math.max(0, Math.min(100, ratio))}%`;
                 } catch (e) {
                     console.warn('[renderAdminDashboardAttendance] failed:', e);
+                }
+            }
+
+            async function renderAdminDashboardTodayHistory() {
+                const listEl = document.getElementById('dash-attendance-history-list');
+                const countEl = document.getElementById('dash-attendance-history-count');
+                const dateEl = document.getElementById('dash-attendance-history-date');
+                const updatedEl = document.getElementById('dash-attendance-history-updated');
+                if (!listEl) return;
+
+                const todayKey = getLocalDateKey(new Date());
+                const todayDate = new Date(`${todayKey}T12:00:00`);
+                if (dateEl) {
+                    dateEl.textContent = todayDate.toLocaleDateString('th-TH', {
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                    });
+                }
+                listEl.innerHTML = '<div class="py-10 text-center text-slate-400 text-xs italic"><i class="fa-solid fa-spinner animate-spin mr-1.5"></i>กำลังโหลดประวัติการลงเวลา…</div>';
+                if (countEl) countEl.textContent = 'กำลังโหลด';
+                if (updatedEl) updatedEl.textContent = '';
+
+                try {
+                    if (!supabaseClient) throw new Error('ยังไม่ได้เชื่อมต่อฐานข้อมูล');
+                    const { data, error } = await supabaseClient
+                        .from('time_records')
+                        .select('emp_id,status,time_in,time_out')
+                        .eq('date', todayKey)
+                        .order('time_in', { ascending: false })
+                        .limit(500);
+                    if (error) throw error;
+
+                    const records = Array.isArray(data) ? data : [];
+                    records.sort((a, b) => String(b.time_out || b.time_in || '').localeCompare(String(a.time_out || a.time_in || '')));
+                    if (countEl) countEl.textContent = records.length === 500 ? '500+ รายการ' : `${records.length} รายการ`;
+
+                    if (records.length === 0) {
+                        listEl.innerHTML = '<div class="py-10 text-center text-slate-400 text-xs">วันนี้ยังไม่มีรายการลงเวลา</div>';
+                    } else {
+                        const displayTime = value => {
+                            const match = String(value || '').match(/\d{2}:\d{2}/);
+                            return match ? match[0] : '--:--';
+                        };
+                        listEl.innerHTML = records.map(record => {
+                            const empId = String(record.emp_id || '').trim();
+                            const employee = Array.isArray(adminEmployeesList)
+                                ? adminEmployeesList.find(emp => String(emp['รหัสพนักงาน'] || emp.emp_id || '').trim() === empId)
+                                : null;
+                            const empName = getAdminEmployeeName(empId)
+                                || (employee && (employee['ชื่อ-นามสกุล'] || employee.name))
+                                || empId
+                                || 'ไม่ทราบพนักงาน';
+                            const hasClockOut = Boolean(record.time_out);
+                            const badgeClass = hasClockOut
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200';
+                            const badgeText = hasClockOut ? 'ลงเวลาออกแล้ว' : 'รอลงเวลาออก';
+
+                            return `
+                                <article class="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-3">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-bold text-slate-800 truncate">${escapeHtml(empName)}</p>
+                                            <p class="text-[10px] text-slate-400 mt-0.5">รหัส ${escapeHtml(empId || '-')}</p>
+                                        </div>
+                                        <span class="shrink-0 rounded-full border px-2 py-1 text-[9px] font-bold ${badgeClass}">${badgeText}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 mt-3">
+                                        <div class="rounded-lg bg-white border border-slate-100 px-2.5 py-2">
+                                            <p class="text-[9px] text-slate-400 font-semibold">เวลาเข้า</p>
+                                            <p class="text-sm text-slate-700 font-bold font-mono">${displayTime(record.time_in)}</p>
+                                        </div>
+                                        <div class="rounded-lg bg-white border border-slate-100 px-2.5 py-2">
+                                            <p class="text-[9px] text-slate-400 font-semibold">เวลาออก</p>
+                                            <p class="text-sm text-slate-700 font-bold font-mono">${displayTime(record.time_out)}</p>
+                                        </div>
+                                    </div>
+                                </article>`;
+                        }).join('');
+                    }
+                    if (updatedEl) {
+                        updatedEl.textContent = `อัปเดตล่าสุด ${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+                    }
+                } catch (error) {
+                    console.error('[renderAdminDashboardTodayHistory] failed:', error);
+                    if (countEl) countEl.textContent = 'โหลดไม่สำเร็จ';
+                    listEl.innerHTML = `<div class="py-8 text-center text-rose-600 text-xs">โหลดประวัติการลงเวลาไม่สำเร็จ: ${escapeHtml(error.message || 'เกิดข้อผิดพลาด')}</div>`;
                 }
             }
 
