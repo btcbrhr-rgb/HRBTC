@@ -263,13 +263,21 @@
         #admin-leave-summary-view .leave-summary-group--sick { background: #ccfbf1; color: #115e59; }
         #admin-leave-summary-view .leave-summary-group--personal { background: #ede9fe; color: #5b21b6; }
         #admin-leave-summary-view .leave-summary-group--maternity { background: #fce7f3; color: #9d174d; }
+        #admin-leave-summary-view .leave-summary-group--spouse { background: #fef3c7; color: #92400e; }
+        #admin-leave-summary-view .leave-summary-group--sterilize { background: #e0e7ff; color: #3730a3; }
         #admin-leave-summary-view .leave-summary-group--military { background: #ffedd5; color: #9a3412; }
+        #admin-leave-summary-view .leave-summary-group--other { background: #e2e8f0; color: #334155; }
+        #admin-leave-summary-view .leave-summary-group--unconfigured { background: #e2e8f0; color: #334155; }
         #admin-leave-summary-view .leave-summary-group--total { background: #e0e7ff; color: #3730a3; }
         #admin-leave-summary-view .leave-summary-cell--annual { background: #eff6ff; }
         #admin-leave-summary-view .leave-summary-cell--sick { background: #f0fdfa; }
         #admin-leave-summary-view .leave-summary-cell--personal { background: #f5f3ff; }
         #admin-leave-summary-view .leave-summary-cell--maternity { background: #fdf2f8; }
+        #admin-leave-summary-view .leave-summary-cell--spouse { background: #fffbeb; }
+        #admin-leave-summary-view .leave-summary-cell--sterilize { background: #eef2ff; }
         #admin-leave-summary-view .leave-summary-cell--military { background: #fff7ed; }
+        #admin-leave-summary-view .leave-summary-cell--other { background: #f1f5f9; }
+        #admin-leave-summary-view .leave-summary-cell--unconfigured { background: #f8fafc; }
         #admin-leave-summary-view .leave-summary-cell--total { background: #eef2ff; font-weight: 700; }
         #admin-leave-summary-view .leave-summary-over-quota > td { box-shadow: inset 0 1px #fdba74, inset 0 -1px #fdba74; }
         #admin-leave-summary-view > .overflow-hidden {
@@ -6181,7 +6189,12 @@
                         <button type="button" role="tab" aria-selected="false" aria-controls="admin-leave-warnings-view"
                             tabindex="-1" onkeydown="handleAdminLeaveSubtabKeydown(event)" onclick="switchAdminLeaveSubtab('warnings', this)"
                             class="admin-leave-subtab rounded-xl bg-white px-4 py-2 text-xs font-semibold text-slate-600 border border-slate-200">
-                            <i class="fa-solid fa-file-circle-exclamation mr-1.5" aria-hidden="true"></i>ทะเบียนหนังสือเตือน
+                            <i class="fa-solid fa-file-circle-exclamation mr-1.5" aria-hidden="true"></i>ประวัติใบเตือน
+                        </button>
+                        <button type="button" role="tab" aria-selected="false" aria-controls="admin-leave-law-view"
+                            tabindex="-1" onkeydown="handleAdminLeaveSubtabKeydown(event)" onclick="switchAdminLeaveSubtab('law', this)"
+                            class="admin-leave-subtab rounded-xl bg-white px-4 py-2 text-xs font-semibold text-slate-600 border border-slate-200">
+                            <i class="fa-solid fa-scale-balanced mr-1.5" aria-hidden="true"></i>กฎหมายแรงงาน
                         </button>
                     </div>
                     <div id="admin-leave-requests-view" role="tabpanel" class="space-y-4">
@@ -6341,14 +6354,19 @@
                         <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
                             <div class="px-4 py-4 border-b border-slate-100 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
-                                    <h3 class="text-sm font-bold text-slate-800">สรุปสิทธิวันลารายบุคคล</h3>
-                                    <p class="mt-1 text-xs text-slate-500">สิทธิอ้างอิงค่าตั้งระบบ รวมคำขอตามวันเริ่มลาในรอบบัญชี 12 รอบที่เลือกและสถานะรออนุมัติ/อนุมัติแล้ว/ฝ่ายบุคคลตรวจสอบ; รายการไม่รับค่าจ้างแสดงแยกและไม่หักโควตา</p>
+                                    <h3 class="text-base font-bold text-slate-800">สรุปสิทธิการลารายปี (Annual Leave Balance Summary)</h3>
+                                    <p class="mt-1 text-xs text-slate-500">คงเหลือ = สิทธิที่ตั้งไว้ - ใช้ไป · กลุ่มสีเทายังไม่มีโควตาในระบบ · แผนก/อัตราขาดงานจะไม่แสดงเป็นค่าประมาณ</p>
                                     <p id="leave-summary-period" class="mt-1 text-xs font-semibold text-brand-deep" aria-live="polite"></p>
                                 </div>
-                                <div class="flex flex-col sm:flex-row gap-2">
+                                <div class="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                                     <label class="sr-only" for="leave-summary-year">ปีบัญชี</label>
                                     <select id="leave-summary-year" onchange="renderLeaveEntitlementSummary()"
                                         class="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal"></select>
+                                    <label class="sr-only" for="leave-summary-department-filter">กรองตามแผนก</label>
+                                    <select id="leave-summary-department-filter" onchange="renderLeaveEntitlementSummary()"
+                                        class="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                        <option value="">แผนก (ไม่มีข้อมูลในระบบ)</option>
+                                    </select>
                                     <label class="sr-only" for="leave-summary-search">ค้นหาพนักงาน</label>
                                     <input id="leave-summary-search" type="search" oninput="renderLeaveEntitlementSummary()"
                                         placeholder="ค้นหารหัสหรือชื่อพนักงาน"
@@ -6362,24 +6380,43 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 border-b border-slate-100">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 p-4 border-b border-slate-100">
                                 <div class="rounded-xl bg-slate-50 p-3"><div class="text-xs text-slate-500">พนักงานในรายการ</div><div id="leave-summary-employee-count" class="mt-1 text-xl font-bold text-slate-800" aria-live="polite">0</div></div>
-                                <div class="rounded-xl bg-blue-50 p-3"><div class="text-xs text-blue-700">รายการลาในรอบปีบัญชี</div><div id="leave-summary-request-count" class="mt-1 text-xl font-bold text-blue-700">0</div></div>
+                                <div class="rounded-xl bg-blue-50 p-3"><div class="text-xs text-blue-700">วันลาที่บันทึกในรอบปีบัญชี</div><div id="leave-summary-used-days" class="mt-1 text-xl font-bold text-blue-700">0</div></div>
+                                <div class="rounded-xl bg-indigo-50 p-3"><div class="text-xs text-indigo-700">รายการลาในรอบปีบัญชี</div><div id="leave-summary-request-count" class="mt-1 text-xl font-bold text-indigo-700">0</div></div>
                                 <div class="rounded-xl bg-amber-50 p-3"><div class="text-xs text-amber-700">พนักงานใช้สิทธิเกินโควตาที่ตั้งไว้</div><div id="leave-summary-over-quota" class="mt-1 text-xl font-bold text-amber-700">0</div></div>
                             </div>
                             <div class="overflow-x-auto">
-                                <table class="hr-table min-w-[1500px]">
+                                <table class="hr-table min-w-[2200px]">
                                     <thead>
                                         <tr>
-                                            <th rowspan="2">รหัสพนักงาน</th><th rowspan="2">ชื่อ-นามสกุล</th><th colspan="3" class="leave-summary-group--annual">ลาพักร้อน</th><th colspan="3" class="leave-summary-group--sick">ลาป่วย</th><th colspan="3" class="leave-summary-group--personal">ลากิจ</th><th colspan="3" class="leave-summary-group--maternity">ลาคลอด</th><th colspan="3" class="leave-summary-group--military">ลาทหาร</th><th rowspan="2">วันลาไม่รับค่าจ้าง<br>(ไม่หักสิทธิ)</th><th rowspan="2">วันลาอื่น<br>(ไม่มีโควตา)</th><th colspan="3" class="leave-summary-group--total">รวมสิทธิที่มีโควตา</th><th rowspan="2">จัดการ</th>
+                                            <th rowspan="2">รหัสพนักงาน</th><th rowspan="2">ชื่อ-สกุล</th><th rowspan="2">แผนก</th>
+                                            <th colspan="3" class="leave-summary-group--sick">ลาป่วย (Sick)</th>
+                                            <th colspan="3" class="leave-summary-group--personal">ลากิจ (Personal)</th>
+                                            <th colspan="3" class="leave-summary-group--annual">ลาพักร้อน (Vacation)</th>
+                                            <th colspan="3" class="leave-summary-group--maternity">ลาคลอด (Maternity)</th>
+                                            <th colspan="3" class="leave-summary-group--spouse">ลาดูแลคู่สมรส</th>
+                                            <th colspan="3" class="leave-summary-group--sterilize">ลาทำหมัน</th>
+                                            <th colspan="3" class="leave-summary-group--military">ลาทหาร</th>
+                                            <th colspan="3" class="leave-summary-group--other">ลาอื่นๆ</th>
+                                            <th rowspan="2">ลาไม่รับค่าจ้าง<br>(ไม่หักสิทธิ)</th>
+                                            <th colspan="3" class="leave-summary-group--total">รวมสิทธิที่มีโควตา</th>
+                                            <th rowspan="2">จัดการ</th>
                                         </tr>
                                         <tr class="leave-summary-subhead">
-                                            <th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th>
+                                            <th class="leave-summary-group--sick">สิทธิ</th><th class="leave-summary-group--sick">ใช้ไป</th><th class="leave-summary-group--sick">คงเหลือ</th>
+                                            <th class="leave-summary-group--personal">สิทธิ</th><th class="leave-summary-group--personal">ใช้ไป</th><th class="leave-summary-group--personal">คงเหลือ</th>
+                                            <th class="leave-summary-group--annual">สิทธิ</th><th class="leave-summary-group--annual">ใช้ไป</th><th class="leave-summary-group--annual">คงเหลือ</th>
+                                            <th class="leave-summary-group--maternity">สิทธิ</th><th class="leave-summary-group--maternity">ใช้ไป</th><th class="leave-summary-group--maternity">คงเหลือ</th>
+                                            <th class="leave-summary-group--spouse">สิทธิ</th><th class="leave-summary-group--spouse">ใช้ไป</th><th class="leave-summary-group--spouse">คงเหลือ</th>
+                                            <th class="leave-summary-group--sterilize">สิทธิ</th><th class="leave-summary-group--sterilize">ใช้ไป</th><th class="leave-summary-group--sterilize">คงเหลือ</th>
+                                            <th class="leave-summary-group--military">สิทธิ</th><th class="leave-summary-group--military">ใช้ไป</th><th class="leave-summary-group--military">คงเหลือ</th>
+                                            <th class="leave-summary-group--other">สิทธิ</th><th class="leave-summary-group--other">ใช้ไป</th><th class="leave-summary-group--other">คงเหลือ</th>
                                             <th class="leave-summary-group--total">สิทธิรวม</th><th class="leave-summary-group--total">ใช้รวม</th><th class="leave-summary-group--total">คงเหลือ</th>
                                         </tr>
                                     </thead>
                                     <tbody id="leave-summary-table-body">
-                                        <tr><td colspan="23" class="py-6 text-center text-slate-500">กำลังโหลดข้อมูล…</td></tr>
+                                        <tr><td colspan="32" class="py-6 text-center text-slate-500">กำลังโหลดข้อมูล…</td></tr>
                                     </tbody>
                                     <tfoot id="leave-summary-table-foot"></tfoot>
                                 </table>
@@ -6390,8 +6427,8 @@
                     <div id="admin-leave-warnings-view" role="tabpanel" class="hidden space-y-4">
                         <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
                             <div class="px-4 py-4 border-b border-slate-100">
-                                <h3 class="text-sm font-bold text-slate-800">เพิ่มรายการหนังสือเตือน</h3>
-                                <p class="mt-1 text-xs text-slate-500">เลือกประเภทและบันทึกตามเอกสารจริงโดยฝ่ายบุคคล ระบบไม่เลื่อนระดับหรือกำหนดบทลงโทษให้อัตโนมัติ</p>
+                                <h3 class="text-lg font-bold text-slate-800">ทะเบียนประวัติการออกหนังสือตักเตือนพนักงาน (Warning Records Registry)</h3>
+                                <p class="mt-1 text-xs text-slate-500">บันทึกข้อมูลตามเอกสารจริงของฝ่ายบุคคล ไม่เลื่อนระดับหรือกำหนดบทลงโทษให้อัตโนมัติ เลขอ้างอิงที่แสดงสร้างจาก ID รายการ ไม่ใช่เลขที่เอกสารเดิม; ฐานข้อมูลไม่มีฟิลด์แผนกจึงแสดงเป็น —</p>
                             </div>
                             <form id="leave-warning-form" onsubmit="submitLeaveWarning(event)" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
                                 <div>
@@ -6441,10 +6478,10 @@
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
                             <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <h3 class="text-sm font-bold text-slate-800">ทะเบียนหนังสือเตือน</h3>
+                                <h3 class="text-sm font-bold text-slate-800">ประวัติใบเตือน</h3>
                                 <div class="flex gap-2">
                                     <label class="sr-only" for="leave-warning-search">ค้นหาทะเบียนหนังสือเตือน</label>
-                                    <input id="leave-warning-search" type="search" maxlength="100" oninput="scheduleLeaveWarningSearch()" placeholder="ค้นหาพนักงาน/ประเภท/รายละเอียด"
+                                    <input id="leave-warning-search" type="search" maxlength="100" oninput="scheduleLeaveWarningSearch()" placeholder="ค้นหารหัส/ชื่อ/ประเภท/สาเหตุ"
                                         class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
                                     <button type="button" onclick="loadLeaveWarningRecords()" class="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" aria-label="โหลดทะเบียนหนังสือเตือนใหม่">
                                         <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
@@ -6466,9 +6503,9 @@
                                 </div>
                             </div>
                             <div class="overflow-x-auto">
-                                <table class="hr-table min-w-[1000px]">
-                                    <thead><tr><th>วันที่</th><th>พนักงาน</th><th>ประเภท/ระดับ</th><th>รายละเอียด</th><th>สถานะรับทราบ</th><th>วันที่/หมายเหตุรับทราบ</th><th>บันทึกโดย</th></tr></thead>
-                                    <tbody id="leave-warning-table-body"><tr><td colspan="7" class="py-6 text-center text-slate-500">เลือกแท็บนี้เพื่อโหลดทะเบียนหนังสือเตือน</td></tr></tbody>
+                                <table class="hr-table min-w-[1700px]">
+                                    <thead><tr><th>เลขอ้างอิงระบบ</th><th>วันที่ออก</th><th>รหัส</th><th>ชื่อ-สกุล</th><th>แผนก</th><th>สาเหตุ</th><th>ระดับ/ประเภทตามเอกสาร</th><th class="text-center">สถานะรับทราบ</th><th class="text-center">จัดการ</th></tr></thead>
+                                    <tbody id="leave-warning-table-body"><tr><td colspan="9" class="py-6 text-center text-slate-500">เลือกแท็บนี้เพื่อโหลดประวัติใบเตือน</td></tr></tbody>
                                 </table>
                             </div>
                             <div class="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -6482,6 +6519,33 @@
                                     <span id="leave-warning-page-number" class="min-w-[4rem] text-center text-slate-600">หน้า 1/1</span>
                                     <button type="button" id="leave-warning-page-next" onclick="changeLeaveWarningPage(1)" class="rounded-lg border border-slate-200 px-2.5 py-1.5 disabled:opacity-40" disabled>ถัดไป</button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="admin-leave-law-view" role="tabpanel" class="hidden space-y-4">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <div class="border-b border-slate-100 p-5">
+                                <h3 class="text-lg font-bold text-slate-800">ประเภทการลาตามกฎหมายแรงงาน</h3>
+                                <p class="mt-1 text-xs text-slate-500">สรุปหัวข้ออ้างอิงจาก พ.ร.บ.คุ้มครองแรงงาน พ.ศ. 2541 และฉบับแก้ไขเพิ่มเติม ไม่ใช้แทนคำปรึกษากฎหมาย และต้องตรวจประกาศฉบับล่าสุดก่อนดำเนินการกับกรณีจริง</p>
+                                <div class="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
+                                    <a href="https://ratchakitcha.soc.go.th/" target="_blank" rel="noopener noreferrer" class="text-blue-700 underline">ราชกิจจานุเบกษา (แหล่งประกาศกฎหมายทางการ)</a>
+                                    <a href="https://www.mol.go.th/" target="_blank" rel="noopener noreferrer" class="text-blue-700 underline">กระทรวงแรงงาน</a>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="hr-table min-w-[1500px]">
+                                    <thead><tr><th class="text-center">ลำดับ</th><th>รหัส</th><th>ประเภทการลา</th><th>สิทธิขั้นต่ำ</th><th>การจ่ายค่าจ้าง</th><th>หลักฐานประกอบ</th><th>เงื่อนไขสำคัญ</th><th>มาตราอ้างอิง</th></tr></thead>
+                                    <tbody class="text-xs">
+                                        <tr><td class="text-center">1</td><td class="font-bold text-blue-700">SICK</td><td class="font-bold">ลาป่วย</td><td>เท่าที่ป่วยจริง</td><td>ได้รับค่าจ้างไม่เกิน 30 วันทำงาน/ปี</td><td>ใบรับรองแพทย์เมื่อหยุดตั้งแต่ 3 วันทำงานขึ้นไป; หากไม่มีให้ชี้แจง</td><td>นายจ้างอาจเรียกใบรับรองแพทย์ตามเงื่อนไขกฎหมาย</td><td>มาตรา 32, 57</td></tr>
+                                        <tr><td class="text-center">2</td><td class="font-bold text-blue-700">PERSONAL</td><td class="font-bold">ลากิจจำเป็น</td><td>ไม่น้อยกว่า 3 วันทำงาน/ปี</td><td>ได้รับค่าจ้างไม่เกิน 3 วันทำงาน/ปี</td><td>ใบลาและเอกสารประกอบตามความจำเป็น/ระเบียบบริษัท</td><td>สิทธิขั้นต่ำตามกฎหมาย</td><td>มาตรา 34, 57/1</td></tr>
+                                        <tr><td class="text-center">3</td><td class="font-bold text-blue-700">VACATION</td><td class="font-bold">หยุดพักผ่อนประจำปี</td><td>ไม่น้อยกว่า 6 วันทำงาน/ปี เมื่อทำงานครบ 1 ปี</td><td>ได้รับค่าจ้างตามวันทำงานปกติ</td><td>ใบลาตามระบบ/ระเบียบบริษัท</td><td>การสะสมหรือยกยอดเป็นไปตามข้อตกลงและกฎหมาย</td><td>มาตรา 30, 56</td></tr>
+                                        <tr><td class="text-center">4</td><td class="font-bold text-blue-700">MATERNITY</td><td class="font-bold">ลาเพื่อคลอดบุตร</td><td>ไม่เกิน 120 วัน/ครรภ์ (รวมวันหยุด)</td><td>ได้รับค่าจ้างไม่เกิน 60 วันตามฉบับแก้ไข</td><td>เอกสารทางการแพทย์/ทะเบียนเกิดตามกรณีและระเบียบบริษัท</td><td>ตรวจเงื่อนไขตามฉบับแก้ไขล่าสุดก่อนใช้</td><td>มาตรา 41, 59</td></tr>
+                                        <tr><td class="text-center">5</td><td class="font-bold text-blue-700">STERILIZE</td><td class="font-bold">ลาเพื่อทำหมัน</td><td>ตามระยะเวลาที่แพทย์กำหนด</td><td>ได้รับค่าจ้างตามกฎหมาย</td><td>ใบรับรองแพทย์แผนปัจจุบันชั้นหนึ่ง</td><td>การลาและการจ่ายค่าจ้างให้เป็นไปตามใบรับรองและกฎหมาย</td><td>มาตรา 33, 58</td></tr>
+                                        <tr><td class="text-center">6</td><td class="font-bold text-blue-700">MILITARY</td><td class="font-bold">ลาเพื่อรับราชการทหาร</td><td>ตามที่กฎหมายกำหนด</td><td>ได้รับค่าจ้างไม่เกิน 60 วัน/ปี</td><td>หมายเรียก/เอกสารรับรองจากทางราชการ</td><td>เฉพาะการรับราชการทหารตามที่กฎหมายระบุ</td><td>มาตรา 35, 58</td></tr>
+                                        <tr><td class="text-center">7</td><td class="font-bold text-blue-700">TRAINING</td><td class="font-bold">ลาเพื่อฝึกอบรมหรือพัฒนาความรู้</td><td>ตามหลักเกณฑ์และเงื่อนไขที่กฎหมายกำหนด</td><td>ตรวจสิทธิค่าจ้างตามกฎหมาย/ข้อบังคับที่ใช้กับกรณี</td><td>หลักสูตรหรือหนังสือเรียก/หลักฐานการฝึกอบรม</td><td>นายจ้างอาจปฏิเสธได้เฉพาะกรณีตามกฎหมาย</td><td>มาตรา 36</td></tr>
+                                        <tr><td class="text-center">8</td><td class="font-bold text-blue-700">SPOUSE</td><td class="font-bold">ลาเพื่อช่วยเหลือคู่สมรสหลังคลอด</td><td>ตรวจสิทธิและจำนวนวันตามฉบับแก้ไขล่าสุด</td><td>ตรวจอัตราค่าจ้างตามฉบับแก้ไขล่าสุด</td><td>เอกสารรับรองการคลอด/เอกสารความสัมพันธ์ตามที่กฎหมายกำหนด</td><td>สิทธิที่เพิ่ม/แก้ไขภายหลังตัวอย่าง ต้องยึดประกาศทางการ</td><td>พ.ร.บ. ฉบับแก้ไขเพิ่มเติม</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -11622,10 +11686,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 adminLeaveWarningRecords = [];
                 leaveWarningTotal = 0;
                 leaveWarningPage = 1;
+                leaveWarningAppliedSearch = '';
                 leaveWarningRequestToken++;
                 if (leaveWarningSearchTimer) clearTimeout(leaveWarningSearchTimer);
                 const warningRows = document.getElementById('leave-warning-table-body');
-                if (warningRows) warningRows.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">เลือกแท็บนี้เพื่อโหลดทะเบียนหนังสือเตือน</td></tr>';
+                if (warningRows) warningRows.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500">เลือกแท็บนี้เพื่อโหลดประวัติใบเตือน</td></tr>';
  
                 // 🧹 ล้างค่าใน input fields ทั้งหมด (ป้องกันค้าง)
                 const fieldsToClear = [
@@ -20453,7 +20518,8 @@ async function loadAdminEmployees() {
                 const panels = {
                     requests: document.getElementById('admin-leave-requests-view'),
                     summary: document.getElementById('admin-leave-summary-view'),
-                    warnings: document.getElementById('admin-leave-warnings-view')
+                    warnings: document.getElementById('admin-leave-warnings-view'),
+                    law: document.getElementById('admin-leave-law-view')
                 };
                 Object.entries(panels).forEach(([name, panel]) => {
                     if (panel) panel.classList.toggle('hidden', name !== tabName);
@@ -20498,9 +20564,35 @@ async function loadAdminEmployees() {
 
             function normalizeLeaveSummaryType(value) {
                 const type = (value || '').toString().trim().replace(/ \(ไม่รับค่าจ้าง\)$/, '');
-                if (type === 'พักร้อน') return 'ลาพักร้อน';
-                if (type === 'ลาคลอดบุตร') return 'ลาคลอด';
-                return type;
+                const aliases = {
+                    'พักร้อน': 'ลาพักร้อน',
+                    'ลาคลอดบุตร': 'ลาคลอด',
+                    'ลาดูแลคู่สมรส': 'ลาเพื่อช่วยเหลือคู่สมรสหลังคลอด',
+                    'ลาเพื่อดูแลคู่สมรส': 'ลาเพื่อช่วยเหลือคู่สมรสหลังคลอด',
+                    'ลาทำหมัน': 'ลาเพื่อทำหมัน'
+                };
+                return aliases[type] || type;
+            }
+
+            function getLeaveSummaryDepartment(employee) {
+                return employee
+                    ? (employee['ฝ่าย-แผนก'] || employee['แผนก'] || employee.department || '').toString().trim()
+                    : '';
+            }
+
+            function updateLeaveSummaryDepartmentOptions() {
+                const select = document.getElementById('leave-summary-department-filter');
+                if (!select) return;
+                const current = select.value;
+                const departments = [...new Set(adminEmployeesList.map(getLeaveSummaryDepartment).filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b, 'th'));
+                select.innerHTML = departments.length
+                    ? '<option value="">ทุกแผนก</option>' + departments.map(department =>
+                        `<option value="${escapeHtml(department)}">${escapeHtml(department)}</option>`
+                    ).join('')
+                    : '<option value="">แผนก (ไม่มีข้อมูลในระบบ)</option>';
+                select.disabled = departments.length === 0;
+                if (departments.includes(current)) select.value = current;
             }
 
             function formatLeaveSummaryDays(value) {
@@ -20531,22 +20623,26 @@ async function loadAdminEmployees() {
                 if (periodLabel) periodLabel.textContent = `ช่วง ${formatThaiDateShort(range.start)} - ${formatThaiDateShort(range.end)}`;
 
                 if (!Array.isArray(adminEmployeesList) || adminEmployeesList.length === 0) {
-                    body.innerHTML = '<tr><td colspan="23" class="py-6 text-center text-slate-500">ไม่พบข้อมูลพนักงาน กรุณาซิงค์ข้อมูลก่อน</td></tr>';
+                    body.innerHTML = '<tr><td colspan="32" class="py-6 text-center text-slate-500">ไม่พบข้อมูลพนักงาน กรุณาซิงค์ข้อมูลก่อน</td></tr>';
                     return;
                 }
                 if (!adminLeaveRequestRecordsLoaded) {
-                    body.innerHTML = '<tr><td colspan="23" class="py-6 text-center text-rose-600">ยังโหลดข้อมูลคำขอลาไม่สำเร็จ กรุณากดซิงค์รายการใบลาแล้วลองใหม่</td></tr>';
+                    body.innerHTML = '<tr><td colspan="32" class="py-6 text-center text-rose-600">ยังโหลดข้อมูลคำขอลาไม่สำเร็จ กรุณากดซิงค์รายการใบลาแล้วลองใหม่</td></tr>';
                     return;
                 }
 
+                updateLeaveSummaryDepartmentOptions();
                 const summaryTypes = [
-                    { name: 'ลาพักร้อน', setting: 'annualLeaveDays' },
-                    { name: 'ลาป่วย', setting: 'sickLeaveDays' },
-                    { name: 'ลากิจ', setting: 'personalLeaveDays' },
-                    { name: 'ลาคลอด', setting: 'maternityLeaveDays' },
-                    { name: 'ลาทหาร', setting: 'militaryLeaveDays' }
+                    { name: 'ลาป่วย', setting: 'sickLeaveDays', group: 'sick' },
+                    { name: 'ลากิจ', setting: 'personalLeaveDays', group: 'personal' },
+                    { name: 'ลาพักร้อน', setting: 'annualLeaveDays', group: 'annual' },
+                    { name: 'ลาคลอด', setting: 'maternityLeaveDays', group: 'maternity' },
+                    { name: 'ลาเพื่อช่วยเหลือคู่สมรสหลังคลอด', group: 'spouse' },
+                    { name: 'ลาเพื่อทำหมัน', group: 'sterilize' },
+                    { name: 'ลาทหาร', setting: 'militaryLeaveDays', group: 'military' },
+                    { name: 'ลาอื่นๆ', group: 'other', catchAll: true }
                 ];
-                const includedStatuses = new Set(['รออนุมัติ', 'อนุมัติแล้ว', 'ฝ่ายบุคคลตรวจสอบ']);
+                const includedStatuses = new Set(['รออนุมัติ', 'อนุมัติแล้ว', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ']);
                 const leaveByEmployee = new Map();
                 let periodRequestCount = 0;
                 adminLeaveRequestRecords.forEach(request => {
@@ -20566,43 +20662,45 @@ async function loadAdminEmployees() {
                         employeeLeave.unpaid += days;
                         return;
                     }
-                    const trackedType = summaryTypes.find(item => item.name === leaveType);
+                    const trackedType = summaryTypes.find(item => !item.catchAll && item.name === leaveType);
                     if (trackedType) employeeLeave.used[trackedType.name] = (employeeLeave.used[trackedType.name] || 0) + days;
-                    else employeeLeave.other += days;
+                    else employeeLeave.used['ลาอื่นๆ'] = (employeeLeave.used['ลาอื่นๆ'] || 0) + days;
                 });
 
                 const search = (document.getElementById('leave-summary-search')?.value || '').trim().toLocaleLowerCase();
                 const statusFilter = document.getElementById('leave-summary-status-filter')?.value || 'all';
+                const departmentFilter = document.getElementById('leave-summary-department-filter')?.value || '';
                 const employees = adminEmployeesList.filter(employee => {
                     const id = (employee['รหัสพนักงาน'] || '').toString().trim();
                     const name = (employee['ชื่อ-นามสกุล'] || '').toString().trim();
-                    return id && (!search || `${id} ${name}`.toLocaleLowerCase().includes(search));
+                    const department = getLeaveSummaryDepartment(employee);
+                    return id && (!search || `${id} ${name}`.toLocaleLowerCase().includes(search)) &&
+                        (!departmentFilter || department === departmentFilter);
                 });
                 let overQuotaCount = 0;
                 let displayedEmployeeCount = 0;
                 const displayedTotals = { entitled: 0, used: 0, remaining: 0 };
+                let displayedUsedDays = 0;
+                let displayedUnpaidDays = 0;
                 const rows = employees.map(employee => {
                     const empId = (employee['รหัสพนักงาน'] || '').toString().trim();
                     const name = (employee['ชื่อ-นามสกุล'] || '').toString().trim();
-                    const usage = leaveByEmployee.get(empId) || { used: {}, unpaid: 0, other: 0 };
+                    const usage = leaveByEmployee.get(empId) || { used: {}, unpaid: 0 };
                     let overQuota = false;
-                    let noQuotaDays = usage.other;
                     const employeeTotals = { entitled: 0, used: 0, remaining: 0 };
-                    const leaveCells = summaryTypes.map((type, index) => {
-                        const rawQuota = systemSettings ? systemSettings[type.setting] : undefined;
-                        const quota = rawQuota === '' || rawQuota === null || rawQuota === undefined ? null : Number(rawQuota);
+                    const leaveCells = summaryTypes.map(type => {
                         const used = usage.used[type.name] || 0;
-                        if (!Number.isFinite(quota)) noQuotaDays += used;
-                        if (Number.isFinite(quota) && used > quota) overQuota = true;
-                        const groupClass = `leave-summary-cell--${['annual', 'sick', 'personal', 'maternity', 'military'][index]}`;
-                        if (Number.isFinite(quota)) {
+                        const rawQuota = type.setting && systemSettings ? systemSettings[type.setting] : undefined;
+                        const quota = rawQuota === '' || rawQuota === null || rawQuota === undefined ? null : Number(rawQuota);
+                        const groupClass = `leave-summary-cell--${type.group}`;
+                        if (type.setting && Number.isFinite(quota)) {
+                            if (used > quota) overQuota = true;
                             employeeTotals.entitled += quota;
                             employeeTotals.used += used;
                             employeeTotals.remaining += quota - used;
+                            return `<td class="${groupClass}">${formatLeaveSummaryDays(quota)}</td><td class="${groupClass}">${formatLeaveSummaryDays(used)}</td><td class="${groupClass} ${used > quota ? 'text-rose-700 font-bold' : ''}">${formatLeaveSummaryDays(quota - used)}</td>`;
                         }
-                        return Number.isFinite(quota)
-                            ? `<td class="${groupClass}">${formatLeaveSummaryDays(quota)}</td><td class="${groupClass}">${formatLeaveSummaryDays(used)}</td><td class="${groupClass} ${used > quota ? 'text-rose-700 font-bold' : ''}">${formatLeaveSummaryDays(quota - used)}</td>`
-                            : `<td colspan="3" class="text-slate-500">ไม่มีค่าตั้งสิทธิ</td>`;
+                        return `<td class="${groupClass} text-slate-400">—</td><td class="${groupClass}">${formatLeaveSummaryDays(used)}</td><td class="${groupClass} text-slate-400">—</td>`;
                     }).join('');
                     if (overQuota) overQuotaCount++;
                     if ((statusFilter === 'over' && !overQuota) || (statusFilter === 'within' && overQuota)) return '';
@@ -20610,19 +20708,22 @@ async function loadAdminEmployees() {
                     displayedTotals.entitled += employeeTotals.entitled;
                     displayedTotals.used += employeeTotals.used;
                     displayedTotals.remaining += employeeTotals.remaining;
+                    displayedUsedDays += Object.values(usage.used).reduce((total, days) => total + days, usage.unpaid);
+                    displayedUnpaidDays += usage.unpaid;
                     const quotaStatus = overQuota
                         ? '<span class="ml-1 inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">เกินสิทธิ</span>'
                         : '';
-                    return `<tr class="${overQuota ? 'leave-summary-over-quota' : ''}"><td>${escapeHtml(empId)}</td><td>${escapeHtml(name || '-')}${quotaStatus}</td>${leaveCells}<td>${formatLeaveSummaryDays(usage.unpaid)}</td><td>${formatLeaveSummaryDays(noQuotaDays)}</td><td class="leave-summary-cell--total">${formatLeaveSummaryDays(employeeTotals.entitled)}</td><td class="leave-summary-cell--total">${formatLeaveSummaryDays(employeeTotals.used)}</td><td class="leave-summary-cell--total ${employeeTotals.remaining < 0 ? 'text-rose-700' : ''}">${formatLeaveSummaryDays(employeeTotals.remaining)}</td><td><button type="button" data-leave-summary-employee="${escapeHtml(empId)}" aria-label="จัดการหนังสือเตือน ${escapeHtml(empId)} ${escapeHtml(name || '')}" class="min-h-11 min-w-[96px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-brand-deep hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-teal">จัดการ</button></td></tr>`;
+                    const department = getLeaveSummaryDepartment(employee);
+                    return `<tr class="${overQuota ? 'leave-summary-over-quota' : ''}"><td>${escapeHtml(empId)}</td><td>${escapeHtml(name || '-')}${quotaStatus}</td><td>${escapeHtml(department || '—')}</td>${leaveCells}<td>${formatLeaveSummaryDays(usage.unpaid)}</td><td class="leave-summary-cell--total">${formatLeaveSummaryDays(employeeTotals.entitled)}</td><td class="leave-summary-cell--total">${formatLeaveSummaryDays(employeeTotals.used)}</td><td class="leave-summary-cell--total ${employeeTotals.remaining < 0 ? 'text-rose-700' : ''}">${formatLeaveSummaryDays(employeeTotals.remaining)}</td><td><button type="button" data-leave-summary-employee="${escapeHtml(empId)}" aria-label="จัดการหนังสือเตือน ${escapeHtml(empId)} ${escapeHtml(name || '')}" class="min-h-11 min-w-[96px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-brand-deep hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-teal">จัดการ</button></td></tr>`;
                 });
 
                 body.innerHTML = rows.length
-                    ? rows.filter(Boolean).join('') || '<tr><td colspan="23" class="py-6 text-center text-slate-500">ไม่พบพนักงานตามตัวกรอง</td></tr>'
-                    : '<tr><td colspan="23" class="py-6 text-center text-slate-500">ไม่พบพนักงานตามคำค้นหา</td></tr>';
+                    ? rows.filter(Boolean).join('') || '<tr><td colspan="32" class="py-6 text-center text-slate-500">ไม่พบพนักงานตามตัวกรอง</td></tr>'
+                    : '<tr><td colspan="32" class="py-6 text-center text-slate-500">ไม่พบพนักงานตามคำค้นหา</td></tr>';
                 const footer = document.getElementById('leave-summary-table-foot');
                 if (footer) {
                     footer.innerHTML = displayedEmployeeCount
-                        ? `<tr class="font-bold bg-slate-100"><td colspan="2">รวม ${displayedEmployeeCount.toLocaleString('th-TH')} คนที่แสดง</td><td colspan="15"></td><td colspan="2"></td><td>${formatLeaveSummaryDays(displayedTotals.entitled)}</td><td>${formatLeaveSummaryDays(displayedTotals.used)}</td><td>${formatLeaveSummaryDays(displayedTotals.remaining)}</td><td></td></tr>`
+                        ? `<tr class="font-bold bg-slate-100"><td colspan="3">รวม ${displayedEmployeeCount.toLocaleString('th-TH')} คนที่แสดง</td><td colspan="24"></td><td>${formatLeaveSummaryDays(displayedUnpaidDays)}</td><td>${formatLeaveSummaryDays(displayedTotals.entitled)}</td><td>${formatLeaveSummaryDays(displayedTotals.used)}</td><td>${formatLeaveSummaryDays(displayedTotals.remaining)}</td><td></td></tr>`
                         : '';
                 }
                 const employeeCount = document.getElementById('leave-summary-employee-count');
@@ -20631,6 +20732,8 @@ async function loadAdminEmployees() {
                 if (employeeCount) employeeCount.textContent = displayedEmployeeCount.toLocaleString('th-TH');
                 if (requestCount) requestCount.textContent = periodRequestCount.toLocaleString('th-TH');
                 if (overQuota) overQuota.textContent = overQuotaCount.toLocaleString('th-TH');
+                const usedDays = document.getElementById('leave-summary-used-days');
+                if (usedDays) usedDays.textContent = formatLeaveSummaryDays(displayedUsedDays);
                 if (!body.dataset.leaveSummaryManageBound) {
                     body.addEventListener('click', event => {
                         const button = event.target instanceof Element ? event.target.closest('[data-leave-summary-employee]') : null;
@@ -20693,7 +20796,9 @@ async function loadAdminEmployees() {
                 const body = document.getElementById('leave-warning-table-body');
                 if (!body) return;
                 if (Number.isSafeInteger(options.page) && options.page > 0) leaveWarningPage = options.page;
-                const search = (document.getElementById('leave-warning-search')?.value || '').trim();
+                const searchInput = (document.getElementById('leave-warning-search')?.value || '').trim();
+                const referenceMatch = searchInput.match(/^BTC-HR-REF-0*(\d+)$/i);
+                const search = referenceMatch ? `id:${referenceMatch[1].replace(/^0+(?=\d)/, '')}` : searchInput;
                 if (!Number.isSafeInteger(options.page) && search !== leaveWarningAppliedSearch) leaveWarningPage = 1;
                 if (leaveWarningSearchTimer) {
                     clearTimeout(leaveWarningSearchTimer);
@@ -20703,11 +20808,11 @@ async function loadAdminEmployees() {
                 if (!adminWarningAccessPin) {
                     adminWarningAccessPin = await requestLeaveWarningPin();
                     if (!adminWarningAccessPin) {
-                        body.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">ยกเลิกการยืนยัน PIN จึงยังไม่โหลดข้อมูลทะเบียน</td></tr>';
+                        body.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500">ยกเลิกการยืนยัน PIN จึงยังไม่โหลดข้อมูลทะเบียน</td></tr>';
                         return;
                     }
                 }
-                body.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดทะเบียน…</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดทะเบียน…</td></tr>';
                 try {
                     const response = await fetchWithTimeout(SERVER_API_URL, {
                         method: 'POST',
@@ -20738,7 +20843,7 @@ async function loadAdminEmployees() {
                     if (requestToken !== leaveWarningRequestToken) return;
                     console.error('[loadLeaveWarningRecords] API error:', error);
                     const errorMessage = (error.message || '').toString();
-                    body.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">โหลดทะเบียนไม่สำเร็จ: ${escapeHtml(errorMessage)}${errorMessage.toLowerCase().includes('migration') ? ' กรุณารันส่วน warning_records ใน supabase_rebuild_all.sql ก่อนใช้งาน' : ''}</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-rose-600">โหลดทะเบียนไม่สำเร็จ: ${escapeHtml(errorMessage)}${errorMessage.toLowerCase().includes('migration') ? ' กรุณารันส่วน warning_records ใน supabase_rebuild_all.sql ก่อนใช้งาน' : ''}</td></tr>`;
                     updateLeaveWarningPagination();
                 }
             }
@@ -20782,24 +20887,84 @@ async function loadAdminEmployees() {
                 if (pageSizeSelect) pageSizeSelect.value = String(leaveWarningPageSize);
             }
 
+            function getLeaveWarningReference(record) {
+                const recordId = Number(record?.id);
+                return Number.isSafeInteger(recordId) && recordId > 0
+                    ? `BTC-HR-REF-${String(recordId).padStart(6, '0')}`
+                    : 'ไม่มีเลขอ้างอิง';
+            }
+
+            function printLeaveWarningRecord(recordId) {
+                const record = adminLeaveWarningRecords.find(item => Number(item.id) === Number(recordId));
+                if (!record) {
+                    showToast('ไม่พบรายการในหน้าปัจจุบัน กรุณาโหลดประวัติใหม่', 'error');
+                    return;
+                }
+                const employee = adminEmployeesMap.get((record.emp_id || '').toString().trim()) || {};
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) {
+                    showToast('เบราว์เซอร์บล็อกหน้าพิมพ์ กรุณาอนุญาตป๊อปอัปแล้วลองใหม่', 'error');
+                    return;
+                }
+                printWindow.opener = null;
+                const department = getLeaveSummaryDepartment(employee);
+                const position = (employee['ตำแหน่ง'] || employee.position || '').toString().trim();
+                const printable = `<!doctype html><html lang="th"><head><meta charset="utf-8"><title>${escapeHtml(getLeaveWarningReference(record))}</title><style>
+                    @page{size:A4;margin:22mm}body{font-family:Tahoma,"Noto Sans Thai",sans-serif;color:#1e293b;font-size:16px;line-height:1.8}
+                    h1{text-align:center;font-size:22px;margin:0 0 8px} .ref{text-align:right;font-size:13px;color:#475569}
+                    .box{border:1px solid #cbd5e1;border-radius:8px;padding:16px;margin:18px 0}.row{margin:7px 0}
+                    .reason{white-space:pre-wrap;min-height:90px}.signatures{display:flex;justify-content:space-between;gap:30px;margin-top:64px;text-align:center}
+                    .signature{width:45%;border-top:1px solid #64748b;padding-top:8px}.notice{font-size:11px;color:#64748b;margin-top:36px}
+                </style></head><body><div class="ref">เลขอ้างอิงระบบ: ${escapeHtml(getLeaveWarningReference(record))}</div>
+                    <h1>บันทึกข้อมูลหนังสือตักเตือนพนักงาน</h1>
+                    <p>วันที่ออกเอกสาร: ${escapeHtml(formatThaiDateShort(record.issued_date) || '-')}</p>
+                    <div class="box">
+                        <div class="row"><strong>รหัสพนักงาน:</strong> ${escapeHtml(record.emp_id || '-')}</div>
+                        <div class="row"><strong>ชื่อ-สกุล:</strong> ${escapeHtml(employee['ชื่อ-นามสกุล'] || 'ไม่พบข้อมูลพนักงาน')}</div>
+                        <div class="row"><strong>ตำแหน่ง:</strong> ${escapeHtml(position || '—')}</div>
+                        <div class="row"><strong>แผนก:</strong> ${escapeHtml(department || 'ไม่มีข้อมูลในระบบ')}</div>
+                        <div class="row"><strong>ประเภท/ระดับตามเอกสาร:</strong> ${escapeHtml(record.warning_type || '-')}</div>
+                        <div class="row"><strong>รายละเอียด/เหตุผล:</strong><div class="reason">${escapeHtml(record.reason || '-')}</div></div>
+                    </div>
+                    <p><strong>สถานะการรับทราบ:</strong> ${escapeHtml(record.acknowledgment_status || 'รอรับทราบ')}</p>
+                    <p><strong>ผู้รับทราบ/ผู้บันทึก:</strong> ${escapeHtml(record.acknowledged_by || '—')}　
+                    <strong>วันที่:</strong> ${escapeHtml(formatThaiDateShort(record.acknowledgment_date) || '—')}</p>
+                    <p><strong>หมายเหตุ:</strong> ${escapeHtml(record.acknowledgment_note || '—')}</p>
+                    <div class="signatures"><div class="signature">ผู้รับเอกสาร / ลูกจ้าง</div><div class="signature">ผู้แทนนายจ้าง / ผู้บันทึก</div></div>
+                    <p class="notice">เอกสารพิมพ์จากข้อมูลในทะเบียนระบบ เลขอ้างอิงนี้สร้างจาก ID ของรายการ ไม่ใช่เลขที่หนังสือเดิม และไม่ใช้แทนเอกสารต้นฉบับ กรุณาตรวจสอบความถูกต้องและเอกสารจริงก่อนนำไปใช้</p>
+                </body></html>`;
+                printWindow.document.open();
+                printWindow.document.write(printable);
+                printWindow.document.close();
+                printWindow.focus();
+                window.setTimeout(() => printWindow.print(), 250);
+            }
+
             function renderLeaveWarningRecords() {
                 const body = document.getElementById('leave-warning-table-body');
                 if (!body) return;
                 if (!adminLeaveWarningRecords.length) {
-                    body.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่พบรายการหนังสือเตือน</td></tr>';
+                    body.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500">ไม่พบประวัติใบเตือน</td></tr>';
                     updateLeaveWarningPagination();
                     return;
                 }
                 body.innerHTML = adminLeaveWarningRecords.map(record => {
                     const employee = adminEmployeesMap.get((record.emp_id || '').toString().trim());
                     const employeeName = employee?.['ชื่อ-นามสกุล'] || 'ไม่พบข้อมูลพนักงาน';
-                    const issuer = getAdminEmployeeName(record.issued_by) || record.issued_by || '-';
-                    const acknowledgedBy = record.acknowledged_by ? `โดย ${record.acknowledged_by}` : '';
-                    const acknowledgmentDetail = [record.acknowledgment_date ? formatThaiDateShort(record.acknowledgment_date) : '', acknowledgedBy, record.acknowledgment_note || ''].filter(Boolean).join(' · ') || '-';
                     const acknowledgeButton = record.acknowledgment_status === 'รอรับทราบ'
                         ? `<button type="button" onclick="recordLeaveWarningAcknowledgment(${Number(record.id)})" class="rounded-lg border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">บันทึกรับทราบ</button>`
                         : '';
-                    return `<tr><td>${formatThaiDateShort(record.issued_date)}</td><td>${escapeHtml(record.emp_id)}<br><span class="text-xs text-slate-500">${escapeHtml(employeeName)}</span></td><td>${escapeHtml(record.warning_type)}</td><td class="whitespace-normal">${escapeHtml(record.reason)}</td><td>${escapeHtml(record.acknowledgment_status || 'รอรับทราบ')}</td><td>${escapeHtml(acknowledgmentDetail)}<div class="mt-1">${acknowledgeButton}</div></td><td>${escapeHtml(issuer)}</td></tr>`;
+                    const recordId = Number(record.id);
+                    const printButton = Number.isSafeInteger(recordId) && recordId > 0
+                        ? `<button type="button" onclick="printLeaveWarningRecord(${recordId})" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">พิมพ์ซ้ำ</button>`
+                        : '';
+                    const status = record.acknowledgment_status || 'รอรับทราบ';
+                    const statusClass = status === 'รับทราบแล้ว'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : status === 'ปฏิเสธการลงชื่อ'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200';
+                    return `<tr class="hover:bg-slate-50"><td class="font-mono font-bold text-blue-700">${escapeHtml(getLeaveWarningReference(record))}</td><td>${escapeHtml(formatThaiDateShort(record.issued_date) || '-')}</td><td class="font-mono">${escapeHtml(record.emp_id || '-')}</td><td class="font-semibold">${escapeHtml(employeeName)}</td><td>${escapeHtml(getLeaveSummaryDepartment(employee) || '—')}</td><td class="whitespace-normal">${escapeHtml(record.reason || '-')}</td><td><span class="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs">${escapeHtml(record.warning_type || '-')}</span></td><td class="text-center"><span class="rounded border px-2 py-1 text-xs ${statusClass}">${escapeHtml(status)}</span><div class="mt-1 text-xs text-slate-500">${escapeHtml(formatThaiDateShort(record.acknowledgment_date) || '')}${record.acknowledged_by ? ` · ${escapeHtml(record.acknowledged_by)}` : ''}</div></td><td class="text-center"><div class="flex flex-wrap justify-center gap-1.5">${acknowledgeButton}${printButton}</div></td></tr>`;
                 }).join('');
                 updateLeaveWarningPagination();
             }
