@@ -12298,7 +12298,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             async function loadPublicData() {
                 if (publicDataLoaded) return; // โหลดไปแล้ว ไม่ต้องโหลดซ้ำ
                 if (!supabaseClient) {
-                    console.warn('[loadPublicData] Supabase client not ready');
+                    const errorMessage = 'ไม่สามารถเชื่อมต่อ Supabase เพื่อโหลดข้อมูลสาธารณะได้ กรุณารีเฟรชหน้าเพื่อลองใหม่';
+                    publicDataAttempted = true;
+                    ['projects', 'holidays', 'announcements'].forEach(section => {
+                        _sectionErrors[section] = errorMessage;
+                    });
+                    console.error('[loadPublicData] Supabase client is unavailable');
+                    displayAnnouncements();
+                    if (isLoggedIn) displayMonthlyReminders();
                     return;
                 }
                 try {
@@ -15171,10 +15178,29 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const start = l["วันที่เริ่ม"] || l["วันที่"];
                     const end = l["วันที่สิ้นสุด"] || start;
                     const days = l["จำนวนวัน"] || 1;
-                    const status = l["สถานะ"] || "รออนุมัติ";
+                    const status = String(l["สถานะ"] || "รออนุมัติ");
                     const reason = l["เหตุผล"] || "ไม่มีการระบุ";
                     const signatureUrl = l["ลายมือชื่อ"] || "";
                     const attachmentUrl = l["เอกสารแนบ"] || l["attachments"] || "";
+                    const signatureDisplayUrl = signatureUrl.startsWith('data:image/') ? signatureUrl : convertDriveUrl(signatureUrl);
+                    const safeSignatureUrl = /^(https:\/\/|data:image\/(png|jpeg|jpg|webp);base64,)/i.test(signatureDisplayUrl || '')
+                        ? escapeHtml(signatureDisplayUrl)
+                        : '';
+                    const resolvedAttachmentUrl = attachmentUrl.startsWith('http') ? convertDriveUrl(attachmentUrl) : attachmentUrl;
+                    const safeAttachmentUrl = /^(https:\/\/|\/(?!\/))/i.test(resolvedAttachmentUrl || '')
+                        ? escapeHtml(resolvedAttachmentUrl)
+                        : '';
+                    const safeDocId = escapeHtml(docId);
+                    const safeDocIdArgument = escapeHtml(safeJson(docId));
+                    const safeType = escapeHtml(type);
+                    const safeTypeArgument = escapeHtml(safeJson(type));
+                    const safePeriod = escapeHtml(period);
+                    const safeDays = escapeHtml(days);
+                    const safeStart = escapeHtml(formatThaiDate(start));
+                    const safeEnd = escapeHtml(formatThaiDate(end));
+                    const safeStatus = escapeHtml(status);
+                    const safeReason = escapeHtml(reason);
+                    const safeApprover = escapeHtml(l["อนุมัติโดย"] || "--");
 
                     let badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
                     if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
@@ -15189,33 +15215,33 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
               <span class="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center text-[10px]"><i class="fa-solid fa-plane-departure"></i></span>
-              <p class="text-xs font-bold text-slate-700">${type} (${period})${exceededLabel}</p>
+              <p class="text-xs font-bold text-slate-700">${safeType} (${safePeriod})${exceededLabel}</p>
             </div>
-            <span class="text-[10px] px-2 py-0.5 rounded-full border ${badgeClass}">${status}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full border ${badgeClass}">${safeStatus}</span>
           </div>
           
           <div class="text-xs text-slate-500">
-            <p><strong>จำนวนวัน:</strong> ${days} วัน</p>
-            <p><strong>ช่วงวันลา:</strong> ${formatThaiDate(start)} ถึง ${formatThaiDate(end)}</p>
-            <p class="mt-0.5 text-slate-400 truncate"><strong>เหตุผล:</strong> ${reason}</p>
+            <p><strong>จำนวนวัน:</strong> ${safeDays} วัน</p>
+            <p><strong>ช่วงวันลา:</strong> ${safeStart} ถึง ${safeEnd}</p>
+            <p class="mt-0.5 text-slate-400 truncate"><strong>เหตุผล:</strong> ${safeReason}</p>
           </div>
           
-          ${signatureUrl ? `
+          ${safeSignatureUrl ? `
             <div class="mt-1.5 pt-1.5 border-t border-slate-50">
               <p class="text-[10px] text-slate-400 mb-1"><i class="fa-solid fa-signature"></i> ลายมือชื่อ:</p>
-              <img src="${signatureUrl.startsWith('data:image') ? signatureUrl : convertDriveUrl(signatureUrl)}" alt="Signature" onError="if(!this.dataset.retry){this.dataset.retry='1';this.src='https://drive.google.com/thumbnail?id='+((this.src.match(/\/d\/([a-zA-Z0-9_-]+)/)||[])[1]||'');}" class="w-full h-16 object-contain bg-slate-50 rounded border border-slate-100">
+              <img src="${safeSignatureUrl}" alt="Signature" onError="if(!this.dataset.retry){this.dataset.retry='1';this.src='https://drive.google.com/thumbnail?id='+((this.src.match(/\/d\/([a-zA-Z0-9_-]+)/)||[])[1]||'');}" class="w-full h-16 object-contain bg-slate-50 rounded border border-slate-100">
             </div>
           ` : ""}
           
           <div class="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-50">
-            <span>เลขที่ใบคำขอ: ${docId}</span>
-            <span>อนุมัติโดย: ${l["อนุมัติโดย"] || "--"}</span>
+            <span>เลขที่ใบคำขอ: ${safeDocId}</span>
+            <span>อนุมัติโดย: ${safeApprover}</span>
           </div>
 
           <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
             <div class="flex items-center gap-1.5">
-              ${attachmentUrl ? `
-                <a href="${attachmentUrl.startsWith('http') ? convertDriveUrl(attachmentUrl) : attachmentUrl}" target="_blank" 
+              ${safeAttachmentUrl ? `
+                <a href="${safeAttachmentUrl}" target="_blank" rel="noopener noreferrer"
                   class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-semibold border border-blue-200 transition-all active:scale-95">
                   <i class="fa-solid fa-paperclip text-blue-500"></i> ดูเอกสารแนบ
                 </a>
@@ -15223,17 +15249,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             </div>
             <div class="flex items-center gap-1.5">
               ${status !== "อนุมัติแล้ว" ? `
-                <button onclick="deleteLeaveRequestItem('${escapeHtml(docId)}')" 
+                <button onclick='deleteLeaveRequestItem(${safeDocIdArgument})'
                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-semibold transition-all border border-rose-200 shadow-xs active:scale-95">
                   <i class="fa-solid fa-trash-can"></i> ลบคำขอ
                 </button>
               ` : `
-                <button onclick="openAttachLeaveModal('${escapeHtml(docId)}', '${escapeHtml(type)}', '${formatThaiDate(start)}')" 
+                <button onclick='openAttachLeaveModal(${safeDocIdArgument}, ${safeTypeArgument}, ${escapeHtml(safeJson(formatThaiDate(start)))})'
                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold transition-all border border-amber-200 shadow-xs active:scale-95">
                   <i class="fa-solid fa-paperclip"></i> แนบเอกสารย้อนหลัง
                 </button>
               `}
-              <button onclick='printLeaveRecord(${safeJson(l)})' 
+              <button onclick='printLeaveRecord(${escapeHtml(safeJson(l))})'
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy hover:bg-brand-deep text-white text-[10px] font-semibold transition-all shadow-xs active:scale-95">
                 <i class="fa-solid fa-file-pdf text-rose-400"></i> ดูใบลา / พิมพ์ PDF
               </button>
@@ -15543,28 +15569,29 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     if (res && res.status === "success") {
                         showToast("🎉 ส่งใบลาเรียบร้อยแล้ว", "success");
-                        const savedLeaveRecord = (res.data && typeof res.data === 'object') ? res.data : pendingLeavePayload;
+                        const submittedLeavePayload = { ...pendingLeavePayload };
+                        const savedLeaveRecord = (res.data && typeof res.data === 'object') ? res.data : {};
                         const leaveForm = document.getElementById("leave-request-form");
                         if (leaveForm) leaveForm.reset();
                         leaveAttachmentBase64 = "";
                         closeSignatureModal();
 
                         // ⚡ Optimistic UI: นำรายการคำขอลาใหม่แสดงในประวัติทันที 0ms ไม่ต้องรอ network
-                        const newDocId = (res.data && res.data.docId) ? res.data.docId : (savedLeaveRecord.doc_id || savedLeaveRecord.docId || 'L-PENDING');
+                        const newDocId = savedLeaveRecord.docId || savedLeaveRecord.doc_id || 'L-PENDING';
                         const newLeaveItem = {
                             "เลขที่เอกสาร": newDocId,
-                            "รหัสพนักงาน": pendingLeavePayload.empId || currentEmployeeId,
-                            "ประเภทการลา": pendingLeavePayload.type,
-                            "ระยะเวลา": pendingLeavePayload.period || "เต็มวัน",
-                            "วันที่เริ่ม": pendingLeavePayload.start,
-                            "วันที่สิ้นสุด": pendingLeavePayload.end,
-                            "จำนวนวัน": parseFloat(pendingLeavePayload.days) || 1,
-                            "เหตุผล": pendingLeavePayload.reason || "",
+                            "รหัสพนักงาน": savedLeaveRecord.empId || submittedLeavePayload.empId || currentEmployeeId,
+                            "ประเภทการลา": savedLeaveRecord.type || savedLeaveRecord.leaveType || submittedLeavePayload.type,
+                            "ระยะเวลา": savedLeaveRecord.period || savedLeaveRecord.duration || submittedLeavePayload.period || "เต็มวัน",
+                            "วันที่เริ่ม": savedLeaveRecord.start || savedLeaveRecord.startDate || submittedLeavePayload.start,
+                            "วันที่สิ้นสุด": savedLeaveRecord.end || savedLeaveRecord.endDate || submittedLeavePayload.end,
+                            "จำนวนวัน": parseFloat(savedLeaveRecord.days ?? savedLeaveRecord.daysCount ?? submittedLeavePayload.days) || 1,
+                            "เหตุผล": savedLeaveRecord.reason || submittedLeavePayload.reason || "",
                             "สถานะ": "รออนุมัติ",
                             "อนุมัติโดย": "--",
                             "หมายเหตุ": "",
                             "ลายมือชื่อ": signatureBase64 || "",
-                            "เอกสารแนบ": pendingLeavePayload.attachment ? "มีเอกสารแนบ" : ""
+                            "เอกสารแนบ": submittedLeavePayload.attachment ? "มีเอกสารแนบ" : ""
                         };
                         leaveRequestsList = [newLeaveItem, ...(leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== newDocId)];
                         displayLeaveHistory();
