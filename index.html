@@ -13109,7 +13109,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function fetchWithTimeout(resource, options = {}) {
-                const { timeout = 60000, skipPerf = false, ...fetchOptions } = options;
+                const { timeout = 60000, skipPerf = false, preferConfiguredProxy = false, ...fetchOptions } = options;
                 const controller = new AbortController();
                 let id = null;
                 // [FIX] ส่ง options เข้า _extractAction ด้วย เพื่อให้รู้จัก action จาก POST body
@@ -13183,7 +13183,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 };
 
                 try {
-                    const resolvedResource = resolveApiUrl(resource);
+                    let resolvedResource = resolveApiUrl(resource);
+                    if (preferConfiguredProxy) {
+                        const configuredProxy = window.HRBT_CONFIG?.GAS_WEB_APP_URL;
+                        if (configuredProxy) {
+                            try {
+                                const proxyUrl = new URL(configuredProxy, window.location.origin);
+                                if (proxyUrl.origin === window.location.origin) {
+                                    resolvedResource = proxyUrl.toString();
+                                }
+                            } catch (proxyUrlError) {
+                                console.warn('[API] Invalid configured same-origin proxy URL', proxyUrlError);
+                            }
+                        }
+                    }
                     let result = await tryFetch(resolvedResource);
 
                     if (result && result.data !== undefined) {
@@ -13191,7 +13204,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         return result.data;
                     }
 
-                    const shouldRetryWithFallback = result && result.status === 'error' && [404, 410, 500, 502, 503].includes(result.code);
+                    const shouldRetryWithFallback = !preferConfiguredProxy &&
+                        result && result.status === 'error' && [404, 410, 500, 502, 503].includes(result.code);
                     if (shouldRetryWithFallback) {
                         const fallbackUrl = getFallbackApiUrl(resource);
                         if (fallbackUrl && fallbackUrl !== resolvedResource) {
@@ -20950,7 +20964,8 @@ async function loadAdminEmployees() {
                             pageSize: leaveWarningPageSize,
                             search
                         }),
-                        timeout: 30000
+                        timeout: 30000,
+                        preferConfiguredProxy: true
                     });
                     if (requestToken !== leaveWarningRequestToken) return;
                     if (result.status !== 'success') {
@@ -21123,7 +21138,8 @@ async function loadAdminEmployees() {
                         adminPin: adminWarningAccessPin,
                         ...fields
                     }),
-                    timeout: 60000
+                    timeout: 60000,
+                    preferConfiguredProxy: true
                 });
                 if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
                 if (result.status !== 'success' && result.code !== 'RESTORE_PARTIAL') {
@@ -21219,7 +21235,8 @@ async function loadAdminEmployees() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
-                        timeout: 30000
+                        timeout: 30000,
+                        preferConfiguredProxy: true
                     });
                     if (result.status !== 'success') {
                         if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
@@ -21264,7 +21281,8 @@ async function loadAdminEmployees() {
                             acknowledgedBy: acknowledgedBy.trim(),
                             acknowledgmentDate: getTodayDateString()
                         }),
-                        timeout: 30000
+                        timeout: 30000,
+                        preferConfiguredProxy: true
                     });
                     if (result.status !== 'success') {
                         if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
