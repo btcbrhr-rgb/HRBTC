@@ -6419,10 +6419,10 @@
                                     <label for="leave-summary-year" class="text-sm font-semibold text-slate-700">ปีงบประมาณ:</label>
                                     <select id="leave-summary-year" onchange="renderLeaveEntitlementSummary()"
                                         class="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2 font-medium"></select>
-                                    <label for="leave-summary-department-filter" class="ml-2 text-sm font-semibold text-slate-700">แผนก:</label>
+                                    <label for="leave-summary-department-filter" class="ml-2 text-sm font-semibold text-slate-700" title="จัดกลุ่มอัตโนมัติจากตำแหน่งพนักงาน">ฝ่าย (จำแนกจากตำแหน่ง):</label>
                                     <select id="leave-summary-department-filter" onchange="renderLeaveEntitlementSummary()"
                                         class="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2">
-                                        <option value="">แผนก (ไม่มีข้อมูลในระบบ)</option>
+                                        <option value="">กำลังจัดกลุ่มจากตำแหน่ง…</option>
                                     </select>
                             </div>
                             <div class="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
@@ -20705,10 +20705,62 @@ async function loadAdminEmployees() {
                 return aliases[type] || type;
             }
 
+            function inferLeaveSummaryDepartmentFromPosition(position) {
+                const title = (position || '').toString().trim().toLocaleLowerCase();
+                if (!title) return 'ไม่สามารถจำแนกแผนก';
+
+                const rules = [
+                    {
+                        department: 'ฝ่ายบริหารและอำนวยการ',
+                        matches: [/ceo\b/i, /chief\s+executive\s+officer/i, /ผู้บริหาร/, /กม\.?\s*3/]
+                    },
+                    {
+                        department: 'ฝ่ายบริหารงานบุคคล',
+                        matches: [/(^|[^a-z])hr([^a-z]|$)/i, /บุคคล/, /ฝ่ายบุคคล/]
+                    },
+                    {
+                        department: 'ฝ่ายจัดซื้อและจัดจ้าง',
+                        matches: [/จัดซื้อ/, /จัดจ้าง/, /นายงานจัดจ้าง/, /ทะเบียนจัดซื้อ/]
+                    },
+                    {
+                        department: 'ฝ่ายการเงินและบัญชี',
+                        matches: [/การเงิน/, /บัญชี/]
+                    },
+                    {
+                        department: 'ฝ่ายวิศวกรรม คุมงาน และสำรวจ',
+                        matches: [/วิศวกร/, /ก\.?\s*ว\.?/, /ช่างควบคุมงาน/, /เซอร์เวย์/, /สำรวจ/, /เลเบอร์\s*\/\s*เซอร์เวย์/]
+                    },
+                    {
+                        department: 'ฝ่ายความปลอดภัย',
+                        matches: [/เซฟตี้/, /เซฟติ้/, /เซฟตี้ออดิส/, /safety/i]
+                    },
+                    {
+                        department: 'ฝ่ายปฏิบัติการก่อสร้างและแพล้นท์',
+                        matches: [/เสมียนสนาม/, /เสมียนแพล้นท์/, /ปูยาง/, /ลาดยาง/, /รีไซกิ้ง/, /รีไซเคิล/, /มิกซ์ยาง/, /เครื่องจักรหนัก/, /รถเกรด/, /รถบด/, /แบคโฮ/, /แบ็คโฮ/, /รถไถ/, /รถโรยปูน/, /(^|[^a-z])cat([^a-z]|$)/i]
+                    },
+                    {
+                        department: 'ฝ่ายขนส่งและยานพาหนะ',
+                        matches: [/รถดั้มพ์/, /รถดัมพ์/, /รถน้ำ/, /ออยเลอร์/, /รถบริการ/, /ทะเบียนรถ/, /(?:^|[^0-9])(?:80|81|83)\s*-\s*[a-z0-9]{1,5}(?:$|[^a-z0-9])/i]
+                    },
+                    {
+                        department: 'ฝ่ายซ่อมบำรุงและเทคนิค',
+                        matches: [/ช่างซ่อม/, /ช่างไฟ/, /ช่างแอร์/, /หัวหน้าชุดซ่อม/, /เครื่องยนต์/, /อะไหล่/]
+                    },
+                    {
+                        department: 'ฝ่ายแม่บ้าน คนสวน และบริการ',
+                        matches: [/แม่บ้าน/, /คนสวน/, /ทำครัว/, /แม่ครัว/, /ยาม/, /รปภ\.?/, /ดูแลวัว/, /คนงานทั่วไป/, /ช่วยงานออฟฟิศ/, /ปั๊มน้ำมัน/]
+                    }
+                ];
+
+                const matchedRule = rules.find(rule => rule.matches.some(pattern => pattern.test(title)));
+                return matchedRule ? matchedRule.department : 'ไม่สามารถจำแนกแผนก';
+            }
+
             function getLeaveSummaryDepartment(employee) {
-                return employee
-                    ? (employee['ฝ่าย-แผนก'] || employee['แผนก'] || employee.department || '').toString().trim()
-                    : '';
+                if (!employee) return 'ไม่สามารถจำแนกแผนก';
+                const explicitDepartment = (employee['ฝ่าย-แผนก'] || employee['แผนก'] || employee.department || '').toString().trim();
+                if (explicitDepartment) return explicitDepartment;
+                return inferLeaveSummaryDepartmentFromPosition(employee['ตำแหน่ง'] || employee.position || employee['Position'] || '');
             }
 
             function updateLeaveSummaryDepartmentOptions() {
@@ -20721,7 +20773,7 @@ async function loadAdminEmployees() {
                     ? '<option value="">ทั้งหมดทุกแผนก</option>' + departments.map(department =>
                         `<option value="${escapeHtml(department)}">${escapeHtml(department)}</option>`
                     ).join('')
-                    : '<option value="">แผนก (ไม่มีข้อมูลในระบบ)</option>';
+                    : '<option value="">ไม่พบข้อมูลพนักงาน</option>';
                 select.disabled = departments.length === 0;
                 if (departments.includes(current)) select.value = current;
             }
