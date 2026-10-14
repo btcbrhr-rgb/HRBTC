@@ -10624,7 +10624,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     // 1. ถ้าเป็นข้อมูลสาธารณะ (projects, holidays, announcements) — rate-limit 5 วิ
                     if ((tables.includes('projects') || tables.includes('holidays') || tables.includes('announcements')) && this._shouldRefresh('loadPublicData', 5000)) {
-                        if (typeof publicDataLoaded !== 'undefined') publicDataLoaded = false;
+                        if (typeof publicDataLoaded !== 'undefined') {
+                            publicDataLoaded = false;
+                            publicDataAttempted = false;
+                        }
                         if (typeof loadPublicData === 'function') await loadPublicData().catch(() => {});
                     }
 
@@ -11878,12 +11881,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 isAdminMode = false;
                 timeRecordsList = [];
                 allTimeRecordsList = [];
+                timeCorrectionsList = [];
                 leaveRequestsList = [];
                 advanceRequestsList = [];
                 payslipsList = [];
                 holidaysList = [];
                 employeeData = {};
                 currentEmployeeId = "";
+                _lastLoadEmpId = '';
+                _lastLoadCycleStart = '';
+                _dataSectionKeys.forEach(section => { delete _sectionErrors[section]; });
+                Object.keys(_sectionReady).forEach(section => { _sectionReady[section] = false; });
                 adminWarningAccessPin = '';
                 adminLeaveWarningRecords = [];
                 leaveWarningTotal = 0;
@@ -12281,6 +12289,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // === ⚡ Pre-login Data: โหลดข้อมูลสาธารณะทันทีเมื่อเปิดเว็บ ===
             let publicDataLoaded = false;
+            let publicDataAttempted = false;
 
             /**
              * 🌐 โหลดข้อมูลสาธารณะทันทีเมื่อเปิดเว็บ (ไม่ต้องเข้าระบบ)
@@ -12294,26 +12303,30 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
                 try {
                     console.log('[loadPublicData] ⚡ Loading public data...');
-                    const [pRes, holRes, annRes] = await Promise.all([
+                    const [pOutcome, holOutcome, annOutcome] = await Promise.allSettled([
                         supabaseClient.from('projects').select('*').neq('status', 'ระงับ'),
                         supabaseClient.from('holidays').select('date,title,holiday_type').order('date'),
                         supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10)
                     ]);
+                    const pRes = readSupabaseSection(pOutcome, 'projects');
+                    const holRes = readSupabaseSection(holOutcome, 'holidays');
+                    const annRes = readSupabaseSection(annOutcome, 'announcements');
+                    publicDataAttempted = true;
 
-                    if (!pRes.error && Array.isArray(pRes.data)) {
-                        projectsList = pRes.data;
+                    if (pRes) {
+                        projectsList = pRes;
                         console.log('[loadPublicData] ✓ Projects:', projectsList.length);
                     }
-                    if (!holRes.error && Array.isArray(holRes.data)) {
-                        holidaysList = holRes.data.map(h => ({
+                    if (holRes) {
+                        holidaysList = holRes.map(h => ({
                             date: (h.date || '').toString().trim(),
                             title: (h.title || '').toString().trim(),
                             type: (h.holiday_type || 'นักขัตฤกษ์').toString().trim()
                         }));
                         console.log('[loadPublicData] ✓ Holidays:', holidaysList.length);
                     }
-                    if (!annRes.error && Array.isArray(annRes.data)) {
-                        setStoredAnnouncements(annRes.data.map(a => ({
+                    if (annRes) {
+                        setStoredAnnouncements(annRes.map(a => ({
                             docId: a.doc_id || a.id,
                             title: a.title,
                             message: a.content || a.message || '',
@@ -12323,10 +12336,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         console.log('[loadPublicData] ✓ Announcements:', getStoredAnnouncements().length);
                     }
 
-                    publicDataLoaded = true;
-                    console.log('[loadPublicData] ⚡ All public data loaded (no login required)');
+                    publicDataLoaded = [pRes, holRes, annRes].every(Array.isArray);
+                    if (!publicDataLoaded) {
+                        console.error('[loadPublicData] Some public sections failed to load', Object.keys(_sectionErrors));
+                    } else {
+                        console.log('[loadPublicData] ⚡ All public data loaded (no login required)');
+                    }
+                    displayAnnouncements();
+                    if (isLoggedIn) displayMonthlyReminders();
                 } catch (err) {
-                    console.warn('[loadPublicData] Error:', err);
+                    publicDataAttempted = true;
+                    ['projects', 'holidays', 'announcements'].forEach(section => {
+                        if (!_sectionErrors[section]) _sectionErrors[section] = err.message || String(err);
+                    });
+                    console.error('[loadPublicData] Error:', err);
+                    displayAnnouncements();
+                    if (isLoggedIn) displayMonthlyReminders();
                 }
             }
 
@@ -12349,6 +12374,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 advance: false,     // คำขอเบิกเงิน
                 payslip: false      // สลิปเงินเดือน
             };
+            const _sectionErrors = Object.create(null);
+
+            const _dataSectionKeys = [
+                'primary', 'timeRecords', 'recentTimeRecords', 'settings', 'projects', 'holidays',
+                'announcements', 'corrections', 'leave', 'advance', 'payslip'
+            ];
+
+            function markAllDataSectionsFailed(error) {
+                const message = error?.message || String(error);
+                _dataSectionKeys.forEach(section => { _sectionErrors[section] = message; });
+                Object.keys(_sectionReady).forEach(section => { _sectionReady[section] = true; });
+            }
+
+            function readSupabaseSection(outcome, section) {
+                let error = null;
+                if (outcome.status === 'rejected') {
+                    error = outcome.reason;
+                } else if (outcome.value?.error) {
+                    error = outcome.value.error;
+                } else if (!Array.isArray(outcome.value?.data)) {
+                    error = new Error('Supabase returned an invalid data response');
+                }
+                if (error) {
+                    _sectionErrors[section] = error.message || String(error);
+                    console.error(`[Supabase] ${section} query failed:`, error);
+                    return null;
+                }
+                delete _sectionErrors[section];
+                return outcome.value.data;
+            }
 
             async function loadAllData(tablesHint) {
                 if (!currentEmployeeId) {
@@ -12382,7 +12437,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         //    โหลดพร้อมกันแบบขนาน แล้ว render หน้าหลักทันที ไม่ต้องรอส่วนรอง
                         const needPublic = !publicDataLoaded || projectsList.length === 0 || getStoredAnnouncements().length === 0 || holidaysList.length === 0;
 
-                        const [tRes, tAllRes, settingsRes, pRes, annRes, holRes] = await Promise.all([
+                        const [tOutcome, tAllOutcome, settingsOutcome, pOutcome, annOutcome, holOutcome] = await Promise.allSettled([
                             // User-specific data (always fetch time_records สำหรับ billing cycle ใหม่)
                             supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
                             // 🔧 FIX: ดึง time_records ทั้งหมด (ไม่ filter cycle) สำหรับกิจกรรมล่าสุด
@@ -12394,12 +12449,20 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             needPublic ? supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10) : null,
                             needPublic ? supabaseClient.from('holidays').select('date,title,holiday_type').order('date') : null
                         ]);
+                        const tRes = readSupabaseSection(tOutcome, 'timeRecords');
+                        const tAllRes = readSupabaseSection(tAllOutcome, 'recentTimeRecords');
+                        const settingsRes = readSupabaseSection(settingsOutcome, 'settings');
+                        const pRes = needPublic ? readSupabaseSection(pOutcome, 'projects') : null;
+                        const annRes = needPublic ? readSupabaseSection(annOutcome, 'announcements') : null;
+                        const holRes = needPublic ? readSupabaseSection(holOutcome, 'holidays') : null;
+                        if (needPublic) publicDataAttempted = true;
+                        delete _sectionErrors.primary;
 
                         // ⚡ Merge system_settings (ไม่ต้องรอให้ส่วนรองโหลดเสร็จ)
                         try {
-                            if (settingsRes && !settingsRes.error && Array.isArray(settingsRes.data)) {
+                            if (settingsRes) {
                                 const merged = {};
-                                settingsRes.data.forEach(row => {
+                                settingsRes.forEach(row => {
                                     const k = (row.key_name || '').trim();
                                     let v = (row.default_value || '').trim();
                                     if (!k || !v) return;
@@ -12413,8 +12476,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             }
                         } catch (e) { console.warn('[loadAllData] settings load error:', e); }
 
-                        if (!tRes.error && Array.isArray(tRes.data)) {
-                            timeRecordsList = tRes.data.map(r => {
+                        if (tRes) {
+                            timeRecordsList = tRes.map(r => {
                                 const tIn = r.time_in || '';
                                 const tOut = r.time_out || '';
                                 // 🔧 FIX: ใช้ค่าจาก DB โดยตรง ไม่คำนวณใหม่
@@ -12445,8 +12508,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             });
                         }
                         // 🔧 FIX: ใช้ allTimeRecordsList สำหรับกิจกรรมล่าสุด (ไม่จำกัดรอบบัญชี)
-                        if (tAllRes && !tAllRes.error && Array.isArray(tAllRes.data)) {
-                            allTimeRecordsList = tAllRes.data.map(r => {
+                        if (tAllRes) {
+                            allTimeRecordsList = tAllRes.map(r => {
                                 const tIn = r.time_in || '';
                                 const tOut = r.time_out || '';
                                 return {
@@ -12465,13 +12528,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
 
                         // Projects (reuse from loadPublicData ถ้ามี)
-                        if (pRes && !pRes.error && Array.isArray(pRes.data)) {
-                            projectsList = pRes.data;
+                        if (pRes) {
+                            projectsList = pRes;
                         }
 
                         // Announcements (reuse from loadPublicData ถ้ามี)
-                        if (annRes && !annRes.error && Array.isArray(annRes.data)) {
-                            setStoredAnnouncements(annRes.data.map(a => ({
+                        if (annRes) {
+                            setStoredAnnouncements(annRes.map(a => ({
                                 docId: a.doc_id || a.id,
                                 title: a.title,
                                 message: a.content || a.message || '',
@@ -12481,8 +12544,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
 
                         // 🎌 Holidays (reuse from loadPublicData ถ้ามี)
-                        if (holRes && !holRes.error && Array.isArray(holRes.data)) {
-                            holidaysList = holRes.data.map(h => ({
+                        if (holRes) {
+                            holidaysList = holRes.map(h => ({
                                 date: (h.date || '').toString().trim(),
                                 title: (h.title || '').toString().trim(),
                                 type: (h.holiday_type || 'นักขัตฤกษ์').toString().trim()
@@ -12491,9 +12554,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                         console.log('[loadAllData ⚡ Supabase] Public data reused:', publicDataLoaded ? 'yes' : 'no');
 
-                        console.log('[loadAllData ⚡ Supabase] ✓ Loaded employee data instantly');
+                        if (needPublic) {
+                            publicDataLoaded = [pRes, annRes, holRes].every(Array.isArray);
+                        }
+                        const primarySectionKeys = ['primary', 'timeRecords', 'recentTimeRecords', 'settings', 'projects', 'announcements', 'holidays'];
+                        const primaryFailures = primarySectionKeys.filter(section => _sectionErrors[section]);
+                        console.log('[loadAllData ⚡ Supabase] Primary data load completed:', { primaryFailures });
                         if (typeof logDbActivity === 'function') {
-                            logDbActivity('READ', 'Dashboard', `ดึงข้อมูลหลักพนักงาน ${currentEmployeeId} (${timeRecordsList.length} เวลางาน)`, 'success', Math.round(performance.now() - tSup0));
+                            const loadStatus = primaryFailures.length ? 'error' : 'success';
+                            const loadMessage = primaryFailures.length
+                                ? `โหลดข้อมูลหลักไม่ครบ: ${primaryFailures.join(', ')}`
+                                : `ดึงข้อมูลหลักพนักงาน ${currentEmployeeId} (${timeRecordsList.length} เวลางาน)`;
+                            logDbActivity(primaryFailures.length ? 'ERROR' : 'READ', 'Dashboard', loadMessage, loadStatus, Math.round(performance.now() - tSup0));
                         }
                         // 🔧 OPTIMIZE: อัปเดต cache keys
                         _lastLoadEmpId = currentEmployeeId;
@@ -12502,6 +12574,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         // ✅ ข้อมูลหลักพร้อม → render หน้าหลักทันที (สถิติ/ปฏิทิน/กิจกรรม/สถานะวันนี้)
                         _sectionReady.primary = true;
                         renderPrimaryViews();
+                        if (_sectionErrors.primary || _sectionErrors.timeRecords || _sectionErrors.recentTimeRecords) displayActivitiesList();
+                        if (primaryFailures.length) {
+                            displayMonthlyReminders();
+                            if (_sectionErrors.announcements) displayAnnouncements();
+                        }
 
                         // 🟢 STAGE 2: ข้อมูลรอง (แก้ไขเวลา/ลา/เบิกเงิน/สลิป) — โหลดต่อเบื้องหลัง
                         //    แต่ละส่วนจะ render ทันทีที่ข้อมูลมา ไม่ต้องรอทุกอย่างพร้อมกัน
@@ -12512,15 +12589,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             logDbActivity('ERROR', 'Supabase', `ดึงข้อมูลพนักงานไม่สำเร็จ: ${supErr.message || supErr}`, 'error');
                         }
                         console.error('[loadAllData ⚡ Supabase] ERROR:', supErr.message || supErr);
-                    showToast('\u274c \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e23\u0e48\u0e21\u0e15\u0e48\u0e2d\u0e14\u0e36\u0e49\u0e07\u0e02\u0e49\u0e21\u0e14 \u0e01\u0e33\u0e25\u0e31\u0e07\u0e23\u0e2d\u0e22\u0e23\u0e2b\u0e31\u0e2a\u0e1e\u0e23\u0e49\u0e2d\u0e21 Supabase', 'error');
+                        markAllDataSectionsFailed(supErr);
+                        showToast('❌ โหลดข้อมูลพนักงานไม่สำเร็จ กรุณารีเฟรชหน้าเพื่อลองใหม่', 'error');
+                        _renderAllViews();
+                        return false;
                     }
                 }
 
                 // 🔧 SUPABASE-ONLY: ไม่มี GAS fallback อีกต่อไป
-                console.error('[loadAllData] Supabase failed, no fallback available');
-                // 🔧 เมื่อโหลดไม่สำเร็จ → ให้ทุกส่วนแสดงสถานะว่าง (ไม่ค้าง skeleton)
-                Object.keys(_sectionReady).forEach(k => { _sectionReady[k] = true; });
-                showToast('\u274c \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e23\u0e48\u0e21\u0e15\u0e48\u0e2d\u0e40\u0e0a\u0e37\u0e48\u0e2d\u0e21\u0e15\u0e48\u0e2d Supabase \u0e44\u0e21\u0e48\u0e17\u0e49\u0e32\u0e22\u0e02\u0e49\u0e21\u0e14', 'error');
+                const supabaseError = new Error('ไม่สามารถเชื่อมต่อ Supabase ได้');
+                console.error('[loadAllData] Supabase unavailable');
+                markAllDataSectionsFailed(supabaseError);
+                showToast('❌ ไม่สามารถเชื่อมต่อ Supabase ได้ กรุณารีเฟรชหน้าเพื่อลองใหม่', 'error');
                 _renderAllViews();
                 return false;
             }
@@ -12529,16 +12609,42 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             //    render แต่ละส่วนทันทีที่ข้อมูลตารางนั้นมาถึง — ไม่ต้องรอทุกอย่างพร้อมกัน
             async function loadSecondaryData(needCorrections, needLeaves, needAdvances, needPayslips, tSup0) {
                 try {
-                    const [cRes, lRes, aRes, payRes] = await Promise.all([
+                    const [cOutcome, lOutcome, aOutcome, payOutcome] = await Promise.allSettled([
                         needCorrections ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
                         needLeaves ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
                         needAdvances ? supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId) : null,
                         needPayslips ? supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId) : null
                     ]);
+                    const readSectionResult = (outcome, section, requested) => {
+                        if (!requested) return null;
+                        let error = null;
+                        let data = null;
+                        if (outcome.status === 'rejected') {
+                            error = outcome.reason;
+                        } else if (outcome.value?.error) {
+                            error = outcome.value.error;
+                        } else if (!Array.isArray(outcome.value?.data)) {
+                            error = new Error('Supabase returned an invalid data response');
+                        } else {
+                            data = outcome.value.data;
+                        }
+                        if (error) {
+                            _sectionErrors[section] = error.message || String(error);
+                            _sectionReady[section] = true;
+                            console.error(`[loadSecondaryData] ${section} query failed:`, error);
+                            return null;
+                        }
+                        delete _sectionErrors[section];
+                        return data;
+                    };
+                    const cRes = readSectionResult(cOutcome, 'corrections', needCorrections);
+                    const lRes = readSectionResult(lOutcome, 'leave', needLeaves);
+                    const aRes = readSectionResult(aOutcome, 'advance', needAdvances);
+                    const payRes = readSectionResult(payOutcome, 'payslip', needPayslips);
 
                     // 1) คำขอแก้ไขเวลา → อัปเดตการแจ้งเตือน/สถิติ
-                    if (cRes && !cRes.error && Array.isArray(cRes.data)) {
-                        timeCorrectionsList = cRes.data.map(c => ({
+                    if (cRes) {
+                        timeCorrectionsList = cRes.map(c => ({
                             "รหัสพนักงาน": c.emp_id,
                             "วันที่": c.date,
                             "เวลาเข้าใหม่": c.new_time_in,
@@ -12555,8 +12661,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     // 2) คำขอลา → render ประวัติลา + อัปเดตสถิติ/กิจกรรม/แจ้งเตือน
-                    if (lRes && !lRes.error && Array.isArray(lRes.data)) {
-                        leaveRequestsList = lRes.data.map(l => ({
+                    if (lRes) {
+                        leaveRequestsList = lRes.map(l => ({
                             "เลขที่เอกสาร": l.doc_id,
                             "รหัสพนักงาน": l.emp_id,
                             "ประเภทการลา": l.leave_type,
@@ -12579,8 +12685,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     // 3) คำขอเบิกเงิน → render ประวัติเบิก + อัปเดตกิจกรรม/แจ้งเตือน
-                    if (aRes && !aRes.error && Array.isArray(aRes.data)) {
-                        advanceRequestsList = aRes.data.map(a => ({
+                    if (aRes) {
+                        advanceRequestsList = aRes.map(a => ({
                             "รหัสพนักงาน": a.emp_id,
                             "จำนวนเงิน": a.amount,
                             "วันที่เบิก": a.request_date,
@@ -12596,8 +12702,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     // 4) สลิปเงินเดือน → render รายการสลิป + แจ้งเตือนสลิปใหม่
-                    if (payRes && !payRes.error && Array.isArray(payRes.data)) {
-                        payslipsList = payRes.data.map(p => ({
+                    if (payRes) {
+                        payslipsList = payRes.map(p => ({
                             "รหัสพนักงาน": p.emp_id || '',
                             "รอบเงินเดือน": p.period || '',
                             "ชื่อไฟล์": p.file_name || '',
@@ -12619,24 +12725,50 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         try { if (typeof displayMonthlyReminders === 'function') displayMonthlyReminders(); } catch (e) { console.warn(e); }
                     }
 
-                    console.log('[loadAllData ⚡ Supabase] ✓ Secondary data loaded:', {
+                    const failedSections = Object.keys(_sectionErrors);
+                    console.log('[loadAllData ⚡ Supabase] Secondary data load completed:', {
                         corrections: timeCorrectionsList.length,
                         leave: leaveRequestsList.length,
                         advance: advanceRequestsList.length,
-                        payslip: payslipsList.length
+                        payslip: payslipsList.length,
+                        failedSections
                     });
                     if (typeof logDbActivity === 'function') {
-                        logDbActivity('READ', 'Dashboard', `ดึงข้อมูลส่วนตัวพนักงาน ${currentEmployeeId} (${leaveRequestsList.length} ลา, ${advanceRequestsList.length} เบิก, ${payslipsList.length} สลิป)`, 'success', Math.round(performance.now() - tSup0));
+                        const loadStatus = failedSections.length ? 'error' : 'success';
+                        const loadMessage = failedSections.length
+                            ? `โหลดข้อมูลส่วนรองไม่ครบ: ${failedSections.join(', ')}`
+                            : `ดึงข้อมูลส่วนตัวพนักงาน ${currentEmployeeId} (${leaveRequestsList.length} ลา, ${advanceRequestsList.length} เบิก, ${payslipsList.length} สลิป)`;
+                        logDbActivity(failedSections.length ? 'ERROR' : 'READ', 'Dashboard', loadMessage, loadStatus, Math.round(performance.now() - tSup0));
                     }
                     // Render รอบสุดท้าย (debounce) — เก็บส่วนที่อาจยังค้างอยู่ทั้งหมด
+                    if (_sectionErrors.leave) displayLeaveHistory();
+                    if (_sectionErrors.advance) displayAdvanceHistory();
+                    if (_sectionErrors.payslip) displayPayslipList();
+                    if (Object.keys(_sectionErrors).length) displayMonthlyReminders();
                     _renderAllViews();
                 } catch (err) {
-                    // โหลดส่วนรองไม่สำเร็จ → ให้ส่วนที่เหลือแสดงสถานะว่าง ไม่ค้าง skeleton
-                    Object.keys(_sectionReady).forEach(k => { _sectionReady[k] = true; });
+                    const requestedSections = [
+                        ['corrections', needCorrections],
+                        ['leave', needLeaves],
+                        ['advance', needAdvances],
+                        ['payslip', needPayslips]
+                    ];
+                    requestedSections.forEach(([section, requested]) => {
+                        if (requested && !_sectionReady[section]) {
+                            _sectionErrors[section] = err.message || String(err);
+                            _sectionReady[section] = true;
+                        }
+                    });
                     if (typeof logDbActivity === 'function') {
                         logDbActivity('ERROR', 'Supabase', `ดึงข้อมูลส่วนรองไม่สำเร็จ: ${err.message || err}`, 'error');
                     }
                     console.error('[loadSecondaryData] ERROR:', err.message || err);
+                    if (_sectionErrors.leave) displayLeaveHistory();
+                    if (_sectionErrors.advance) displayAdvanceHistory();
+                    if (_sectionErrors.payslip) displayPayslipList();
+                    if (['timeRecords', 'recentTimeRecords', 'leave', 'advance'].some(section => _sectionErrors[section])) displayActivitiesList();
+                    if (Object.keys(_sectionErrors).length) displayMonthlyReminders();
+                    showToast('❌ โหลดข้อมูลบางส่วนไม่สำเร็จ กรุณาลองใหม่', 'error');
                 }
             }
 
@@ -12821,8 +12953,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function displayAnnouncements() {
                 const panelContainer = document.getElementById('notification-announcements');
                 const pageContainer = document.getElementById('page-announcements-list');
+                if (_sectionErrors.announcements) {
+                    const errorHtml = '<div class="bg-rose-50 rounded-2xl border border-rose-200 p-4 text-rose-700 text-xs text-center">โหลดข่าวสารไม่สำเร็จ กรุณารีเฟรชหน้าเพื่อลองใหม่</div>';
+                    [panelContainer, pageContainer].forEach(container => {
+                        if (container) container.innerHTML = errorHtml;
+                    });
+                    return;
+                }
                 // 🟢 PROGRESSIVE: ประกาศยังโหลดไม่เสร็จ → แสดง skeleton แทน "ไม่พบข่าวสาร"
-                if (!publicDataLoaded && getStoredAnnouncements().length === 0) {
+                if (!publicDataAttempted && getStoredAnnouncements().length === 0) {
                     [panelContainer, pageContainer].forEach(c => {
                         if (c && c.children.length === 0) c.innerHTML = skeletonHTML('card', 3);
                     });
@@ -12910,7 +13049,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 try {
                     const ann = getStoredAnnouncements();
                     newAnnouncementsCount = ann.filter(a => {
-                        const d = (a["วันที่โพสต์"] || a["postDate"] || "").toString().trim();
+                        const d = (a.date || a["วันที่โพสต์"] || a.postDate || a.posted_at || "").toString().trim();
                         return d && d >= sevenDaysAgoStr;
                     }).length;
                 } catch(e) { /* ignore */ }
@@ -12948,6 +13087,28 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         icon: 'fa-hand-holding-dollar',
                         color: 'bg-orange-50 text-orange-700',
                         badge: pendingAdvance.length
+                    });
+                }
+
+                const failedSectionLabels = [
+                    ['primary', 'ข้อมูลหลักของระบบ'],
+                    ['timeRecords', 'เวลางานในรอบบัญชี'],
+                    ['recentTimeRecords', 'กิจกรรมเวลางานล่าสุด'],
+                    ['settings', 'การตั้งค่าระบบ'],
+                    ['projects', 'ข้อมูลโครงการ'],
+                    ['holidays', 'ข้อมูลวันหยุด'],
+                    ['announcements', 'ข่าวสาร'],
+                    ['corrections', 'คำขอแก้ไขเวลา'],
+                    ['leave', 'ประวัติการลา'],
+                    ['advance', 'ประวัติการเบิกเงิน'],
+                    ['payslip', 'สลิปเงินเดือน']
+                ].filter(([key]) => _sectionErrors[key]).map(([, label]) => label);
+                if (failedSectionLabels.length > 0) {
+                    reminders.push({
+                        title: 'โหลดข้อมูลบางส่วนไม่สำเร็จ',
+                        description: `ข้อมูล${failedSectionLabels.join(' / ')}อาจแสดงไม่ครบ กรุณารีเฟรชหน้าเพื่อลองใหม่`,
+                        icon: 'fa-triangle-exclamation',
+                        color: 'bg-rose-50 text-rose-700'
                     });
                 }
 
@@ -13844,6 +14005,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const text = document.getElementById("attendance-dayoff-text");
                 const btnIn = document.getElementById("btn-attendance-in");
                 const btnOut = document.getElementById("btn-attendance-out");
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                const todayRecord = [...(timeRecordsList || []), ...(allTimeRecordsList || [])].find(r => r["วันที่"] === todayStr);
+                const activeCycle = getCurrentCycleRange();
+                const activeCycleContainsToday = todayStr >= activeCycle.start && todayStr <= activeCycle.end;
+                const attendanceDataUnavailable = !todayRecord && (
+                    !!_sectionErrors.primary ||
+                    (!!_sectionErrors.recentTimeRecords && (!activeCycleContainsToday || !!_sectionErrors.timeRecords))
+                );
 
                 if (box) {
                     box.classList.toggle("border-rose-200", info.warning);
@@ -13852,14 +14022,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     box.classList.toggle("bg-slate-50", !info.warning);
                 }
                 if (text) {
+                    if (attendanceDataUnavailable) {
+                        text.innerHTML = '<span class="font-semibold">ตรวจสอบสถานะลงเวลาไม่ได้</span><br>โหลดข้อมูลเวลาไม่สำเร็จ กรุณารีเฟรชหน้าเพื่อลองใหม่';
+                    } else {
                     text.innerHTML = `<span class="font-semibold">${info.label}</span><br>${info.description}`;
+                    }
                 }
 
                 // Check today's time record to disable buttons
-                const today = new Date();
-                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-                const todayRecord = timeRecordsList.find(r => r["วันที่"] === todayStr);
-
                 let hasIn = false;
                 let hasOut = false;
                 if (todayRecord) {
@@ -13868,14 +14038,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 if (btnIn) {
-                    btnIn.disabled = hasIn;
-                    btnIn.classList.toggle("opacity-50", hasIn);
-                    btnIn.classList.toggle("cursor-not-allowed", hasIn);
+                    btnIn.disabled = hasIn || attendanceDataUnavailable;
+                    btnIn.classList.toggle("opacity-50", hasIn || attendanceDataUnavailable);
+                    btnIn.classList.toggle("cursor-not-allowed", hasIn || attendanceDataUnavailable);
                 }
                 if (btnOut) {
-                    btnOut.disabled = hasOut;
-                    btnOut.classList.toggle("opacity-50", hasOut);
-                    btnOut.classList.toggle("cursor-not-allowed", hasOut);
+                    btnOut.disabled = hasOut || attendanceDataUnavailable;
+                    btnOut.classList.toggle("opacity-50", hasOut || attendanceDataUnavailable);
+                    btnOut.classList.toggle("cursor-not-allowed", hasOut || attendanceDataUnavailable);
                 }
 
                 // Phase 7 (Kiosk): ไม่ถ่ายรูป = เครื่องสแกนอัตโนมัติ (ซ่อนแถวปุ่ม) · ถ่ายรูปแล้ว = วิธีเดิม (ปุ่มเข้า/ออก)
@@ -13898,22 +14068,31 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (!_sectionReady.primary) {
                         bannerText.innerHTML = '<span class="skeleton" style="display:inline-block;width:120px;height:12px;vertical-align:middle;"></span>';
                         bannerTime.innerHTML = '<span class="skeleton" style="display:inline-block;width:170px;height:10px;vertical-align:middle;"></span>';
+                    } else if (attendanceDataUnavailable) {
+                        bannerText.textContent = 'ตรวจสอบสถานะลงเวลาไม่ได้';
+                        bannerTime.textContent = 'กรุณารีเฟรชหน้าเพื่อลองใหม่';
+                        bannerBtn.textContent = 'ยังลงเวลาไม่ได้';
+                        bannerBtn.disabled = true;
+                        bannerBtn.classList.remove('pulse-ring');
                     } else if (hasIn && !hasOut) {
                         bannerText.textContent = 'เข้างานแล้ว · ปกติ';
                         bannerTime.textContent = 'เวลาเข้า ' + (todayRecord['เวลาเข้า'] || '...') + ' น. · ยังไม่ได้ลงเวลาออก';
                         bannerBtn.textContent = 'ออกงาน';
+                        bannerBtn.disabled = false;
                         bannerBtn.onclick = function() { navigateTo('attendance'); };
                         bannerBtn.classList.add('pulse-ring');
                     } else if (hasIn && hasOut) {
                         bannerText.textContent = 'ลงเวลาครบแล้ว · ปกติ';
                         bannerTime.textContent = 'เข้า ' + (todayRecord['เวลาเข้า'] || '...') + ' → ออก ' + (todayRecord['เวลาออก'] || '...');
                         bannerBtn.textContent = 'ดูรายละเอียด';
+                        bannerBtn.disabled = false;
                         bannerBtn.onclick = function() { navigateTo('calendar'); };
                         bannerBtn.classList.remove('pulse-ring');
                     } else {
                         bannerText.textContent = 'ยังไม่ได้ลงเวลาวันนี้';
                         bannerTime.textContent = 'กรุณาลงเวลาเข้างาน';
                         bannerBtn.textContent = 'ลงเวลา';
+                        bannerBtn.disabled = false;
                         bannerBtn.onclick = function() { navigateTo('attendance'); };
                         bannerBtn.classList.add('pulse-ring');
                     }
@@ -14186,6 +14365,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             function calculateAndDisplayStats() {
                 // 🟢 PROGRESSIVE: ข้อมูลหลักยังไม่พร้อม → แสดง skeleton แทนเลข 0 หลอกๆ
                 if (!_sectionReady.primary) { showStatsSkeleton(); return; }
+                if (_sectionErrors.primary || _sectionErrors.timeRecords) {
+                    ["stat-work-days", "stat-late-minutes", "stat-ot-hours", "stat-absent-days", "stat-leave-days"].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = "—";
+                    });
+                    return;
+                }
 
                 // === 🟢 PHASE D-1: ใช้ Status Map ครอบคลุมทุกค่าที่ปรากฏในชีตจริง ===
                 const STATUS_CATEGORY = {
@@ -14474,7 +14660,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 allActivities.sort((a, b) => b.ts - a.ts);
 
                 if (allActivities.length === 0) {
-                    listContainer.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีกิจกรรมล่าสุดในระบบ</div>`;
+                    listContainer.innerHTML = ['primary', 'timeRecords', 'recentTimeRecords', 'leave', 'advance'].some(section => _sectionErrors[section])
+                        ? `<div class="bg-rose-50 rounded-xl p-6 text-center text-rose-700 text-xs border border-rose-200">โหลดข้อมูลกิจกรรมบางส่วนไม่สำเร็จ กรุณาลองใหม่</div>`
+                        : `<div class="bg-white rounded-xl p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200">ยังไม่มีกิจกรรมล่าสุดในระบบ</div>`;
                     return;
                 }
 
@@ -14613,6 +14801,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
         `;
                     listContainer.appendChild(card);
                 });
+                if (['primary', 'timeRecords', 'recentTimeRecords', 'leave', 'advance'].some(section => _sectionErrors[section])) {
+                    const warning = document.createElement("div");
+                    warning.className = "bg-amber-50 border-t border-amber-200 px-3 py-2 text-[11px] text-amber-800";
+                    warning.textContent = "ข้อมูลกิจกรรมอาจแสดงไม่ครบ เนื่องจากโหลดข้อมูลบางส่วนไม่สำเร็จ";
+                    listContainer.appendChild(warning);
+                }
             }
 
             // --- ส่วนแสดงประวัติและการสลับรอบปฏิทิน ---
@@ -14633,6 +14827,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (!container) return;
                 // 🟢 PROGRESSIVE: ข้อมูลหลักยังไม่พร้อม → แสดง skeleton
                 if (!_sectionReady.primary) {
+                    showSkeleton('calendar-days-list', 'card', 4);
+                    const cnt = document.getElementById("calendar-records-count");
+                    if (cnt) cnt.textContent = '...';
+                    return;
+                }
+                if (_sectionErrors.primary || _sectionErrors.timeRecords || _sectionErrors.leave || _sectionErrors.holidays) {
+                    const failedSources = [
+                        ['primary', 'ข้อมูลหลัก'],
+                        ['timeRecords', 'เวลางาน'],
+                        ['leave', 'ข้อมูลการลา'],
+                        ['holidays', 'ข้อมูลวันหยุด']
+                    ].filter(([section]) => _sectionErrors[section]).map(([, label]) => label);
+                    container.innerHTML = `<div class="bg-rose-50 rounded-xl p-6 text-center text-rose-700 text-xs border border-rose-200">โหลดข้อมูลปฏิทินไม่ครบ (${failedSources.join(' / ')}) กรุณารีเฟรชหน้าเพื่อลองใหม่</div>`;
+                    const cnt = document.getElementById("calendar-records-count");
+                    if (cnt) cnt.textContent = "—";
+                    return;
+                }
+                if (!_sectionReady.leave) {
                     showSkeleton('calendar-days-list', 'card', 4);
                     const cnt = document.getElementById("calendar-records-count");
                     if (cnt) cnt.textContent = '...';
@@ -14929,6 +15141,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (!container) return;
                 // 🟢 PROGRESSIVE: ข้อมูลลายังไม่พร้อม → แสดง skeleton
                 if (!_sectionReady.leave) { showSkeleton('leave-history-list', 'card', 3); return; }
+                if (_sectionErrors.leave) {
+                    container.innerHTML = `<div class="bg-rose-50 rounded-xl p-6 text-center text-rose-700 text-xs border border-rose-200">โหลดประวัติการลาไม่สำเร็จ กรุณารีเฟรชหน้าเพื่อลองใหม่</div>`;
+                    return;
+                }
                 container.innerHTML = "";
 
                 if (leaveRequestsList.length === 0) {
@@ -15838,6 +16054,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (!container) return;
                 // 🟢 PROGRESSIVE: ข้อมูลเบิกเงินยังไม่พร้อม → แสดง skeleton
                 if (!_sectionReady.advance) { showSkeleton('advance-history-list', 'card', 3); return; }
+                if (_sectionErrors.advance) {
+                    container.innerHTML = `<div class="bg-rose-50 rounded-xl p-6 text-center text-rose-700 text-xs border border-rose-200">โหลดประวัติการเบิกเงินไม่สำเร็จ กรุณารีเฟรชหน้าเพื่อลองใหม่</div>`;
+                    return;
+                }
                 container.innerHTML = "";
 
                 if (advanceRequestsList.length === 0) {
@@ -16002,6 +16222,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (!container) return;
                 // 🟢 PROGRESSIVE: ข้อมูลสลิปยังไม่พร้อม → แสดง skeleton
                 if (!_sectionReady.payslip) { showSkeleton('payslip-records-list', 'card', 3); return; }
+                if (_sectionErrors.payslip) {
+                    container.innerHTML = `<div class="bg-rose-50 rounded-xl p-6 text-center text-rose-700 text-xs border border-rose-200">โหลดรายการสลิปเงินเดือนไม่สำเร็จ กรุณารีเฟรชหน้าเพื่อลองใหม่</div>`;
+                    return;
+                }
                 const countBadge = document.getElementById("payslip-count-badge");
                 container.innerHTML = "";
                 console.log('[displayPayslipList] payslipsList:', payslipsList.length, 'items', payslipsList.slice(0, 2));
@@ -16408,7 +16632,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const project = document.getElementById("attendance-project-select").value;
                     const preview = document.getElementById("photo-preview");
                     const timeStr = document.getElementById("live-time").textContent;
-                    const dateStr = new Date().toISOString().split('T')[0];
+                    const dateStr = getTodayDateString();
 
                     let photoBase64 = "";
                     if (!preview.classList.contains("hidden")) {
@@ -16488,7 +16712,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         timeElement.textContent = Utilities_formatTime(now);
                     }
                     if (dateElement) {
-                        dateElement.textContent = formatThaiDate(now.toISOString().split('T')[0]);
+                        dateElement.textContent = formatThaiDate(getTodayDateString());
                     }
                 };
                 tick();
@@ -20596,7 +20820,7 @@ async function loadAdminEmployees() {
             // Helper: Get today's date as YYYY-MM-DD string
             function getTodayDateString() {
                 const today = new Date();
-                return today.toISOString().split('T')[0];
+                return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             }
 
             function safeJson(obj) {
@@ -37032,7 +37256,7 @@ async function faceScanSubmitPunch(score) {
     const geoOk = !!(pos && pos.lat != null && pos.lng != null);
 
     const timeStr = (enrollEl('live-time') && enrollEl('live-time').textContent) || '';
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = getTodayDateString();
     const projectEl = enrollEl('attendance-project-select');
     const payload = {
         action: 'registerAttendance',
@@ -37433,15 +37657,18 @@ async function mgrResolvePunchType(empId) {
             const t = mgrState.todayCache[empId];
             return (!t.hasIn) ? 'IN' : (!t.hasOut ? 'OUT' : null);
         }
-        const dateStr = new Date().toISOString().split('T')[0];
-        const { data } = await supabaseClient.from('time_records')
+        if (!supabaseClient) throw new Error('Supabase ยังไม่พร้อมสำหรับตรวจสอบสถานะลงเวลา');
+        const dateStr = getTodayDateString();
+        const { data, error } = await supabaseClient.from('time_records')
             .select('time_in, time_out').eq('emp_id', empId).eq('date', dateStr).maybeSingle();
+        if (error) throw error;
         const hasIn = !!(data && data.time_in);
         const hasOut = !!(data && data.time_out);
         mgrState.todayCache[empId] = { hasIn: hasIn, hasOut: hasOut };
         return (!hasIn) ? 'IN' : (!hasOut ? 'OUT' : null);
     } catch (e) {
-        return 'IN';
+        console.error('[ManagerScan] could not resolve punch type:', e);
+        throw e;
     }
 }
 
@@ -37456,14 +37683,28 @@ async function mgrSubmitPunch(empId, mode, score, evidence) {
     const timeStr = (mgrEl('live-time') && mgrEl('live-time').textContent) || new Date().toTimeString().slice(0, 8);
     const projectEl = mgrEl('attendance-project-select');
     // ⚡ ระบุ type (IN/OUT) จากการตรวจสอบ time_records ปัจจุบัน
-    const punchType = await mgrResolvePunchType(empId);
+    let punchType;
+    try {
+        punchType = await mgrResolvePunchType(empId);
+    } catch (err) {
+        mgrState.submitting = false;
+        mgrStatus('❌ ตรวจสอบสถานะลงเวลาไม่สำเร็จ — กรุณาลองใหม่', '#dc2626');
+        showToast('❌ ตรวจสอบสถานะลงเวลาไม่สำเร็จ กรุณาลองใหม่', 'error');
+        return;
+    }
+    if (!punchType) {
+        mgrState.submitting = false;
+        mgrStatus('ℹ️ พนักงานลงเวลาเข้า-ออกครบแล้วในวันนี้', '#64748b');
+        showToast('พนักงานลงเวลาเข้า-ออกครบแล้วในวันนี้', 'warning');
+        return;
+    }
     const payload = {
         action: 'logFaceScanEvent',
         empId: empId,
         project: (projectEl && projectEl.value) || '',
         lat: geoOk ? pos.lat : '',
         lng: geoOk ? pos.lng : '',
-        type: punchType || 'IN',
+        type: punchType,
         scanMode: mode,
         createdBy: currentEmployeeId,
         similarityScore: (mode === 'manager_face' && score != null) ? score : undefined,
@@ -38108,21 +38349,25 @@ async function kioskSubmitRawEvent(desc, score, sharp, evidence) {
         const timeStr = (kioskEl('live-time') && kioskEl('live-time').textContent) || now.toTimeString().slice(0, 8);
         const projectEl = kioskEl('attendance-project-select');
         // ⚡ ระบุ type (IN/OUT) จาก time_records ปัจจุบัน
+        if (!supabaseClient) throw new Error('Supabase ยังไม่พร้อมสำหรับตรวจสอบสถานะลงเวลา');
+        const dateStr = getTodayDateString();
+        const { data: trData, error: trError } = await supabaseClient.from('time_records')
+            .select('time_in, time_out').eq('emp_id', currentEmployeeId).eq('date', dateStr).maybeSingle();
+        if (trError) throw new Error(`ตรวจสอบสถานะลงเวลาไม่สำเร็จ: ${trError.message || trError}`);
         let kioskType = 'IN';
-        try {
-            const dateStr = now.toISOString().split('T')[0];
-            const { data: trData } = await supabaseClient.from('time_records')
-                .select('time_in, time_out').eq('emp_id', currentEmployeeId).eq('date', dateStr).maybeSingle();
-            if (trData && trData.time_in && !trData.time_out) kioskType = 'OUT';
-            else if (trData && trData.time_in && trData.time_out) kioskType = null; // ลงครบแล้ว
-        } catch (e) { /* fallback to IN */ }
+        if (trData && trData.time_in && !trData.time_out) kioskType = 'OUT';
+        else if (trData && trData.time_in && trData.time_out) {
+            kioskStatus('ℹ️ ลงเวลาเข้า-ออกครบแล้วในวันนี้', 'warn');
+            kiosk.submitting = false;
+            return;
+        }
         const payload = {
             action: 'logFaceScanEvent',
             empId: currentEmployeeId,
             project: (projectEl && projectEl.value) || '',
             lat: geoOk ? pos.lat : '',
             lng: geoOk ? pos.lng : '',
-            type: kioskType || 'IN',
+            type: kioskType,
             similarityScore: score,
             livenessOk: true,
             geofenceResult: geoOk ? 'soft_recorded' : 'no_gps',
@@ -38147,7 +38392,7 @@ async function kioskSubmitRawEvent(desc, score, sharp, evidence) {
         }
     } catch (e) {
         console.error('[Kiosk] submit error:', e);
-        kioskStatus('❌ ติดต่อเน็ตเวิร์กไม่สำเร็จ — มองกล้องอีกครั้ง', 'err');
+        kioskStatus('❌ ตรวจสอบหรือบันทึกเวลาไม่สำเร็จ — มองกล้องอีกครั้ง', 'err');
     }
     kiosk.submitting = false;
 }
