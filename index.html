@@ -6424,6 +6424,12 @@
                                         class="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2">
                                         <option value="">กำลังจัดกลุ่มจากตำแหน่ง…</option>
                                     </select>
+                                    <label for="leave-summary-sort" class="ml-2 text-sm font-semibold text-slate-700">เรียงตาม:</label>
+                                    <select id="leave-summary-sort" onchange="renderLeaveEntitlementSummary()"
+                                        class="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2">
+                                        <option value="used-desc">จำนวนวันลามากไปน้อย</option>
+                                        <option value="employee-id">รหัสพนักงาน</option>
+                                    </select>
                             </div>
                             <div class="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
                                 <label class="sr-only" for="leave-summary-status-filter">กรองสถานะสิทธิ</label>
@@ -7200,7 +7206,7 @@
                                         <option value="employee">พนักงานทั่วไป</option>
                                     </select>
                                     <select id="admin-emp-dept-filter" onchange="filterAdminEmployeesByDept(this.value)"
-                                        title="กรองตามแผนก" aria-label="กรองตามแผนก"
+                                        title="กรองตามฝ่าย/แผนกที่มีจริงหรือจำแนกจากตำแหน่ง" aria-label="กรองตามฝ่าย/แผนกที่มีจริงหรือจำแนกจากตำแหน่ง"
                                         class="bg-slate-50/50 border border-slate-200/80 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand-deep focus:outline-none cursor-pointer">
                                         <option value="all">ทุกแผนก</option>
                                     </select>
@@ -17518,7 +17524,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         const emp = adminEmployeesMap.get(empId) || (Array.isArray(adminEmployeesList) ? adminEmployeesList.find(e => String(e.emp_id || e['รหัสพนักงาน'] || '').trim() === empId) : null);
                         const empName = emp ? (emp["ชื่อ-นามสกุล"] || emp.name || empId) : (getAdminEmployeeName(empId) || empId);
                         const position = emp ? (emp["ตำแหน่ง"] || emp.position || '-') : '-';
-                        const dept = typeof classifyPositionToDepartment === 'function' ? (classifyPositionToDepartment(position) || '-') : '-';
+                        const dept = getLeaveSummaryDepartment(emp || { position });
                         const leaveType = item.leave_type || 'ลางาน';
                         const reason = item.reason || '-';
                         const period = (item.start_date === item.end_date)
@@ -17595,82 +17601,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
 
-            /**
-             * จัดกลุ่มตำแหน่งพนักงานเป็นแผนกอัตโนมัติ (Smart Position-Based Mapping)
-             * เหมาะกับธุรกิจก่อสร้าง (ถนน / สะพาน / โครงสร้างพื้นฐาน) และสำนักงาน
-             * @param {string} position - ตำแหน่งพนักงาน
-             * @returns {string|null} ชื่อแผนก หรือ null ถ้าจัดกลุ่มไม่ได้
-             */
+            // คงชื่อเดิมไว้ให้ caller เก่า แต่ใช้กฎจำแนกเดียวกับสรุปสิทธิการลา
             function classifyPositionToDepartment(position) {
-                if (!position) return 'หน้างาน/ก่อสร้าง';
-                const p = position.toString().trim().toLowerCase();
-
-                // ─── 1. สำนักงาน / บริหาร / บัญชี-การเงิน / จัดซื้อ-จัดจ้าง / ธุรการ / แม่บ้าน ───
-                if (p.includes('ผู้จัดการ') || p.includes('ผจก') || p.includes('manager') ||
-                    p.includes('ผู้อำนวยการ') || p.includes('ผอ') || p.includes('director') ||
-                    p.includes('กรรมการ') || p.includes('ประธาน') || p.includes('ผู้บริหาร') ||
-                    p.includes('hr') || p.includes('บุคคล') || p.includes('ทรัพยากรมนุษย์') || p.includes('แรงงาน') ||
-                    p.includes('บัญชี') || p.includes('account') || p.includes('การเงิน') || p.includes('finance') ||
-                    p.includes('งบประมาณ') || p.includes('ต้นทุน') || p.includes('cost') || p.includes('budget') ||
-                    p.includes('ธุรการ') || p.includes('admin') || p.includes('สำนักงาน') || p.includes('office') ||
-                    p.includes('ออฟฟิศ') || p.includes('เสมียน') || p.includes('ทะเบียน') ||
-                    p.includes('ประสานงาน') || p.includes('coordinator') || p.includes('เลขา') || p.includes('secretary') ||
-                    p.includes('จัดซื้อ') || p.includes('จัดชื้อ') || p.includes('จัดหา') || p.includes('จัดจ้าง') ||
-                    p.includes('purchase') || p.includes('procurement') ||
-                    p.includes('ไอที') || p.includes('it ') || p.includes('computer') || p.includes('developer') ||
-                    p.includes('การตลาด') || p.includes('marketing') || p.includes('ประมูล') || p.includes('bid') ||
-                    p.includes('ขาย') || p.includes('sales') || p.includes('สัญญา') || p.includes('contract') ||
-                    p.includes('แม่บ้าน') || p.includes('แม่ครัว') || p.includes('ทำครัว') ||
-                    p === 'it' || p === 'ผู้บริหาร') {
-                    return 'สำนักงาน';
-                }
-
-                // ─── 2. วิศวกรรม / โครงการ / สำรวจ (Survey) / ออกแบบ / เซฟตี้ (Safety) ───
-                if (p.includes('วิศวกร') || p.includes('engineer') || p.includes('นายช่าง') ||
-                    p.includes('ช่างควบคุมงาน') || p.includes('ควบคุมงาน') || p.includes('site') ||
-                    p.includes('สำรวจ') || p.includes('survey') || p.includes('เซอร์เวย์') ||
-                    p.includes('ออกแบบ') || p.includes('design') || p.includes('เขียนแบบ') || p.includes('draft') || p.includes('cad') || p.includes('bim') ||
-                    p.includes('ประมาณราคา') || p.includes('ถอดแบบ') || p.includes('estimator') || p.includes('qs') ||
-                    p.includes('qc') || p.includes('qa') || p.includes('ตรวจสอบคุณภาพ') || p.includes('ทดสอบ') ||
-                    p.includes('จป') || p.includes('safety') || p.includes('ความปลอดภัย') || p.includes('เซฟตี้') || p.includes('เซฟติ้') ||
-                    p.includes('วางแผน') || p.includes('planning') || p.includes('แผนงาน') ||
-                    p.includes('โครงการ') || p.includes('project')) {
-                    return 'วิศวกรรม/โครงการ';
-                }
-
-                // ─── 3. เครื่องจักร / ยานพาหนะ / ซ่อมบำรุง / ขับรถ / รปภ. / คลังอะไหล่ ───
-                if (p.includes('ขับ') || p.includes('driver') || p.includes('operator') ||
-                    p.includes('แบคโฮ') || p.includes('แม็คโคร') || p.includes('backhoe') || p.includes('excavator') ||
-                    p.includes('รถบรรทุก') || p.includes('truck') || p.includes('สิบล้อ') || p.includes('ดั้ม') || p.includes('ดั๊มพ์') || p.includes('พ่วง') ||
-                    p.includes('รถบด') || p.includes('roller') || p.includes('compactor') ||
-                    p.includes('รถเกรด') || p.includes('grader') || p.includes('แทรกเตอร์') || p.includes('tractor') ||
-                    p.includes('รถน้ำ') || p.includes('รถไถ') || p.includes('รถโรยปูน') || p.includes('รถบริการ') ||
-                    p.includes('เครน') || p.includes('crane') || p.includes('รถยก') || p.includes('forklift') ||
-                    p.includes('ซ่อม') || p.includes('ช่างเครื่อง') || p.includes('ช่างยนต์') || p.includes('mechanic') ||
-                    p.includes('ช่างไฟ') || p.includes('ไฮดรอลิก') || p.includes('อะไหล่') || p.includes('ออยเลอร์') ||
-                    p.includes('ปั๊มน้ำมัน') || p.includes('ยานพาหนะ') || p.includes('โรงซ่อม') || p.includes('อู่') ||
-                    p.includes('สโตร์') || p.includes('คลัง') || p.includes('warehouse') || p.includes('store') ||
-                    p.includes('ยาม') || p.includes('รปภ') || p.includes('คนสวน')) {
-                    return 'เครื่องจักร/ยานพาหนะ';
-                }
-
-                // ─── 4. หน้างาน / ก่อสร้าง / งานถนน-สะพาน / ปูยาง / คอนกรีต / ช่างก่อสร้าง ───
-                if (p.includes('โฟร์แมน') || p.includes('foreman') || p.includes('หัวหน้างาน') || p.includes('หัวหน้าคนงาน') ||
-                    p.includes('นายงาน') || p.includes('ช่วยนายงาน') || p.includes('ช่างก่อสร้าง') || p.includes('ก่อสร้าง') || p.includes('คนงาน') ||
-                    p.includes('ช่างปูน') || p.includes('ช่างเหล็ก') || p.includes('ช่างไม้') || p.includes('ช่างเชื่อม') ||
-                    p.includes('ถนน') || p.includes('ทาง') || p.includes('สะพาน') || p.includes('bridge') ||
-                    p.includes('คอนกรีต') || p.includes('concrete') || p.includes('เทปูน') ||
-                    p.includes('ยาง') || p.includes('ปูยาง') || p.includes('ลาดยาง') || p.includes('มิกซ์') || p.includes('แอสฟัลต์') || p.includes('asphalt') ||
-                    p.includes('รีไซกิ้ง') || p.includes('recycle') || p.includes('ชุดรีไซ') || p.includes('ชุดลาด') ||
-                    p.includes('ดิน') || p.includes('ขุด') || p.includes('ถม') || p.includes('บดอัด') ||
-                    p.includes('ท่อ') || p.includes('ระบายน้ำ') || p.includes('คันกั้น') || p.includes('คู') ||
-                    p.includes('เสาเข็ม') || p.includes('ฐานราก') || p.includes('เข็ม') ||
-                    p.includes('สนาม') || p.includes('หน้างาน') || p.includes('แพล้น') || p.includes('โรงโม่') ||
-                    p.includes('ทั่วไป') || p.includes('เลเบอร์') || p.includes('แรงงาน')) {
-                    return 'หน้างาน/ก่อสร้าง';
-                }
-
-                return 'หน้างาน/ก่อสร้าง';
+                return inferLeaveSummaryDepartmentFromPosition(position);
             }
 
             async function renderDashboardDepartmentAndLeaveStats() {
@@ -17709,10 +17642,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     employees.forEach(emp => {
                         const id = (emp['รหัสพนักงาน'] || emp.emp_id || '').toString().trim();
-                        // ใช้ทั้ง position จาก emp โดยตรง และ "ตำแหน่ง" จากการ map
-                        const position = (emp['ตำแหน่ง'] || emp.position || '').toString().trim();
-                        const bucket = classifyPositionToDepartment(position);
-                        if (!bucket) return; // ตำแหน่งไม่ match keyword ใดเลย
+                        const bucket = getLeaveSummaryDepartment(emp);
 
                         if (!bucketMap[bucket]) bucketMap[bucket] = { total: 0, present: 0, label: bucket };
                         bucketMap[bucket].total += 1;
@@ -17724,13 +17654,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         .sort((a, b) => b.total - a.total);
 
                     const toneMap = {
-                        'สำนักงาน': 'bg-indigo-500',
-                        'วิศวกรรม/โครงการ': 'bg-blue-500',
-                        'หน้างาน/ก่อสร้าง': 'bg-amber-500',
-                        'เครื่องจักร/ยานพาหนะ': 'bg-emerald-500',
-                        'ฝ่ายผลิต': 'bg-blue-500',
-                        'ฝ่ายซ่อมบำรุง': 'bg-amber-500',
-                        'คลังสินค้า': 'bg-violet-500'
+                        'ฝ่ายบริหารและอำนวยการ': 'bg-indigo-500',
+                        'ฝ่ายบริหารงานบุคคล': 'bg-violet-500',
+                        'ฝ่ายจัดซื้อและจัดจ้าง': 'bg-cyan-500',
+                        'ฝ่ายการเงินและบัญชี': 'bg-emerald-500',
+                        'ฝ่ายวิศวกรรม คุมงาน และสำรวจ': 'bg-blue-500',
+                        'ฝ่ายความปลอดภัย': 'bg-rose-500',
+                        'ฝ่ายปฏิบัติการก่อสร้างและแพล้นท์': 'bg-amber-500',
+                        'ฝ่ายขนส่งและยานพาหนะ': 'bg-teal-500',
+                        'ฝ่ายซ่อมบำรุงและเทคนิค': 'bg-orange-500',
+                        'ฝ่ายแม่บ้าน คนสวน และบริการ': 'bg-violet-500',
+                        'ไม่สามารถจำแนกแผนก': 'bg-slate-400'
                     };
                     const defaultTones = ['bg-cyan-500', 'bg-rose-500', 'bg-orange-500', 'bg-teal-500'];
                     let toneIdx = 0;
@@ -19823,7 +19757,7 @@ async function loadAdminEmployees() {
                     list = list.filter(emp => getAdminRoleCategory(emp["สิทธิ์การใช้งาน"] || "Employee") === adminEmpRoleFilter);
                 }
                 if (adminEmpDeptFilter !== 'all') {
-                    list = list.filter(emp => (typeof classifyPositionToDepartment === 'function' ? classifyPositionToDepartment(emp["ตำแหน่ง"]) : '') === adminEmpDeptFilter);
+                    list = list.filter(emp => getLeaveSummaryDepartment(emp) === adminEmpDeptFilter);
                 }
                 if (adminEmpCompanyFilter !== 'all') {
                     list = list.filter(emp => (emp["ชื่อบริษัท"] || '') === adminEmpCompanyFilter);
@@ -19865,7 +19799,7 @@ async function loadAdminEmployees() {
 
                 const depts = new Set();
                 all.forEach(e => {
-                    const d = (typeof classifyPositionToDepartment === 'function') ? classifyPositionToDepartment(e["ตำแหน่ง"]) : '';
+                    const d = getLeaveSummaryDepartment(e);
                     if (d) depts.add(d);
                 });
                 fillEmpFilterOptions('admin-emp-dept-filter', depts, 'ทุกแผนก');
@@ -19928,7 +19862,7 @@ async function loadAdminEmployees() {
                 const pos = emp["ตำแหน่ง"] || "-";
                 const status = emp["สถานะ"] || "ทำงานปกติ";
                 const phone = emp["เบอร์โทรศัพท์"] || "-";
-                const dept = (typeof classifyPositionToDepartment === 'function') ? (classifyPositionToDepartment(emp["ตำแหน่ง"]) || '-') : '-';
+                const dept = getLeaveSummaryDepartment(emp);
 
                 const statusBadge = getEmpStatusBadgeHtml(status);
                 const roleBadge = getAdminRoleBadgeHtml(emp["สิทธิ์การใช้งาน"] || "Employee");
@@ -19969,7 +19903,7 @@ async function loadAdminEmployees() {
                     const name = emp["ชื่อ-นามสกุล"] || "N/A";
                     const pos = emp["ตำแหน่ง"] || "-";
                     const company = emp["ชื่อบริษัท"] || "-";
-                    const dept = (typeof classifyPositionToDepartment === 'function') ? (classifyPositionToDepartment(emp["ตำแหน่ง"]) || '-') : '-';
+                    const dept = getLeaveSummaryDepartment(emp);
                     const roleBadge = getAdminRoleBadgeHtml(emp["สิทธิ์การใช้งาน"] || "Employee");
                     const statusBadge = getEmpStatusBadgeHtml(emp["สถานะ"] || "ทำงานปกติ");
                     const avatar = convertDriveUrl(emp["ลิ้งภาพโปรไฟล์"]) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80';
@@ -20128,7 +20062,7 @@ async function loadAdminEmployees() {
                 const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
                 const rows = list.map(e => [
                     e["รหัสพนักงาน"], e["ชื่อ-นามสกุล"], e["ตำแหน่ง"],
-                    (typeof classifyPositionToDepartment === 'function') ? classifyPositionToDepartment(e["ตำแหน่ง"]) : '',
+                    getLeaveSummaryDepartment(e),
                     e["ชื่อบริษัท"], e["สถานะ"], e["เบอร์โทรศัพท์"], e["สิทธิ์การใช้งาน"],
                     e["ชั่วโมงทำงานต่อวัน"], e["ฐานเงินเดือน"], e["ตัวหารค่าแรง"], e["ธนาคาร"], e["สาขาธนาคาร"], e["หมายเลขบัญชี"], e["วันที่เริ่มงาน"]
                 ].map(esc).join(','));
@@ -20758,7 +20692,7 @@ async function loadAdminEmployees() {
 
             function getLeaveSummaryDepartment(employee) {
                 if (!employee) return 'ไม่สามารถจำแนกแผนก';
-                const explicitDepartment = (employee['ฝ่าย-แผนก'] || employee['แผนก'] || employee.department || '').toString().trim();
+                const explicitDepartment = (employee['ฝ่าย-แผนก'] || employee['ฝ่าย/แผนก'] || employee['ฝ่าย'] || employee['แผนก'] || employee.department || '').toString().trim();
                 if (explicitDepartment) return explicitDepartment;
                 return inferLeaveSummaryDepartmentFromPosition(employee['ตำแหน่ง'] || employee.position || employee['Position'] || '');
             }
@@ -20852,12 +20786,23 @@ async function loadAdminEmployees() {
                 const search = (document.getElementById('leave-summary-search')?.value || '').trim().toLocaleLowerCase();
                 const statusFilter = document.getElementById('leave-summary-status-filter')?.value || 'all';
                 const departmentFilter = document.getElementById('leave-summary-department-filter')?.value || '';
+                const sortOrder = document.getElementById('leave-summary-sort')?.value || 'used-desc';
                 const employees = adminEmployeesList.filter(employee => {
                     const id = (employee['รหัสพนักงาน'] || '').toString().trim();
                     const name = (employee['ชื่อ-นามสกุล'] || '').toString().trim();
                     const department = getLeaveSummaryDepartment(employee);
                     return id && (!search || `${id} ${name}`.toLocaleLowerCase().includes(search)) &&
                         (!departmentFilter || department === departmentFilter);
+                });
+                employees.sort((a, b) => {
+                    const idA = (a['รหัสพนักงาน'] || '').toString().trim();
+                    const idB = (b['รหัสพนักงาน'] || '').toString().trim();
+                    if (sortOrder === 'employee-id') return idA.localeCompare(idB, 'th', { numeric: true });
+                    const usageA = leaveByEmployee.get(idA) || { used: {}, unpaid: 0 };
+                    const usageB = leaveByEmployee.get(idB) || { used: {}, unpaid: 0 };
+                    const usedDaysA = Object.values(usageA.used).reduce((total, days) => total + days, usageA.unpaid);
+                    const usedDaysB = Object.values(usageB.used).reduce((total, days) => total + days, usageB.unpaid);
+                    return usedDaysB - usedDaysA || idA.localeCompare(idB, 'th', { numeric: true });
                 });
                 let displayedEmployeeCount = 0;
                 const displayedTotals = { entitled: 0, used: 0, remaining: 0 };
