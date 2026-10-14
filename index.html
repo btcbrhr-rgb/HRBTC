@@ -18891,7 +18891,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         approvedBy
                     };
 
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                    const result = await fetchWithTimeout(SERVER_API_URL, {
                         method: "POST",
                         body: JSON.stringify(payload),
                         timeout: 60000
@@ -20939,7 +20939,7 @@ async function loadAdminEmployees() {
                 }
                 body.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดทะเบียน…</td></tr>';
                 try {
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                    const result = await fetchWithTimeout(SERVER_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -20952,9 +20952,8 @@ async function loadAdminEmployees() {
                         }),
                         timeout: 30000
                     });
-                    const result = await response.json();
                     if (requestToken !== leaveWarningRequestToken) return;
-                    if (!response.ok || result.status !== 'success') {
+                    if (result.status !== 'success') {
                         if (result.code === 'INVALID_ADMIN_PIN') {
                             adminWarningAccessPin = '';
                             const warningKpi = document.getElementById('leave-summary-kpi-warnings');
@@ -21115,7 +21114,7 @@ async function loadAdminEmployees() {
                     adminWarningAccessPin = await requestLeaveWarningPin();
                     if (!adminWarningAccessPin) return null;
                 }
-                const response = await fetchWithTimeout(SERVER_API_URL, {
+                const result = await fetchWithTimeout(SERVER_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -21126,9 +21125,8 @@ async function loadAdminEmployees() {
                     }),
                     timeout: 60000
                 });
-                const result = await response.json();
                 if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
-                if (!response.ok || (result.status !== 'success' && result.code !== 'RESTORE_PARTIAL')) {
+                if (result.status !== 'success' && result.code !== 'RESTORE_PARTIAL') {
                     throw new Error(result.message || 'ดำเนินการทะเบียนหนังสือเตือนไม่สำเร็จ');
                 }
                 return result;
@@ -21217,14 +21215,13 @@ async function loadAdminEmployees() {
                         showToast('กรุณาระบุชื่อผู้รับทราบ/ผู้บันทึกการแจ้งเอกสาร', 'error');
                         return;
                     }
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                    const result = await fetchWithTimeout(SERVER_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
                         timeout: 30000
                     });
-                    const result = await response.json();
-                    if (!response.ok || result.status !== 'success') {
+                    if (result.status !== 'success') {
                         if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
                         throw new Error(result.message || 'บันทึกหนังสือเตือนไม่สำเร็จ');
                     }
@@ -21256,7 +21253,7 @@ async function loadAdminEmployees() {
                     if (!adminWarningAccessPin) return;
                 }
                 try {
-                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                    const result = await fetchWithTimeout(SERVER_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -21269,8 +21266,7 @@ async function loadAdminEmployees() {
                         }),
                         timeout: 30000
                     });
-                    const result = await response.json();
-                    if (!response.ok || result.status !== 'success') {
+                    if (result.status !== 'success') {
                         if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
                         throw new Error(result.message || 'อัปเดตสถานะรับทราบไม่สำเร็จ');
                     }
