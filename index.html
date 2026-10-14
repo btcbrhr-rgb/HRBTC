@@ -225,7 +225,7 @@
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
         }
-        #admin-sec-approve-leave > .overflow-hidden,
+        #admin-leave-requests-view > .overflow-hidden,
         #admin-sec-approve-correction > .overflow-hidden,
         #admin-sec-approve-advance > .overflow-hidden {
             height: calc(100vh - 250px);
@@ -256,8 +256,11 @@
             top: 0;
             z-index: 10;
         }
+        #admin-leave-summary-view .hr-table thead .leave-summary-subhead th {
+            top: 2.25rem;
+        }
         @media (max-width: 767px) {
-            #admin-sec-approve-leave > .overflow-hidden,
+            #admin-leave-requests-view > .overflow-hidden,
             #admin-sec-approve-correction > .overflow-hidden,
             #admin-sec-approve-advance > .overflow-hidden,
             #admin-sec-face-enroll > .overflow-hidden,
@@ -413,7 +416,7 @@
         /* ═══════════════════════════════════════════════════════════
            Approval Tables — Unified Single Table Layout
            ═══════════════════════════════════════════════════════════ */
-        #admin-sec-approve-leave > .bg-white,
+        #admin-leave-requests-view > .bg-white,
         #admin-sec-approve-correction > .bg-white,
         #admin-sec-approve-advance > .bg-white {
             display: flex;
@@ -6137,6 +6140,24 @@
 
                 <!-- SECTION 3: อนุมัติใบลางาน -->
                 <section id="admin-sec-approve-leave" class="admin-sec hidden space-y-4">
+                    <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3" role="tablist" aria-label="ข้อมูลใบลา">
+                        <button type="button" role="tab" aria-selected="true" aria-controls="admin-leave-requests-view"
+                            tabindex="0" onkeydown="handleAdminLeaveSubtabKeydown(event)" onclick="switchAdminLeaveSubtab('requests', this)"
+                            class="admin-leave-subtab rounded-xl bg-brand-deep px-4 py-2 text-xs font-semibold text-white">
+                            <i class="fa-solid fa-inbox mr-1.5" aria-hidden="true"></i>อนุมัติใบลา
+                        </button>
+                        <button type="button" role="tab" aria-selected="false" aria-controls="admin-leave-summary-view"
+                            tabindex="-1" onkeydown="handleAdminLeaveSubtabKeydown(event)" onclick="switchAdminLeaveSubtab('summary', this)"
+                            class="admin-leave-subtab rounded-xl bg-white px-4 py-2 text-xs font-semibold text-slate-600 border border-slate-200">
+                            <i class="fa-solid fa-chart-column mr-1.5" aria-hidden="true"></i>สรุปสิทธิวันลา
+                        </button>
+                        <button type="button" role="tab" aria-selected="false" aria-controls="admin-leave-warnings-view"
+                            tabindex="-1" onkeydown="handleAdminLeaveSubtabKeydown(event)" onclick="switchAdminLeaveSubtab('warnings', this)"
+                            class="admin-leave-subtab rounded-xl bg-white px-4 py-2 text-xs font-semibold text-slate-600 border border-slate-200">
+                            <i class="fa-solid fa-file-circle-exclamation mr-1.5" aria-hidden="true"></i>ทะเบียนหนังสือเตือน
+                        </button>
+                    </div>
+                    <div id="admin-leave-requests-view" role="tabpanel" class="space-y-4">
                     <!-- Summary Stats Cards (4 เสาหลักอนุมัติใบลา) -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                         <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
@@ -6242,12 +6263,13 @@
                                 <div class="flex items-center gap-2 flex-1 min-w-[200px]">
                                         <div class="relative flex-1">
                                             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                                            <input type="text" placeholder="ค้นหาใบลา…" oninput="hrTableFilter('admin-leave-table-body', this.value, 'leave-count')" aria-label="ค้นหาใบลา"
+                                            <input id="leave-search-input" type="text" placeholder="ค้นหาใบลา…" oninput="hrTableFilter('admin-leave-table-body', this.value, 'leave-count')" aria-label="ค้นหาใบลา"
                                                 class="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3.5 py-2 text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:border-brand-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/15 transition-all">
                                         </div>
                                         <span class="row-count text-[11px] text-slate-400 font-medium whitespace-nowrap" id="leave-count"></span>
                                     </div>
-                                <button id="batch-approve-leave" onclick="batchApproveLeave()"
+                                        <span id="leave-selected-count" class="hidden text-[11px] text-slate-500 font-semibold whitespace-nowrap" aria-live="polite"></span>
+                                        <button id="batch-approve-leave" onclick="batchApproveLeave()"
                                     class="action-btn action-btn-approve disabled:opacity-50 disabled:cursor-not-allowed"
                                     disabled>
                                     <i class="fa-solid fa-check"></i> อนุมัติที่เลือก
@@ -6268,7 +6290,7 @@
                                         <th style="width:36px">
                                             <input type="checkbox" id="select-all-leave"
                                                 onchange="toggleSelectAllLeave(this)"
-                                                aria-label="เลือกคำขอลาทั้งหมด">
+                                                aria-label="เลือกคำขอลาที่แสดงอยู่">
                                         </th>
                                         <th>ใบลางาน</th>
                                         <th>พนักงาน</th>
@@ -6286,6 +6308,162 @@
                             </table>
                         </div>
                     </div>
+                    </div>
+
+                    <div id="admin-leave-summary-view" role="tabpanel" class="hidden space-y-4">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <div class="px-4 py-4 border-b border-slate-100 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-800">สรุปสิทธิวันลารายบุคคล</h3>
+                                    <p class="mt-1 text-xs text-slate-500">สิทธิอ้างอิงค่าตั้งระบบ รวมคำขอตามวันเริ่มลาในรอบบัญชี 12 รอบที่เลือกและสถานะรออนุมัติ/อนุมัติแล้ว/ฝ่ายบุคคลตรวจสอบ; รายการไม่รับค่าจ้างแสดงแยกและไม่หักโควตา</p>
+                                    <p id="leave-summary-period" class="mt-1 text-xs font-semibold text-brand-deep" aria-live="polite"></p>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-2">
+                                    <label class="sr-only" for="leave-summary-year">ปีบัญชี</label>
+                                    <select id="leave-summary-year" onchange="renderLeaveEntitlementSummary()"
+                                        class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal"></select>
+                                    <label class="sr-only" for="leave-summary-search">ค้นหาพนักงาน</label>
+                                    <input id="leave-summary-search" type="search" oninput="renderLeaveEntitlementSummary()"
+                                        placeholder="ค้นหารหัสหรือชื่อพนักงาน"
+                                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 border-b border-slate-100">
+                                <div class="rounded-xl bg-slate-50 p-3"><div class="text-xs text-slate-500">พนักงานในรายการ</div><div id="leave-summary-employee-count" class="mt-1 text-xl font-bold text-slate-800" aria-live="polite">0</div></div>
+                                <div class="rounded-xl bg-blue-50 p-3"><div class="text-xs text-blue-700">รายการลาในรอบปีบัญชี</div><div id="leave-summary-request-count" class="mt-1 text-xl font-bold text-blue-700">0</div></div>
+                                <div class="rounded-xl bg-amber-50 p-3"><div class="text-xs text-amber-700">พนักงานใช้สิทธิเกินโควตาที่ตั้งไว้</div><div id="leave-summary-over-quota" class="mt-1 text-xl font-bold text-amber-700">0</div></div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="hr-table min-w-[1500px]">
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2">รหัสพนักงาน</th><th rowspan="2">ชื่อ-นามสกุล</th><th colspan="3">ลาพักร้อน</th><th colspan="3">ลาป่วย</th><th colspan="3">ลากิจ</th><th colspan="3">ลาคลอด</th><th colspan="3">ลาทหาร</th><th rowspan="2">วันลาไม่รับค่าจ้าง<br>(ไม่หักสิทธิ)</th><th rowspan="2">วันลาอื่น<br>(ไม่มีโควตา)</th>
+                                        </tr>
+                                        <tr class="leave-summary-subhead">
+                                            <th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th><th>สิทธิ</th><th>ใช้</th><th>คงเหลือ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="leave-summary-table-body">
+                                        <tr><td colspan="19" class="py-6 text-center text-slate-500">กำลังโหลดข้อมูล…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="admin-leave-warnings-view" role="tabpanel" class="hidden space-y-4">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <div class="px-4 py-4 border-b border-slate-100">
+                                <h3 class="text-sm font-bold text-slate-800">เพิ่มรายการหนังสือเตือน</h3>
+                                <p class="mt-1 text-xs text-slate-500">เลือกประเภทและบันทึกตามเอกสารจริงโดยฝ่ายบุคคล ระบบไม่เลื่อนระดับหรือกำหนดบทลงโทษให้อัตโนมัติ</p>
+                            </div>
+                            <form id="leave-warning-form" onsubmit="submitLeaveWarning(event)" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
+                                <div>
+                                    <label for="leave-warning-employee" class="mb-1 block text-xs font-semibold text-slate-600">พนักงาน <span class="text-rose-600">*</span></label>
+                                    <select id="leave-warning-employee" required class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                        <option value="">เลือกพนักงาน</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="leave-warning-date" class="mb-1 block text-xs font-semibold text-slate-600">วันที่ออกหนังสือ <span class="text-rose-600">*</span></label>
+                                    <input id="leave-warning-date" type="date" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                </div>
+                                <div>
+                                    <label for="leave-warning-type" class="mb-1 block text-xs font-semibold text-slate-600">ประเภท/ระดับตามเอกสาร <span class="text-rose-600">*</span></label>
+                                    <input id="leave-warning-type" type="text" maxlength="100" required placeholder="ระบุให้ตรงกับหนังสือจริง" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                </div>
+                                <div class="md:col-span-2 xl:col-span-3">
+                                    <label for="leave-warning-reason" class="mb-1 block text-xs font-semibold text-slate-600">รายละเอียด/เหตุผล <span class="text-rose-600">*</span></label>
+                                    <textarea id="leave-warning-reason" rows="2" maxlength="2000" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
+                                </div>
+                                <div>
+                                    <label for="leave-warning-ack-status" class="mb-1 block text-xs font-semibold text-slate-600">สถานะการรับทราบ</label>
+                                    <select id="leave-warning-ack-status" onchange="toggleLeaveWarningAcknowledgmentFields()" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                        <option value="รอรับทราบ">รอรับทราบ</option>
+                                        <option value="รับทราบแล้ว">รับทราบแล้ว</option>
+                                        <option value="ปฏิเสธการลงชื่อ">ปฏิเสธการลงชื่อ</option>
+                                    </select>
+                                </div>
+                                <div id="leave-warning-ack-date-wrap" class="hidden">
+                                    <label for="leave-warning-ack-date" class="mb-1 block text-xs font-semibold text-slate-600">วันที่รับทราบ/แจ้งเอกสาร</label>
+                                    <input id="leave-warning-ack-date" type="date" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                </div>
+                                <div id="leave-warning-ack-name-wrap" class="hidden">
+                                    <label for="leave-warning-ack-name" class="mb-1 block text-xs font-semibold text-slate-600">ชื่อผู้รับทราบ/ผู้บันทึกการแจ้งเอกสาร</label>
+                                    <input id="leave-warning-ack-name" type="text" maxlength="200" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                </div>
+                                <div class="md:col-span-2 xl:col-span-3">
+                                    <label for="leave-warning-ack-note" class="mb-1 block text-xs font-semibold text-slate-600">หมายเหตุการรับทราบ (ถ้ามี)</label>
+                                    <input id="leave-warning-ack-note" type="text" maxlength="500" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                </div>
+                                <div class="md:col-span-2 xl:col-span-3 flex justify-end">
+                                    <button id="leave-warning-submit" type="submit" class="rounded-xl bg-brand-deep px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-50">
+                                        <i class="fa-solid fa-floppy-disk mr-1.5" aria-hidden="true"></i>บันทึกหนังสือเตือน
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                            <div class="px-4 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <h3 class="text-sm font-bold text-slate-800">ทะเบียนหนังสือเตือน</h3>
+                                <div class="flex gap-2">
+                                    <label class="sr-only" for="leave-warning-search">ค้นหาทะเบียนหนังสือเตือน</label>
+                                    <input id="leave-warning-search" type="search" maxlength="100" oninput="scheduleLeaveWarningSearch()" placeholder="ค้นหาพนักงาน/ประเภท/รายละเอียด"
+                                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                                    <button type="button" onclick="loadLeaveWarningRecords()" class="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" aria-label="โหลดทะเบียนหนังสือเตือนใหม่">
+                                        <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+                                    </button>
+                                    <button type="button" onclick="backupLeaveWarningRecords()" class="rounded-xl border border-teal-200 px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50">
+                                        <i class="fa-solid fa-shield-halved mr-1" aria-hidden="true"></i>สำรองข้อมูล
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <p class="text-slate-500">Snapshot เก็บใน Google Spreadsheet สำรองที่กำหนดแยกต่างหาก</p>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <label class="sr-only" for="leave-warning-snapshot-select">เลือก Snapshot เพื่อกู้คืน</label>
+                                    <select id="leave-warning-snapshot-select" class="max-w-[18rem] rounded-lg border border-slate-200 px-2 py-1.5 text-slate-700">
+                                        <option value="">เลือก Snapshot</option>
+                                    </select>
+                                    <button type="button" onclick="loadLeaveWarningSnapshots()" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-700 hover:bg-slate-50">โหลด Snapshot</button>
+                                    <button type="button" onclick="restoreLeaveWarningSnapshot()" class="rounded-lg border border-amber-200 px-2.5 py-1.5 font-semibold text-amber-800 hover:bg-amber-50">กู้คืนรายการที่ขาด</button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="hr-table min-w-[1000px]">
+                                    <thead><tr><th>วันที่</th><th>พนักงาน</th><th>ประเภท/ระดับ</th><th>รายละเอียด</th><th>สถานะรับทราบ</th><th>วันที่/หมายเหตุรับทราบ</th><th>บันทึกโดย</th></tr></thead>
+                                    <tbody id="leave-warning-table-body"><tr><td colspan="7" class="py-6 text-center text-slate-500">เลือกแท็บนี้เพื่อโหลดทะเบียนหนังสือเตือน</td></tr></tbody>
+                                </table>
+                            </div>
+                            <div class="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                                <p id="leave-warning-page-summary" class="text-slate-500" aria-live="polite">ยังไม่ได้โหลดทะเบียน</p>
+                                <div class="flex items-center gap-2">
+                                    <label for="leave-warning-page-size" class="text-slate-500">ต่อหน้า</label>
+                                    <select id="leave-warning-page-size" onchange="changeLeaveWarningPageSize(this.value)" class="rounded-lg border border-slate-200 px-2 py-1.5">
+                                        <option value="10">10</option><option value="25" selected>25</option><option value="50">50</option><option value="100">100</option>
+                                    </select>
+                                    <button type="button" id="leave-warning-page-prev" onclick="changeLeaveWarningPage(-1)" class="rounded-lg border border-slate-200 px-2.5 py-1.5 disabled:opacity-40" disabled>ก่อนหน้า</button>
+                                    <span id="leave-warning-page-number" class="min-w-[4rem] text-center text-slate-600">หน้า 1/1</span>
+                                    <button type="button" id="leave-warning-page-next" onclick="changeLeaveWarningPage(1)" class="rounded-lg border border-slate-200 px-2.5 py-1.5 disabled:opacity-40" disabled>ถัดไป</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <dialog id="leave-warning-pin-dialog" class="w-[min(92vw,24rem)] rounded-2xl p-0 shadow-2xl backdrop:bg-slate-900/50">
+                        <form method="dialog" class="space-y-4 p-5">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-800">ยืนยันตัวตน Administrator</h3>
+                                <p class="mt-1 text-sm text-slate-500">กรอก PIN เพื่อเข้าถึงข้อมูลหนังสือเตือน</p>
+                            </div>
+                            <label for="leave-warning-admin-pin" class="block text-sm font-semibold text-slate-700">PIN</label>
+                            <input id="leave-warning-admin-pin" type="password" inputmode="numeric" autocomplete="current-password" required
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                            <div class="flex justify-end gap-2">
+                                <button type="submit" value="cancel" formnovalidate class="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700">ยกเลิก</button>
+                                <button type="submit" value="verify" class="min-h-11 rounded-xl bg-brand-deep px-4 text-sm font-semibold text-white">ยืนยัน PIN</button>
+                            </div>
+                        </form>
+                    </dialog>
                 </section>
 
                 <!-- SECTION 4: อนุมัติแก้ไขเวลา -->
@@ -9309,6 +9487,16 @@ let isLoggedIn = false;
 let isAdminMode = false;
 let adminActiveTab = "dashboard";
 let adminEmployeesList = [];
+let adminLeaveRequestRecords = [];
+let adminLeaveRequestRecordsLoaded = false;
+let adminLeaveWarningRecords = [];
+let adminWarningAccessPin = '';
+let leaveWarningPage = 1;
+let leaveWarningPageSize = 25;
+let leaveWarningTotal = 0;
+let leaveWarningRequestToken = 0;
+let leaveWarningSearchTimer = null;
+let leaveWarningAppliedSearch = '';
 // ข้อมูลรออนุมัติรวมสำหรับแดชบอร์ด (อัปเดตจาก loadAdminApprovals)
 let adminPendingCounts = {
     leave: { total: 0, today: 0, oneDay: 0, threeDays: 0, fiveDays: 0 },
@@ -9661,21 +9849,35 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
                 const tbody = document.getElementById(tableBodyId);
                 if (!tbody) return;
+                if (tableBodyId === 'admin-leave-table-body') {
+                    tbody.dataset.approvalStatusFilter = status || 'all';
+                    const searchInput = document.getElementById('leave-search-input');
+                    hrTableFilter(tableBodyId, searchInput ? searchInput.value : '', 'leave-count');
+                    return;
+                }
                 const rows = tbody.querySelectorAll('tr[data-approval-status]');
                 rows.forEach(tr => {
                     const rowStatus = (tr.getAttribute('data-approval-status') || '').trim();
-                    let show = false;
-                    if (!status || status === 'all') {
-                        show = true;
-                    } else if (status === 'pending') {
-                        show = rowStatus.includes('รออนุมัติ') || rowStatus.includes('รอตรวจสอบ');
-                    } else if (status === 'approved') {
-                        show = rowStatus.includes('อนุมัติ') && !rowStatus.includes('รออนุมัติ') && !rowStatus.includes('ไม่อนุมัติ') && !rowStatus.includes('ปฏิเสธ');
-                    } else if (status === 'rejected') {
-                        show = rowStatus.includes('ไม่อนุมัติ') || rowStatus.includes('ปฏิเสธ');
-                    }
-                    tr.style.display = show ? '' : 'none';
+                    tr.style.display = matchesApprovalStatusFilter(rowStatus, status) ? '' : 'none';
                 });
+            }
+
+            function matchesApprovalStatusFilter(rowStatus, status) {
+                const normalizedStatus = String(rowStatus || '').trim();
+                if (!status || status === 'all') return true;
+                if (status === 'pending') {
+                    return normalizedStatus.includes('รออนุมัติ') || normalizedStatus.includes('รอตรวจสอบ');
+                }
+                if (status === 'approved') {
+                    return normalizedStatus.includes('อนุมัติ')
+                        && !normalizedStatus.includes('รออนุมัติ')
+                        && !normalizedStatus.includes('ไม่อนุมัติ')
+                        && !normalizedStatus.includes('ปฏิเสธ');
+                }
+                if (status === 'rejected') {
+                    return normalizedStatus.includes('ไม่อนุมัติ') || normalizedStatus.includes('ปฏิเสธ');
+                }
+                return true;
             }
 
             let parsedPayslips = []; // Holds list of parsed/split payslip pages
@@ -11380,7 +11582,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 holidaysList = [];
                 employeeData = {};
                 currentEmployeeId = "";
-
+                adminWarningAccessPin = '';
+                adminLeaveWarningRecords = [];
+                leaveWarningTotal = 0;
+                leaveWarningPage = 1;
+                leaveWarningRequestToken++;
+                if (leaveWarningSearchTimer) clearTimeout(leaveWarningSearchTimer);
+                const warningRows = document.getElementById('leave-warning-table-body');
+                if (warningRows) warningRows.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">เลือกแท็บนี้เพื่อโหลดทะเบียนหนังสือเตือน</td></tr>';
+ 
                 // 🧹 ล้างค่าใน input fields ทั้งหมด (ป้องกันค้าง)
                 const fieldsToClear = [
                     'login-emp-id', 'pin-login-input', 'pin-login-emp-id',
@@ -15052,7 +15262,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                     const reportType = document.getElementById('leave-report-type-select')?.value || 'cycle';
                     const selectedCycle = getCycleDateRange(calendarActiveYear, calendarActiveMonth);
-                    const now = new Date();
                     const url = new URL('Print_LeaveCycle.html', window.location.href);
                     url.searchParams.set('apiUrl', SERVER_API_URL);
                     url.searchParams.set('empId', '*ALL*');
@@ -15060,8 +15269,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     url.searchParams.set('reportType', reportType);
                     url.searchParams.set('openedFromIndex', '1');
                     if (reportType === 'year') {
-                        url.searchParams.set('periodStart', `${now.getFullYear()}-01-01`);
-                        url.searchParams.set('periodEnd', `${now.getFullYear()}-12-31`);
+                        const selectedYear = Number(document.getElementById('leave-summary-year')?.value) || calendarActiveYear;
+                        const accountingYear = getLeaveAccountingYearRange(selectedYear);
+                        url.searchParams.set('periodStart', accountingYear.start);
+                        url.searchParams.set('periodEnd', accountingYear.end);
                     } else {
                         url.searchParams.set('periodStart', selectedCycle.start);
                         url.searchParams.set('periodEnd', selectedCycle.end);
@@ -16210,6 +16421,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const correctionOnly = tbodyId === 'yearly-attendance-body'
                     && typeof yearlyFilterCorrectionOnly !== 'undefined'
                     && yearlyFilterCorrectionOnly === true;
+                const approvalStatusFilter = tbodyId === 'admin-leave-table-body'
+                    ? (tbody.dataset.approvalStatusFilter || 'all')
+                    : 'all';
                 // เก็บคำค้นหาไว้ให้ตัวกรองรายการขอแก้ใช้ร่วม (สองตัวกรองทำงานพร้อมกันได้)
                 if (tbodyId === 'yearly-attendance-body') {
                     yearlyAttendanceSearchQuery = q;
@@ -16221,7 +16435,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const hay = (row.dataset.search || row.textContent || '').toLowerCase();
                     const match = !q || hay.includes(q);
                     const corrOk = !correctionOnly || row.classList.contains('has-correction-row');
-                    const show = match && corrOk;
+                    const statusOk = !row.hasAttribute('data-approval-status')
+                        || matchesApprovalStatusFilter(row.getAttribute('data-approval-status'), approvalStatusFilter);
+                    const show = match && corrOk && statusOk;
                     row.style.display = show ? '' : 'none';
                     if (show) visibleCount++;
                 });
@@ -16229,9 +16445,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const countEl = document.getElementById(countId);
                     if (countEl) {
                         const total = Array.from(tbody.rows).filter(r => !r.classList.contains('tbl-empty-row')).length;
-                        countEl.textContent = q ? `${visibleCount} / ${total} รายการ` : `${total} รายการ`;
+                        countEl.textContent = (q || approvalStatusFilter !== 'all')
+                            ? `${visibleCount} / ${total} รายการ`
+                            : `${total} รายการ`;
                     }
                 }
+                if (tbodyId === 'admin-leave-table-body') syncSelectAllLeaveCheckbox();
             }
 
             function showToast(message, type = "info") {
@@ -20194,6 +20413,496 @@ async function loadAdminEmployees() {
                 return JSON.stringify(obj).replace(/'/g, "\\'");
             }
 
+            function switchAdminLeaveSubtab(tabName, button) {
+                const panels = {
+                    requests: document.getElementById('admin-leave-requests-view'),
+                    summary: document.getElementById('admin-leave-summary-view'),
+                    warnings: document.getElementById('admin-leave-warnings-view')
+                };
+                Object.entries(panels).forEach(([name, panel]) => {
+                    if (panel) panel.classList.toggle('hidden', name !== tabName);
+                });
+                document.querySelectorAll('.admin-leave-subtab').forEach(tab => {
+                    const selected = tab === button;
+                    tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+                    tab.tabIndex = selected ? 0 : -1;
+                    tab.classList.toggle('bg-brand-deep', selected);
+                    tab.classList.toggle('text-white', selected);
+                    tab.classList.toggle('bg-white', !selected);
+                    tab.classList.toggle('text-slate-600', !selected);
+                    tab.classList.toggle('border', !selected);
+                    tab.classList.toggle('border-slate-200', !selected);
+                });
+                if (tabName === 'summary') renderLeaveEntitlementSummary();
+                if (tabName === 'warnings') {
+                    populateLeaveWarningEmployeeOptions();
+                    loadLeaveWarningRecords();
+                }
+            }
+
+            function handleAdminLeaveSubtabKeydown(event) {
+                const tabs = Array.from(document.querySelectorAll('.admin-leave-subtab'));
+                const currentIndex = tabs.indexOf(event.currentTarget);
+                let nextIndex = currentIndex;
+                if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+                else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+                else if (event.key === 'Home') nextIndex = 0;
+                else if (event.key === 'End') nextIndex = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                tabs[nextIndex].focus();
+                tabs[nextIndex].click();
+            }
+
+            function getLeaveAccountingYearRange(year) {
+                const startCycle = getCycleDateRange(year - 1, 11);
+                const endCycle = getCycleDateRange(year, 10);
+                return { start: startCycle.start, end: endCycle.end };
+            }
+
+            function normalizeLeaveSummaryType(value) {
+                const type = (value || '').toString().trim().replace(/ \(ไม่รับค่าจ้าง\)$/, '');
+                if (type === 'พักร้อน') return 'ลาพักร้อน';
+                if (type === 'ลาคลอดบุตร') return 'ลาคลอด';
+                return type;
+            }
+
+            function formatLeaveSummaryDays(value) {
+                return Number(value || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+            }
+
+            function initializeLeaveSummaryYearOptions() {
+                const yearSelect = document.getElementById('leave-summary-year');
+                if (!yearSelect || yearSelect.options.length) return;
+                const currentYear = new Date().getFullYear();
+                for (let year = currentYear - 5; year <= currentYear + 1; year++) {
+                    const option = document.createElement('option');
+                    option.value = String(year);
+                    option.textContent = String(year + 543);
+                    yearSelect.appendChild(option);
+                }
+                yearSelect.value = String(currentYear);
+            }
+
+            function renderLeaveEntitlementSummary() {
+                const body = document.getElementById('leave-summary-table-body');
+                const yearSelect = document.getElementById('leave-summary-year');
+                if (!body || !yearSelect) return;
+                initializeLeaveSummaryYearOptions();
+                const year = Number(yearSelect.value);
+                const range = getLeaveAccountingYearRange(year);
+                const periodLabel = document.getElementById('leave-summary-period');
+                if (periodLabel) periodLabel.textContent = `ช่วง ${formatThaiDateShort(range.start)} - ${formatThaiDateShort(range.end)}`;
+
+                if (!Array.isArray(adminEmployeesList) || adminEmployeesList.length === 0) {
+                    body.innerHTML = '<tr><td colspan="19" class="py-6 text-center text-slate-500">ไม่พบข้อมูลพนักงาน กรุณาซิงค์ข้อมูลก่อน</td></tr>';
+                    return;
+                }
+                if (!adminLeaveRequestRecordsLoaded) {
+                    body.innerHTML = '<tr><td colspan="19" class="py-6 text-center text-rose-600">ยังโหลดข้อมูลคำขอลาไม่สำเร็จ กรุณากดซิงค์รายการใบลาแล้วลองใหม่</td></tr>';
+                    return;
+                }
+
+                const summaryTypes = [
+                    { name: 'ลาพักร้อน', setting: 'annualLeaveDays' },
+                    { name: 'ลาป่วย', setting: 'sickLeaveDays' },
+                    { name: 'ลากิจ', setting: 'personalLeaveDays' },
+                    { name: 'ลาคลอด', setting: 'maternityLeaveDays' },
+                    { name: 'ลาทหาร', setting: 'militaryLeaveDays' }
+                ];
+                const includedStatuses = new Set(['รออนุมัติ', 'อนุมัติแล้ว', 'ฝ่ายบุคคลตรวจสอบ']);
+                const leaveByEmployee = new Map();
+                let periodRequestCount = 0;
+                adminLeaveRequestRecords.forEach(request => {
+                    const startDate = (request['วันที่เริ่ม'] || '').toString().slice(0, 10);
+                    const status = (request['สถานะ'] || '').toString().trim();
+                    if (startDate < range.start || startDate > range.end || !includedStatuses.has(status)) return;
+                    const empId = (request['รหัสพนักงาน'] || '').toString().trim();
+                    const days = Number(request['จำนวนวัน']);
+                    if (!empId || !Number.isFinite(days) || days <= 0) return;
+                    periodRequestCount++;
+                    if (!leaveByEmployee.has(empId)) leaveByEmployee.set(empId, { used: {}, unpaid: 0, other: 0 });
+                    const employeeLeave = leaveByEmployee.get(empId);
+                    const rawLeaveType = (request['ประเภทการลา'] || '').toString().trim();
+                    const isUnpaid = rawLeaveType.endsWith(' (ไม่รับค่าจ้าง)');
+                    const leaveType = normalizeLeaveSummaryType(rawLeaveType);
+                    if (isUnpaid) {
+                        employeeLeave.unpaid += days;
+                        return;
+                    }
+                    const trackedType = summaryTypes.find(item => item.name === leaveType);
+                    if (trackedType) employeeLeave.used[trackedType.name] = (employeeLeave.used[trackedType.name] || 0) + days;
+                    else employeeLeave.other += days;
+                });
+
+                const search = (document.getElementById('leave-summary-search')?.value || '').trim().toLocaleLowerCase();
+                const employees = adminEmployeesList.filter(employee => {
+                    const id = (employee['รหัสพนักงาน'] || '').toString().trim();
+                    const name = (employee['ชื่อ-นามสกุล'] || '').toString().trim();
+                    return id && (!search || `${id} ${name}`.toLocaleLowerCase().includes(search));
+                });
+                let overQuotaCount = 0;
+                const rows = employees.map(employee => {
+                    const empId = (employee['รหัสพนักงาน'] || '').toString().trim();
+                    const name = (employee['ชื่อ-นามสกุล'] || '').toString().trim();
+                    const usage = leaveByEmployee.get(empId) || { used: {}, unpaid: 0, other: 0 };
+                    let overQuota = false;
+                    let noQuotaDays = usage.other;
+                    const leaveCells = summaryTypes.map(type => {
+                        const rawQuota = systemSettings ? systemSettings[type.setting] : undefined;
+                        const quota = rawQuota === '' || rawQuota === null || rawQuota === undefined ? null : Number(rawQuota);
+                        const used = usage.used[type.name] || 0;
+                        if (!Number.isFinite(quota)) noQuotaDays += used;
+                        if (Number.isFinite(quota) && used > quota) overQuota = true;
+                        return Number.isFinite(quota)
+                            ? `<td>${formatLeaveSummaryDays(quota)}</td><td>${formatLeaveSummaryDays(used)}</td><td class="${used > quota ? 'text-rose-600 font-semibold' : ''}">${formatLeaveSummaryDays(quota - used)}</td>`
+                            : `<td colspan="3" class="text-slate-400">ไม่มีค่าตั้งสิทธิ</td>`;
+                    }).join('');
+                    if (overQuota) overQuotaCount++;
+                    return `<tr><td>${escapeHtml(empId)}</td><td>${escapeHtml(name || '-')}</td>${leaveCells}<td>${formatLeaveSummaryDays(usage.unpaid)}</td><td>${formatLeaveSummaryDays(noQuotaDays)}</td></tr>`;
+                });
+
+                body.innerHTML = rows.length
+                    ? rows.join('')
+                    : '<tr><td colspan="19" class="py-6 text-center text-slate-500">ไม่พบพนักงานตามคำค้นหา</td></tr>';
+                const employeeCount = document.getElementById('leave-summary-employee-count');
+                const requestCount = document.getElementById('leave-summary-request-count');
+                const overQuota = document.getElementById('leave-summary-over-quota');
+                if (employeeCount) employeeCount.textContent = employees.length.toLocaleString('th-TH');
+                if (requestCount) requestCount.textContent = periodRequestCount.toLocaleString('th-TH');
+                if (overQuota) overQuota.textContent = overQuotaCount.toLocaleString('th-TH');
+            }
+
+            function populateLeaveWarningEmployeeOptions() {
+                const select = document.getElementById('leave-warning-employee');
+                if (!select) return;
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">เลือกพนักงาน</option>';
+                adminEmployeesList.forEach(employee => {
+                    const id = (employee['รหัสพนักงาน'] || '').toString().trim();
+                    if (!id) return;
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = `${id} - ${employee['ชื่อ-นามสกุล'] || 'ไม่ระบุชื่อ'}`;
+                    select.appendChild(option);
+                });
+                if (currentValue) select.value = currentValue;
+            }
+
+            function toggleLeaveWarningAcknowledgmentFields() {
+                const acknowledged = document.getElementById('leave-warning-ack-status')?.value !== 'รอรับทราบ';
+                const dateWrap = document.getElementById('leave-warning-ack-date-wrap');
+                const dateInput = document.getElementById('leave-warning-ack-date');
+                const nameWrap = document.getElementById('leave-warning-ack-name-wrap');
+                const nameInput = document.getElementById('leave-warning-ack-name');
+                if (dateWrap) dateWrap.classList.toggle('hidden', !acknowledged);
+                if (dateInput) dateInput.required = acknowledged;
+                if (nameWrap) nameWrap.classList.toggle('hidden', !acknowledged);
+                if (nameInput) nameInput.required = acknowledged;
+            }
+
+            function requestLeaveWarningPin() {
+                const dialog = document.getElementById('leave-warning-pin-dialog');
+                const pinInput = document.getElementById('leave-warning-admin-pin');
+                if (!dialog || !pinInput) return Promise.resolve('');
+                pinInput.value = '';
+                return new Promise(resolve => {
+                    dialog.addEventListener('close', () => {
+                        resolve(dialog.returnValue === 'verify' ? pinInput.value.trim() : '');
+                    }, { once: true });
+                    dialog.showModal();
+                    pinInput.focus();
+                });
+            }
+
+            async function loadLeaveWarningRecords(options = {}) {
+                const body = document.getElementById('leave-warning-table-body');
+                if (!body) return;
+                if (Number.isSafeInteger(options.page) && options.page > 0) leaveWarningPage = options.page;
+                const search = (document.getElementById('leave-warning-search')?.value || '').trim();
+                if (!Number.isSafeInteger(options.page) && search !== leaveWarningAppliedSearch) leaveWarningPage = 1;
+                if (leaveWarningSearchTimer) {
+                    clearTimeout(leaveWarningSearchTimer);
+                    leaveWarningSearchTimer = null;
+                }
+                const requestToken = ++leaveWarningRequestToken;
+                if (!adminWarningAccessPin) {
+                    adminWarningAccessPin = await requestLeaveWarningPin();
+                    if (!adminWarningAccessPin) {
+                        body.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">ยกเลิกการยืนยัน PIN จึงยังไม่โหลดข้อมูลทะเบียน</td></tr>';
+                        return;
+                    }
+                }
+                body.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดทะเบียน…</td></tr>';
+                try {
+                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            "action": 'listWarningRecords',
+                            adminId: currentEmployeeId,
+                            adminPin: adminWarningAccessPin,
+                            page: leaveWarningPage,
+                            pageSize: leaveWarningPageSize,
+                            search
+                        }),
+                        timeout: 30000
+                    });
+                    const result = await response.json();
+                    if (requestToken !== leaveWarningRequestToken) return;
+                    if (!response.ok || result.status !== 'success') {
+                        if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
+                        throw new Error(result.message || 'โหลดทะเบียนไม่สำเร็จ');
+                    }
+                    adminLeaveWarningRecords = Array.isArray(result.data?.records) ? result.data.records : [];
+                    leaveWarningTotal = Number(result.data?.total) || 0;
+                    leaveWarningPage = Number(result.data?.page) || leaveWarningPage;
+                    leaveWarningPageSize = Number(result.data?.pageSize) || leaveWarningPageSize;
+                    leaveWarningAppliedSearch = search;
+                    renderLeaveWarningRecords();
+                } catch (error) {
+                    if (requestToken !== leaveWarningRequestToken) return;
+                    console.error('[loadLeaveWarningRecords] API error:', error);
+                    const errorMessage = (error.message || '').toString();
+                    body.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-rose-600">โหลดทะเบียนไม่สำเร็จ: ${escapeHtml(errorMessage)}${errorMessage.toLowerCase().includes('migration') ? ' กรุณารันส่วน warning_records ใน supabase_rebuild_all.sql ก่อนใช้งาน' : ''}</td></tr>`;
+                    updateLeaveWarningPagination();
+                }
+            }
+
+            function scheduleLeaveWarningSearch() {
+                if (leaveWarningSearchTimer) clearTimeout(leaveWarningSearchTimer);
+                leaveWarningSearchTimer = setTimeout(() => {
+                    leaveWarningPage = 1;
+                    leaveWarningAppliedSearch = '';
+                    loadLeaveWarningRecords({ page: 1 });
+                }, 350);
+            }
+
+            function changeLeaveWarningPage(delta) {
+                const pageCount = Math.max(1, Math.ceil(leaveWarningTotal / leaveWarningPageSize));
+                const nextPage = Math.max(1, Math.min(pageCount, leaveWarningPage + Number(delta || 0)));
+                if (nextPage !== leaveWarningPage) loadLeaveWarningRecords({ page: nextPage });
+            }
+
+            function changeLeaveWarningPageSize(value) {
+                const pageSize = Number(value);
+                if (![10, 25, 50, 100].includes(pageSize)) return;
+                leaveWarningPageSize = pageSize;
+                leaveWarningPage = 1;
+                loadLeaveWarningRecords({ page: 1 });
+            }
+
+            function updateLeaveWarningPagination() {
+                const summary = document.getElementById('leave-warning-page-summary');
+                const pageNumber = document.getElementById('leave-warning-page-number');
+                const previous = document.getElementById('leave-warning-page-prev');
+                const next = document.getElementById('leave-warning-page-next');
+                const pageCount = Math.max(1, Math.ceil(leaveWarningTotal / leaveWarningPageSize));
+                const first = leaveWarningTotal ? ((leaveWarningPage - 1) * leaveWarningPageSize) + 1 : 0;
+                const last = Math.min(leaveWarningPage * leaveWarningPageSize, leaveWarningTotal);
+                if (summary) summary.textContent = `แสดง ${first}-${last} จาก ${leaveWarningTotal} รายการ`;
+                if (pageNumber) pageNumber.textContent = `หน้า ${leaveWarningPage}/${pageCount}`;
+                if (previous) previous.disabled = leaveWarningPage <= 1;
+                if (next) next.disabled = leaveWarningPage >= pageCount;
+                const pageSizeSelect = document.getElementById('leave-warning-page-size');
+                if (pageSizeSelect) pageSizeSelect.value = String(leaveWarningPageSize);
+            }
+
+            function renderLeaveWarningRecords() {
+                const body = document.getElementById('leave-warning-table-body');
+                if (!body) return;
+                if (!adminLeaveWarningRecords.length) {
+                    body.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">ไม่พบรายการหนังสือเตือน</td></tr>';
+                    updateLeaveWarningPagination();
+                    return;
+                }
+                body.innerHTML = adminLeaveWarningRecords.map(record => {
+                    const employee = adminEmployeesMap.get((record.emp_id || '').toString().trim());
+                    const employeeName = employee?.['ชื่อ-นามสกุล'] || 'ไม่พบข้อมูลพนักงาน';
+                    const issuer = getAdminEmployeeName(record.issued_by) || record.issued_by || '-';
+                    const acknowledgedBy = record.acknowledged_by ? `โดย ${record.acknowledged_by}` : '';
+                    const acknowledgmentDetail = [record.acknowledgment_date ? formatThaiDateShort(record.acknowledgment_date) : '', acknowledgedBy, record.acknowledgment_note || ''].filter(Boolean).join(' · ') || '-';
+                    const acknowledgeButton = record.acknowledgment_status === 'รอรับทราบ'
+                        ? `<button type="button" onclick="recordLeaveWarningAcknowledgment(${Number(record.id)})" class="rounded-lg border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">บันทึกรับทราบ</button>`
+                        : '';
+                    return `<tr><td>${formatThaiDateShort(record.issued_date)}</td><td>${escapeHtml(record.emp_id)}<br><span class="text-xs text-slate-500">${escapeHtml(employeeName)}</span></td><td>${escapeHtml(record.warning_type)}</td><td class="whitespace-normal">${escapeHtml(record.reason)}</td><td>${escapeHtml(record.acknowledgment_status || 'รอรับทราบ')}</td><td>${escapeHtml(acknowledgmentDetail)}<div class="mt-1">${acknowledgeButton}</div></td><td>${escapeHtml(issuer)}</td></tr>`;
+                }).join('');
+                updateLeaveWarningPagination();
+            }
+
+            async function postLeaveWarningAdminAction(action, fields = {}) {
+                if (!currentEmployeeId || !SERVER_API_URL) {
+                    throw new Error('ไม่พบข้อมูลผู้ใช้งานหรือ API กรุณาเข้าสู่ระบบใหม่');
+                }
+                if (!adminWarningAccessPin) {
+                    adminWarningAccessPin = await requestLeaveWarningPin();
+                    if (!adminWarningAccessPin) return null;
+                }
+                const response = await fetchWithTimeout(SERVER_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action,
+                        adminId: currentEmployeeId,
+                        adminPin: adminWarningAccessPin,
+                        ...fields
+                    }),
+                    timeout: 60000
+                });
+                const result = await response.json();
+                if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
+                if (!response.ok || (result.status !== 'success' && result.code !== 'RESTORE_PARTIAL')) {
+                    throw new Error(result.message || 'ดำเนินการทะเบียนหนังสือเตือนไม่สำเร็จ');
+                }
+                return result;
+            }
+
+            async function backupLeaveWarningRecords() {
+                try {
+                    const result = await postLeaveWarningAdminAction('backupWarningRecords');
+                    if (!result) return;
+                    showToast(`สำรองข้อมูลสำเร็จ: ${result.data.recordCount} รายการ (${result.data.snapshotName})`, 'success');
+                    await loadLeaveWarningSnapshots();
+                } catch (error) {
+                    showToast(error.message || 'สำรองข้อมูลไม่สำเร็จ', 'error');
+                }
+            }
+
+            async function loadLeaveWarningSnapshots() {
+                const select = document.getElementById('leave-warning-snapshot-select');
+                if (!select) return;
+                try {
+                    const result = await postLeaveWarningAdminAction('listWarningSnapshots');
+                    if (!result) return;
+                    const previousValue = select.value;
+                    const snapshots = Array.isArray(result.data) ? result.data : [];
+                    select.innerHTML = '<option value="">เลือก Snapshot</option>' + snapshots.map(name =>
+                        `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+                    ).join('');
+                    if (snapshots.includes(previousValue)) select.value = previousValue;
+                    if (!snapshots.length) showToast('ยังไม่มี Snapshot ใน Spreadsheet สำรอง', 'info');
+                } catch (error) {
+                    showToast(error.message || 'โหลดรายการ Snapshot ไม่สำเร็จ', 'error');
+                }
+            }
+
+            async function restoreLeaveWarningSnapshot() {
+                const select = document.getElementById('leave-warning-snapshot-select');
+                const snapshotName = select?.value || '';
+                if (!snapshotName) {
+                    showToast('กรุณาเลือก Snapshot ที่ต้องการกู้คืน', 'error');
+                    return;
+                }
+                if (!confirm(`กู้คืนจาก ${snapshotName} หรือไม่?\nระบบจะเพิ่มเฉพาะ ID ที่ยังไม่มี และจะไม่เขียนทับหรือลบรายการปัจจุบัน`)) return;
+                try {
+                    const result = await postLeaveWarningAdminAction('restoreWarningSnapshot', { snapshotName });
+                    if (!result) return;
+                    const counts = result.data || {};
+                    const summary = `เพิ่ม ${counts.inserted || 0} · ข้าม ${counts.skipped || 0} · ผิดพลาด ${counts.errors || 0}`;
+                    if (result.status === 'success') showToast(`กู้คืนสำเร็จ: ${summary}`, 'success');
+                    else showToast(`กู้คืนได้บางส่วน: ${summary} — ${result.message}`, 'error');
+                    leaveWarningPage = 1;
+                    await loadLeaveWarningRecords({ page: 1 });
+                } catch (error) {
+                    showToast(error.message || 'กู้คืน Snapshot ไม่สำเร็จ', 'error');
+                }
+            }
+
+            async function submitLeaveWarning(event) {
+                event.preventDefault();
+                const form = document.getElementById('leave-warning-form');
+                const button = document.getElementById('leave-warning-submit');
+                if (!form || !button) return;
+                if (!currentEmployeeId || !SERVER_API_URL) {
+                    showToast('ไม่พบข้อมูลผู้ใช้งานหรือ API กรุณาเข้าสู่ระบบใหม่', 'error');
+                    return;
+                }
+                if (!adminWarningAccessPin) {
+                    adminWarningAccessPin = await requestLeaveWarningPin();
+                    if (!adminWarningAccessPin) return;
+                }
+                button.disabled = true;
+                try {
+                    const payload = {
+                        "action": 'createWarningRecord',
+                        adminId: currentEmployeeId,
+                        adminPin: adminWarningAccessPin,
+                        empId: document.getElementById('leave-warning-employee').value,
+                        issuedDate: document.getElementById('leave-warning-date').value,
+                        warningType: document.getElementById('leave-warning-type').value.trim(),
+                        reason: document.getElementById('leave-warning-reason').value.trim(),
+                        acknowledgmentStatus: document.getElementById('leave-warning-ack-status').value,
+                        acknowledgmentDate: document.getElementById('leave-warning-ack-date').value,
+                        acknowledgedBy: document.getElementById('leave-warning-ack-status').value === 'รอรับทราบ' ? '' : document.getElementById('leave-warning-ack-name').value.trim(),
+                        acknowledgmentNote: document.getElementById('leave-warning-ack-note').value.trim()
+                    };
+                    if (payload.acknowledgmentStatus !== 'รอรับทราบ' && !payload.acknowledgedBy) {
+                        showToast('กรุณาระบุชื่อผู้รับทราบ/ผู้บันทึกการแจ้งเอกสาร', 'error');
+                        return;
+                    }
+                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        timeout: 30000
+                    });
+                    const result = await response.json();
+                    if (!response.ok || result.status !== 'success') {
+                        if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
+                        throw new Error(result.message || 'บันทึกหนังสือเตือนไม่สำเร็จ');
+                    }
+                    showToast('บันทึกหนังสือเตือนเรียบร้อยแล้ว', 'success');
+                    form.reset();
+                    document.getElementById('leave-warning-date').value = getTodayDateString();
+                    toggleLeaveWarningAcknowledgmentFields();
+                    leaveWarningPage = 1;
+                    await loadLeaveWarningRecords({ page: 1 });
+                } catch (error) {
+                    console.error('[submitLeaveWarning] Error:', error);
+                    showToast(`บันทึกหนังสือเตือนไม่สำเร็จ: ${error.message || error}`, 'error');
+                } finally {
+                    button.disabled = false;
+                }
+            }
+
+            async function recordLeaveWarningAcknowledgment(recordId) {
+                const acknowledgedBy = window.prompt('กรอกชื่อพนักงาน/ผู้รับทราบตามเอกสารจริง');
+                if (!acknowledgedBy || !acknowledgedBy.trim()) return;
+                if (!currentEmployeeId || !SERVER_API_URL) {
+                    showToast('ไม่พบข้อมูลผู้ใช้งานหรือ API กรุณาเข้าสู่ระบบใหม่', 'error');
+                    return;
+                }
+                if (!adminWarningAccessPin) {
+                    adminWarningAccessPin = await requestLeaveWarningPin();
+                    if (!adminWarningAccessPin) return;
+                }
+                try {
+                    const response = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            "action": 'updateWarningAcknowledgment',
+                            adminId: currentEmployeeId,
+                            adminPin: adminWarningAccessPin,
+                            recordId,
+                            acknowledgedBy: acknowledgedBy.trim(),
+                            acknowledgmentDate: getTodayDateString()
+                        }),
+                        timeout: 30000
+                    });
+                    const result = await response.json();
+                    if (!response.ok || result.status !== 'success') {
+                        if (result.code === 'INVALID_ADMIN_PIN') adminWarningAccessPin = '';
+                        throw new Error(result.message || 'อัปเดตสถานะรับทราบไม่สำเร็จ');
+                    }
+                    showToast('บันทึกการรับทราบแล้ว', 'success');
+                    await loadLeaveWarningRecords();
+                } catch (error) {
+                    console.error('[recordLeaveWarningAcknowledgment] Error:', error);
+                    showToast(`บันทึกการรับทราบไม่สำเร็จ: ${error.message || error}`, 'error');
+                }
+            }
+
             // จัดการแท็บข้อมูลการอนุมัติ (ลา, แก้ไขเวลา, เบิกเงิน)
             async function loadAdminApprovals() {
                 const leaveContainer = document.getElementById("admin-leave-table-body");
@@ -20276,6 +20985,9 @@ async function loadAdminEmployees() {
                     let rejectedCount = 0;
 
                     if (leaveRes.status === 'success' && Array.isArray(leaveRes.data)) {
+                        adminLeaveRequestRecords = leaveRes.data;
+                        adminLeaveRequestRecordsLoaded = true;
+                        renderLeaveEntitlementSummary();
                         const sortedData = [...leaveRes.data].sort(compareApprovalDocIdsDescending);
                         const pendingItems = [];
 
@@ -20661,15 +21373,18 @@ async function loadAdminEmployees() {
                 try {
                     const today = getTodayDateString();
                     const pendingStatuses = ['รออนุมัติ', 'รอตรวจสอบ', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ'];
+                    if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อ Supabase เพื่อโหลดรายการอนุมัติได้');
 
                     const [leaveSb, corrSb, advSb] = await Promise.all([
-                        supabaseClient ? supabaseClient.from('leave_requests').select('*') : Promise.resolve({ data: [], error: null }),
-                        supabaseClient ? supabaseClient.from('time_corrections').select('*') : Promise.resolve({ data: [], error: null }),
-                        supabaseClient ? supabaseClient.from('advance_requests').select('*') : Promise.resolve({ data: [], error: null })
+                        supabaseClient.from('leave_requests').select('*'),
+                        supabaseClient.from('time_corrections').select('*'),
+                        supabaseClient.from('advance_requests').select('*')
                     ]);
+                    const failedQuery = [leaveSb, corrSb, advSb].find(result => result.error);
+                    if (failedQuery) throw failedQuery.error;
 
                     // Map Supabase data to Thai field names format
-                    const leaveData = (!leaveSb.error && Array.isArray(leaveSb.data) ? leaveSb.data : []).map(l => ({
+                    const leaveData = (Array.isArray(leaveSb.data) ? leaveSb.data : []).map(l => ({
                         'เลขที่เอกสาร': l.doc_id,
                         'รหัสพนักงาน': l.emp_id,
                         'ชื่อ-นามสกุล': l.emp_name || '',
@@ -20685,7 +21400,7 @@ async function loadAdminEmployees() {
                         'เอกสารแนบ': l.attachments
                     }));
 
-                    const corrData = (!corrSb.error && Array.isArray(corrSb.data) ? corrSb.data : []).map(c => ({
+                    const corrData = (Array.isArray(corrSb.data) ? corrSb.data : []).map(c => ({
                         'รหัสพนักงาน': c.emp_id,
                         'วันที่': c.date,
                         'วันที่ส่ง': c.submitted_at || c.created_at || c.date,
@@ -20699,7 +21414,7 @@ async function loadAdminEmployees() {
                         'หมายเหตุ': c.notes
                     }));
 
-                    const advData = (!advSb.error && Array.isArray(advSb.data) ? advSb.data : []).map(a => ({
+                    const advData = (Array.isArray(advSb.data) ? advSb.data : []).map(a => ({
                         'รหัสพนักงาน': a.emp_id,
                         'จำนวนเงิน': a.amount,
                         'วันที่เบิก': a.request_date,
@@ -20989,8 +21704,29 @@ async function loadAdminEmployees() {
                 updateBatchButtons();
             }
 
+            function syncSelectAllLeaveCheckbox() {
+                const masterCheckbox = document.getElementById('select-all-leave');
+                const tbody = document.getElementById('admin-leave-table-body');
+                if (!masterCheckbox || !tbody) return;
+
+                const visibleCheckboxes = Array.from(tbody.querySelectorAll('.leave-checkbox')).filter(checkbox => {
+                    const row = checkbox.closest('tr');
+                    return row && row.style.display !== 'none';
+                });
+                const selectedCount = visibleCheckboxes.filter(checkbox => checkbox.checked).length;
+                masterCheckbox.checked = visibleCheckboxes.length > 0 && selectedCount === visibleCheckboxes.length;
+                masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < visibleCheckboxes.length;
+                masterCheckbox.disabled = visibleCheckboxes.length === 0;
+            }
+
             function toggleSelectAllLeave(selectAllCheckbox) {
-                const checkboxes = document.querySelectorAll('.leave-checkbox');
+                const tbody = document.getElementById('admin-leave-table-body');
+                const checkboxes = tbody
+                    ? Array.from(tbody.querySelectorAll('.leave-checkbox')).filter(checkbox => {
+                        const row = checkbox.closest('tr');
+                        return row && row.style.display !== 'none';
+                    })
+                    : [];
                 checkboxes.forEach(cb => {
                     cb.checked = selectAllCheckbox.checked;
                     const docId = cb.dataset.docId;
@@ -21018,6 +21754,14 @@ async function loadAdminEmployees() {
                 if (rejectLeaveBtn) {
                     rejectLeaveBtn.disabled = selectedLeaveItems.size === 0;
                 }
+                const selectedLeaveCount = document.getElementById('leave-selected-count');
+                if (selectedLeaveCount) {
+                    selectedLeaveCount.textContent = selectedLeaveItems.size
+                        ? `เลือกแล้ว ${selectedLeaveItems.size} รายการ`
+                        : '';
+                    selectedLeaveCount.classList.toggle('hidden', selectedLeaveItems.size === 0);
+                }
+                syncSelectAllLeaveCheckbox();
                 if (approveCorrectionBtn) {
                     approveCorrectionBtn.disabled = selectedCorrectionItems.size === 0;
                 }
