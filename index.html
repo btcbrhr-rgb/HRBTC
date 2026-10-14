@@ -320,6 +320,23 @@
             font-weight: 800;
             border-left: 2px solid #64748b;
         }
+        #admin-leave-summary-view .hr-table tbody td.leave-summary-usage-full {
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: 800;
+            box-shadow: inset 0 0 0 2px #f59e0b;
+        }
+        #admin-leave-summary-view .leave-summary-full-badge {
+            display: inline-flex;
+            margin-left: 4px;
+            border-radius: 9999px;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 1px 6px;
+            font-size: 10px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
         #admin-leave-summary-view .hr-table thead tr:first-child th.leave-summary-group--sick,
         #admin-leave-summary-view .hr-table thead tr:first-child th.leave-summary-group--personal,
         #admin-leave-summary-view .hr-table thead tr:first-child th.leave-summary-group--annual,
@@ -20844,6 +20861,7 @@ async function loadAdminEmployees() {
                     const name = (employee['ชื่อ-นามสกุล'] || '').toString().trim();
                     const usage = leaveByEmployee.get(empId) || { used: {}, unpaid: 0 };
                     let overQuota = false;
+                    let fullyUsedLeaveTypes = 0;
                     const employeeTotals = { entitled: 0, used: 0, remaining: 0 };
                     const leaveCells = summaryTypes.map(type => {
                         const used = type.unpaid ? usage.unpaid : (usage.used[type.name] || 0);
@@ -20855,10 +20873,12 @@ async function loadAdminEmployees() {
                         }
                         if (type.setting && Number.isFinite(quota)) {
                             if (used > quota) overQuota = true;
+                            const quotaFullyUsed = quota > 0 && Math.abs(used - quota) < 0.000001;
+                            if (quotaFullyUsed) fullyUsedLeaveTypes++;
                             employeeTotals.entitled += quota;
                             employeeTotals.used += used;
                             employeeTotals.remaining += quota - used;
-                            return `<td class="${groupClass} leave-summary-entitlement">${formatLeaveSummaryDays(quota)}</td><td class="${groupClass}">${formatLeaveSummaryDays(used)}</td><td class="${groupClass} ${used > quota ? 'bg-red-100 text-red-700 font-bold' : ''}">${formatLeaveSummaryDays(quota - used)}</td>`;
+                            return `<td class="${groupClass} leave-summary-entitlement">${formatLeaveSummaryDays(quota)}</td><td class="${groupClass} ${quotaFullyUsed ? 'leave-summary-usage-full' : ''}"${quotaFullyUsed ? ' title="ใช้สิทธิประเภทนี้ครบแล้ว"' : ''}>${formatLeaveSummaryDays(used)}${quotaFullyUsed ? '<span class="leave-summary-full-badge">ครบสิทธิ</span>' : ''}</td><td class="${groupClass} ${used > quota ? 'bg-red-100 text-red-700 font-bold' : ''}">${formatLeaveSummaryDays(quota - used)}</td>`;
                         }
                         return `<td class="${groupClass} leave-summary-entitlement text-slate-500">—</td><td class="${groupClass}">${formatLeaveSummaryDays(used)}</td><td class="${groupClass} text-slate-400">—</td>`;
                     }).join('');
@@ -20870,7 +20890,9 @@ async function loadAdminEmployees() {
                     displayedUsedDays += Object.values(usage.used).reduce((total, days) => total + days, usage.unpaid);
                     const quotaStatus = overQuota
                         ? '<span class="ml-1 inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">เกินสิทธิ</span>'
-                        : '';
+                        : fullyUsedLeaveTypes
+                            ? `<span class="leave-summary-full-badge">ใช้สิทธิครบ ${fullyUsedLeaveTypes} ประเภท</span>`
+                            : '';
                     const department = getLeaveSummaryDepartment(employee);
                     const warningAction = overQuota
                         ? `<button type="button" data-leave-summary-employee="${escapeHtml(empId)}" aria-label="เปิดแบบฟอร์มหนังสือเตือน ${escapeHtml(empId)} ${escapeHtml(name || '')}" class="min-h-11 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">ออกใบเตือน</button>`
