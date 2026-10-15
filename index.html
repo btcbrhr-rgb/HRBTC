@@ -6903,6 +6903,10 @@
                                 <h3 class="text-sm font-bold text-slate-800 whitespace-nowrap">เบิกเงินสำรอง</h3>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
+                                <button onclick="openAdvanceImportModal()" title="นำเข้ารายการเบิกสำรองจากไฟล์ CSV"
+                                    class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-indigo-200/80 transition-all flex items-center gap-1.5 shadow-2xs">
+                                    <i class="fa-solid fa-file-import text-[11px]"></i> นำเข้า CSV
+                                </button>
                                 <button onclick="loadAdminApprovals()" title="ซิงค์ข้อมูล"
                                     class="bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200/80 transition-all flex items-center gap-1.5 shadow-2xs">
                                     <i class="fa-solid fa-arrows-rotate text-[11px]"></i> ซิงค์
@@ -6979,6 +6983,92 @@
                             </table>
                         </div>
                     </div>
+
+                    <!-- ══════ Modal: นำเข้ารายการเบิกสำรองจาก CSV ══════ -->
+                    <div id="advance-import-modal" class="fixed inset-0 z-[999] hidden">
+                        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeAdvanceImportModal()"></div>
+                        <div class="absolute inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[800px] md:max-h-[85vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                            <!-- Header -->
+                            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center">
+                                        <i class="fa-solid fa-file-import"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-base font-bold text-slate-800">นำเข้ารายการเบิกสำรอง</h3>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">เลือกเดือน → เลือกไฟล์ CSV → ตรวจสอบ → ยืนยันนำเข้า</p>
+                                    </div>
+                                </div>
+                                <button onclick="closeAdvanceImportModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+
+                            <!-- Body -->
+                            <div class="px-6 py-5 overflow-y-auto flex-1 space-y-5">
+                                <!-- Step 1: เลือกเดือน -->
+                                <div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                                    <div class="flex-1 min-w-0">
+                                        <label class="block text-xs font-bold text-slate-600 mb-1.5"><i class="fa-solid fa-calendar-days mr-1 text-indigo-500"></i> เดือนที่นำเข้า <span class="text-rose-500">*</span></label>
+                                        <input type="month" id="advance-import-month"
+                                            class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
+                                            onchange="onAdvanceImportMonthChange()">
+                                        <p class="text-[10px] text-slate-400 mt-1">เลือกเดือนให้ตรงกับรอบบัญชีของไฟล์ CSV ที่จะนำเข้า</p>
+                                    </div>
+                                    <!-- Step 2: เลือกไฟล์ CSV (จะ enable หลังเลือกเดือน) -->
+                                    <div class="flex-1 min-w-0">
+                                        <label class="block text-xs font-bold text-slate-600 mb-1.5"><i class="fa-solid fa-file-csv mr-1 text-emerald-500"></i> เลือกไฟล์ CSV</label>
+                                        <label id="advance-csv-file-label"
+                                            class="flex items-center gap-2 w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-400 cursor-pointer hover:bg-slate-100 hover:border-indigo-300 transition-all opacity-50 pointer-events-none">
+                                            <i class="fa-solid fa-cloud-arrow-up text-slate-300"></i>
+                                            <span id="advance-csv-file-name">กรุณาเลือกเดือนก่อน</span>
+                                            <input type="file" id="advance-csv-file-input" accept=".csv" class="hidden" onchange="handleAdvanceCsvFile(event)">
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Preview Area -->
+                                <div id="advance-import-preview-area" class="hidden">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h4 class="text-xs font-bold text-slate-700"><i class="fa-solid fa-table-list mr-1 text-indigo-500"></i> ตัวอย่างข้อมูลที่จะนำเข้า</h4>
+                                        <span id="advance-import-summary" class="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full"></span>
+                                    </div>
+                                    <div class="max-h-[320px] overflow-auto rounded-xl border border-slate-200">
+                                        <table class="w-full text-xs">
+                                            <thead class="bg-slate-50 sticky top-0">
+                                                <tr>
+                                                    <th class="px-3 py-2 text-left font-bold text-slate-600">#</th>
+                                                    <th class="px-3 py-2 text-left font-bold text-slate-600">รหัส</th>
+                                                    <th class="px-3 py-2 text-left font-bold text-slate-600">ชื่อ-สกุล</th>
+                                                    <th class="px-3 py-2 text-right font-bold text-slate-600">จำนวนเงิน</th>
+                                                    <th class="px-3 py-2 text-center font-bold text-slate-600">วันทำงาน</th>
+                                                    <th class="px-3 py-2 text-left font-bold text-slate-600">วิธีการจ่าย</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="advance-import-preview-body"></tbody>
+                                        </table>
+                                    </div>
+                                    <div id="advance-import-dup-warning" class="hidden mt-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-700">
+                                        <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                                        <span id="advance-import-dup-text"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Footer -->
+                            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-slate-50/50">
+                                <button onclick="closeAdvanceImportModal()"
+                                    class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all">
+                                    ยกเลิก
+                                </button>
+                                <button id="advance-import-confirm-btn" onclick="confirmAdvanceImport()" disabled
+                                    class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> ยืนยันนำเข้า
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                 </section>
 
                 <!-- SECTION 6: ประกาศข่าวสาร -->
@@ -22393,6 +22483,236 @@ async function loadAdminEmployees() {
             function batchRejectAdvance() {
                 if (selectedAdvanceItems.size === 0) return;
                 openBatchDecisionModal('advance', 'reject');
+            }
+
+            // ══════════════════════════════════════════════════════════════
+            // 📥 นำเข้ารายการเบิกสำรองจาก CSV (Advance Import)
+            // ══════════════════════════════════════════════════════════════
+            let _advanceImportParsedRows = [];
+
+            function openAdvanceImportModal() {
+                _advanceImportParsedRows = [];
+                const modal = document.getElementById('advance-import-modal');
+                const monthInput = document.getElementById('advance-import-month');
+                const fileInput = document.getElementById('advance-csv-file-input');
+                const fileLabel = document.getElementById('advance-csv-file-label');
+                const fileName = document.getElementById('advance-csv-file-name');
+                const previewArea = document.getElementById('advance-import-preview-area');
+                const confirmBtn = document.getElementById('advance-import-confirm-btn');
+                const dupWarning = document.getElementById('advance-import-dup-warning');
+
+                // Reset state
+                if (monthInput) {
+                    const now = new Date();
+                    monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                }
+                if (fileInput) fileInput.value = '';
+                if (fileName) fileName.textContent = 'คลิกเพื่อเลือกไฟล์ .csv';
+                if (fileLabel) { fileLabel.classList.remove('opacity-50', 'pointer-events-none'); }
+                if (previewArea) previewArea.classList.add('hidden');
+                if (confirmBtn) confirmBtn.disabled = true;
+                if (dupWarning) dupWarning.classList.add('hidden');
+
+                if (modal) modal.classList.remove('hidden');
+            }
+
+            function closeAdvanceImportModal() {
+                const modal = document.getElementById('advance-import-modal');
+                if (modal) modal.classList.add('hidden');
+                _advanceImportParsedRows = [];
+            }
+
+            function onAdvanceImportMonthChange() {
+                const monthInput = document.getElementById('advance-import-month');
+                const fileLabel = document.getElementById('advance-csv-file-label');
+                const fileName = document.getElementById('advance-csv-file-name');
+                const hasMonth = monthInput && monthInput.value;
+                if (fileLabel) {
+                    fileLabel.classList.toggle('opacity-50', !hasMonth);
+                    fileLabel.classList.toggle('pointer-events-none', !hasMonth);
+                }
+                if (fileName) fileName.textContent = hasMonth ? 'คลิกเพื่อเลือกไฟล์ .csv' : 'กรุณาเลือกเดือนก่อน';
+                // Clear previous preview
+                const previewArea = document.getElementById('advance-import-preview-area');
+                if (previewArea) previewArea.classList.add('hidden');
+                const confirmBtn = document.getElementById('advance-import-confirm-btn');
+                if (confirmBtn) confirmBtn.disabled = true;
+                _advanceImportParsedRows = [];
+            }
+
+            function handleAdvanceCsvFile(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const fileName = document.getElementById('advance-csv-file-name');
+                if (fileName) fileName.textContent = file.name;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const rows = parseAdvanceCsv(e.target.result);
+                        if (rows.length === 0) {
+                            showToast('ไม่พบรายการที่มียอดเงิน > 0 ในไฟล์ CSV', 'error');
+                            return;
+                        }
+                        _advanceImportParsedRows = rows;
+                        renderAdvanceImportPreview(rows);
+                        showToast(`📄 พบ ${rows.length} รายการที่มียอดเงินสำรอง พร้อมตรวจสอบ`, 'success');
+                    } catch (err) {
+                        showToast('อ่านไฟล์ CSV ไม่สำเร็จ: ' + err.message, 'error');
+                    }
+                };
+                reader.readAsText(file, 'utf-8');
+            }
+
+            /**
+             * Parse CSV เบิกสำรอง — โครงสร้าง CSV จากไฟล์จริง:
+             *   แถว 1-4: header/title (ข้าม)
+             *   แถว 5: ชื่อคอลัมน์ (NO, บริษัท, _, ลำดับ, รหัส, ชื่อ-สกุล, ตำแหน่ง, สาขาธนาคาร, เลขบัญชี, จำนวนเงิน, ..., วันทำงาน, วิธีการจ่าย)
+             *   แถว 6+: ข้อมูลพนักงาน — คัดเลือกเฉพาะแถวที่มี emp_id + จำนวนเงิน > 0
+             */
+            function parseAdvanceCsv(text) {
+                const lines = text.split(/\r?\n/);
+                const results = [];
+
+                for (let i = 5; i < lines.length; i++) {  // skip first 5 lines (index 0-4)
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    // Simple CSV parse with quoted field support
+                    const cols = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let j = 0; j < line.length; j++) {
+                        const ch = line[j];
+                        if (ch === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (ch === ',' && !inQuotes) {
+                            cols.push(current.trim());
+                            current = '';
+                        } else {
+                            current += ch;
+                        }
+                    }
+                    cols.push(current.trim());
+
+                    // Extract essential columns
+                    const empId = (cols[4] || '').trim();
+                    const empName = (cols[5] || '').trim();
+                    const rawAmount = (cols[9] || '').replace(/,/g, '').trim();
+                    const amount = parseFloat(rawAmount);
+                    const workDays = (cols[12] || '').trim();
+                    const paymentMethod = (cols[13] || '').trim();
+
+                    // Validate: must have emp_id (looks like number) and amount > 0
+                    if (!empId || !/^\d+$/.test(empId)) continue;
+                    if (isNaN(amount) || amount <= 0) continue;
+
+                    results.push({
+                        emp_id: empId,
+                        emp_name: empName,
+                        amount: amount,
+                        work_days: workDays,
+                        payment_method: paymentMethod || 'โอนผ่านบัญชีธนาคาร'
+                    });
+                }
+                return results;
+            }
+
+            function renderAdvanceImportPreview(rows) {
+                const previewArea = document.getElementById('advance-import-preview-area');
+                const tbody = document.getElementById('advance-import-preview-body');
+                const summary = document.getElementById('advance-import-summary');
+                const confirmBtn = document.getElementById('advance-import-confirm-btn');
+
+                if (!tbody || !previewArea) return;
+
+                const totalAmount = rows.reduce((sum, r) => sum + r.amount, 0);
+                if (summary) summary.textContent = `${rows.length} รายการ — รวม ${totalAmount.toLocaleString()} บาท`;
+
+                tbody.innerHTML = rows.map((r, idx) => `
+                    <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-indigo-50/30">
+                        <td class="px-3 py-1.5 text-slate-400">${idx + 1}</td>
+                        <td class="px-3 py-1.5 font-mono font-bold text-slate-700">${escapeHtml(r.emp_id)}</td>
+                        <td class="px-3 py-1.5 text-slate-600">${escapeHtml(r.emp_name)}</td>
+                        <td class="px-3 py-1.5 text-right font-bold text-emerald-700">${r.amount.toLocaleString()}</td>
+                        <td class="px-3 py-1.5 text-center text-slate-500">${escapeHtml(r.work_days || '-')}</td>
+                        <td class="px-3 py-1.5 text-slate-500 text-[11px]">${escapeHtml(r.payment_method)}</td>
+                    </tr>
+                `).join('');
+
+                previewArea.classList.remove('hidden');
+                if (confirmBtn) confirmBtn.disabled = false;
+            }
+
+            async function confirmAdvanceImport() {
+                if (_advanceImportParsedRows.length === 0) return;
+
+                const monthInput = document.getElementById('advance-import-month');
+                const confirmBtn = document.getElementById('advance-import-confirm-btn');
+                if (!monthInput || !monthInput.value) {
+                    showToast('กรุณาเลือกเดือนที่จะนำเข้า', 'error');
+                    return;
+                }
+
+                // Derive request_date and pay_cycle from selected month
+                const [year, month] = monthInput.value.split('-');
+                const requestDate = `${year}-${month}-01`;  // วันที่ 1 ของเดือนที่เลือก
+                const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+                const beYear = parseInt(year) + 543;
+                const payCycle = `รอบ ${thaiMonths[parseInt(month) - 1]} ${beYear}`;
+
+                const totalAmount = _advanceImportParsedRows.reduce((s, r) => s + r.amount, 0);
+                const confirmed = confirm(
+                    `ยืนยันนำเข้ารายการเบิกสำรอง ${_advanceImportParsedRows.length} รายการ\n` +
+                    `รอบ: ${payCycle}\n` +
+                    `ยอดรวม: ${totalAmount.toLocaleString()} บาท\n\n` +
+                    `รายการที่ซ้ำจะถูกข้ามอัตโนมัติ`
+                );
+                if (!confirmed) return;
+
+                if (confirmBtn) {
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังนำเข้า…';
+                }
+
+                try {
+                    const payload = {
+                        action: 'importAdvanceRequests',
+                        adminId: currentEmployeeId,
+                        sessionToken: sessionToken,
+                        requestDate: requestDate,
+                        payCycle: payCycle,
+                        records: _advanceImportParsedRows.map(r => ({
+                            emp_id: r.emp_id,
+                            amount: r.amount,
+                            work_days: r.work_days,
+                            payment_method: r.payment_method
+                        }))
+                    };
+
+                    const res = await fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify(payload),
+                        timeout: 60000
+                    });
+
+                    if (res && res.status === 'success') {
+                        const msg = `นำเข้าสำเร็จ ${res.imported || 0} รายการ` +
+                            (res.skipped ? ` (ข้าม ${res.skipped} รายการซ้ำ)` : '');
+                        showToast('✅ ' + msg, 'success');
+                        closeAdvanceImportModal();
+                        if (typeof loadAdminApprovals === 'function') loadAdminApprovals();
+                    } else {
+                        showToast('❌ นำเข้าไม่สำเร็จ: ' + (res?.message || 'ไม่ทราบสาเหตุ'), 'error');
+                    }
+                } catch (err) {
+                    showToast('❌ เกิดข้อผิดพลาด: ' + (err.message || String(err)), 'error');
+                } finally {
+                    if (confirmBtn) {
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> ยืนยันนำเข้า';
+                    }
+                }
             }
 
             // Batch functions for correction
