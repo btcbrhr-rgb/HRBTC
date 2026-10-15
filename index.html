@@ -22748,8 +22748,17 @@ async function loadAdminEmployees() {
                             }
                             if (batchOperationType === 'correction') {
                                 yearlyMonthDataCache = {};
+                                // 🔧 เด้มเดียวกับชุดอนุมัติทีละรายการ: ล้าง client-cache ของ Matrix/ต้นทุน
+                                //    (__pcDataCache 2 นาที) แล้วรีเฟรชแท็บที่เปิดอยู่ เพื่อให้เวลา/สถานะใหม่โชว์ทันที
+                                if (window.__pcDataCache) window.__pcDataCache = {};
+                                window.__attendanceCycleCache = null;
                                 if (typeof loadYearlyAttendanceOverview === 'function') {
                                     loadYearlyAttendanceOverview();
+                                }
+                                if (typeof loadAllData === 'function') await loadAllData();
+                                if (typeof loadSheetData === 'function') {
+                                    await loadSheetData();
+                                    if (typeof refreshActiveTab === 'function') refreshActiveTab();
                                 }
                             }
                         } catch (err) {
@@ -22851,12 +22860,21 @@ async function loadAdminEmployees() {
                                     RealtimeSyncManager.broadcast(type === 'leave' ? 'leave_requests' : (type === 'correction' ? 'time_corrections' : 'advance_requests'), 'UPDATE', { status: approvedStatus });
                                 }
 
-                                if (type === 'correction') { 
+                                if (type === 'correction') {
                                     yearlyMonthDataCache = {};
+                                    // 🔧 Matrix/ต้นทุนอ่าน time_records ตรงจาก Supabase แต่มี client-cache 2 นาที
+                                    //    (window.__pcDataCache) → ต้องล้าง cache ก่อนโหลดใหม่ ไม่งั้นอนุมัติแล้ว
+                                    //    ตารางแผ่นสถิติ (Matrix Timesheet) ยังโชว์เวลา/สถานะเดิม
+                                    if (window.__pcDataCache) window.__pcDataCache = {};
+                                    window.__attendanceCycleCache = null;
                                     if (typeof loadYearlyAttendanceOverview === 'function') {
                                         loadYearlyAttendanceOverview();
                                     }
-                                    await loadAllData(); 
+                                    await loadAllData();
+                                    if (typeof loadSheetData === 'function') {
+                                        await loadSheetData();
+                                        if (typeof refreshActiveTab === 'function') refreshActiveTab();
+                                    }
                                 }
                             };
                             if (!response || typeof response !== 'object') {
