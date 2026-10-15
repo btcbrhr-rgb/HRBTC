@@ -19047,61 +19047,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 try {
                     showToast(`⏳ กำลังอัปเดตเวลา ${empId} วันที่ ${formatThaiDate(date)}…`, "info");
 
-                    // 1. ⚡ Direct Supabase Sync: ค้นหาคำขอที่อนุมัติแล้ว และเขียนตรงลง time_records ทันที
-                    if (supabaseClient) {
-                        try {
-                            const { data: cData } = await supabaseClient
-                                .from('time_corrections')
-                                .select('*')
-                                .eq('emp_id', empId)
-                                .eq('date', date)
-                                .in('status', ['อนุมัติแล้ว', 'Approved', 'อนุมัติ'])
-                                .limit(1);
+                    // ⚠️ ไม่เขียน time_records ตรงจาก browser ที่นี้อีก — เดิม browser เขียนเวลา (ไม่มีสถานะ)
+                    //    ก่อน backend ~16 วิ (reapplyTimeCorrection) ทำให้ช่วงนั้นเจอ "เวลาใหม่ + สถานะเก่า"
+                    //    ให้ GAS adminReapplyTimeCorrection() เป็นตัวเขียนคนเดียว (เวลา+สถานะ+late/OT พร้อมกัน)
 
-                            if (cData && cData.length > 0) {
-                                const c = cData[0];
-                                const tIn = c.new_time_in ? (c.new_time_in.length === 5 ? c.new_time_in + ':00' : c.new_time_in) : null;
-                                const tOut = c.new_time_out ? (c.new_time_out.length === 5 ? c.new_time_out + ':00' : c.new_time_out) : null;
-
-                                const { data: existingRecs } = await supabaseClient
-                                    .from('time_records')
-                                    .select('id, status, status_key, project_in, project_out, time_in, time_out, original_time_in, original_time_out')
-                                    .eq('emp_id', empId)
-                                    .eq('date', date)
-                                    .limit(1);
-
-                                const origIn = (existingRecs && existingRecs[0]) ? (existingRecs[0].original_time_in || existingRecs[0].time_in || c.old_time_in || null) : (c.old_time_in || null);
-                                const origOut = (existingRecs && existingRecs[0]) ? (existingRecs[0].original_time_out || existingRecs[0].time_out || c.old_time_out || null) : (c.old_time_out || null);
-
-                                const updatePayload = {
-                                    emp_id: empId,
-                                    date: date,
-                                    time_in: tIn,
-                                    time_out: tOut,
-                                    original_time_in: origIn,
-                                    original_time_out: origOut,
-                                    is_edited: true,
-                                    source: 'Time Correction',
-                                    updated_at: new Date().toISOString()
-                                };
-                                if (c.project) updatePayload.project_in = c.project;
-
-                                if (existingRecs && existingRecs.length > 0) {
-                                    // ⚠️ ไม่เขียนสถานะ/late/OT จาก browser — ให้ GAS adminReapplyTimeCorrection()
-                                    //    คำนวณจากตัวกลางเดียวกับ Agent/Python (เดิมเขียนแค่ metadata แล้ว
-                                    //    บังคับ 'ปกติ'/'W' ตอน insert → เวลาเปลี่ยนแต่สถานะไม่อัปเดต)
-                                    await supabaseClient.from('time_records').update(updatePayload).eq('id', existingRecs[0].id);
-                                } else {
-                                    await supabaseClient.from('time_records').insert(updatePayload);
-                                }
-                                console.log(`[reapplyTimeCorrection] Direct Supabase update successful for ${empId} ${date}`);
-                            }
-                        } catch (sbDirectErr) {
-                            console.warn('[reapplyTimeCorrection] Direct Supabase update error:', sbDirectErr);
-                        }
-                    }
-
-                    // 2. เรียก Backend API เพื่อคำนวณ metrics และบันทึก audit trail
+                    // เรียก Backend API เพื่อคำนวณ metrics และบันทึก audit trail
                     const payload = {
                         action: "reapplyTimeCorrection",
                         adminId: currentEmployeeId,
