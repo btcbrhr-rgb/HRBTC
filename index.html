@@ -11511,23 +11511,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     // บังคับยืนยัน PIN เฉพาะเมื่อเปิดใหม่ผ่าน URL/เบราว์เซอร์ใหม่ที่ยังไม่ได้ยืนยัน PIN ในเซสชันนี้
                     const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
-                    if (!pinVerifiedThisSession && (urlEmpId || !sessionStorage.getItem("is_logged_in")) && !isAdminLoginAccount(savedEmpId)) {
+                    if (!pinVerifiedThisSession && (urlEmpId || !sessionStorage.getItem("is_logged_in"))) {
                         await promptPinBeforeAutoLogin(savedEmpId);
                         return;
                     }
 
-                    // ถ้าเป็น special admin ให้ตั้ง employeeData เริ่มต้นไว้เสมอ
-                    if (isAdminLoginAccount(savedEmpId) && (!employeeData || Object.keys(employeeData).length === 0)) {
-                        employeeData = {
-                            "รหัสพนักงาน": "admin",
-                            "ชื่อ-นามสกุล": "System Admin",
-                            "ตำแหน่ง": "Administrator",
-                            "สถานะ": "ทำงานปกติ",
-                            "วันหยุดประจําสัปดาห์": "วันอาทิตย์",
-                            "ชื่อบริษัท": "Buriram Thongchai",
-                            "สิทธิ์การใช้งาน": "administrator"
-                        };
-                    } else if ((!employeeData || Object.keys(employeeData).length === 0) && supabaseClient) {
+                    if ((!employeeData || Object.keys(employeeData).length === 0) && supabaseClient) {
                         try {
                             const { data: empRecord, error: empErr } = await supabaseClient
                                 .from('employees')
@@ -11591,14 +11580,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     hideLoginContainer();
-                    const autoAdminUser = isAdminLoginAccount(currentEmployeeId);
                     const userRole = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
                     const isUserAdminRole = isAdminRole(userRole);
                     const savedAdminMode = sessionStorage.getItem("is_admin_mode") === "true";
                     const savedAdminTab = sessionStorage.getItem("admin_active_tab");
                     const savedActivePage = sessionStorage.getItem("active_page");
 
-                    if ((autoAdminUser || isUserAdminRole) && (savedAdminMode || (!urlTab && !urlModal && autoAdminUser))) {
+                    if (isUserAdminRole && (savedAdminMode || (!urlTab && !urlModal))) {
                         enterAdminMode();
                         if (savedAdminTab) {
                             switchAdminTab(savedAdminTab);
@@ -11735,39 +11723,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     let empResponse = null;
                     let supabaseLoginError = null;
 
-                    const isSpecialAdminLogin = isAdminLoginAccount(empIdInput);
-
-                    // ✅ โหมด admin พิเศษ: ให้เข้าสู่ระบบได้ทันที แม้ไม่มี row ในตาราง employees
-                    if (isSpecialAdminLogin) {
-                        empResponse = {
-                            status: "success",
-                            _source: "special-admin",
-                            data: {
-                                "รหัสพนักงาน": "admin",
-                                "ชื่อ-นามสกุล": "System Admin",
-                                "ตำแหน่ง": "Administrator",
-                                "สถานะ": "ทำงานปกติ",
-                                "วันหยุดประจําสัปดาห์": "วันอาทิตย์",
-                                "ชื่อบริษัท": "Buriram Thongchai",
-                                "วันที่เริ่มงาน": new Date().toISOString().slice(0, 10),
-                                "เบอร์โทรศัพท์": "-",
-                                "ที่อยู่": "-",
-                                "เลขบัตรประชาชน": "-",
-                                "วันเดือนปีเกิด": "-",
-                                "ธนาคาร": "-",
-                                "สาขาธนาคาร": "-",
-                                "หมายเลขบัญชี": "-",
-                                "ลิ้งภาพโปรไฟล์": "",
-                                "ฐานเงินเดือน": 0,
-                                "ตัวหารค่าแรง": 1,
-                                "ชั่วโมงทำงานต่อวัน": 8,
-                                "ตัวคูณโอที": 1,
-                                "สิทธิ์การใช้งาน": "administrator",
-                                "LineUserId": "",
-                                "PIN": ""
-                            }
-                        };
-                    } else if (supabaseClient) {
+                    if (supabaseClient) {
                         // ⚡ 1. Fast-Login via Supabase (< 50ms)
                         try {
                             const { data, error } = await supabaseClient
@@ -11834,9 +11790,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const configuredPin = employeeData["PIN"] || employeeData.pin || '';
                     const pinInput = document.getElementById("pin-login-emp-id");
                     const setupInput = document.getElementById("pin-setup-emp-id");
-                    if (isAdminLoginAccount(currentEmployeeId)) {
-                        await handleLoginSuccess(currentEmployeeId);
-                    } else if (configuredPin) {
+                    if (configuredPin) {
                         if (pinInput) pinInput.value = currentEmployeeId;
                         showModal("pin-login-modal");
                     } else {
@@ -12217,8 +12171,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // session-only
                 sessionStorage.setItem('pin_verified_' + empId, 'true');
 
-                const isAdminUser = isAdminLoginAccount(empId);
-
                 // ⚡ แสดง Loading Overlay แล้วโหลดข้อมูลทั้งหมดก่อนแสดง UI
                 showLoginLoading();
                 try {
@@ -12273,6 +12225,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // ✅ ข้อมูลพร้อมแล้ว → ซ่อน overlay แล้วแสดงหน้าเว็บ
                 hideLoginContainer();
+                const userRole = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
+                const isAdminUser = isAdminRole(userRole);
                 const targetPage = deepLinkTargetPage || (isAdminUser ? null : "home");
                 if (isAdminUser && !deepLinkTargetPage) enterAdminMode();
                 else navigateTo(targetPage || "home");
@@ -14102,7 +14056,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
                 const switchBtn = document.getElementById("admin-switch-btn");
 
-                const isAdminOrSuper = isAdminRole(role) || isAdminLoginAccount(currentEmployeeId);
+                const isAdminOrSuper = isAdminRole(role);
 
                 if (switchBtn) {
                     if (isAdminOrSuper) {
@@ -17047,7 +17001,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             const MANAGER_ADMIN_MENUS = ['dashboard', 'approve-leave', 'approve-correction', 'approve-advance', 'project-cost'];
 
             function isAdminLoginAccount(empId) {
-                return (empId || "").toString().trim().toLowerCase() === 'admin';
+                // 🔐 ปิดช่องโหว่บายพาส: ผู้ดูแลระบบทุกคนต้องมีบัญชีในฐานข้อมูลและยืนยัน PIN เสมอ
+                return false;
             }
 
             // 🔒 ตรวจสอบว่าผู้ใช้มีสิทธิ์เข้าถึงเมนู admin นี้หรือไม่
@@ -17112,7 +17067,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function enterAdminMode() {
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
-                const hasAdminPermission = isAdminRole(role) || isManagerRole(role) || isAdminLoginAccount(currentEmployeeId);
+                const hasAdminPermission = isAdminRole(role) || isManagerRole(role);
                 if (!hasAdminPermission) {
                     showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
                     return;
@@ -17263,7 +17218,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             function toggleAdminMode() {
                 const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
-                const isAdminOrSuper = isAdminRole(role) || isAdminLoginAccount(currentEmployeeId);
+                const isAdminOrSuper = isAdminRole(role);
 
                 if (!isAdminOrSuper) {
                     showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
