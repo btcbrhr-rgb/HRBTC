@@ -11580,13 +11580,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
 
                     hideLoginContainer();
-                    const userRole = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+                    const userRole = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
                     const isUserAdminRole = isAdminRole(userRole);
                     const savedAdminMode = sessionStorage.getItem("is_admin_mode") === "true";
                     const savedAdminTab = sessionStorage.getItem("admin_active_tab");
                     const savedActivePage = sessionStorage.getItem("active_page");
 
-                    if (isUserAdminRole && (savedAdminMode || (!urlTab && !urlModal))) {
+                    const isAdminEmpId = (savedEmpId || currentEmployeeId || (employeeData && employeeData["รหัสพนักงาน"]) || "").toString().trim().toLowerCase() === 'admin';
+                    const shouldEnterAdmin = isAdminEmpId ? (savedAdminMode || (!urlTab && !urlModal)) : (isUserAdminRole && savedAdminMode);
+
+                    if (shouldEnterAdmin) {
                         enterAdminMode();
                         if (savedAdminTab) {
                             switchAdminTab(savedAdminTab);
@@ -12170,6 +12173,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 sessionStorage.setItem("logged_in_emp_id", empId);
                 // session-only
                 sessionStorage.setItem('pin_verified_' + empId, 'true');
+                try {
+                    sessionStorage.removeItem("is_admin_mode");
+                    sessionStorage.removeItem("admin_active_tab");
+                } catch(e) {}
 
                 // ⚡ แสดง Loading Overlay แล้วโหลดข้อมูลทั้งหมดก่อนแสดง UI
                 showLoginLoading();
@@ -12226,10 +12233,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ✅ ข้อมูลพร้อมแล้ว → ซ่อน overlay แล้วแสดงหน้าเว็บ
                 hideLoginContainer();
                 const userRole = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
-                const isAdminUser = isAdminRole(userRole);
-                const targetPage = deepLinkTargetPage || (isAdminUser ? null : "home");
-                if (isAdminUser && !deepLinkTargetPage) enterAdminMode();
-                else navigateTo(targetPage || "home");
+                const isAdminEmpId = (empId || currentEmployeeId || (employeeData && employeeData["รหัสพนักงาน"]) || "").toString().trim().toLowerCase() === 'admin';
+                const targetPage = deepLinkTargetPage || (isAdminEmpId ? null : "home");
+                if (isAdminEmpId && !deepLinkTargetPage) {
+                    enterAdminMode();
+                } else {
+                    navigateTo(targetPage || "home");
+                }
                 deepLinkTargetPage = null; // ใช้แล้วล้างทิ้ง
             }
 
@@ -14053,7 +14063,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function applyRolePermissions() {
-                const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+                const role = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
                 const switchBtn = document.getElementById("admin-switch-btn");
 
                 const isAdminOrSuper = isAdminRole(role);
