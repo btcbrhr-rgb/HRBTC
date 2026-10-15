@@ -30765,9 +30765,9 @@ ${slip.textSample}
                 avatarUrl: (row.avatar_url || row['รูปถ่าย'] || '').toString().trim(),
                 lineUserId: (row.line_user_id || row['LINE ID'] || '').toString().trim(),
                 baseSalary: parseFloatOrZero(row['ฐานเงินเดือน'] || row.base_salary || row['Base Salary'] || row['Salary']),
-                divisor: systemSettings.dailyDivisor,
-                workHoursPerDay: systemSettings.workHoursPerDay,
-                otMultiplier: systemSettings.defaultOtRate
+                divisor: parseFloat(row['ตัวหารค่าแรง'] || row.wage_divisor) || systemSettings.dailyDivisor || 30,
+                workHoursPerDay: parseFloat(row['ชั่วโมงทำงานต่อวัน'] || row.work_hours_per_day) || systemSettings.workHoursPerDay || 8,
+                otMultiplier: parseFloat(row['ตัวคูณโอที'] || row.ot_rate) || systemSettings.defaultOtRate || 1.5
             };
         }
 
@@ -31082,9 +31082,9 @@ ${slip.textSample}
                                 dayOff: r.day_off || 'อาทิตย์', company: r.company || '',
                                 startDate: r.start_date || '', phone: r.phone || '',
                                 baseSalary: parseFloat(r.base_salary) || 0,
-                                divisor: systemSettings.dailyDivisor,
-                                workHoursPerDay: systemSettings.workHoursPerDay,
-                                otMultiplier: systemSettings.defaultOtRate,
+                                divisor: parseFloat(r.wage_divisor) || systemSettings.dailyDivisor || 30,
+                                workHoursPerDay: parseFloat(r.work_hours_per_day) || systemSettings.workHoursPerDay || 8,
+                                otMultiplier: parseFloat(r.ot_rate) || systemSettings.defaultOtRate || 1.5,
                                 role: r.position || r.role || 'Employee',
                                 avatar: r.avatar_url || '',
                                 avatarUrl: r.avatar_url || '',
@@ -32586,10 +32586,10 @@ ${slip.textSample}
             const ewfEstimateActiveForCycle = estimatePeriodEndDate >= ewfEstimateStartDate;
             let sumGrandWages = 0;
             const _empDailyCostParams = (emp) => {
-                // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth) — ไม่ใช้ emp.divisor/workHours/otMultiplier
-                const divisor = systemSettings.dailyDivisor || 30;
-                const workHours = systemSettings.workHoursPerDay || 8;
-                const otRate = systemSettings.defaultOtRate || 1.0;
+                // 🔧 คำนวณตามฐานค่าจ้างและตัวหารประจำตัวพนักงาน (รายวัน vs รายเดือน) พร้อม fallback systemSettings
+                const divisor = (emp && parseFloat(emp.divisor)) > 0 ? parseFloat(emp.divisor) : (systemSettings.dailyDivisor || 30);
+                const workHours = (emp && parseFloat(emp.workHoursPerDay)) > 0 ? parseFloat(emp.workHoursPerDay) : (systemSettings.workHoursPerDay || 8);
+                const otRate = (emp && parseFloat(emp.otMultiplier)) > 0 ? parseFloat(emp.otMultiplier) : (systemSettings.defaultOtRate || 1.5);
                 const baseDailyWage = (parseFloat(emp.baseSalary) || 0) / divisor;
                 return { divisor, baseDailyWage, baseHourlyWage: workHours > 0 ? baseDailyWage / workHours : 0, otRate };
             };
@@ -32871,18 +32871,19 @@ ${slip.textSample}
                 const workU = (+rule.workUnit) || 0;
                 if (workU <= 0) return;
 
-                // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
-                const divisor = systemSettings.dailyDivisor || 30;
+                // 🔧 คำนวณตามฐานค่าจ้างและตัวหารประจำตัวพนักงาน พร้อม fallback systemSettings
+                const divisor = (emp && parseFloat(emp.divisor)) > 0 ? parseFloat(emp.divisor) : (systemSettings.dailyDivisor || 30);
                 const usedSoFar = empCappedDaysUsed[emp.id] || 0;
                 const usable = (usedSoFar >= divisor) ? 0 : Math.min(workU, divisor - usedSoFar);
                 if (usable <= 0) return; // เกินเพดานตัวหารแล้ว (เช่นวันที่ 31 ของเดือน) → ไม่นับ
                 empCappedDaysUsed[emp.id] = usedSoFar + usable;
 
-                const workHours = systemSettings.workHoursPerDay || 8;
-                const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
+                const workHours = (emp && parseFloat(emp.workHoursPerDay)) > 0 ? parseFloat(emp.workHoursPerDay) : (systemSettings.workHoursPerDay || 8);
+                const defaultRate = (emp && parseFloat(emp.otMultiplier)) > 0 ? parseFloat(emp.otMultiplier) : (systemSettings.defaultOtRate || 1.5);
+                const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : defaultRate);
 
                 const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary); 
-                const baseHourlyWage = baseDailyWage / workHours; 
+                const baseHourlyWage = workHours > 0 ? (baseDailyWage / workHours) : 0; 
                 
                 const logOtHours = parseFloat(log.ot || 0);
                 const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
@@ -33155,13 +33156,14 @@ ${slip.textSample}
                             };
                         }
 
-                        // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
-                        const divisor = systemSettings.dailyDivisor || 30;
-                        const workHours = systemSettings.workHoursPerDay || 8;
-                        const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
+                        // 🔧 คำนวณตามฐานค่าจ้างและตัวหารประจำตัวพนักงาน พร้อม fallback systemSettings
+                        const divisor = (emp && parseFloat(emp.divisor)) > 0 ? parseFloat(emp.divisor) : (systemSettings.dailyDivisor || 30);
+                        const workHours = (emp && parseFloat(emp.workHoursPerDay)) > 0 ? parseFloat(emp.workHoursPerDay) : (systemSettings.workHoursPerDay || 8);
+                        const defaultRate = (emp && parseFloat(emp.otMultiplier)) > 0 ? parseFloat(emp.otMultiplier) : (systemSettings.defaultOtRate || 1.5);
+                        const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : defaultRate);
 
                         const baseDailyWage = emp.baseSalary / divisor;
-                        const baseHourlyWage = baseDailyWage / workHours;
+                        const baseHourlyWage = workHours > 0 ? (baseDailyWage / workHours) : 0;
 
                         const stat = empSummaryDB[empId];
 
@@ -33479,13 +33481,14 @@ ${slip.textSample}
                     const emp = employees.find(e => e.id === empId);
                     if (!emp) return;
 
-                    // 🔧 ใช้ systemSettings เป็นแหล่งเดียว (Single Source of Truth)
-                    const divisor = systemSettings.dailyDivisor || 30;
-                    const workHours = systemSettings.workHoursPerDay || 8;
-                    const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : (systemSettings.defaultOtRate || 1.0));
+                    // 🔧 คำนวณตามฐานค่าจ้างและตัวหารประจำตัวพนักงาน พร้อม fallback systemSettings
+                    const divisor = (emp && parseFloat(emp.divisor)) > 0 ? parseFloat(emp.divisor) : (systemSettings.dailyDivisor || 30);
+                    const workHours = (emp && parseFloat(emp.workHoursPerDay)) > 0 ? parseFloat(emp.workHoursPerDay) : (systemSettings.workHoursPerDay || 8);
+                    const defaultRate = (emp && parseFloat(emp.otMultiplier)) > 0 ? parseFloat(emp.otMultiplier) : (systemSettings.defaultOtRate || 1.5);
+                    const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : defaultRate);
 
                     const dailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary);
-                    const hourlyWage = dailyWage / workHours;
+                    const hourlyWage = workHours > 0 ? (dailyWage / workHours) : 0;
                     const otHours = parseFloat(log.ot || 0);
                     const isSpecialDay = ['พร', 'เพิ่มแรง', 'คส', 'สวัสดิการ'].includes(String(log.status || '').trim());
 
