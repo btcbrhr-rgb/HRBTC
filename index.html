@@ -15549,22 +15549,17 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const activeApiUrl = SERVER_API_URL || window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
 
                     let res = null;
-                    let attempt = 0;
-                    const maxAttempts = 2;
-                    while (attempt < maxAttempts) {
-                        try {
-                            res = await fetchWithTimeout(activeApiUrl, {
-                                method: "POST",
-                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                                body: JSON.stringify(pendingLeavePayload),
-                                timeout: 25000
-                            });
-                            if (res && res.status === 'success') break;
-                        } catch (err) {
-                            console.warn('[submitLeave] GAS attempt ' + (attempt + 1) + ' failed:', err);
-                        }
-                        attempt++;
-                        if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 1000));
+                    let transportError = null;
+                    try {
+                        res = await fetchWithTimeout(activeApiUrl, {
+                            method: "POST",
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify(pendingLeavePayload),
+                            timeout: 25000
+                        });
+                    } catch (err) {
+                        transportError = err;
+                        console.warn('[submitLeave] Request outcome is unknown:', err);
                     }
 
                     if (res && res.status === "success") {
@@ -15605,7 +15600,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         if (typeof loadAllData === 'function') loadAllData();
                     } else {
-                        showToast("❌ ล้มเหลว: " + (res && res.message ? res.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์'), "error");
+                        if (transportError) {
+                            showToast("⚠️ ไม่ทราบผลการส่งคำขอ ระบบกำลังตรวจประวัติการลา กรุณาตรวจรายการก่อนกดส่งซ้ำ", "warning");
+                            if (typeof loadAllData === 'function') {
+                                try {
+                                    await loadAllData();
+                                } catch (refreshError) {
+                                    console.warn('[submitLeave] Could not refresh leave history after unknown outcome:', refreshError);
+                                }
+                            }
+                            showToast("❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ หากไม่พบรายการในประวัติ จึงค่อยลองส่งอีกครั้ง", "error");
+                        } else {
+                            showToast("❌ ล้มเหลว: " + (res && res.message ? res.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์'), "error");
+                        }
                     }
                 }, {
                     buttonId: "btn-submit-leave",
@@ -15803,30 +15810,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (!confirm(`คุณต้องการลบคำขอลาเลขที่ "${docId}" หรือไม่?\n(คำขอนี้จะถูกลบออกจากระบบอย่างถาวร)`)) return;
 
                 showToast("⏳ กำลังลบคำขอลา…", "info");
-                let success = false;
                 let errorMsg = "";
-
-                // 1. ลบจาก Supabase โดยตรง (เฉพาะที่ยังไม่อนุมัติ และเป็นของพนักงานคนนี้)
-                if (supabaseClient && currentEmployeeId) {
-                    try {
-                        const { error: sbErr } = await supabaseClient
-                            .from('leave_requests')
-                            .delete()
-                            .eq('doc_id', docId)
-                            .eq('emp_id', currentEmployeeId)
-                            .neq('status', 'อนุมัติแล้ว');
-                        if (!sbErr) {
-                            success = true;
-                        } else {
-                            errorMsg = sbErr.message;
-                            console.warn('[deleteLeaveRequestItem] Supabase error:', sbErr);
-                        }
-                    } catch (sbEx) {
-                        console.warn('[deleteLeaveRequestItem] Supabase exception:', sbEx);
-                    }
-                }
-
-                // 2. ลบผ่าน GAS API
                 try {
                     const activeApiUrl = SERVER_API_URL || window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
                     const res = await fetchWithTimeout(activeApiUrl, {
@@ -15840,30 +15824,25 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         timeout: 15000
                     });
                     if (res && res.status === 'success') {
-                        success = true;
-                    } else if (res && res.message && !success) {
+                        showToast(`🗑️ ลบคำขอลา ${docId} เรียบร้อยแล้ว`, "success");
+                        leaveRequestsList = (leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== docId);
+                        displayLeaveHistory();
+
+                        if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                            RealtimeSyncManager.broadcast('leave_requests', 'DELETE', { docId });
+                        }
+                        if (typeof loadAllData === 'function') loadAllData();
+                        return;
+                    }
+                    if (res && res.message) {
                         errorMsg = res.message;
                     }
                 } catch (gasErr) {
                     console.warn('[deleteLeaveRequestItem] GAS error:', gasErr);
+                    errorMsg = gasErr && gasErr.message ? gasErr.message : 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
                 }
 
-                if (success) {
-                    showToast(`🗑️ ลบคำขอลา ${docId} เรียบร้อยแล้ว`, "success");
-                    leaveRequestsList = (leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== docId);
-                    displayLeaveHistory();
-
-                    // ⚡ Broadcast แจ้งเตือนแอดมินและทุกหน้าจอทันที
-                    if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
-                        RealtimeSyncManager.broadcast('leave_requests', 'DELETE', { docId });
-                    }
-
-                    if (typeof loadAllData === 'function') {
-                        loadAllData();
-                    }
-                } else {
-                    showToast(`❌ ไม่สามารถลบคำขอลาได้: ${errorMsg || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}`, "error");
-                }
+                showToast(`❌ ไม่สามารถลบคำขอลาได้: ${errorMsg || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}`, "error");
             }
 
             /**
@@ -16095,8 +16074,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 advanceRequestsList.forEach(adv => {
                     const amount = adv["จำนวนเงิน"] || 0;
                     const date = adv["วันที่เบิก"] || adv["วันที่"];
-                    const status = adv["สถานะ"] || "รอตรวจสอบ";
+                    const status = String(adv["สถานะ"] || "รอตรวจสอบ");
                     const reason = adv["หมายเหตุ"] || adv["เหตุผล"] || "ระบุเพื่อใช้จ่ายในชีวิตประจำวัน";
+                    const safeDate = escapeHtml(formatThaiDate(date));
+                    const safeReason = escapeHtml(reason);
+                    const safeStatus = escapeHtml(status);
 
                     let badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
                     if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
@@ -16111,11 +16093,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             </div>
             <div>
               <p class="text-xs font-bold text-slate-800">${Number(amount).toLocaleString()}</p>
-              <p class="text-[10px] text-slate-500">${formatThaiDate(date)}</p>
-              <p class="text-[10px] text-slate-400 mt-0.5 truncate max-w-[180px]">${reason}</p>
+              <p class="text-[10px] text-slate-500">${safeDate}</p>
+              <p class="text-[10px] text-slate-400 mt-0.5 truncate max-w-[180px]">${safeReason}</p>
             </div>
           </div>
-          <span class="text-[10px] px-2 py-0.5 rounded-full border ${badgeClass}">${status}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full border ${badgeClass}">${safeStatus}</span>
         `;
                     container.appendChild(card);
                 });
@@ -16145,17 +16127,30 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 return withSubmitLock("advanceSubmit", async () => {
                     showToast("⏳ กำลังยื่นตรวจสอบคำขอเบิกเงิน…", "info");
-                    const res = await fetchWithTimeout(SERVER_API_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload)
-                    });
+                    try {
+                        const res = await fetchWithTimeout(SERVER_API_URL, {
+                            method: "POST",
+                            body: JSON.stringify(payload)
+                        });
 
-                    if (res.status === "success") {
-                        showToast("🎉 ยื่นคำขอเบิกเงินล่วงหน้าสำเร็จแล้ว", "success");
-                        document.getElementById("advance-request-form").reset();
-                        loadAllData();
-                    } else {
-                        showToast("❌ ล้มเหลว: " + res.message, "error");
+                        if (res && res.status === "success") {
+                            showToast("🎉 ยื่นคำขอเบิกเงินล่วงหน้าสำเร็จแล้ว", "success");
+                            document.getElementById("advance-request-form").reset();
+                            if (typeof loadAllData === 'function') await loadAllData();
+                        } else {
+                            showToast("❌ ล้มเหลว: " + (res && res.message ? res.message : 'ไม่สามารถบันทึกคำขอได้'), "error");
+                        }
+                    } catch (submitError) {
+                        console.warn('[onAdvanceSubmit] Request outcome is unknown:', submitError);
+                        showToast("⚠️ ไม่ทราบผลการส่งคำขอ ระบบกำลังตรวจประวัติ กรุณาตรวจรายการก่อนส่งซ้ำ", "warning");
+                        if (typeof loadAllData === 'function') {
+                            try {
+                                await loadAllData();
+                            } catch (refreshError) {
+                                console.warn('[onAdvanceSubmit] Could not refresh advance history after unknown outcome:', refreshError);
+                            }
+                        }
+                        showToast("❌ ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ หากไม่พบรายการในประวัติ จึงค่อยลองส่งอีกครั้ง", "error");
                     }
                 }, {
                     buttonId: "btn-submit-advance",
