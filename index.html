@@ -7090,10 +7090,13 @@
                                         </div>
                                         <div id="advance-import-stats-badges" class="hidden flex items-center gap-2 flex-wrap">
                                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200/80 text-[11px] font-bold text-indigo-700">
-                                                <i class="fa-solid fa-users"></i> พนักงาน: <span id="advance-stat-emp-count" class="text-indigo-900 font-black">0</span> คน
+                                                <i class="fa-solid fa-users"></i> พนักงานในระบบ: <span id="advance-stat-emp-count" class="text-indigo-900 font-black">0</span> คน
                                             </span>
                                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-[11px] font-bold text-emerald-700">
                                                 <i class="fa-solid fa-money-bill-wave"></i> รวม: <span id="advance-stat-total-amount" class="text-emerald-900 font-black">0.00</span> บาท
+                                            </span>
+                                            <span id="advance-stat-skipped-badge" class="hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] font-bold text-amber-700">
+                                                <i class="fa-solid fa-user-slash"></i> ไม่พบในระบบ: <span id="advance-stat-skipped-count" class="text-amber-900 font-black">0</span> คน (ข้าม)
                                             </span>
                                         </div>
                                     </div>
@@ -7118,9 +7121,9 @@
                                                 <tr>
                                                     <th class="px-3.5 py-2 text-left w-12">#</th>
                                                     <th class="px-3.5 py-2 text-left w-28">รหัสพนักงาน</th>
-                                                    <th class="px-3.5 py-2 text-left">ชื่อ - สกุล</th>
+                                                    <th class="px-3.5 py-2 text-left">ชื่อ - สกุล (จากฐานข้อมูลระบบ)</th>
                                                     <th class="px-3.5 py-2 text-right w-36">ยอดเงินเบิก (บาท)</th>
-                                                    <th class="px-3.5 py-2 text-left w-44">วิธีการจ่ายเงิน</th>
+                                                    <th class="px-3.5 py-2 text-left w-48">ช่องทางรับเงิน (ตามระบบ)</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="advance-import-preview-body" class="divide-y divide-slate-100"></tbody>
@@ -22586,6 +22589,7 @@ async function loadAdminEmployees() {
                 const emptyState = document.getElementById('advance-import-empty-state');
                 const tableContainer = document.getElementById('advance-import-table-container');
                 const statsBadges = document.getElementById('advance-import-stats-badges');
+                const skippedBadge = document.getElementById('advance-stat-skipped-badge');
                 const confirmBtn = document.getElementById('advance-import-confirm-btn');
                 const confirmLabel = document.getElementById('advance-import-confirm-label');
 
@@ -22604,11 +22608,17 @@ async function loadAdminEmployees() {
                 if (emptyState) emptyState.classList.remove('hidden');
                 if (tableContainer) tableContainer.classList.add('hidden');
                 if (statsBadges) statsBadges.classList.add('hidden');
+                if (skippedBadge) skippedBadge.classList.add('hidden');
                 if (confirmBtn) confirmBtn.disabled = true;
                 if (confirmLabel) confirmLabel.textContent = 'กรุณาเลือกไฟล์ CSV ก่อน';
 
                 // ตั้งค่า Drag & Drop ให้ Dropzone
                 setupAdvanceDropzone();
+
+                // โหลดข้อมูลพนักงานในระบบเตรียมไว้ล่วงหน้า
+                if (typeof fetchAdminEmployeeList === 'function' && (!adminEmployeesMap || adminEmployeesMap.size === 0)) {
+                    fetchAdminEmployeeList().catch(() => {});
+                }
 
                 if (modal) modal.classList.remove('hidden');
             }
@@ -22672,26 +22682,71 @@ async function loadAdminEmployees() {
                 processAdvanceCsvFile(file);
             }
 
-            function processAdvanceCsvFile(file) {
+            /**
+             * ปรับช่องทางจ่ายเงินให้เป็นค่ามาตรฐานตามระบบ HRBTC:
+             *   1) "รับเงินสด" (กรณีมีคำว่า สด / cash)
+             *   2) "โอนผ่านบัญชีธนาคาร" (กรณี payroll, ธนาคาร, หรือพนักงานมีบัญชีในระบบ)
+             */
+            function normalizeAdvancePayoutChannel(csvMethod, systemEmp) {
+                const raw = (csvMethod || '').toString().trim().toLowerCase();
+                if (raw.includes('สด') || raw.includes('cash')) {
+                    return 'รับเงินสด';
+                }
+                if (raw.includes('payroll') || raw.includes('โอน') || raw.includes('ธนาคาร') || raw.includes('atm') || raw.includes('bank')) {
+                    return 'โอนผ่านบัญชีธนาคาร';
+                }
+                if (systemEmp) {
+                    const bankAcc = (systemEmp["หมายเลขบัญชี"] || systemEmp.bank_account || '').toString().trim();
+                    if (bankAcc && bankAcc !== '-' && bankAcc !== '0') {
+                        return 'โอนผ่านบัญชีธนาคาร';
+                    }
+                }
+                return 'โอนผ่านบัญชีธนาคาร';
+            }
+
+            async function processAdvanceCsvFile(file) {
                 const fileName = document.getElementById('advance-csv-file-name');
                 const fileHint = document.getElementById('advance-csv-file-hint');
                 const fileSizeKb = (file.size / 1024).toFixed(1);
 
                 if (fileName) fileName.innerHTML = `<span class="text-emerald-700 font-bold"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> ${escapeHtml(file.name)}</span>`;
-                if (fileHint) fileHint.textContent = `ขนาดไฟล์ ${fileSizeKb} KB — คลิกเพื่อเปลี่ยนไฟล์ใหม่`;
+                if (fileHint) fileHint.textContent = `ขนาดไฟล์ ${fileSizeKb} KB — กำลังตรวจสอบข้อมูลพนักงานในระบบ…`;
+
+                // ดึงรายชื่อพนักงานในระบบให้พร้อมใช้งานก่อน Parse
+                if (typeof fetchAdminEmployeeList === 'function' && (!adminEmployeesMap || adminEmployeesMap.size === 0)) {
+                    try {
+                        await fetchAdminEmployeeList();
+                    } catch (e) {
+                        console.warn('[AdvanceImport] fetchAdminEmployeeList error:', e);
+                    }
+                }
 
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     try {
-                        const rows = parseAdvanceCsv(e.target.result);
+                        const parsed = parseAdvanceCsv(e.target.result, adminEmployeesMap);
+                        const rows = parsed.rows;
+                        const skippedCount = parsed.skippedNotFound;
+
+                        if (fileHint) fileHint.textContent = `ขนาดไฟล์ ${fileSizeKb} KB — คลิกเพื่อเปลี่ยนไฟล์ใหม่`;
+
                         if (rows.length === 0) {
-                            showToast('ไม่พบรายการที่มียอดเงิน > 0 ในไฟล์ CSV นี้', 'error');
-                            renderAdvanceImportPreview([]);
+                            if (skippedCount > 0) {
+                                showToast(`❌ รายการในไฟล์ทั้ง ${skippedCount} รายการไม่มีรหัสตรงกับพนักงานในระบบ`, 'error');
+                            } else {
+                                showToast('ไม่พบรายการที่มียอดเงิน > 0 ในไฟล์ CSV นี้', 'error');
+                            }
+                            renderAdvanceImportPreview([], skippedCount);
                             return;
                         }
                         _advanceImportParsedRows = rows;
-                        renderAdvanceImportPreview(rows);
-                        showToast(`📄 พบ ${rows.length} รายการที่มียอดเงินเบิกสำรอง พร้อมให้ท่านตรวจทาน`, 'success');
+                        renderAdvanceImportPreview(rows, skippedCount);
+
+                        if (skippedCount > 0) {
+                            showToast(`📄 นำเข้าเฉพาะพนักงานที่มีในระบบ ${rows.length} คน (ข้าม ${skippedCount} คนที่ไม่พบในระบบ)`, 'warn');
+                        } else {
+                            showToast(`📄 ตรวจสอบผ่าน: พนักงานทั้ง ${rows.length} คนมีรหัสตรงกับในระบบ พร้อมดึงชื่อและช่องทางจ่ายเงินตามระบบ`, 'success');
+                        }
                     } catch (err) {
                         showToast('อ่านไฟล์ CSV ไม่สำเร็จ: ' + err.message, 'error');
                     }
@@ -22700,14 +22755,19 @@ async function loadAdminEmployees() {
             }
 
             /**
-             * Parse CSV เบิกสำรอง — โครงสร้าง CSV จากไฟล์จริง:
-             *   แถว 1-4: header/title (ข้าม)
-             *   แถว 5: ชื่อคอลัมน์ (NO, บริษัท, _, ลำดับ, รหัส, ชื่อ-สกุล, ตำแหน่ง, สาขาธนาคาร, เลขบัญชี, จำนวนเงิน, ..., วันทำงาน, วิธีการจ่าย)
-             *   แถว 6+: ข้อมูลพนักงาน — คัดเลือกเฉพาะแถวที่มี emp_id + จำนวนเงิน > 0
+             * Parse CSV เบิกสำรอง:
+             *   - ใช้รหัสพนักงาน (emp_id) เป็นหลักในการค้นหาในฐานข้อมูลระบบ
+             *   - ดึงชื่อพนักงานจากฐานข้อมูลระบบ (employees) แทนชื่อจากไฟล์ CSV
+             *   - ปรับวิธีการจ่ายเงินให้ตรงกับมาตรฐานในระบบ (โอนผ่านบัญชีธนาคาร / รับเงินสด)
+             *   - คัดกรองดึงเฉพาะพนักงานที่มีรหัสในระบบเท่านั้น รายการที่ไม่มีจะถูกข้ามอัตโนมัติ
              */
-            function parseAdvanceCsv(text) {
+            function parseAdvanceCsv(text, empMap) {
                 const lines = text.split(/\r?\n/);
                 const results = [];
+                let skippedNotFound = 0;
+                const notFoundList = [];
+
+                const hasEmpMap = empMap && empMap.size > 0;
 
                 for (let i = 5; i < lines.length; i++) {
                     const line = lines[i].trim();
@@ -22730,34 +22790,66 @@ async function loadAdminEmployees() {
                     }
                     cols.push(current.trim());
 
-                    // ดึงเฉพาะข้อมูลสำคัญที่จำเป็น
                     const empId = (cols[4] || '').trim();
-                    const empName = (cols[5] || '').trim();
+                    const csvEmpName = (cols[5] || '').trim();
                     const rawAmount = (cols[9] || '').replace(/,/g, '').trim();
                     const amount = parseFloat(rawAmount);
-                    const paymentMethod = (cols[13] || '').trim();
+                    const rawPaymentMethod = (cols[13] || '').trim();
 
                     // ตรวจสอบ: ต้องมีรหัสพนักงานที่เป็นตัวเลข และมียอดเงินบวก
                     if (!empId || !/^\d+$/.test(empId)) continue;
                     if (isNaN(amount) || amount <= 0) continue;
 
+                    // ⚡ 1. ใช้รหัสพนักงานเป็นหลัก ตรวจสอบว่ามีอยู่ในระบบหรือไม่
+                    let systemEmp = null;
+                    if (hasEmpMap) {
+                        systemEmp = empMap.get(empId);
+                        if (!systemEmp) {
+                            // ไม่มีรหัสในระบบ → ข้าม ไม่ดึงเข้า
+                            skippedNotFound++;
+                            notFoundList.push({ emp_id: empId, name: csvEmpName, amount: amount });
+                            continue;
+                        }
+                    }
+
+                    // ⚡ 2. ดึงชื่อ-สกุลจากฐานข้อมูลระบบเป็นหลัก (แทนชื่อจากไฟล์ CSV)
+                    const systemName = systemEmp ? (systemEmp["ชื่อ-นามสกุล"] || systemEmp.name) : '';
+                    const finalName = systemName || csvEmpName || '-';
+
+                    // ⚡ 3. ปรับวิธีการจ่ายเงินให้เป็นไปตามในระบบ (โอนผ่านบัญชีธนาคาร / รับเงินสด)
+                    const finalPaymentMethod = normalizeAdvancePayoutChannel(rawPaymentMethod, systemEmp);
+                    const bankParts = [];
+                    if (systemEmp) {
+                        if (systemEmp["ธนาคาร"]) bankParts.push(systemEmp["ธนาคาร"]);
+                        if (systemEmp["หมายเลขบัญชี"]) bankParts.push(systemEmp["หมายเลขบัญชี"]);
+                    }
+                    const bankInfo = bankParts.join(' ');
+
                     results.push({
                         emp_id: empId,
-                        emp_name: empName,
+                        emp_name: finalName,
                         amount: amount,
-                        payment_method: paymentMethod || 'โอนผ่านบัญชีธนาคาร'
+                        payment_method: finalPaymentMethod,
+                        bank_info: bankInfo,
+                        in_system: !!systemEmp
                     });
                 }
-                return results;
+                return {
+                    rows: results,
+                    skippedNotFound: skippedNotFound,
+                    notFoundList: notFoundList
+                };
             }
 
-            function renderAdvanceImportPreview(rows) {
+            function renderAdvanceImportPreview(rows, skippedNotFound) {
                 const emptyState = document.getElementById('advance-import-empty-state');
                 const tableContainer = document.getElementById('advance-import-table-container');
                 const statsBadges = document.getElementById('advance-import-stats-badges');
                 const tbody = document.getElementById('advance-import-preview-body');
                 const empCountEl = document.getElementById('advance-stat-emp-count');
                 const totalAmountEl = document.getElementById('advance-stat-total-amount');
+                const skippedBadge = document.getElementById('advance-stat-skipped-badge');
+                const skippedCountEl = document.getElementById('advance-stat-skipped-count');
                 const confirmBtn = document.getElementById('advance-import-confirm-btn');
                 const confirmLabel = document.getElementById('advance-import-confirm-label');
 
@@ -22767,6 +22859,7 @@ async function loadAdminEmployees() {
                     if (emptyState) emptyState.classList.remove('hidden');
                     if (tableContainer) tableContainer.classList.add('hidden');
                     if (statsBadges) statsBadges.classList.add('hidden');
+                    if (skippedBadge) skippedBadge.classList.add('hidden');
                     if (confirmBtn) confirmBtn.disabled = true;
                     if (confirmLabel) confirmLabel.textContent = 'กรุณาเลือกไฟล์ CSV ก่อน';
                     return;
@@ -22776,15 +22869,31 @@ async function loadAdminEmployees() {
 
                 if (empCountEl) empCountEl.textContent = rows.length.toLocaleString();
                 if (totalAmountEl) totalAmountEl.textContent = totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                if (skippedBadge && skippedCountEl) {
+                    if (skippedNotFound && skippedNotFound > 0) {
+                        skippedCountEl.textContent = skippedNotFound.toLocaleString();
+                        skippedBadge.classList.remove('hidden');
+                    } else {
+                        skippedBadge.classList.add('hidden');
+                    }
+                }
                 if (statsBadges) statsBadges.classList.remove('hidden');
 
                 tbody.innerHTML = rows.map((r, idx) => `
                     <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-indigo-50/40 transition-colors">
                         <td class="px-3.5 py-2 text-slate-400 font-mono text-[11px]">${idx + 1}</td>
                         <td class="px-3.5 py-2 font-mono font-bold text-slate-800">${escapeHtml(r.emp_id)}</td>
-                        <td class="px-3.5 py-2 font-semibold text-slate-700">${escapeHtml(r.emp_name || '-')}</td>
+                        <td class="px-3.5 py-2 font-semibold text-slate-700">
+                            ${escapeHtml(r.emp_name || '-')}
+                            <span class="ml-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 font-medium">ในระบบ</span>
+                        </td>
                         <td class="px-3.5 py-2 text-right font-black text-emerald-700 tabular-nums">${r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                        <td class="px-3.5 py-2 text-slate-600 text-[11px]">${escapeHtml(r.payment_method || '-')}</td>
+                        <td class="px-3.5 py-2 text-slate-600 text-[11px]">
+                            ${r.payment_method === 'รับเงินสด'
+                                ? '<span class="inline-flex items-center gap-1 text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/70"><i class="fa-solid fa-money-bill-1-wave text-[10px]"></i> รับเงินสด</span>'
+                                : `<span class="inline-flex items-center gap-1 text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/70"><i class="fa-solid fa-building-columns text-[10px]"></i> โอนผ่านธนาคาร</span>` + (r.bank_info ? ` <span class="text-[10px] text-slate-500 font-mono">(${escapeHtml(r.bank_info)})</span>` : '')
+                            }
+                        </td>
                     </tr>
                 `).join('');
 
@@ -22850,7 +22959,8 @@ async function loadAdminEmployees() {
 
                     if (res && res.status === 'success') {
                         const msg = `นำเข้าสำเร็จ ${res.imported || 0} รายการ` +
-                            (res.skipped ? ` (ข้าม ${res.skipped} รายการเดิม)` : '');
+                            (res.skipped ? ` (ข้าม ${res.skipped} รายการเดิม)` : '') +
+                            (res.skippedUnknownEmp ? ` (ข้าม ${res.skippedUnknownEmp} รหัสที่ไม่มีในระบบ)` : '');
                         showToast('✅ ' + msg, 'success');
                         closeAdvanceImportModal();
                         if (typeof loadAdminApprovals === 'function') loadAdminApprovals();
