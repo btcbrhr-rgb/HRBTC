@@ -19087,10 +19087,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                 if (c.project) updatePayload.project_in = c.project;
 
                                 if (existingRecs && existingRecs.length > 0) {
+                                    // ⚠️ ไม่เขียนสถานะ/late/OT จาก browser — ให้ GAS adminReapplyTimeCorrection()
+                                    //    คำนวณจากตัวกลางเดียวกับ Agent/Python (เดิมเขียนแค่ metadata แล้ว
+                                    //    บังคับ 'ปกติ'/'W' ตอน insert → เวลาเปลี่ยนแต่สถานะไม่อัปเดต)
                                     await supabaseClient.from('time_records').update(updatePayload).eq('id', existingRecs[0].id);
                                 } else {
-                                    updatePayload.status = 'ปกติ';
-                                    updatePayload.status_key = 'W';
                                     await supabaseClient.from('time_records').insert(updatePayload);
                                 }
                                 console.log(`[reapplyTimeCorrection] Direct Supabase update successful for ${empId} ${date}`);
