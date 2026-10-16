@@ -21916,9 +21916,9 @@ async function loadAdminEmployees() {
                 const correctionContainer = document.getElementById("admin-correction-table-body");
                 const advanceContainer = document.getElementById("admin-advance-table-body");
 
-                if (leaveContainer) leaveContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดรายการใบลา…</td></tr>`;
-                if (correctionContainer) correctionContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดรายการแก้ไขเวลา…</td></tr>`;
-                if (advanceContainer) advanceContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดรายการเบิกเงิน…</td></tr>`;
+                if (leaveContainer && (!leaveContainer.children.length || leaveContainer.querySelector('.tbl-empty-row'))) leaveContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดรายการใบลา…</td></tr>`;
+                if (correctionContainer && (!correctionContainer.children.length || correctionContainer.querySelector('.tbl-empty-row'))) correctionContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดรายการแก้ไขเวลา…</td></tr>`;
+                if (advanceContainer && (!advanceContainer.children.length || advanceContainer.querySelector('.tbl-empty-row'))) advanceContainer.innerHTML = `<tr><td colspan="9" class="py-5 text-center text-slate-500 italic"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> กำลังโหลดรายการเบิกเงิน…</td></tr>`;
 
                 const today = getTodayDateString();
                 // ดึงช่วงรอบบัญชีปัจจุบันที่เลือกใน header เพื่อกรองข้อมูลให้ตรงกัน
@@ -22029,7 +22029,7 @@ async function loadAdminEmployees() {
                                 }
                                 rowClass = `hr-table-row approval-card ${urgencyClass}`;
                                 checkboxHtml = `<input type="checkbox" class="leave-checkbox" data-doc-id="${escapeHtml(docId)}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleLeaveItem(this)">`;
-                                statusBadge = `<span class="badge badge-warning font-semibold"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> รออนุมัติ</span>`;
+                                statusBadge = `<span class="badge badge-warning font-semibold"><i class="fa-regular fa-clock mr-1" aria-hidden="true"></i>รออนุมัติ</span>`;
                                 actionHtml = `
                                     <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
                                         <button onclick='openDecisionModal("leave", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
@@ -22133,7 +22133,7 @@ async function loadAdminEmployees() {
                                 }
                                 rowClass = `hr-table-row approval-card ${urgencyClass}`;
                                 checkboxHtml = `<input type="checkbox" class="correction-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleCorrectionItem(this)">`;
-                                statusBadge = `<span class="badge badge-pending font-semibold"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> รออนุมัติ</span>`;
+                                statusBadge = `<span class="badge badge-pending font-semibold"><i class="fa-regular fa-clock mr-1" aria-hidden="true"></i>รออนุมัติ</span>`;
                                 actionHtml = `
                                     <div style="display:flex;gap:4px;justify-content:flex-end">
                                       <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
@@ -22356,8 +22356,8 @@ async function loadAdminEmployees() {
                                 else if ([1, 3, 5].includes(daysUntil)) { urgencyClass = 'urgency-medium'; }
                             }
                             rowClass = `hr-table-row approval-card ${urgencyClass}`;
-                            checkboxHtml = `<input type="checkbox" class="advance-checkbox" data-id="${escapeHtml(String(req.id || ''))}" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)">`;
-                            statusBadge = `<span class="badge badge-pending font-semibold"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> ${escapeHtml(status)}</span>`;
+                            checkboxHtml = `<input type="checkbox" class="advance-checkbox" data-id="${escapeHtml(String(req.id || ''))}" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-pay-cycle="${escapeHtml(req['รอบจ่าย'] || req.pay_cycle || '')}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)">`;
+                            statusBadge = `<span class="badge badge-pending font-semibold"><i class="fa-regular fa-clock mr-1" aria-hidden="true"></i>${escapeHtml(status)}</span>`;
                             actionHtml = `
                                 <div style="display:flex;gap:4px;justify-content:flex-end">
                                   <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
@@ -22680,8 +22680,10 @@ async function loadAdminEmployees() {
                 <td style="color:#64748b">${escapeHtml(formatThaiDate(req['วันที่เบิก']))}</td>
                 <td style="color:#475569">${escapeHtml(req['รอบจ่าย'] || '-')}</td>
                 <td style="color:#475569;font-weight:500">${escapeHtml(req['ช่องทางรับเงิน'] || '-')}</td>
-                <td style="color:#64748b;font-size:11px" title="${escapeHtml(req['เหตุผล'] || '')}">${escapeHtml(req['เหตุผล'] || '-')}</td>
-                <td><span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span></td>
+                <td>
+                  <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${escapeHtml(status)}</span>
+                  ${req['อนุมัติโดย'] ? `<div class="text-[10px] text-slate-400 mt-0.5"><i class="fas fa-user-check text-[9px] mr-1"></i>โดย: ${escapeHtml(req['อนุมัติโดย'])}</div>` : ''}
+                </td>
                 <td style="text-align:right"><span class="text-slate-400 text-xs">-</span></td>
               </tr>
             `;
@@ -22979,10 +22981,11 @@ async function loadAdminEmployees() {
                 const empId = checkbox.dataset.empId || '';
                 const date = checkbox.dataset.date || '';
                 const amount = checkbox.dataset.amount || '';
+                const payCycle = checkbox.dataset.payCycle || '';
                 const key = id ? `id::${id}` : `${empId}::${date}::${amount}`;
                 selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
                 if (checkbox.checked) {
-                    selectedAdvanceItems.add({ id, empId, date, amount, key });
+                    selectedAdvanceItems.add({ id, empId, date, amount, payCycle, key });
                 }
                 updateBatchButtons();
             }
@@ -22995,10 +22998,11 @@ async function loadAdminEmployees() {
                     const empId = cb.dataset.empId || '';
                     const date = cb.dataset.date || '';
                     const amount = cb.dataset.amount || '';
+                    const payCycle = cb.dataset.payCycle || '';
                     const key = id ? `id::${id}` : `${empId}::${date}::${amount}`;
                     selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
                     if (cb.checked) {
-                        selectedAdvanceItems.add({ id, empId, date, amount, key });
+                        selectedAdvanceItems.add({ id, empId, date, amount, payCycle, key });
                     }
                 });
                 updateBatchButtons();
@@ -24342,7 +24346,8 @@ async function loadAdminEmployees() {
                                         id: it.id || undefined,
                                         empId: it.empId,
                                         date: it.date,
-                                        amount: it.amount
+                                        amount: it.amount,
+                                        payCycle: it.payCycle || ''
                                     }))
                                 };
                                 fetchWithTimeout(SERVER_API_URL, {
@@ -24542,6 +24547,7 @@ async function loadAdminEmployees() {
                         payload.empId = data["รหัสพนักงาน"];
                         payload.date = data["วันที่เบิก"];
                         payload.amount = data["จำนวนเงิน"];
+                        payload.payCycle = data["รอบจ่าย"] || data["pay_cycle"] || '';
                         payload.status = approvedStatus;
                     }
 
