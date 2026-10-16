@@ -6907,6 +6907,10 @@
                                     class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-indigo-200/80 transition-all flex items-center gap-1.5 shadow-2xs">
                                     <i class="fa-solid fa-file-import text-[11px]"></i> นำเข้า CSV
                                 </button>
+                                <button onclick="openAdvanceExportModal()" title="ส่งออกรายการเบิกเงินสำรองเป็น Excel"
+                                    class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-emerald-200/80 transition-all flex items-center gap-1.5 shadow-2xs">
+                                    <i class="fa-solid fa-file-excel text-[11px]"></i> ส่งออก Excel
+                                </button>
                                 <button onclick="loadAdminApprovals()" title="ซิงค์ข้อมูล"
                                     class="bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200/80 transition-all flex items-center gap-1.5 shadow-2xs">
                                     <i class="fa-solid fa-arrows-rotate text-[11px]"></i> ซิงค์
@@ -7230,6 +7234,125 @@
                                         class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
                                         <i class="fa-solid fa-cloud-arrow-up"></i>
                                         <span id="advance-import-confirm-label">กรุณาเลือกไฟล์ CSV ก่อน</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advance Export Modal (ส่งออก Excel ตามรอบเดือนและช่องทางรับเงิน) -->
+                    <div id="advance-export-modal" class="fixed inset-0 z-[999] hidden">
+                        <div class="absolute inset-0 bg-black/50 backdrop-blur-xs transition-opacity" onclick="closeAdvanceExportModal()"></div>
+                        <div class="absolute inset-2 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[820px] sm:max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                            <!-- Header -->
+                            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/70">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs">
+                                        <i class="fa-solid fa-file-excel text-lg"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-800">ส่งออกรายการเบิกเงินสำรอง (Excel)</h3>
+                                        <p class="text-xs text-slate-500">เลือกเงื่อนไขรอบเดือนและช่องทางรับเงิน เพื่อดาวน์โหลดไฟล์ .xlsx</p>
+                                    </div>
+                                </div>
+                                <button onclick="closeAdvanceExportModal()" class="w-8 h-8 rounded-xl hover:bg-slate-200/60 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                                    <i class="fa-solid fa-xmark text-sm"></i>
+                                </button>
+                            </div>
+
+                            <!-- Body -->
+                            <div class="p-6 overflow-y-auto space-y-4 flex-1">
+                                <!-- Filter Controls Grid -->
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                    <!-- 1. เลือกรอบเดือน -->
+                                    <div>
+                                        <label for="advance-export-month-select" class="block text-xs font-bold text-slate-700 mb-1">
+                                            <i class="fa-solid fa-calendar-days text-emerald-600 mr-1"></i> เลือกรอบเดือน
+                                        </label>
+                                        <select id="advance-export-month-select" onchange="updateAdvanceExportPreview()"
+                                            class="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+                                            <!-- Dynamically populated or 1-12 -->
+                                        </select>
+                                    </div>
+
+                                    <!-- 2. เลือกปี พ.ศ. -->
+                                    <div>
+                                        <label for="advance-export-year-select" class="block text-xs font-bold text-slate-700 mb-1">
+                                            <i class="fa-solid fa-calendar text-emerald-600 mr-1"></i> ปี พ.ศ.
+                                        </label>
+                                        <select id="advance-export-year-select" onchange="updateAdvanceExportPreview()"
+                                            class="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+                                            <!-- Populated dynamically -->
+                                        </select>
+                                    </div>
+
+                                    <!-- 3. เลือกช่องทางรับเงิน -->
+                                    <div>
+                                        <label for="advance-export-channel-select" class="block text-xs font-bold text-slate-700 mb-1">
+                                            <i class="fa-solid fa-money-bill-transfer text-emerald-600 mr-1"></i> ช่องทางรับเงิน
+                                        </label>
+                                        <select id="advance-export-channel-select" onchange="updateAdvanceExportPreview()"
+                                            class="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+                                            <option value="โอนผ่านบัญชีธนาคาร" selected>โอนผ่านบัญชีธนาคาร</option>
+                                            <option value="รับเงินสด">รับเงินสด</option>
+                                            <option value="all">ทั้งหมด (ทุกช่องทาง)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Summary Bar -->
+                                <div class="flex items-center justify-between px-3 py-2 bg-emerald-50/60 border border-emerald-200 rounded-xl text-xs">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-emerald-800"><i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> ข้อมูลที่จะส่งออก:</span>
+                                        <span class="text-slate-700 font-semibold" id="advance-export-summary-text">0 รายการ</span>
+                                    </div>
+                                    <div class="font-bold text-emerald-700 text-sm" id="advance-export-summary-amount">
+                                        ยอดรวม: 0 บาท
+                                    </div>
+                                </div>
+
+                                <!-- Live Preview Table (Styled exactly like user image) -->
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <span class="text-xs font-bold text-slate-700">
+                                            <i class="fa-solid fa-table text-slate-500 mr-1"></i> ตัวอย่างข้อมูลในไฟล์ Excel:
+                                        </span>
+                                        <span class="text-[11px] text-slate-400" id="advance-export-preview-note"></span>
+                                    </div>
+                                    <div class="border border-slate-300 rounded-lg overflow-hidden max-h-[300px] overflow-y-auto bg-white shadow-2xs">
+                                        <table class="w-full text-xs border-collapse" style="font-family: inherit;">
+                                            <thead>
+                                                <tr style="background-color: #9bc2e6; color: #000; font-weight: bold; border-bottom: 1px solid #64748b;">
+                                                    <th class="py-2.5 px-3 border border-slate-300 text-center w-[12%]">ลำดับที่</th>
+                                                    <th class="py-2.5 px-4 border border-slate-300 text-left w-[42%]">ชื่อพนักงาน</th>
+                                                    <th class="py-2.5 px-4 border border-slate-300 text-center w-[26%]">เลขที่บัญชี</th>
+                                                    <th class="py-2.5 px-4 border border-slate-300 text-right w-[20%]">จำนวนเงิน</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="advance-export-preview-tbody" class="divide-y divide-slate-200 bg-white">
+                                                <tr>
+                                                    <td colspan="4" class="py-6 text-center text-slate-400 italic">ไม่มีข้อมูลที่ตรงกับเงื่อนไข</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Footer -->
+                            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-slate-50/70">
+                                <span class="text-[11px] text-slate-400">
+                                    <i class="fa-solid fa-file-excel mr-1 text-emerald-600"></i> ไฟล์รูปแบบ .xlsx รองรับ Microsoft Excel และ Google Sheets
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="closeAdvanceExportModal()"
+                                        class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 border border-slate-200 transition-all">
+                                        ปิด
+                                    </button>
+                                    <button id="advance-export-download-btn" onclick="executeAdvanceExportExcel()"
+                                        class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+                                        <i class="fa-solid fa-file-arrow-down"></i>
+                                        <span>ดาวน์โหลด Excel (.xlsx)</span>
                                     </button>
                                 </div>
                             </div>
@@ -23612,6 +23735,290 @@ async function loadAdminEmployees() {
                     loadAdminApprovals();
                 }
             }
+
+            // ══════════════════════════════════════════════════════════════
+            // 📊 ส่งออกรายการเบิกเงินสำรองเป็น Excel (Advance Export)
+            // ══════════════════════════════════════════════════════════════
+
+            async function openAdvanceExportModal() {
+                const modal = document.getElementById('advance-export-modal');
+                if (!modal) return;
+
+                // ตรวจสอบและดึงข้อมูลพนักงานหากยังไม่มีในแคช
+                if (typeof fetchAdminEmployeeList === 'function' && (!adminEmployeesMap || adminEmployeesMap.size === 0)) {
+                    try {
+                        await fetchAdminEmployeeList();
+                    } catch (e) {
+                        console.warn('[AdvanceExport] fetchAdminEmployeeList error:', e);
+                    }
+                }
+
+                // เตรียมตัวเลือกเดือน (1-12 และ "ทั้งหมด")
+                const monthSelect = document.getElementById('advance-export-month-select');
+                if (monthSelect) {
+                    const currentActiveMonth = (_adminAdvanceSelectedMonth !== undefined && _adminAdvanceSelectedMonth !== null) 
+                        ? _adminAdvanceSelectedMonth 
+                        : (new Date().getMonth() + 1);
+                    
+                    let monthOpts = '';
+                    for (let m = 1; m <= 12; m++) {
+                        const mStr = String(m);
+                        const isSelected = (mStr === String(currentActiveMonth));
+                        monthOpts += `<option value="${mStr}" ${isSelected ? 'selected' : ''}>${THAI_MONTH_NAMES[m - 1]} (${mStr})</option>`;
+                    }
+                    monthOpts += `<option value="all" ${currentActiveMonth === 'all' ? 'selected' : ''}>ทั้งหมด (ทุกเดือนในปีนี้)</option>`;
+                    monthSelect.innerHTML = monthOpts;
+                }
+
+                // เตรียมตัวเลือกปี พ.ศ.
+                const yearSelect = document.getElementById('advance-export-year-select');
+                if (yearSelect) {
+                    const thisYearThai = new Date().getFullYear() + 543;
+                    const yearsSet = new Set();
+                    yearsSet.add(thisYearThai);
+                    yearsSet.add(thisYearThai - 1);
+
+                    // ดึงปีที่มีอยู่ในรายการเบิก
+                    (_adminAllAdvanceRecords || []).forEach(req => {
+                        const my = (typeof getAdvanceRecordMonthYear === 'function') ? getAdvanceRecordMonthYear(req) : null;
+                        if (my && my.year) yearsSet.add(my.year);
+                    });
+
+                    const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
+                    const currentActiveYear = _adminAdvanceSelectedYear || thisYearThai;
+
+                    yearSelect.innerHTML = sortedYears.map(y => 
+                        `<option value="${y}" ${y === currentActiveYear ? 'selected' : ''}>${y}</option>`
+                    ).join('');
+                }
+
+                // อัปเดตตารางตัวอย่าง (Live Preview)
+                updateAdvanceExportPreview();
+
+                modal.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            }
+
+            function closeAdvanceExportModal() {
+                const modal = document.getElementById('advance-export-modal');
+                if (modal) modal.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+
+            function getAdvanceExportFilteredData() {
+                const monthSelect = document.getElementById('advance-export-month-select');
+                const yearSelect = document.getElementById('advance-export-year-select');
+                const channelSelect = document.getElementById('advance-export-channel-select');
+
+                const selectedMonth = monthSelect ? monthSelect.value : 'all';
+                const selectedYear = yearSelect ? parseInt(yearSelect.value, 10) : (new Date().getFullYear() + 543);
+                const selectedChannel = channelSelect ? channelSelect.value : 'all';
+
+                let records = Array.isArray(_adminAllAdvanceRecords) ? [..._adminAllAdvanceRecords] : [];
+
+                // 1. กรองสถานะ: ไม่รวมรายการที่ปฏิเสธ / ไม่อนุมัติ
+                records = records.filter(req => {
+                    const status = String(req["สถานะ"] || req.status || '').trim();
+                    return !status.includes('ปฏิเสธ') && !status.includes('ไม่อนุมัติ');
+                });
+
+                // 2. กรองรอบเดือน และ ปี
+                records = records.filter(req => {
+                    const my = (typeof getAdvanceRecordMonthYear === 'function') ? getAdvanceRecordMonthYear(req) : null;
+                    if (selectedMonth !== 'all') {
+                        return my && my.month === parseInt(selectedMonth, 10) && my.year === selectedYear;
+                    } else {
+                        return !my || my.year === selectedYear;
+                    }
+                });
+
+                // 3. กรองช่องทางรับเงิน (โอนผ่านบัญชีธนาคาร / รับเงินสด / ทั้งหมด)
+                if (selectedChannel !== 'all') {
+                    records = records.filter(req => {
+                        const ch = String(req["ช่องทางรับเงิน"] || req.payout_channel || 'โอนผ่านบัญชีธนาคาร').trim().toLowerCase();
+                        if (selectedChannel === 'รับเงินสด') {
+                            return ch.includes('สด') || ch.includes('cash');
+                        } else if (selectedChannel === 'โอนผ่านบัญชีธนาคาร') {
+                            return !ch.includes('สด') && !ch.includes('cash');
+                        }
+                        return true;
+                    });
+                }
+
+                // 4. เรียงลำดับตามรหัสพนักงาน (Natural / Numeric Sorting)
+                records.sort((a, b) => {
+                    const idA = String(a["รหัสพนักงาน"] || a.emp_id || '').trim();
+                    const idB = String(b["รหัสพนักงาน"] || b.emp_id || '').trim();
+                    return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+                });
+
+                // 5. แมปข้อมูลให้ตรงกับคอลัมน์ของรายงาน (ลำดับที่, ชื่อพนักงาน, เลขที่บัญชี, จำนวนเงิน)
+                return records.map(req => {
+                    const empId = String(req["รหัสพนักงาน"] || req.emp_id || '').trim();
+                    let emp = null;
+                    if (typeof adminEmployeesMap !== 'undefined' && adminEmployeesMap && adminEmployeesMap.get) {
+                        emp = adminEmployeesMap.get(empId) || adminEmployeesMap.get(empId.toUpperCase());
+                    }
+                    if (!emp && typeof adminEmployeesList !== 'undefined' && Array.isArray(adminEmployeesList)) {
+                        emp = adminEmployeesList.find(e => String(e.emp_id || e['รหัสพนักงาน'] || '').trim() === empId);
+                    }
+
+                    // ชื่อพนักงาน
+                    const empName = (emp ? (emp["ชื่อ-นามสกุล"] || emp["ชื่อ"] || emp.name) : '') 
+                        || req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || empId;
+
+                    // เลขที่บัญชี (คงเลขศูนย์นำหน้า)
+                    let bankAcc = (emp ? (emp["หมายเลขบัญชี"] || emp["เลขที่บัญชี"] || emp.bank_account || emp.bank_no) : '') 
+                        || req["หมายเลขบัญชี"] || req["เลขที่บัญชี"] || req.bank_account || '';
+                    bankAcc = String(bankAcc || '').trim();
+                    if (!bankAcc || bankAcc === '0') {
+                        bankAcc = '-';
+                    }
+
+                    // จำนวนเงิน
+                    const amount = Number(req["จำนวนเงิน"] || req.amount || 0);
+
+                    return {
+                        empId,
+                        empName,
+                        bankAcc,
+                        amount,
+                        rawRecord: req
+                    };
+                });
+            }
+
+            function updateAdvanceExportPreview() {
+                const tbody = document.getElementById('advance-export-preview-tbody');
+                const summaryText = document.getElementById('advance-export-summary-text');
+                const summaryAmount = document.getElementById('advance-export-summary-amount');
+                const previewNote = document.getElementById('advance-export-preview-note');
+                const downloadBtn = document.getElementById('advance-export-download-btn');
+
+                const data = getAdvanceExportFilteredData();
+                const totalAmount = data.reduce((sum, item) => sum + item.amount, 0);
+
+                if (summaryText) summaryText.textContent = `${data.length.toLocaleString()} รายการ`;
+                if (summaryAmount) summaryAmount.textContent = `ยอดรวม: ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                if (previewNote) previewNote.textContent = data.length > 50 ? `(แสดงตัวอย่าง 50 รายการแรก จากทั้งหมด ${data.length} รายการ)` : '';
+
+                if (downloadBtn) {
+                    downloadBtn.disabled = (data.length === 0);
+                }
+
+                if (!tbody) return;
+
+                if (data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="py-8 text-center text-slate-400 italic">
+                                <i class="fa-solid fa-folder-open text-2xl text-slate-300 block mb-1"></i>
+                                ไม่พบรายการเบิกเงินสำรองที่ตรงกับเงื่อนไขที่เลือก
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                const previewRows = data.slice(0, 50);
+                tbody.innerHTML = previewRows.map((item, idx) => `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="py-2.5 px-3 border border-slate-200 text-center font-medium text-slate-600">${idx + 1}</td>
+                        <td class="py-2.5 px-4 border border-slate-200 text-left font-medium text-slate-800">${escapeHtml(item.empName)}</td>
+                        <td class="py-2.5 px-4 border border-slate-200 text-center font-mono text-slate-700 tracking-wider">${escapeHtml(item.bankAcc)}</td>
+                        <td class="py-2.5 px-4 border border-slate-200 text-right font-bold text-slate-800 tabular-nums">${item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    </tr>
+                `).join('');
+            }
+
+            function executeAdvanceExportExcel() {
+                if (typeof XLSX === 'undefined') {
+                    showToast('ไม่พบไลบรารี SheetJS (XLSX) กรุณารีเฟรชหน้าเว็บแล้วลองใหม่อีกครั้ง', 'error');
+                    return;
+                }
+
+                const data = getAdvanceExportFilteredData();
+                if (!data || data.length === 0) {
+                    showToast('ไม่มีข้อมูลสำหรับส่งออกตามเงื่อนไขที่เลือก', 'warning');
+                    return;
+                }
+
+                // ตารางหัวข้อตามแบบในภาพ: ลำดับที่ | ชื่อพนักงาน | เลขที่บัญชี | จำนวนเงิน
+                const headers = ["ลำดับที่", "ชื่อพนักงาน", "เลขที่บัญชี", "จำนวนเงิน"];
+                const aoa = [headers];
+
+                data.forEach((item, idx) => {
+                    aoa.push([
+                        idx + 1,
+                        item.empName,
+                        String(item.bankAcc || ''),
+                        item.amount
+                    ]);
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+                // กำหนดความกว้างคอลัมน์ให้เหมาะสมกับข้อความ
+                ws['!cols'] = [
+                    { wch: 10 }, // ลำดับที่
+                    { wch: 32 }, // ชื่อพนักงาน
+                    { wch: 22 }, // เลขที่บัญชี
+                    { wch: 16 }  // จำนวนเงิน
+                ];
+
+                // จัด Format ข้อมูลแต่ละเซลล์:
+                // - เลขที่บัญชี ต้องเป็น String เสมอ เพื่อไม่ให้ Excel ตัดเลข 0 ด้านหน้า
+                // - จำนวนเงิน เป็น Number พร้อม Format #,##0.00
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                    // ลำดับที่ (col 0)
+                    const noCell = ws[XLSX.utils.encode_cell({ r: R, c: 0 })];
+                    if (noCell) noCell.t = 'n';
+
+                    // ชื่อพนักงาน (col 1)
+                    const nameCell = ws[XLSX.utils.encode_cell({ r: R, c: 1 })];
+                    if (nameCell) nameCell.t = 's';
+
+                    // เลขที่บัญชี (col 2) -> บังคับเป็น String ป้องกันเลข 0 หาย
+                    const bankCell = ws[XLSX.utils.encode_cell({ r: R, c: 2 })];
+                    if (bankCell) {
+                        bankCell.t = 's';
+                        bankCell.v = String(bankCell.v || '');
+                    }
+
+                    // จำนวนเงิน (col 3) -> Number พร้อม Format มีคอมม่า
+                    const amtCell = ws[XLSX.utils.encode_cell({ r: R, c: 3 })];
+                    if (amtCell) {
+                        amtCell.t = 'n';
+                        amtCell.z = '#,##0.00';
+                    }
+                }
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "เบิกเงินสำรอง");
+
+                const monthSelect = document.getElementById('advance-export-month-select');
+                const yearSelect = document.getElementById('advance-export-year-select');
+                const channelSelect = document.getElementById('advance-export-channel-select');
+
+                const monthVal = monthSelect ? monthSelect.value : 'all';
+                const monthText = (monthVal !== 'all' && THAI_MONTH_NAMES[parseInt(monthVal, 10) - 1]) 
+                    ? THAI_MONTH_NAMES[parseInt(monthVal, 10) - 1] 
+                    : 'ทุกเดือน';
+                const yearVal = yearSelect ? yearSelect.value : '';
+                const channelVal = channelSelect ? channelSelect.value : 'ทั้งหมด';
+
+                const fileName = `รายการเบิกเงินสำรอง_${monthText}_${yearVal}_${channelVal}`.replace(/[\\/:*?"<>|]/g, '_') + '.xlsx';
+
+                XLSX.writeFile(wb, fileName);
+                showToast(`✅ ส่งออกไฟล์ Excel สำเร็จ (${data.length.toLocaleString()} รายการ)`, 'success');
+            }
+
+            // ผูกเข้ากับ window เพื่อให้ inline onclick / onchange เรียกใช้ได้ทุกสถานการณ์
+            window.openAdvanceExportModal = openAdvanceExportModal;
+            window.closeAdvanceExportModal = closeAdvanceExportModal;
+            window.updateAdvanceExportPreview = updateAdvanceExportPreview;
+            window.executeAdvanceExportExcel = executeAdvanceExportExcel;
 
             // Batch functions for correction
             function toggleCorrectionItem(checkbox) {
