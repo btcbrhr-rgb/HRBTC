@@ -24222,6 +24222,75 @@ async function loadAdminEmployees() {
                         let failedCount = 0;
                         const failedItems = [];
 
+                        // ⚡ FAST PATH FOR ADVANCE BATCH: Bulk Supabase update + Single Batch GAS call (<100ms UI response)
+                        if (batchOperationType === 'advance' && supabaseClient) {
+                            try {
+                                const updateData = {
+                                    status: status,
+                                    updated_at: new Date().toISOString()
+                                };
+                                if (note) updateData.notes = note;
+
+                                const advIds = items.map(it => it.id).filter(Boolean);
+                                if (advIds.length > 0) {
+                                    await supabaseClient.from('advance_requests').update(updateData).in('id', advIds);
+                                }
+                                const noIdItems = items.filter(it => !it.id && it.empId);
+                                if (noIdItems.length > 0) {
+                                    await Promise.all(noIdItems.map(it => {
+                                        let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', it.empId);
+                                        if (it.date) q = q.eq('request_date', it.date);
+                                        return q;
+                                    }));
+                                }
+
+                                // ⚡ Optimistic UI: ลบแถว เคลียร์ selection ปิด modal ทันที (<100ms)
+                                items.forEach(it => removeApprovalPendingRow('advance', it.rowKey));
+                                selectedAdvanceItems.clear();
+                                updateBatchButtons();
+
+                                const selectAllAdvance = document.getElementById('select-all-advance');
+                                if (selectAllAdvance) selectAllAdvance.checked = false;
+                                const advanceCheckboxes = document.querySelectorAll('.advance-checkbox');
+                                advanceCheckboxes.forEach(cb => cb.checked = false);
+
+                                hideApprovalProcessingOverlay();
+                                closeDecisionModal();
+                                showToast(`✅ ${baseVerb}สำเร็จทั้งหมด ${total} รายการ`, "success");
+                                updateApprovalStatCards();
+                                if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                                if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+                                if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                    RealtimeSyncManager.broadcast('advance_requests', 'UPDATE', { status });
+                                }
+
+                                // ⚡ Single Batch Payload to GAS in background (Audit log + LINE notification)
+                                const batchPayload = {
+                                    action: "approveAdvance",
+                                    status: status,
+                                    approvedBy: approvedBy,
+                                    note: note,
+                                    adminId: currentEmployeeId,
+                                    requests: items.map(it => ({
+                                        id: it.id || undefined,
+                                        empId: it.empId,
+                                        date: it.date,
+                                        amount: it.amount
+                                    }))
+                                };
+                                fetchWithTimeout(SERVER_API_URL, {
+                                    method: "POST",
+                                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                    body: JSON.stringify(batchPayload),
+                                    timeout: 60000
+                                }).catch(e => console.warn('[adminDecision batch advance background GAS notify error]', e));
+
+                                return;
+                            } catch (sbBulkErr) {
+                                console.warn('[adminDecision batch advance direct bulk error, falling back to sequential]', sbBulkErr);
+                            }
+                        }
+
                         try {
                             for (let i = 0; i < items.length; i++) {
                                 const idx = i + 1;
@@ -24393,7 +24462,7 @@ async function loadAdminEmployees() {
 
                     return withSubmitLock("adminDecision", async () => {
                         try {
-                            // ⚡ Direct Supabase Sync for advance
+                            // ⚡ Direct Supabase Sync for advance (Instant UI response <100ms)
                             if (type === 'advance' && supabaseClient) {
                                 try {
                                     const updateData = {
@@ -24402,12 +24471,40 @@ async function loadAdminEmployees() {
                                     };
                                     if (note) updateData.notes = note;
                                     const advanceId = data.id || data["id"];
+                                    let sbOk = false;
                                     if (advanceId) {
-                                        await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                        const { error: upErr } = await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                        if (!upErr) sbOk = true;
                                     } else if (data["รหัสพนักงาน"]) {
                                         let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', data["รหัสพนักงาน"]);
                                         if (data["วันที่เบิก"]) q = q.eq('request_date', data["วันที่เบิก"]);
-                                        await q;
+                                        const { error: upErr } = await q;
+                                        if (!upErr) sbOk = true;
+                                    }
+
+                                    if (sbOk) {
+                                        // ⚡ Optimistic UI: ปิด modal และลบแถวออกจากหน้าจอทันที (<100ms) ไม่ต้องรอ GAS roundtrip
+                                        hideApprovalProcessingOverlay();
+                                        showToast(`✅ พิจารณาคำร้องเสร็จสิ้น`, "success");
+                                        const rowKey = adminCurrentDecisionData?.rowKey || getApprovalRowKey(type, data);
+                                        closeDecisionModal();
+                                        removeApprovalPendingRow(type, rowKey);
+                                        updateApprovalStatCards();
+                                        if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                                        if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+                                        if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                            RealtimeSyncManager.broadcast('advance_requests', 'UPDATE', { status: approvedStatus });
+                                        }
+
+                                        // ⚡ Background GAS Notification: ส่ง audit log และ LINE แจ้งเตือนแบบ background
+                                        fetchWithTimeout(url, {
+                                            method: "POST",
+                                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                            body: JSON.stringify(payload),
+                                            timeout: 60000
+                                        }).catch(err => console.warn('[adminDecision single advance background GAS notify error]', err));
+
+                                        return;
                                     }
                                 } catch (sbAdvErr) {
                                     console.warn('[adminDecision single advance direct update error]', sbAdvErr);
