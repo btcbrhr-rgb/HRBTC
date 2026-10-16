@@ -9708,7 +9708,7 @@
                 <select id="admin-decision-approver-select"
                     class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-700">
                     <option value="">ใช้ชื่อผู้ล็อกอิน หากไม่เลือก</option>
-                    <option value="นางวัตชราภรณ์ นพสุวรรณวงศ์">นางวัตชราภรณ์ นพสุวรรณวงศ์</option>
+                    <option value="นางวัชราภรณ์ นพสุวรรณวงศ์">นางวัชราภรณ์ นพสุวรรณวงศ์</option>
                     <option value="นายวิชัย นพสุวรรณวงศ์">นายวิชัย นพสุวรรณวงศ์</option>
                     <option value="นางแพรวพรรณ นพสุวรรณวงศ์">นางแพรวพรรณ นพสุวรรณวงศ์</option>
                     <option value="น.ส.อัจฉรา นพสุวรรณวงศ์">น.ส.อัจฉรา นพสุวรรณวงศ์</option>
@@ -22368,7 +22368,8 @@ async function loadAdminEmployees() {
                             else rejectedCount++;
                             checkboxHtml = `<span class="text-slate-300 text-xs text-center block">-</span>`;
                             const badgeClass = isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
-                            statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${badgeClass}">${escapeHtml(status)}</span>`;
+                            const approverLine = (req['อนุมัติโดย'] || req.approved_by) ? `<span class="block text-[9px] text-slate-400 mt-0.5">โดย: ${escapeHtml(req['อนุมัติโดย'] || req.approved_by)}</span>` : '';
+                            statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${badgeClass}">${escapeHtml(status)}</span>${approverLine}`;
                             actionHtml = `<span class="text-slate-400 text-xs">-</span>`;
                         }
 
@@ -22506,6 +22507,7 @@ async function loadAdminEmployees() {
                                     "รอบจ่าย": a.pay_cycle,
                                     "สถานะ": a.status,
                                     "ช่องทางรับเงิน": a.payout_channel,
+                                    "อนุมัติโดย": a.approved_by || '',
                                     "หมายเหตุ": a.notes
                                 }))
                             });
@@ -22580,6 +22582,7 @@ async function loadAdminEmployees() {
                         'รอบจ่าย': a.pay_cycle,
                         'สถานะ': a.status,
                         'ช่องทางรับเงิน': a.payout_channel,
+                        'อนุมัติโดย': a.approved_by || '',
                         'หมายเหตุ': a.notes
                     }));
 
@@ -22699,7 +22702,7 @@ async function loadAdminEmployees() {
                         const fieldMap = {
                             leave: l => ({ 'เลขที่เอกสาร': l.doc_id, 'รหัสพนักงาน': l.emp_id, 'ชื่อ-นามสกุล': l.emp_name || '', 'ประเภทการลา': l.leave_type, 'วันที่เริ่ม': l.start_date, 'วันที่สิ้นสุด': l.end_date, 'จำนวนวัน': l.days_count, 'เหตุผล': l.reason, 'สถานะ': l.status, 'อนุมัติโดย': l.approved_by, 'หมายเหตุ': l.notes, 'เอกสารแนบ': l.attachments }),
                             correction: c => ({ 'รหัสพนักงาน': c.emp_id, 'วันที่': c.date, 'เวลาเข้าใหม่': c.new_time_in, 'เวลาออกใหม่': c.new_time_out, 'เหตุผล': c.reason, 'สถานะ': c.status, 'โครงการ': c.project, 'อนุมัติโดย': c.approved_by, 'หมายเหตุ': c.notes }),
-                            advance: a => ({ 'รหัสพนักงาน': a.emp_id, 'จำนวนเงิน': a.amount, 'วันที่เบิก': a.request_date, 'รอบจ่าย': a.pay_cycle, 'สถานะ': a.status, 'เหตุผล': a.reason || a.notes, 'หมายเหตุ': a.notes })
+                            advance: a => ({ 'รหัสพนักงาน': a.emp_id, 'จำนวนเงิน': a.amount, 'วันที่เบิก': a.request_date, 'รอบจ่าย': a.pay_cycle, 'สถานะ': a.status, 'อนุมัติโดย': a.approved_by || '', 'เหตุผล': a.reason || a.notes, 'หมายเหตุ': a.notes })
                         };
                         const sbRes = await supabaseClient.from(tableMap[type]).select('*');
                         if (!sbRes.error && Array.isArray(sbRes.data)) {
@@ -22753,7 +22756,17 @@ async function loadAdminEmployees() {
 
                 const titleEl = document.getElementById("admin-decision-title");
                 const noteEl = document.getElementById("admin-decision-note");
-                noteEl.value = "";
+                if (noteEl) {
+                    noteEl.value = "";
+                    noteEl.disabled = false;
+                }
+                const approverSelect = document.getElementById("admin-decision-approver-select");
+                if (approverSelect) {
+                    approverSelect.value = "";
+                    approverSelect.disabled = false;
+                }
+                const closeBtn = document.querySelector('#admin-decision-modal button[onclick="closeDecisionModal()"]');
+                if (closeBtn) closeBtn.disabled = false;
 
                 const verb = actionType === 'อนุมัติแล้ว' ? 'อนุมัติ' : 'ปฏิเสธ';
                 titleEl.textContent = `พิจารณา ${verb} คำขอ (${type.toUpperCase()})`;
@@ -22779,11 +22792,12 @@ async function loadAdminEmployees() {
                 }
                 // ตั้งค่า select ผู้ลงนาม ให้แสดงข้อความหรือเลือกชื่อผู้ล็อกอิน (ถ้ามี)
                 try {
-                    const approverSelect = document.getElementById("admin-decision-approver-select");
                     if (approverSelect) {
-                        const empName = employeeData["ชื่อ-นามสกุล"] || "";
+                        const empName = (typeof employeeData === 'object' && employeeData && employeeData["ชื่อ-นามสกุล"])
+                            ? employeeData["ชื่อ-นามสกุล"]
+                            : (sessionStorage.getItem("emp_name") || currentEmployeeId || "Admin");
                         const placeholderOpt = approverSelect.querySelector('option[value=""]');
-                        if (placeholderOpt && empName) placeholderOpt.textContent = `ใช้ชื่อผู้ล็อกอิน (${empName}) หากไม่เลือก`;
+                        if (placeholderOpt) placeholderOpt.textContent = `ใช้ชื่อผู้ล็อกอิน (${empName}) หากไม่เลือก`;
                     }
                 } catch (e) {
                     console.warn('admin decision approver select init failed', e);
@@ -22798,7 +22812,17 @@ async function loadAdminEmployees() {
 
                 const titleEl = document.getElementById("admin-decision-title");
                 const noteEl = document.getElementById("admin-decision-note");
-                noteEl.value = "";
+                if (noteEl) {
+                    noteEl.value = "";
+                    noteEl.disabled = false;
+                }
+                const approverSelect = document.getElementById("admin-decision-approver-select");
+                if (approverSelect) {
+                    approverSelect.value = "";
+                    approverSelect.disabled = false;
+                }
+                const closeBtn = document.querySelector('#admin-decision-modal button[onclick="closeDecisionModal()"]');
+                if (closeBtn) closeBtn.disabled = false;
 
                 let selectedCount = 0;
                 if (type === "leave") selectedCount = selectedLeaveItems.size;
@@ -22829,11 +22853,12 @@ async function loadAdminEmployees() {
                 }
                 // ตั้งค่า select ผู้ลงนาม ให้แสดงข้อความหรือเลือกชื่อผู้ล็อกอิน (ถ้ามี)
                 try {
-                    const approverSelect = document.getElementById("admin-decision-approver-select");
                     if (approverSelect) {
-                        const empName = employeeData["ชื่อ-นามสกุล"] || "";
+                        const empName = (typeof employeeData === 'object' && employeeData && employeeData["ชื่อ-นามสกุล"])
+                            ? employeeData["ชื่อ-นามสกุล"]
+                            : (sessionStorage.getItem("emp_name") || currentEmployeeId || "Admin");
                         const placeholderOpt = approverSelect.querySelector('option[value=""]');
-                        if (placeholderOpt && empName) placeholderOpt.textContent = `ใช้ชื่อผู้ล็อกอิน (${empName}) หากไม่เลือก`;
+                        if (placeholderOpt) placeholderOpt.textContent = `ใช้ชื่อผู้ล็อกอิน (${empName}) หากไม่เลือก`;
                     }
                 } catch (e) {
                     console.warn('admin decision approver select init failed', e);
@@ -22845,7 +22870,17 @@ async function loadAdminEmployees() {
                 document.getElementById("admin-decision-approve-btn").classList.remove("hidden");
                 document.getElementById("admin-decision-reject-btn").classList.remove("hidden");
                 const noteInput = document.getElementById("admin-decision-note");
-                if (noteInput) noteInput.value = "";
+                if (noteInput) {
+                    noteInput.value = "";
+                    noteInput.disabled = false;
+                }
+                const approverSelect = document.getElementById("admin-decision-approver-select");
+                if (approverSelect) {
+                    approverSelect.value = "";
+                    approverSelect.disabled = false;
+                }
+                const closeBtn = document.querySelector('#admin-decision-modal button[onclick="closeDecisionModal()"]');
+                if (closeBtn) closeBtn.disabled = false;
                 adminCurrentDecisionData = null;
                 isBatchOperation = false;
                 batchOperationType = null;
@@ -24130,7 +24165,11 @@ async function loadAdminEmployees() {
                 showApprovalProcessingOverlay('กำลังตรวจสอบและบันทึกผลการอนุมัติ…', 0, 0);
                 const note = document.getElementById("admin-decision-note").value.trim();
                 const approverSelect = document.getElementById("admin-decision-approver-select");
-                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : (employeeData["ชื่อ-นามสกุล"] || "Admin");
+                const loginNameFallback = (employeeData && employeeData["ชื่อ-นามสกุล"])
+                    || (typeof currentEmployeeData !== 'undefined' && currentEmployeeData && currentEmployeeData["ชื่อ-นามสกุล"])
+                    || (typeof currentEmployeeName !== 'undefined' && currentEmployeeName)
+                    || "ผู้ดูแลระบบ (Admin)";
+                const approvedBy = (approverSelect && approverSelect.value) ? approverSelect.value : loginNameFallback;
 
                 if (isBatchOperation && batchOperationType && batchOperationAction) {
                     // Handle batch operation — loop per item so user sees real progress
@@ -24229,19 +24268,47 @@ async function loadAdminEmployees() {
                                     status: status,
                                     updated_at: new Date().toISOString()
                                 };
+                                if (approvedBy) updateData.approved_by = approvedBy;
+                                if (status === 'อนุมัติแล้ว' || status === 'Approved') {
+                                    updateData.approved_at = getTodayDateString();
+                                }
                                 if (note) updateData.notes = note;
 
                                 const advIds = items.map(it => it.id).filter(Boolean);
+                                let sbBatchErr = null;
                                 if (advIds.length > 0) {
-                                    await supabaseClient.from('advance_requests').update(updateData).in('id', advIds);
+                                    const { error: e } = await supabaseClient.from('advance_requests').update(updateData).in('id', advIds);
+                                    if (e) sbBatchErr = e;
                                 }
                                 const noIdItems = items.filter(it => !it.id && it.empId);
                                 if (noIdItems.length > 0) {
-                                    await Promise.all(noIdItems.map(it => {
+                                    const resList = await Promise.all(noIdItems.map(it => {
                                         let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', it.empId);
                                         if (it.date) q = q.eq('request_date', it.date);
                                         return q;
                                     }));
+                                    const failedItem = resList.find(r => r && r.error);
+                                    if (failedItem) sbBatchErr = failedItem.error;
+                                }
+
+                                // Fallback: หาก column approved_by หรือ approved_at ยังไม่มีใน Supabase Schema ให้บันทึกลง notes แทน
+                                if (sbBatchErr && (updateData.approved_by || updateData.approved_at)) {
+                                    console.warn('[adminDecision batch advance update error, falling back without approved_by column]', sbBatchErr);
+                                    delete updateData.approved_by;
+                                    delete updateData.approved_at;
+                                    const approverNote = approvedBy ? `[อนุมัติโดย: ${approvedBy}]` : '';
+                                    updateData.notes = note ? (approverNote ? `${approverNote} ${note}` : note) : approverNote;
+
+                                    if (advIds.length > 0) {
+                                        await supabaseClient.from('advance_requests').update(updateData).in('id', advIds);
+                                    }
+                                    if (noIdItems.length > 0) {
+                                        await Promise.all(noIdItems.map(it => {
+                                            let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', it.empId);
+                                            if (it.date) q = q.eq('request_date', it.date);
+                                            return q;
+                                        }));
+                                    }
                                 }
 
                                 // ⚡ Optimistic UI: ลบแถว เคลียร์ selection ปิด modal ทันที (<100ms)
@@ -24311,13 +24378,31 @@ async function loadAdminEmployees() {
                                             status: status,
                                             updated_at: new Date().toISOString()
                                         };
+                                        if (approvedBy) updateData.approved_by = approvedBy;
+                                        if (status === 'อนุมัติแล้ว' || status === 'Approved') {
+                                            updateData.approved_at = getTodayDateString();
+                                        }
                                         if (note) updateData.notes = note;
+                                        let upRes = null;
                                         if (items[i].id) {
-                                            await supabaseClient.from('advance_requests').update(updateData).eq('id', items[i].id);
+                                            upRes = await supabaseClient.from('advance_requests').update(updateData).eq('id', items[i].id);
                                         } else if (items[i].empId) {
                                             let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', items[i].empId);
                                             if (items[i].date) q = q.eq('request_date', items[i].date);
-                                            await q;
+                                            upRes = await q;
+                                        }
+                                        if (upRes && upRes.error && (updateData.approved_by || updateData.approved_at)) {
+                                            delete updateData.approved_by;
+                                            delete updateData.approved_at;
+                                            const approverNote = approvedBy ? `[อนุมัติโดย: ${approvedBy}]` : '';
+                                            updateData.notes = note ? (approverNote ? `${approverNote} ${note}` : note) : approverNote;
+                                            if (items[i].id) {
+                                                await supabaseClient.from('advance_requests').update(updateData).eq('id', items[i].id);
+                                            } else if (items[i].empId) {
+                                                let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', items[i].empId);
+                                                if (items[i].date) q = q.eq('request_date', items[i].date);
+                                                await q;
+                                            }
                                         }
                                     } catch (sbAdvBatchErr) {
                                         console.warn('[adminDecision batch advance Supabase sync error]', sbAdvBatchErr);
@@ -24469,17 +24554,42 @@ async function loadAdminEmployees() {
                                         status: approvedStatus,
                                         updated_at: new Date().toISOString()
                                     };
+                                    if (approvedBy) updateData.approved_by = approvedBy;
+                                    if (approvedStatus === 'อนุมัติแล้ว' || approvedStatus === 'Approved') {
+                                        updateData.approved_at = getTodayDateString();
+                                    }
                                     if (note) updateData.notes = note;
                                     const advanceId = data.id || data["id"];
                                     let sbOk = false;
+                                    let upErr = null;
                                     if (advanceId) {
-                                        const { error: upErr } = await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                        const { error } = await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                        upErr = error;
                                         if (!upErr) sbOk = true;
                                     } else if (data["รหัสพนักงาน"]) {
                                         let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', data["รหัสพนักงาน"]);
                                         if (data["วันที่เบิก"]) q = q.eq('request_date', data["วันที่เบิก"]);
-                                        const { error: upErr } = await q;
+                                        const { error } = await q;
+                                        upErr = error;
                                         if (!upErr) sbOk = true;
+                                    }
+
+                                    // Fallback if column approved_by or approved_at does not exist in Supabase
+                                    if (upErr && (updateData.approved_by || updateData.approved_at)) {
+                                        console.warn('[adminDecision single advance direct update fallback without approved_by column]', upErr);
+                                        delete updateData.approved_by;
+                                        delete updateData.approved_at;
+                                        const approverNote = approvedBy ? `[อนุมัติโดย: ${approvedBy}]` : '';
+                                        updateData.notes = note ? (approverNote ? `${approverNote} ${note}` : note) : approverNote;
+                                        if (advanceId) {
+                                            const { error: retryErr } = await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                            if (!retryErr) sbOk = true;
+                                        } else if (data["รหัสพนักงาน"]) {
+                                            let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', data["รหัสพนักงาน"]);
+                                            if (data["วันที่เบิก"]) q = q.eq('request_date', data["วันที่เบิก"]);
+                                            const { error: retryErr } = await q;
+                                            if (!retryErr) sbOk = true;
+                                        }
                                     }
 
                                     if (sbOk) {
@@ -24529,14 +24639,34 @@ async function loadAdminEmployees() {
                                             status: approvedStatus,
                                             updated_at: new Date().toISOString()
                                         };
+                                        if (approvedBy) updateData.approved_by = approvedBy;
+                                        if (approvedStatus === 'อนุมัติแล้ว' || approvedStatus === 'Approved') {
+                                            updateData.approved_at = getTodayDateString();
+                                        }
                                         if (note) updateData.notes = note;
                                         const advanceId = data.id || data["id"];
+                                        let upErr = null;
                                         if (advanceId) {
-                                            await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                            const { error } = await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                            upErr = error;
                                         } else if (data["รหัสพนักงาน"]) {
                                             let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', data["รหัสพนักงาน"]);
                                             if (data["วันที่เบิก"]) q = q.eq('request_date', data["วันที่เบิก"]);
-                                            await q;
+                                            const { error } = await q;
+                                            upErr = error;
+                                        }
+                                        if (upErr && (updateData.approved_by || updateData.approved_at)) {
+                                            delete updateData.approved_by;
+                                            delete updateData.approved_at;
+                                            const approverNote = approvedBy ? `[อนุมัติโดย: ${approvedBy}]` : '';
+                                            updateData.notes = note ? (approverNote ? `${approverNote} ${note}` : note) : approverNote;
+                                            if (advanceId) {
+                                                await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                            } else if (data["รหัสพนักงาน"]) {
+                                                let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', data["รหัสพนักงาน"]);
+                                                if (data["วันที่เบิก"]) q = q.eq('request_date', data["วันที่เบิก"]);
+                                                await q;
+                                            }
                                         }
                                     } catch (sbAdvErr) {
                                         console.warn('[adminDecision single advance direct update error in handleApprovalSuccess]', sbAdvErr);
