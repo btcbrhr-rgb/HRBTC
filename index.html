@@ -23885,13 +23885,12 @@ async function loadAdminEmployees() {
                     const empName = (emp ? (emp["ชื่อ-นามสกุล"] || emp["ชื่อ"] || emp.name) : '') 
                         || req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || empId;
 
-                    // เลขที่บัญชี (คงเลขศูนย์นำหน้า)
-                    let bankAcc = (emp ? (emp["หมายเลขบัญชี"] || emp["เลขที่บัญชี"] || emp.bank_account || emp.bank_no) : '') 
+                    // เลขที่บัญชี (ตัดเครื่องหมาย - ออก แสดงเฉพาะตัวเลขล้วน และคงเลขศูนย์นำหน้า)
+                    let rawBank = (emp ? (emp["หมายเลขบัญชี"] || emp["เลขที่บัญชี"] || emp.bank_account || emp.bank_no) : '') 
                         || req["หมายเลขบัญชี"] || req["เลขที่บัญชี"] || req.bank_account || '';
-                    bankAcc = String(bankAcc || '').trim();
-                    if (!bankAcc || bankAcc === '0') {
-                        bankAcc = '-';
-                    }
+                    rawBank = String(rawBank || '').trim();
+                    const cleanDigits = rawBank.replace(/\D/g, '');
+                    const bankAcc = cleanDigits || (rawBank && rawBank !== '-' && rawBank !== '0' ? rawBank : '-');
 
                     // จำนวนเงิน
                     const amount = Number(req["จำนวนเงิน"] || req.amount || 0);
