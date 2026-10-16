@@ -7006,8 +7006,8 @@
                                 </button>
                             </div>
 
-                            <!-- Body -->
-                            <div class="px-6 py-5 overflow-y-auto flex-1 space-y-5">
+                            <!-- Body: Form View (ขั้นตอนที่ 1-3) -->
+                            <div id="advance-import-form-view" class="px-6 py-5 overflow-y-auto flex-1 space-y-5">
                                 <!-- Steps 1 & 2 Card Grid -->
                                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                                     <!-- Step 1: เลือกรอบเดือนและปี พ.ศ. (4 คอลัมน์) -->
@@ -7132,13 +7132,69 @@
                                 </div>
                             </div>
 
+                            <!-- View แจ้งเตือนเมื่อบันทึกเสร็จสมบูรณ์ (Completion State) -->
+                            <div id="advance-import-success-view" class="hidden px-6 py-12 flex-1 flex flex-col items-center justify-center text-center space-y-6">
+                                <div class="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl shadow-sm">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                </div>
+                                <div class="space-y-1.5 max-w-md">
+                                    <h3 class="text-lg font-bold text-slate-800">บันทึกรายการเบิกสำรองเสร็จสมบูรณ์</h3>
+                                    <p class="text-xs text-slate-500" id="advance-success-cycle-text">รอบบัญชี: รอบ ตุลาคม 2569</p>
+                                </div>
+
+                                <!-- Summary KPI Cards -->
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-lg">
+                                    <div class="bg-emerald-50/80 border border-emerald-200/80 rounded-2xl p-4 text-center">
+                                        <p class="text-[11px] font-semibold text-emerald-700">นำเข้าสำเร็จ</p>
+                                        <p class="text-2xl font-black text-emerald-800 mt-1" id="advance-success-imported-count">0</p>
+                                        <p class="text-[10px] text-emerald-600 mt-0.5">รายการ</p>
+                                    </div>
+                                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
+                                        <p class="text-[11px] font-semibold text-slate-600">ข้ามรายการเดิม</p>
+                                        <p class="text-2xl font-black text-slate-800 mt-1" id="advance-success-skipped-count">0</p>
+                                        <p class="text-[10px] text-slate-500 mt-0.5">รายการ</p>
+                                    </div>
+                                    <div class="bg-indigo-50/80 border border-indigo-200/80 rounded-2xl p-4 text-center">
+                                        <p class="text-[11px] font-semibold text-indigo-700">ยอดเงินรวม</p>
+                                        <p class="text-2xl font-black text-indigo-900 mt-1 tabular-nums" id="advance-success-total-amount">0.00</p>
+                                        <p class="text-[10px] text-indigo-600 mt-0.5">บาท</p>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons: ปิด หรือ นำเข้ารายการใหม่ -->
+                                <div class="flex items-center justify-center gap-3 pt-3">
+                                    <button onclick="closeAdvanceImportModal()"
+                                        class="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 shadow-2xs transition-all flex items-center gap-2">
+                                        <i class="fa-solid fa-xmark"></i> ปิด
+                                    </button>
+                                    <button onclick="resetAdvanceImportModal()"
+                                        class="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2">
+                                        <i class="fa-solid fa-rotate-right"></i> นำเข้ารายการใหม่
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Progress Bar Container (แสดงขณะกำลังนับและบันทึกทีละรายการ) -->
+                            <div id="advance-import-progress-container" class="hidden px-6 py-3 bg-indigo-50/80 border-t border-indigo-100 shrink-0">
+                                <div class="flex items-center justify-between text-xs mb-1.5 font-bold text-indigo-900">
+                                    <span class="flex items-center gap-2">
+                                        <i class="fa-solid fa-spinner fa-spin text-indigo-600"></i>
+                                        <span id="advance-import-progress-text">กำลังนำเข้ารายการเบิกสำรองทีละรายการ…</span>
+                                    </span>
+                                    <span id="advance-import-progress-count" class="font-mono text-indigo-700">0 / 0</span>
+                                </div>
+                                <div class="w-full bg-indigo-200/60 rounded-full h-2.5 overflow-hidden">
+                                    <div id="advance-import-progress-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-100" style="width: 0%"></div>
+                                </div>
+                            </div>
+
                             <!-- Footer -->
-                            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-slate-50/70">
+                            <div id="advance-import-footer" class="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0 bg-slate-50/70">
                                 <span class="text-[11px] text-slate-400" id="advance-import-footer-note">
                                     <i class="fa-solid fa-shield-halved mr-1 text-slate-400"></i> รายการที่ซ้ำในรอบเดียวกันจะถูกข้ามโดยอัตโนมัติ
                                 </span>
                                 <div class="flex items-center gap-2">
-                                    <button onclick="closeAdvanceImportModal()"
+                                    <button id="advance-import-cancel-btn" onclick="closeAdvanceImportModal()"
                                         class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 border border-slate-200 transition-all">
                                         ยกเลิก
                                     </button>
@@ -22625,8 +22681,43 @@ async function loadAdminEmployees() {
 
             function closeAdvanceImportModal() {
                 const modal = document.getElementById('advance-import-modal');
+                const formView = document.getElementById('advance-import-form-view');
+                const successView = document.getElementById('advance-import-success-view');
+                const footer = document.getElementById('advance-import-footer');
+                const progressContainer = document.getElementById('advance-import-progress-container');
+                const cancelBtn = document.getElementById('advance-import-cancel-btn');
+                const confirmBtn = document.getElementById('advance-import-confirm-btn');
+
                 if (modal) modal.classList.add('hidden');
+                if (formView) formView.classList.remove('hidden');
+                if (successView) successView.classList.add('hidden');
+                if (footer) footer.classList.remove('hidden');
+                if (progressContainer) progressContainer.classList.add('hidden');
+                if (cancelBtn) cancelBtn.disabled = false;
+                if (confirmBtn) confirmBtn.disabled = false;
                 _advanceImportParsedRows = [];
+
+                if (typeof loadAdminApprovals === 'function') {
+                    loadAdminApprovals();
+                }
+            }
+
+            function resetAdvanceImportModal() {
+                const formView = document.getElementById('advance-import-form-view');
+                const successView = document.getElementById('advance-import-success-view');
+                const footer = document.getElementById('advance-import-footer');
+                const progressContainer = document.getElementById('advance-import-progress-container');
+                const cancelBtn = document.getElementById('advance-import-cancel-btn');
+                const confirmBtn = document.getElementById('advance-import-confirm-btn');
+
+                if (formView) formView.classList.remove('hidden');
+                if (successView) successView.classList.add('hidden');
+                if (footer) footer.classList.remove('hidden');
+                if (progressContainer) progressContainer.classList.add('hidden');
+                if (cancelBtn) cancelBtn.disabled = false;
+                if (confirmBtn) confirmBtn.disabled = false;
+
+                openAdvanceImportModal();
             }
 
             function onAdvanceImportPeriodChange() {
@@ -22880,8 +22971,10 @@ async function loadAdminEmployees() {
                 if (statsBadges) statsBadges.classList.remove('hidden');
 
                 tbody.innerHTML = rows.map((r, idx) => `
-                    <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-indigo-50/40 transition-colors">
-                        <td class="px-3.5 py-2 text-slate-400 font-mono text-[11px]">${idx + 1}</td>
+                    <tr id="adv-import-row-${idx}" class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-indigo-50/40 transition-colors">
+                        <td class="px-3.5 py-2 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                            <span id="adv-import-icon-${idx}" class="inline-block w-4 text-center mr-1">${idx + 1}</span>
+                        </td>
                         <td class="px-3.5 py-2 font-mono font-bold text-slate-800">${escapeHtml(r.emp_id)}</td>
                         <td class="px-3.5 py-2 font-semibold text-slate-700">
                             ${escapeHtml(r.emp_name || '-')}
@@ -22909,6 +23002,13 @@ async function loadAdminEmployees() {
                 const monthSelect = document.getElementById('advance-import-month-select');
                 const yearSelect = document.getElementById('advance-import-year-select');
                 const confirmBtn = document.getElementById('advance-import-confirm-btn');
+                const confirmLabel = document.getElementById('advance-import-confirm-label');
+                const cancelBtn = document.getElementById('advance-import-cancel-btn');
+                const progressContainer = document.getElementById('advance-import-progress-container');
+                const progressBar = document.getElementById('advance-import-progress-bar');
+                const progressText = document.getElementById('advance-import-progress-text');
+                const progressCount = document.getElementById('advance-import-progress-count');
+                const tableContainer = document.getElementById('advance-import-table-container');
 
                 if (!monthSelect || !yearSelect) {
                     showToast('กรุณาระบุเดือนและปีที่จะนำเข้า', 'error');
@@ -22924,56 +23024,176 @@ async function loadAdminEmployees() {
                 const payCycle = `รอบ ${mName} ${beYear}`;
 
                 const totalAmount = _advanceImportParsedRows.reduce((s, r) => s + r.amount, 0);
+                const totalRows = _advanceImportParsedRows.length;
+
                 const confirmed = confirm(
-                    `ยืนยันนำเข้ารายการเบิกสำรอง ${_advanceImportParsedRows.length} รายการ\n` +
+                    `ยืนยันนำเข้ารายการเบิกสำรอง ${totalRows} รายการ\n` +
                     `📅 รอบบัญชี: ${payCycle}\n` +
                     `💰 ยอดรวม: ${totalAmount.toLocaleString()} บาท\n\n` +
-                    `รายการที่เคยมีอยู่ในระบบแล้วจะถูกข้ามโดยอัตโนมัติ ต้องการบันทึกหรือไม่?`
+                    `ระบบจะส่งบันทึกทีละรายการจนครบ ต้องการเริ่มบันทึกหรือไม่?`
                 );
                 if (!confirmed) return;
 
-                if (confirmBtn) {
-                    confirmBtn.disabled = true;
-                    confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล…';
-                }
+                // ล็อกปุ่ม UI และแสดง Progress Bar
+                if (confirmBtn) confirmBtn.disabled = true;
+                if (cancelBtn) cancelBtn.disabled = true;
+                if (progressContainer) progressContainer.classList.remove('hidden');
+                if (progressBar) progressBar.style.width = '0%';
+                if (progressCount) progressCount.textContent = `0 / ${totalRows}`;
+                if (progressText) progressText.textContent = 'กำลังเริ่มต้นนำเข้า…';
 
-                try {
-                    const payload = {
-                        action: 'importAdvanceRequests',
-                        adminId: currentEmployeeId,
-                        sessionToken: sessionToken,
-                        requestDate: requestDate,
-                        payCycle: payCycle,
-                        records: _advanceImportParsedRows.map(r => ({
-                            emp_id: r.emp_id,
-                            amount: r.amount,
-                            payment_method: r.payment_method
-                        }))
+                let importedCount = 0;
+                let skippedCount = 0;
+                let errorCount = 0;
+
+                // ⚡ ส่งบันทึกทีละรายการ พร้อมนับจำนวนและอัปเดต UI แบบ Real-time
+                for (let i = 0; i < totalRows; i++) {
+                    const r = _advanceImportParsedRows[i];
+                    const currentNum = i + 1;
+                    const pct = Math.round((currentNum / totalRows) * 100);
+
+                    // อัปเดต Progress Bar และข้อความสถานะ
+                    if (progressBar) progressBar.style.width = `${pct}%`;
+                    if (progressCount) progressCount.textContent = `${currentNum} / ${totalRows} (${pct}%)`;
+                    if (progressText) progressText.textContent = `กำลังบันทึกรหัส ${escapeHtml(r.emp_id)} (${escapeHtml(r.emp_name || '')})…`;
+                    if (confirmLabel) confirmLabel.textContent = `กำลังบันทึก ${currentNum}/${totalRows}…`;
+
+                    // Highlight แถวที่กำลังบันทึกและเลื่อนหน้าจอตาม
+                    const rowEl = document.getElementById(`adv-import-row-${i}`);
+                    const iconEl = document.getElementById(`adv-import-icon-${i}`);
+                    if (rowEl) {
+                        rowEl.classList.remove('bg-white', 'bg-slate-50/60');
+                        rowEl.classList.add('bg-indigo-50/80');
+                        if (tableContainer) {
+                            const rowTop = rowEl.offsetTop;
+                            const containerHeight = tableContainer.clientHeight;
+                            if (rowTop > tableContainer.scrollTop + containerHeight - 60 || rowTop < tableContainer.scrollTop) {
+                                tableContainer.scrollTop = Math.max(0, rowTop - 40);
+                            }
+                        }
+                    }
+                    if (iconEl) iconEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-indigo-600 text-xs"></i>';
+
+                    const itemPayload = {
+                        emp_id: r.emp_id,
+                        amount: r.amount,
+                        request_date: requestDate,
+                        pay_cycle: payCycle,
+                        status: 'รอตรวจสอบ',
+                        notes: null,
+                        payout_channel: r.payment_method || 'โอนผ่านบัญชีธนาคาร',
+                        is_recurring: 'ไม่ใช่',
+                        edit_count: 0
                     };
 
-                    const res = await fetchWithTimeout(SERVER_API_URL, {
-                        method: 'POST',
-                        body: JSON.stringify(payload),
-                        timeout: 60000
-                    });
+                    try {
+                        let isInserted = false;
+                        let isSkipped = false;
 
-                    if (res && res.status === 'success') {
-                        const msg = `นำเข้าสำเร็จ ${res.imported || 0} รายการ` +
-                            (res.skipped ? ` (ข้าม ${res.skipped} รายการเดิม)` : '') +
-                            (res.skippedUnknownEmp ? ` (ข้าม ${res.skippedUnknownEmp} รหัสที่ไม่มีในระบบ)` : '');
-                        showToast('✅ ' + msg, 'success');
-                        closeAdvanceImportModal();
-                        if (typeof loadAdminApprovals === 'function') loadAdminApprovals();
-                    } else {
-                        showToast('❌ นำเข้าไม่สำเร็จ: ' + (res?.message || 'ไม่ทราบสาเหตุ'), 'error');
+                        if (supabaseClient) {
+                            const { data, error } = await supabaseClient
+                                .from('advance_requests')
+                                .upsert(itemPayload, { onConflict: 'emp_id,request_date,amount', ignoreDuplicates: true })
+                                .select('id');
+
+                            if (error) throw error;
+                            if (data && data.length > 0) {
+                                isInserted = true;
+                            } else {
+                                isSkipped = true;
+                            }
+                        } else {
+                            // Fallback ผ่าน GAS Backend
+                            const gasRes = await fetchWithTimeout(SERVER_API_URL, {
+                                method: 'POST',
+                                body: JSON.stringify({
+                                    action: 'importAdvanceRequests',
+                                    adminId: currentEmployeeId,
+                                    sessionToken: sessionToken,
+                                    requestDate: requestDate,
+                                    payCycle: payCycle,
+                                    records: [r]
+                                })
+                            });
+                            if (gasRes && gasRes.status === 'success') {
+                                if (gasRes.imported > 0) isInserted = true;
+                                else isSkipped = true;
+                            } else {
+                                throw new Error(gasRes?.message || 'GAS import failed');
+                            }
+                        }
+
+                        if (isInserted) {
+                            importedCount++;
+                            if (rowEl) {
+                                rowEl.classList.remove('bg-indigo-50/80');
+                                rowEl.classList.add('bg-emerald-50/50');
+                            }
+                            if (iconEl) iconEl.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600 text-xs"></i>';
+                        } else if (isSkipped) {
+                            skippedCount++;
+                            if (rowEl) {
+                                rowEl.classList.remove('bg-indigo-50/80');
+                                rowEl.classList.add('bg-slate-100/70', 'opacity-70');
+                            }
+                            if (iconEl) iconEl.innerHTML = '<i class="fa-solid fa-forward text-slate-400 text-xs" title="มีอยู่แล้วในระบบ (ข้าม)"></i>';
+                        }
+                    } catch (err) {
+                        errorCount++;
+                        console.error(`[AdvanceImport] Row ${i} error:`, err);
+                        if (rowEl) {
+                            rowEl.classList.remove('bg-indigo-50/80');
+                            rowEl.classList.add('bg-rose-50/60');
+                        }
+                        if (iconEl) iconEl.innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-600 text-xs" title="' + escapeHtml(err.message || String(err)) + '"></i>';
                     }
-                } catch (err) {
-                    showToast('❌ เกิดข้อผิดพลาด: ' + (err.message || String(err)), 'error');
-                } finally {
-                    if (confirmBtn) {
-                        confirmBtn.disabled = false;
-                        confirmBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> ยืนยันนำเข้า (${_advanceImportParsedRows.length} รายการ)`;
-                    }
+
+                    // หน่วงเวลาเล็กน้อย (20ms) เพื่อให้เห็นการนับสดใน UI
+                    await new Promise(res => setTimeout(res, 20));
+                }
+
+                // สรุปผลและสลับไปยังหน้าจอแจ้งว่าบันทึกเสร็จ (Success View)
+                const formView = document.getElementById('advance-import-form-view');
+                const successView = document.getElementById('advance-import-success-view');
+                const footer = document.getElementById('advance-import-footer');
+                const successCycleText = document.getElementById('advance-success-cycle-text');
+                const successImportedEl = document.getElementById('advance-success-imported-count');
+                const successSkippedEl = document.getElementById('advance-success-skipped-count');
+                const successTotalEl = document.getElementById('advance-success-total-amount');
+
+                if (successCycleText) successCycleText.textContent = `รอบบัญชี: ${payCycle} (วันที่เบิก: ${formatThaiDate(requestDate)})`;
+                if (successImportedEl) successImportedEl.textContent = importedCount.toLocaleString();
+                if (successSkippedEl) successSkippedEl.textContent = skippedCount.toLocaleString();
+                if (successTotalEl) successTotalEl.textContent = totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                if (formView) formView.classList.add('hidden');
+                if (footer) footer.classList.add('hidden');
+                if (progressContainer) progressContainer.classList.add('hidden');
+                if (successView) successView.classList.remove('hidden');
+
+                // บันทึก Audit Log ผ่าน GAS ในเบื้องหลัง
+                if (SERVER_API_URL && importedCount > 0) {
+                    fetchWithTimeout(SERVER_API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'logAuditTrail',
+                            adminId: currentEmployeeId,
+                            details: {
+                                action: 'importAdvanceRequests',
+                                imported: importedCount,
+                                skipped: skippedCount,
+                                total: totalRows,
+                                payCycle: payCycle
+                            }
+                        })
+                    }).catch(() => {});
+                }
+
+                showToast(`✅ นำเข้ารายการเบิกสำรองเสร็จสมบูรณ์ (${importedCount} รายการสำเร็จ${skippedCount ? `, ข้าม ${skippedCount}` : ''})`, 'success');
+
+                // อัปเดตข้อมูลหน้ารายการอนุมัติทันทีในเบื้องหลัง
+                if (typeof loadAdminApprovals === 'function') {
+                    loadAdminApprovals();
                 }
             }
 
