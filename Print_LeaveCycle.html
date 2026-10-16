@@ -627,6 +627,9 @@
             if (t.includes('พักร้อน') || t.includes('annual') || t.includes('vacation')) {
                 return { key: 'annual', label: 'ลาพักร้อน' };
             }
+            if (t.includes('กิจ') && (t.includes('ไม่รับ') || t.includes('unpaid'))) {
+                return { key: 'personalUnpaid', label: 'ลากิจ (ไม่รับค่าจ้าง)' };
+            }
             if (t.includes('กิจ') || t.includes('personal') || t.includes('2434')) {
                 return { key: 'personal', label: 'ลากิจ' };
             }
@@ -766,6 +769,7 @@
                 sickCert: 0,
                 sickNoCert: 0,
                 personal: 0,
+                personalUnpaid: 0,
                 annual: 0,
                 maternity: 0,
                 paternity: 0,
@@ -802,6 +806,7 @@
                         sickCert: 0,
                         sickNoCert: 0,
                         personal: 0,
+                        personalUnpaid: 0,
                         annual: 0,
                         maternity: 0,
                         paternity: 0,
@@ -850,12 +855,19 @@
                 const empTotal = (emp.sickCert || 0) +
                     (emp.sickNoCert || 0) +
                     (emp.personal || 0) +
+                    (emp.personalUnpaid || 0) +
                     (emp.annual || 0) +
                     (emp.maternity || 0) +
                     (emp.paternity || 0) +
                     (emp.childcare || 0) +
                     (emp.sterilization || 0) +
                     (emp.other || 0);
+
+                // ลากิจ: แสดง +X.X (เขียว) สำหรับลากิจปกติ และ -X.X (แดง) สำหรับไม่รับค่าจ้าง ในช่องเดียวกัน
+                const personalParts = [];
+                if (emp.personal) personalParts.push(`<span style="color:#16a34a;font-weight:700">+${emp.personal.toFixed(1)}</span>`);
+                if (emp.personalUnpaid) personalParts.push(`<span style="color:#dc2626;font-weight:700">-${emp.personalUnpaid.toFixed(1)}</span>`);
+                const personalCell = personalParts.length ? `<div style="line-height:1.5;">${personalParts.join('<br>')}</div>` : '-';
 
                 return `
                     <tr>
@@ -864,7 +876,7 @@
                         <td class="text-left">${emp.department}</td>
                         <td>${emp.sickCert ? emp.sickCert.toFixed(1) : '-'}</td>
                         <td>${emp.sickNoCert ? emp.sickNoCert.toFixed(1) : '-'}</td>
-                        <td>${emp.personal ? emp.personal.toFixed(1) : '-'}</td>
+                        <td style="padding:4px 6px;">${personalCell}</td>
                         <td>${emp.annual ? emp.annual.toFixed(1) : '-'}</td>
                         <td>${emp.maternity ? emp.maternity.toFixed(1) : '-'}</td>
                         <td>${emp.paternity ? emp.paternity.toFixed(1) : '-'}</td>
@@ -889,6 +901,7 @@
             grandTotal = (report.totals.sickCert || 0) +
                 (report.totals.sickNoCert || 0) +
                 (report.totals.personal || 0) +
+                (report.totals.personalUnpaid || 0) +
                 (report.totals.annual || 0) +
                 (report.totals.maternity || 0) +
                 (report.totals.paternity || 0) +
@@ -896,13 +909,19 @@
                 (report.totals.sterilization || 0) +
                 (report.totals.other || 0);
 
+            // ลากิจ totals row
+            const totalPersonalParts = [];
+            if (report.totals.personal) totalPersonalParts.push(`<span style="color:#16a34a;font-weight:700">+${report.totals.personal.toFixed(1)}</span>`);
+            if (report.totals.personalUnpaid) totalPersonalParts.push(`<span style="color:#dc2626;font-weight:700">-${report.totals.personalUnpaid.toFixed(1)}</span>`);
+            const totalPersonalCell = totalPersonalParts.length ? `<div style="line-height:1.5;">${totalPersonalParts.join('<br>')}</div>` : '-';
+
             document.getElementById('summaryBody').innerHTML = rows;
             document.getElementById('summaryFoot').innerHTML = `
                 <tr style="font-weight: bold; background-color: #f8fafc;">
                     <td colspan="3" style="text-align: right; padding-right: 15px;">รวมทั้งสิ้น</td>
                     <td>${report.totals.sickCert ? report.totals.sickCert.toFixed(1) : '-'}</td>
                     <td>${report.totals.sickNoCert ? report.totals.sickNoCert.toFixed(1) : '-'}</td>
-                    <td>${report.totals.personal ? report.totals.personal.toFixed(1) : '-'}</td>
+                    <td style="padding:4px 6px;">${totalPersonalCell}</td>
                     <td>${report.totals.annual ? report.totals.annual.toFixed(1) : '-'}</td>
                     <td>${report.totals.maternity ? report.totals.maternity.toFixed(1) : '-'}</td>
                     <td>${report.totals.paternity ? report.totals.paternity.toFixed(1) : '-'}</td>
