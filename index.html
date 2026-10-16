@@ -21864,6 +21864,59 @@ async function loadAdminEmployees() {
                 }
             }
 
+            // ══════════════════════════════════════════════════════════════
+            // 💰 สถานะและฟังก์ชันรายการเบิกเงินสำรอง (Advance Records State)
+            // ══════════════════════════════════════════════════════════════
+            let _adminAllAdvanceRecords = [];
+            let _adminAdvanceSelectedMonth = new Date().getMonth() + 1; // Default to current month (1-12)
+            let _adminAdvanceSelectedYear = new Date().getFullYear() + 543;
+            const THAI_MONTHS_SHORT_ADV = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+            function getAdvanceRecordMonthYear(req) {
+                if (!req) return null;
+                const cycleStr = (req["รอบจ่าย"] || req.pay_cycle || '').toString().trim();
+                if (cycleStr && typeof parsePayslipPeriod === 'function') {
+                    const p = parsePayslipPeriod(cycleStr, req);
+                    if (p && p.month && p.year) return p;
+                }
+                const dateStr = (req["วันที่เบิก"] || req["วันที่ส่งคำขอ"] || req.request_date || req.created_at || '').toString().trim();
+                if (dateStr && typeof parsePayslipPeriod === 'function') {
+                    const p = parsePayslipPeriod(dateStr, req);
+                    if (p && p.month && p.year) return p;
+                }
+                const checkStr = cycleStr || dateStr;
+                if (checkStr) {
+                    for (let mi = 0; mi < 12; mi++) {
+                        if (checkStr.includes(THAI_MONTHS_SHORT_ADV[mi])) {
+                            let yMatch = checkStr.match(/\b(\d{2,4})\b/);
+                            let year = yMatch ? parseInt(yMatch[1], 10) : (new Date().getFullYear() + 543);
+                            if (year < 100) year += 2500;
+                            else if (year < 2400) year += 543;
+                            return { month: mi + 1, year };
+                        }
+                    }
+                    let m = checkStr.match(/\b(\d{4})[-/](\d{1,2})\b/);
+                    if (m) {
+                        let year = parseInt(m[1], 10);
+                        let month = parseInt(m[2], 10);
+                        if (month >= 1 && month <= 12) {
+                            if (year < 2400) year += 543;
+                            return { month, year };
+                        }
+                    }
+                    m = checkStr.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/);
+                    if (m) {
+                        let month = parseInt(m[2], 10);
+                        let year = parseInt(m[3], 10);
+                        if (month >= 1 && month <= 12) {
+                            if (year < 2400) year += 543;
+                            return { month, year };
+                        }
+                    }
+                }
+                return null;
+            }
+
             // จัดการแท็บข้อมูลการอนุมัติ (ลา, แก้ไขเวลา, เบิกเงิน)
             async function loadAdminApprovals() {
                 const leaveContainer = document.getElementById("admin-leave-table-body");
@@ -22152,56 +22205,6 @@ async function loadAdminEmployees() {
                     });
                     refreshAdminDashboard();
                 };
-
-                let _adminAllAdvanceRecords = [];
-                let _adminAdvanceSelectedMonth = new Date().getMonth() + 1; // Default to current month (1-12)
-                let _adminAdvanceSelectedYear = new Date().getFullYear() + 543;
-                const THAI_MONTHS_SHORT_ADV = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-
-                function getAdvanceRecordMonthYear(req) {
-                    if (!req) return null;
-                    const cycleStr = (req["รอบจ่าย"] || req.pay_cycle || '').toString().trim();
-                    if (cycleStr && typeof parsePayslipPeriod === 'function') {
-                        const p = parsePayslipPeriod(cycleStr, req);
-                        if (p && p.month && p.year) return p;
-                    }
-                    const dateStr = (req["วันที่เบิก"] || req["วันที่ส่งคำขอ"] || req.request_date || req.created_at || '').toString().trim();
-                    if (dateStr && typeof parsePayslipPeriod === 'function') {
-                        const p = parsePayslipPeriod(dateStr, req);
-                        if (p && p.month && p.year) return p;
-                    }
-                    const checkStr = cycleStr || dateStr;
-                    if (checkStr) {
-                        for (let mi = 0; mi < 12; mi++) {
-                            if (checkStr.includes(THAI_MONTHS_SHORT_ADV[mi])) {
-                                let yMatch = checkStr.match(/\b(\d{2,4})\b/);
-                                let year = yMatch ? parseInt(yMatch[1], 10) : (new Date().getFullYear() + 543);
-                                if (year < 100) year += 2500;
-                                else if (year < 2400) year += 543;
-                                return { month: mi + 1, year };
-                            }
-                        }
-                        let m = checkStr.match(/\b(\d{4})[-/](\d{1,2})\b/);
-                        if (m) {
-                            let year = parseInt(m[1], 10);
-                            let month = parseInt(m[2], 10);
-                            if (month >= 1 && month <= 12) {
-                                if (year < 2400) year += 543;
-                                return { month, year };
-                            }
-                        }
-                        m = checkStr.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/);
-                        if (m) {
-                            let month = parseInt(m[2], 10);
-                            let year = parseInt(m[3], 10);
-                            if (month >= 1 && month <= 12) {
-                                if (year < 2400) year += 543;
-                                return { month, year };
-                            }
-                        }
-                    }
-                    return null;
-                }
 
                 function initAdvanceYearSelector(availableYears, activeYear) {
                     const sel = document.getElementById('admin-advance-year-select');
@@ -23753,10 +23756,25 @@ async function loadAdminEmployees() {
                     }
                 }
 
+                // ตรวจสอบและดึงข้อมูลรายการเบิกเงินสำรอง หากยังไม่มีในแคช
+                if ((!_adminAllAdvanceRecords || _adminAllAdvanceRecords.length === 0) && supabaseClient) {
+                    try {
+                        const { data: advData, error: advErr } = await supabaseClient
+                            .from('advance_requests')
+                            .select('*')
+                            .order('request_date', { ascending: false });
+                        if (!advErr && Array.isArray(advData)) {
+                            _adminAllAdvanceRecords = advData;
+                        }
+                    } catch (e) {
+                        console.warn('[AdvanceExport] load advance_requests error:', e);
+                    }
+                }
+
                 // เตรียมตัวเลือกเดือน (1-12 และ "ทั้งหมด")
                 const monthSelect = document.getElementById('advance-export-month-select');
                 if (monthSelect) {
-                    const currentActiveMonth = (_adminAdvanceSelectedMonth !== undefined && _adminAdvanceSelectedMonth !== null) 
+                    const currentActiveMonth = (typeof _adminAdvanceSelectedMonth !== 'undefined' && _adminAdvanceSelectedMonth !== null) 
                         ? _adminAdvanceSelectedMonth 
                         : (new Date().getMonth() + 1);
                     
@@ -23785,7 +23803,7 @@ async function loadAdminEmployees() {
                     });
 
                     const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
-                    const currentActiveYear = _adminAdvanceSelectedYear || thisYearThai;
+                    const currentActiveYear = (typeof _adminAdvanceSelectedYear !== 'undefined' && _adminAdvanceSelectedYear) ? _adminAdvanceSelectedYear : thisYearThai;
 
                     yearSelect.innerHTML = sortedYears.map(y => 
                         `<option value="${y}" ${y === currentActiveYear ? 'selected' : ''}>${y}</option>`
@@ -23814,7 +23832,7 @@ async function loadAdminEmployees() {
                 const selectedYear = yearSelect ? parseInt(yearSelect.value, 10) : (new Date().getFullYear() + 543);
                 const selectedChannel = channelSelect ? channelSelect.value : 'all';
 
-                let records = Array.isArray(_adminAllAdvanceRecords) ? [..._adminAllAdvanceRecords] : [];
+                let records = (typeof _adminAllAdvanceRecords !== 'undefined' && Array.isArray(_adminAllAdvanceRecords)) ? [..._adminAllAdvanceRecords] : [];
 
                 // 1. กรองสถานะ: ไม่รวมรายการที่ปฏิเสธ / ไม่อนุมัติ
                 records = records.filter(req => {
