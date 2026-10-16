@@ -16292,12 +16292,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     } else {
                         reportType = 'month';
                         const selectedMonth = parseInt(monthSelect?.value, 10) || (new Date().getMonth() + 1);
-                        // Month cycle (start day of month-1 to end day of month)
+                        // In HRBTC payroll cycle (26th to 25th), cycle for month M ends on 25th of month M
+                        const endMonth0 = selectedMonth - 1; // 0-indexed end month
+                        let startMonth0 = endMonth0 - 1;
+                        let startYear = christianYear;
+                        if (startMonth0 < 0) {
+                            startMonth0 = 11;
+                            startYear = christianYear - 1;
+                        }
                         const cycleRange = (typeof getCycleDateRange === 'function')
-                            ? getCycleDateRange(christianYear, selectedMonth - 1)
+                            ? getCycleDateRange(startYear, startMonth0)
                             : {
-                                start: `${christianYear}-${String(selectedMonth).padStart(2, '0')}-01`,
-                                end: `${christianYear}-${String(selectedMonth).padStart(2, '0')}-28`
+                                start: `${startYear}-${String(startMonth0 + 1).padStart(2, '0')}-26`,
+                                end: `${christianYear}-${String(selectedMonth).padStart(2, '0')}-25`
                             };
                         periodStart = cycleRange.start;
                         periodEnd = cycleRange.end;
