@@ -10411,6 +10411,7 @@ function getApprovalRowKey(type, recordData) {
         return `${empId}::${recordData["วันที่"] || ""}`;
     }
     if (type === "advance") {
+        if (recordData.id || recordData["id"]) return `id::${recordData.id || recordData["id"]}`;
         return `${empId}::${recordData["วันที่เบิก"] || ""}::${recordData["จำนวนเงิน"] || ""}`;
     }
     return "";
@@ -22338,7 +22339,7 @@ async function loadAdminEmployees() {
                         const isApproved = !isPending && !status.includes('ไม่') && !status.includes('ปฏิเสธ');
                         const empName = req["ชื่อ-นามสกุล"] || req["name"] || req["employee_name"] || '';
                         const empDisplay = getAdminEmployeeDisplay(empId, empName);
-                        const rowKey = `${empId}::${req["วันที่เบิก"]}::${req["จำนวนเงิน"]}`;
+                        const rowKey = req.id ? `id::${req.id}` : `${empId}::${req["วันที่เบิก"]}::${req["จำนวนเงิน"]}`;
 
                         let statusBadge = '';
                         let actionHtml = '';
@@ -22355,7 +22356,7 @@ async function loadAdminEmployees() {
                                 else if ([1, 3, 5].includes(daysUntil)) { urgencyClass = 'urgency-medium'; }
                             }
                             rowClass = `hr-table-row approval-card ${urgencyClass}`;
-                            checkboxHtml = `<input type="checkbox" class="advance-checkbox" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)">`;
+                            checkboxHtml = `<input type="checkbox" class="advance-checkbox" data-id="${escapeHtml(String(req.id || ''))}" data-emp-id="${escapeHtml(empId)}" data-date="${escapeHtml(req["วันที่เบิก"])}" data-amount="${escapeHtml(req["จำนวนเงิน"])}" data-record="${escapeHtml(safeJson(req))}" onchange="toggleAdvanceItem(this)">`;
                             statusBadge = `<span class="badge badge-pending font-semibold"><i class="fa-solid fa-spinner fa-pulse" aria-hidden="true"></i> ${escapeHtml(status)}</span>`;
                             actionHtml = `
                                 <div style="display:flex;gap:4px;justify-content:flex-end">
@@ -22496,6 +22497,7 @@ async function loadAdminEmployees() {
                             renderAdvance({
                                 status: 'success',
                                 data: (aRes.data || []).map(a => ({
+                                    "id": a.id,
                                     "รหัสพนักงาน": a.emp_id,
                                     "จำนวนเงิน": a.amount,
                                     "วันที่เบิก": a.request_date,
@@ -22571,6 +22573,7 @@ async function loadAdminEmployees() {
                     }));
 
                     const advData = (Array.isArray(advSb.data) ? advSb.data : []).map(a => ({
+                        'id': a.id,
                         'รหัสพนักงาน': a.emp_id,
                         'จำนวนเงิน': a.amount,
                         'วันที่เบิก': a.request_date,
@@ -22937,11 +22940,14 @@ async function loadAdminEmployees() {
 
             // Batch functions for advance
             function toggleAdvanceItem(checkbox) {
-                const key = `${checkbox.dataset.empId}::${checkbox.dataset.date}::${checkbox.dataset.amount}`;
+                const id = checkbox.dataset.id || '';
+                const empId = checkbox.dataset.empId || '';
+                const date = checkbox.dataset.date || '';
+                const amount = checkbox.dataset.amount || '';
+                const key = id ? `id::${id}` : `${empId}::${date}::${amount}`;
+                selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
                 if (checkbox.checked) {
-                    selectedAdvanceItems.add({ empId: checkbox.dataset.empId, date: checkbox.dataset.date, amount: checkbox.dataset.amount, key: key });
-                } else {
-                    selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
+                    selectedAdvanceItems.add({ id, empId, date, amount, key });
                 }
                 updateBatchButtons();
             }
@@ -22950,11 +22956,14 @@ async function loadAdminEmployees() {
                 const checkboxes = document.querySelectorAll('.advance-checkbox');
                 checkboxes.forEach(cb => {
                     cb.checked = selectAllCheckbox.checked;
-                    const key = `${cb.dataset.empId}::${cb.dataset.date}::${cb.dataset.amount}`;
+                    const id = cb.dataset.id || '';
+                    const empId = cb.dataset.empId || '';
+                    const date = cb.dataset.date || '';
+                    const amount = cb.dataset.amount || '';
+                    const key = id ? `id::${id}` : `${empId}::${date}::${amount}`;
+                    selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
                     if (cb.checked) {
-                        selectedAdvanceItems.add({ empId: cb.dataset.empId, date: cb.dataset.date, amount: cb.dataset.amount, key: key });
-                    } else {
-                        selectedAdvanceItems = new Set(Array.from(selectedAdvanceItems).filter(item => item.key !== key));
+                        selectedAdvanceItems.add({ id, empId, date, amount, key });
                     }
                 });
                 updateBatchButtons();
@@ -22969,6 +22978,11 @@ async function loadAdminEmployees() {
                 if (selectedAdvanceItems.size === 0) return;
                 openBatchDecisionModal('advance', 'reject');
             }
+
+            window.toggleAdvanceItem = toggleAdvanceItem;
+            window.toggleSelectAllAdvance = toggleSelectAllAdvance;
+            window.batchApproveAdvance = batchApproveAdvance;
+            window.batchRejectAdvance = batchRejectAdvance;
 
             // ══════════════════════════════════════════════════════════════
             // 📥 นำเข้ารายการเบิกสำรองจาก CSV (Advance Import)
@@ -24165,13 +24179,15 @@ async function loadAdminEmployees() {
                         });
                     } else if (batchOperationType === 'advance') {
                         items = Array.from(selectedAdvanceItems).map(it => ({
+                            id: it.id || undefined,
                             empId: it.empId,
                             date: it.date,
                             amount: it.amount,
-                            rowKey: `${it.empId}::${it.date}::${it.amount}`
+                            rowKey: it.key || (it.id ? `id::${it.id}` : `${it.empId}::${it.date}::${it.amount}`)
                         }));
                         buildPayload = (item) => ({
                             action: "approveAdvance",
+                            id: item.id || undefined,
                             empId: item.empId,
                             date: item.date,
                             amount: item.amount,
@@ -24218,6 +24234,26 @@ async function loadAdminEmployees() {
 
                                 const payload = buildPayload(items[i]);
                                 console.log(`[adminDecision batch ${idx}/${total}]`, payload);
+
+                                // ⚡ Direct Supabase Sync for advance
+                                if (batchOperationType === 'advance' && supabaseClient) {
+                                    try {
+                                        const updateData = {
+                                            status: status,
+                                            updated_at: new Date().toISOString()
+                                        };
+                                        if (note) updateData.notes = note;
+                                        if (items[i].id) {
+                                            await supabaseClient.from('advance_requests').update(updateData).eq('id', items[i].id);
+                                        } else if (items[i].empId) {
+                                            let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', items[i].empId);
+                                            if (items[i].date) q = q.eq('request_date', items[i].date);
+                                            await q;
+                                        }
+                                    } catch (sbAdvBatchErr) {
+                                        console.warn('[adminDecision batch advance Supabase sync error]', sbAdvBatchErr);
+                                    }
+                                }
 
                                 let response = null;
                                 try {
@@ -24348,6 +24384,7 @@ async function loadAdminEmployees() {
                         payload.status = approvedStatus;
                     } else if (type === 'advance') {
                         payload.action = "approveAdvance";
+                        payload.id = data.id || data["id"] || undefined;
                         payload.empId = data["รหัสพนักงาน"];
                         payload.date = data["วันที่เบิก"];
                         payload.amount = data["จำนวนเงิน"];
@@ -24356,6 +24393,27 @@ async function loadAdminEmployees() {
 
                     return withSubmitLock("adminDecision", async () => {
                         try {
+                            // ⚡ Direct Supabase Sync for advance
+                            if (type === 'advance' && supabaseClient) {
+                                try {
+                                    const updateData = {
+                                        status: approvedStatus,
+                                        updated_at: new Date().toISOString()
+                                    };
+                                    if (note) updateData.notes = note;
+                                    const advanceId = data.id || data["id"];
+                                    if (advanceId) {
+                                        await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                    } else if (data["รหัสพนักงาน"]) {
+                                        let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', data["รหัสพนักงาน"]);
+                                        if (data["วันที่เบิก"]) q = q.eq('request_date', data["วันที่เบิก"]);
+                                        await q;
+                                    }
+                                } catch (sbAdvErr) {
+                                    console.warn('[adminDecision single advance direct update error]', sbAdvErr);
+                                }
+                            }
+
                             console.log('[adminDecision] payload:', payload);
                             const response = await fetchWithTimeout(url, {
                                 method: "POST",
@@ -24367,6 +24425,26 @@ async function loadAdminEmployees() {
                             console.log('[adminDecision] response:', response);
                             const handleApprovalSuccess = async () => {
                                 hideApprovalProcessingOverlay();
+                                // ⚡ Direct Supabase Sync for advance
+                                if (type === 'advance' && supabaseClient) {
+                                    try {
+                                        const updateData = {
+                                            status: approvedStatus,
+                                            updated_at: new Date().toISOString()
+                                        };
+                                        if (note) updateData.notes = note;
+                                        const advanceId = data.id || data["id"];
+                                        if (advanceId) {
+                                            await supabaseClient.from('advance_requests').update(updateData).eq('id', advanceId);
+                                        } else if (data["รหัสพนักงาน"]) {
+                                            let q = supabaseClient.from('advance_requests').update(updateData).eq('emp_id', data["รหัสพนักงาน"]);
+                                            if (data["วันที่เบิก"]) q = q.eq('request_date', data["วันที่เบิก"]);
+                                            await q;
+                                        }
+                                    } catch (sbAdvErr) {
+                                        console.warn('[adminDecision single advance direct update error in handleApprovalSuccess]', sbAdvErr);
+                                    }
+                                }
                                 // ⚡ Direct Supabase Sync: ถ้าเป็นการอนุมัติคำขอแก้เวลา ให้อัปเดต time_records ทันที
                                 if (false && type === 'correction' && (approvedStatus === 'อนุมัติแล้ว' || approvedStatus === 'Approved') && supabaseClient) {
                                     try {
@@ -24468,6 +24546,12 @@ async function loadAdminEmployees() {
                     });
                 }
             }
+
+            // Export decision modal functions to window for robust inline handler access
+            window.openDecisionModal = openDecisionModal;
+            window.openBatchDecisionModal = openBatchDecisionModal;
+            window.closeDecisionModal = closeDecisionModal;
+            window.confirmDecision = confirmDecision;
 
                 // แปลงวันที่เป็น YYYY-MM-DD (รองรับ DD/MM/YYYY จากข้อมูลเก่า) สำหรับ input type="date"
                 function normalizeIsoDateForInput_(value) {
