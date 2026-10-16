@@ -791,6 +791,7 @@
                 const requestedDuration = getTotalDuration(record['จำนวนวัน'] || record['Days'] || record['duration'], startDate, endDate);
                 const reason = normalizeString(record['เหตุผล'] || record['คำอธิบาย'] || record['Reason'] || record['reason']);
                 const docNo = normalizeString(record['เลขที่เอกสาร'] || record['เลขที่'] || record['docId'] || record['documentId']);
+                const approver = normalizeString(record['ผู้อนุมัติ'] || record['approved_by'] || record['approvedBy'] || record['approver_name'] || record['ชื่อผู้อนุมัติ'] || record['Approver'] || record['approver']);
 
                 const employeeKey = `${empId}||${name}`;
                 if (!employees[employeeKey]) {
@@ -835,7 +836,8 @@
                     typeCode: key,
                     typeLabel: typeInfo.label,
                     reason,
-                    status
+                    status,
+                    approver
                 });
             });
 
@@ -928,14 +930,17 @@
                     const dailyDuration = count ? (leave.duration / count) : leave.duration || 1;
                     const detailRows = (dateList.length ? dateList : [leave.startDate || leave.endDate || null]).map(dateValue => {
                         const dateFormatted = dateValue ? formatThaiDate(dateValue) : (leave.startDateRaw || '-');
-                        const statusMeta = getStatusLabel(leave.status);
+                        const approverHtml = leave.approver ? `<div style="font-size: 10px; color: #475569; margin-top: 3px; font-weight: normal; line-height: 1.2;">(${leave.approver})</div>` : '';
                         return `
                             <tr>
                                 <td>${dateFormatted}</td>
                                 <td>${leave.typeLabel}</td>
                                 <td>${dailyDuration.toFixed(1)}</td>
                                 <td class="text-left" style="font-size: 11px; color: #4b5563;">${leave.reason || '-'}</td>
-                                <td><span class="badge ${statusMeta.badge}">${statusMeta.text}</span></td>
+                                <td>
+                                    <span class="badge ${statusMeta.badge}">${statusMeta.text}</span>
+                                    ${approverHtml}
+                                </td>
                             </tr>
                         `;
                     }).join('');
