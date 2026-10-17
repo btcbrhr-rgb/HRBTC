@@ -34147,47 +34147,65 @@ ${slip.textSample}
             renderMatrixBillingMonthTabs();
         }
 
-        // 🗓️ Render matrix pill tabs — แสดงปุ่มเดือนสำหรับเลือกจ่ายตามรอบบัญชี
+        // 🗓️ Render matrix pill tabs — แสดง 12 เดือนของปีปัจจุบัน (ม.ค. - ธ.ค.) และเลือกเดือนปัจจุบันเป็นค่าเริ่มต้น
         function renderMatrixBillingMonthTabs() {
             const tabsEl = document.getElementById('matrix-billing-month-tabs');
             if (!tabsEl) return;
             tabsEl.innerHTML = '';
 
-            const sharedSelect = document.getElementById('sharedBillingMonth');
-            if (!sharedSelect) return;
-
             const shortMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+            const now = new Date();
+            const currentYear = now.getFullYear(); // ค.ศ. เช่น 2026
+            const currentMonth = now.getMonth() + 1; // 1-12
+            const yearThai = currentYear + 543; // พ.ศ. เช่น 2569
 
-            // อ่านค่า sharedBillingMonth ที่เลือกอยู่ปัจจุบัน
-            const currentValue = sharedSelect.value;
+            const sharedSelect = document.getElementById('sharedBillingMonth');
 
-            // วนลูปผ่านทุก option ใน sharedBillingMonth (เดือนที่มีข้อมูลจริง)
-            const options = Array.from(sharedSelect.options);
-            if (options.length === 0) return;
+            // กำหนดค่าเริ่มต้นเป็นเดือนปัจจุบันของปีปัจจุบัน ถ้ายังไม่มีค่าหรือไม่ใช่ปีปัจจุบัน
+            let currentValue = sharedSelect ? sharedSelect.value : '';
+            if (!currentValue || !currentValue.startsWith(currentYear + '-')) {
+                currentValue = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+                if (sharedSelect) sharedSelect.value = currentValue;
+            }
 
-            options.forEach(option => {
-                const valueStr = option.value; // 'YYYY-MM'
-                const [year, month] = valueStr.split('-').map(Number);
+            // สร้างปุ่ม 12 เดือนของปีปัจจุบันเท่านั้น
+            for (let m = 1; m <= 12; m++) {
+                const valueStr = `${currentYear}-${String(m).padStart(2, '0')}`;
                 const isActive = (valueStr === currentValue);
-
-                const yearThai = year + 543;
 
                 const btn = document.createElement('button');
                 btn.dataset.value = valueStr;
-                btn.innerHTML = `${shortMonths[month - 1]} ${yearThai}`;
+                btn.innerHTML = `${shortMonths[m - 1]} ${yearThai}`;
                 btn.className = `flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all whitespace-nowrap border ${isActive ? 'bg-brand-deep text-white border-brand-deep shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`;
-                btn.onclick = () => selectMatrixBillingMonth(valueStr);
+                btn.onclick = () => selectMatrixBillingMonth(currentYear, m);
                 tabsEl.appendChild(btn);
-            });
+            }
         }
 
         // เลือกเดือนจาก pill tab แล้วซิงค์รอบบัญชีทั้งระบบ
-        function selectMatrixBillingMonth(valueStr) {
+        function selectMatrixBillingMonth(year, month) {
+            const valueStr = `${year}-${String(month).padStart(2, '0')}`;
             const sharedSelect = document.getElementById('sharedBillingMonth');
-            if (sharedSelect && sharedSelect.value !== valueStr) {
+
+            if (sharedSelect) {
+                // ถ้ายังไม่มี option นี้ใน select ให้เพิ่มเข้าไปก่อน
+                let optionExists = false;
+                for (let i = 0; i < sharedSelect.options.length; i++) {
+                    if (sharedSelect.options[i].value === valueStr) {
+                        optionExists = true;
+                        break;
+                    }
+                }
+                if (!optionExists) {
+                    const newOption = document.createElement('option');
+                    newOption.value = valueStr;
+                    newOption.textContent = `${shortMonths[month - 1]} ${year + 543}`;
+                    sharedSelect.appendChild(newOption);
+                }
                 sharedSelect.value = valueStr;
-                syncAllBillingMonthDropdowns(valueStr);
             }
+
+            syncAllBillingMonthDropdowns(valueStr);
             renderMatrixBillingMonthTabs(); // รีเฟรชสถานะ active ของปุ่ม
         }
 
