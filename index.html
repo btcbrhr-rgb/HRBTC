@@ -34240,26 +34240,26 @@ ${slip.textSample}
         }
 
         // 🔧 SYNC: Shared billing month dropdown → ทั้ง 3 tab dropdowns
-        function syncAllBillingMonthDropdowns(selectedMonth) {
-            // 🔧 FIX: อัปเดต billingMonth (Matrix selector) ก่อน เพราะ render ทุก tab อ่านค่าจากตัวนี้
+        // 🔧 2026-10-17zn: จุดคุมเดียว (Single Source of Truth) ของ sync รอบบัญชีตามรายงาน report_billing_sync_review_2026-10-17.md
+        // ยุบสำเนาเดิม 4 ก้อน (handleCosting/InsightsBillingChange + handleCosting/InsightsGoToday + syncAllBillingMonthDropdowns)
+        // ลำดับเดิมทุกขั้น: set #billingMonth (source of truth) → sync ทุก .billing-month → sync shared → ล้าง cache → generateBillingCycleData()
+        // (updateBillingCycleDateRange ให้ generateBillingCycleData เรียกเอาครั้งเดียว — ตัดการคำนวณซ้ำ 2 รอบของเดิม)
+        function applyBillingMonthChange(value) {
+            if (!value) return;
             const billingMonthSelect = document.getElementById('billingMonth');
-            if (billingMonthSelect && billingMonthSelect.value !== selectedMonth) {
-                billingMonthSelect.value = selectedMonth;
+            if (billingMonthSelect && billingMonthSelect.value !== value) {
+                billingMonthSelect.value = value;
             }
-            
-            // อัปเดตทุก billing-month dropdowns ให้ตรงกันทั้งหมด
-            syncBillingFilterValues(selectedMonth);
-            
-            // อัปเดต date range display
-            updateBillingCycleDateRange(selectedMonth);
-            
-            // 🔧 FIX: เคลียร์ cache เพื่อบังคับโหลดข้อมูลใหม่ทุกครั้งที่เปลี่ยนรอบบัญชี
+            syncBillingFilterValues(value);
+            syncSharedBillingMonthFromTab(value);
             window.__pcDataCache = {};
             window.__attendanceCycleCache = null;
-            
-            // 🔧 FIX: Reload ข้อมูลให้ทุก tab ไม่ใช่แค่ tab ที่ active
-            // เรียก generateBillingCycleData() เพื่อโหลดข้อมูลรอบบัญชีใหม่
             generateBillingCycleData();
+        }
+
+        function syncAllBillingMonthDropdowns(selectedMonth) {
+            // 🔧 2026-10-17zn: ยุบสำเนาเดิมเหลือตัวเรียกจุดคุมเดียว (ลำดับขั้นเดิมย้ายไป applyBillingMonthChange ครบทุกขั้น)
+            applyBillingMonthChange(selectedMonth);
         }
 
         // 🔧 SYNC: Go to today from shared dropdown
@@ -34542,30 +34542,13 @@ ${slip.textSample}
         }
 
         function handleCostingBillingChange() {
-            const val = document.getElementById('costingBillingMonth').value;
-            // 🔧 FIX: อัปเดต billingMonth (Matrix selector) ด้วย เพราะ render ทุก tab อ่านค่าจากตัวนี้
-            const billingMonthSelect = document.getElementById('billingMonth');
-            if (billingMonthSelect && billingMonthSelect.value !== val) {
-                billingMonthSelect.value = val;
-            }
-            syncSharedBillingMonthFromTab(val);
-            syncBillingFilterValues(val);
-            updateBillingCycleDateRange(val);
-            window.__pcDataCache = {};
-            window.__attendanceCycleCache = null;
-            generateBillingCycleData();
+            // 🔧 2026-10-17zn: ยุบสำเนาให้ไปที่จุดคุมเดียว applyBillingMonthChange (ลำดับเดิมครบทุกขั้น)
+            applyBillingMonthChange(document.getElementById('costingBillingMonth').value);
         }
 
         function handleCostingGoToday() {
-            const val = getCurrentBillingMonthValue();
-            // 🔧 FIX: ซิงค์ billingMonth selector ด้วย
-            const bm = document.getElementById('billingMonth');
-            if (bm) bm.value = val;
-            syncBillingFilterValues(val);
-            updateBillingCycleDateRange(val);
-            window.__pcDataCache = {};
-            window.__attendanceCycleCache = null;
-            generateBillingCycleData();
+            // 🔧 2026-10-17zn: ยุบสำเนาให้ไปที่จุดคุมเดียว applyBillingMonthChange (ลำดับเดิมครบทุกขั้น)
+            applyBillingMonthChange(getCurrentBillingMonthValue());
         }
 
         // Insights tab compact filter handlers
@@ -34577,30 +34560,13 @@ ${slip.textSample}
         }
 
         function handleInsightsBillingChange() {
-            const val = document.getElementById('insightsBillingMonth').value;
-            // 🔧 FIX: อัปเดต billingMonth (Matrix selector) ด้วย เพราะ render ทุก tab อ่านค่าจากตัวนี้
-            const billingMonthSelect = document.getElementById('billingMonth');
-            if (billingMonthSelect && billingMonthSelect.value !== val) {
-                billingMonthSelect.value = val;
-            }
-            syncSharedBillingMonthFromTab(val);
-            syncBillingFilterValues(val);
-            updateBillingCycleDateRange(val);
-            window.__pcDataCache = {};
-            window.__attendanceCycleCache = null;
-            generateBillingCycleData();
+            // 🔧 2026-10-17zn: ยุบสำเนาให้ไปที่จุดคุมเดียว applyBillingMonthChange (ลำดับเดิมครบทุกขั้น)
+            applyBillingMonthChange(document.getElementById('insightsBillingMonth').value);
         }
 
         function handleInsightsGoToday() {
-            const val = getCurrentBillingMonthValue();
-            // 🔧 FIX: ซิงค์ billingMonth selector ด้วย
-            const bm = document.getElementById('billingMonth');
-            if (bm) bm.value = val;
-            syncBillingFilterValues(val);
-            updateBillingCycleDateRange(val);
-            window.__pcDataCache = {};
-            window.__attendanceCycleCache = null;
-            generateBillingCycleData();
+            // 🔧 2026-10-17zn: ยุบสำเนาให้ไปที่จุดคุมเดียว applyBillingMonthChange (ลำดับเดิมครบทุกขั้น)
+            applyBillingMonthChange(getCurrentBillingMonthValue());
         }
 
         function handleDateSelectChange() {
