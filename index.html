@@ -34001,8 +34001,14 @@ ${slip.textSample}
             const curSelDateEl = document.getElementById('currentSelectedDate'); if (curSelDateEl) curSelDateEl.value = selectedDateStr;
             updateDayLabel();
             
-            // ✅ OPTIMISTIC TAB NAVIGATION: สลับเข้าแท็บ Matrix และวาดโครงสร้างทันทีก่อนเริ่มโหลดข้อมูล
-            switchTab('summary');
+            // 🔧 2026-10-17zm: เดิมสลับเข้าแท็บ Matrix และวาดโครงสร้างทันทีก่อนโหลดข้อมูล (Optimistic)
+            // แต่เมื่อโดนเรียกล่วงหน้าตั้งแต่ login (handleLoginSuccess / auto-login) จบเครือข่ายdelayสักพัก
+            // จะเด้งไฮไลต์ sidebar ไปที่ project-matrix เองทั้งที่ผู้ใช้อยู่แดชบอร์ด — จึงสลับเฉพาะเมื่อผู้ใช้อยู่เมนู Matrix จริง
+            // (คลิกเมนู project-matrix: switchAdminTab ตั้ง adminActiveTab ก่อนแล้วค่อยเรียก initializeProjectCostPage → เงื่อนไขผ่านเหมือนเดิม)
+            // (คลิก tabBtn ภายในหน้า: เรียก switchTab โดยตรง — ไม่ได้กระทบ)
+            if (typeof adminActiveTab === 'undefined' || adminActiveTab === 'project-matrix' || adminActiveTab === 'project-cost') {
+                switchTab('summary');
+            }
             
             // โหลดข้อมูลจริงในลักษณะเบื้องหลัง (Background loading) ไม่ล็อกการทำงานของผู้ใช้
             if (isLoggedIn) {
