@@ -34147,6 +34147,50 @@ ${slip.textSample}
             renderMatrixBillingMonthTabs();
         }
 
+        // 🗓️ Render matrix pill tabs — แสดงปุ่มเดือนสำหรับเลือกจ่ายตามรอบบัญชี
+        function renderMatrixBillingMonthTabs() {
+            const tabsEl = document.getElementById('matrix-billing-month-tabs');
+            if (!tabsEl) return;
+            tabsEl.innerHTML = '';
+
+            const sharedSelect = document.getElementById('sharedBillingMonth');
+            if (!sharedSelect) return;
+
+            const shortMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+            // อ่านค่า sharedBillingMonth ที่เลือกอยู่ปัจจุบัน
+            const currentValue = sharedSelect.value;
+
+            // วนลูปผ่านทุก option ใน sharedBillingMonth (เดือนที่มีข้อมูลจริง)
+            const options = Array.from(sharedSelect.options);
+            if (options.length === 0) return;
+
+            options.forEach(option => {
+                const valueStr = option.value; // 'YYYY-MM'
+                const [year, month] = valueStr.split('-').map(Number);
+                const isActive = (valueStr === currentValue);
+
+                const yearThai = year + 543;
+
+                const btn = document.createElement('button');
+                btn.dataset.value = valueStr;
+                btn.innerHTML = `${shortMonths[month - 1]} ${yearThai}`;
+                btn.className = `flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all whitespace-nowrap border ${isActive ? 'bg-brand-deep text-white border-brand-deep shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`;
+                btn.onclick = () => selectMatrixBillingMonth(valueStr);
+                tabsEl.appendChild(btn);
+            });
+        }
+
+        // เลือกเดือนจาก pill tab แล้วซิงค์รอบบัญชีทั้งระบบ
+        function selectMatrixBillingMonth(valueStr) {
+            const sharedSelect = document.getElementById('sharedBillingMonth');
+            if (sharedSelect && sharedSelect.value !== valueStr) {
+                sharedSelect.value = valueStr;
+                syncAllBillingMonthDropdowns(valueStr);
+            }
+            renderMatrixBillingMonthTabs(); // รีเฟรชสถานะ active ของปุ่ม
+        }
+
         // Update displayed date range when billing month changes
         function updateBillingCycleDateRange(yearMonthStr) {
             const dates = getBillingCycleDates(yearMonthStr);
