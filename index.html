@@ -17915,6 +17915,25 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 });
             }
 
+            // 🔧 2026-10-17zl: จุดคุมเดียว (Single Source of Truth) ของไฮไลต์ sidebar ปุ่มเมนู
+            // ลิสต์เมนูนิยามครั้งเดียวที่ ADMIN_SIDEBAR_MENU_IDS (เดิมถูกคัดลอกซ้ำ 2 ที่ใน switchAdminTab + switchTab เสี่ยงเมนูใหม่ล้างไม่ครบ)
+            // เพิ่ม/ตัดเมนูใหม่ → แก้ที่ลิสต์นี้ที่เดียว แล้วพฤติกรรมไฮไลต์ไม่มีสำเนาจะทำงานต่างกันอีกต่อไป
+            const ADMIN_SIDEBAR_MENU_IDS = ['dashboard', 'import-time', 'import-payslip', 'export-bplus', 'scan-devices', 'project-cost', 'project-matrix', 'project-costing', 'project-insights', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'face-enroll', 'announcements', 'holidays', 'employees', 'settings', 'audit-logs', 'rich-menu'];
+            function setAdminSidebarHighlight(activeMenuId) {
+                ADMIN_SIDEBAR_MENU_IDS.forEach(m => {
+                    const btn = document.getElementById(`admin-menu-${m}`);
+                    if (btn) {
+                        btn.classList.remove('menu-active', 'menu-pending');
+                        btn.className = btn.className.replace(/\s*(menu-active|menu-pending)\s*/g, ' ');
+                        if (!btn.classList.contains('admin-menu-btn')) btn.classList.add('admin-menu-btn');
+                    }
+                });
+                if (!activeMenuId) return null;
+                const activeBtn = document.getElementById(`admin-menu-${activeMenuId}`);
+                if (activeBtn) activeBtn.classList.add('menu-active');
+                return activeBtn || null;
+            }
+
             // สลับแท็บการทำงานในหน้าจอผู้ดูแลระบบ
             function switchAdminTab(tabId) {
                 normalizeAdminWorkspaceSections();
@@ -17932,25 +17951,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ซ่อน Drawer เมนูบนมือถือเมื่อเลือกแท็บ
                 toggleAdminMobileSidebar(false);
 
-                // ปิดสีปุ่มเมนูเดิมทั้งหมด
-                const menus = ['dashboard', 'import-time', 'import-payslip', 'export-bplus', 'scan-devices', 'project-cost', 'project-matrix', 'project-costing', 'project-insights', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'face-enroll', 'announcements', 'holidays', 'employees', 'settings', 'audit-logs', 'rich-menu'];
-                menus.forEach(m => {
-                    const btn = document.getElementById(`admin-menu-${m}`);
-                    if (btn) {
-                        btn.classList.remove('menu-active', 'menu-pending');
-                        btn.className = btn.className.replace(/\s*(menu-active|menu-pending)\s*/g, ' ');
-                        // Keep base classes, remove active state
-                        if (!btn.classList.contains('admin-menu-btn')) btn.classList.add('admin-menu-btn');
-                    }
+                // ซ่อนทุก section แผนที่เมนู (เรื่องเนื้อหา — แยกจากไฮไลต์ปุ่มซึ่งใช้จุดคุมเดียว 2026-10-17zl)
+                ADMIN_SIDEBAR_MENU_IDS.forEach(m => {
                     const sec = document.getElementById(`admin-sec-${m}`);
                     if (sec) sec.classList.add("hidden");
                 });
 
-                // ไฮไลต์ปุ่มเมนูที่เปิด (Left Bar Indicator)
-                const activeBtn = document.getElementById(`admin-menu-${tabId}`);
-                if (activeBtn) {
-                    activeBtn.classList.add('menu-active');
-                }
+                // ล้างปุ่มเมนูเดิมทั้งหมด + ไฮไลต์ปุ่มที่เปิด (Left Bar Indicator) — จุดคุมเดียว setAdminSidebarHighlight
+                const activeBtn = setAdminSidebarHighlight(tabId);
 
                 // แสดงเนื้อหาเซกชั่น
                 const activeSec = document.getElementById(`admin-sec-${tabId}`);
@@ -34306,18 +34314,8 @@ ${slip.textSample}
                     adminActiveTab = mappedMenu;
                     try { sessionStorage.setItem("admin_active_tab", mappedMenu); } catch(e) {}
                 }
-                // 🔧 2026-10-17zi: ล้างไฮไลต์ sidebar ทั้งหมดก่อน (Single Source — กัน active ซ้อน dashboard+matrix)
-                const allAdminMenus = ['dashboard', 'import-time', 'import-payslip', 'export-bplus', 'scan-devices', 'project-cost', 'project-matrix', 'project-costing', 'project-insights', 'approve-leave', 'approve-correction', 'approve-advance', 'face-logs', 'face-enroll', 'announcements', 'holidays', 'employees', 'settings', 'audit-logs', 'rich-menu'];
-                allAdminMenus.forEach(m => {
-                    const btn = document.getElementById(`admin-menu-${m}`);
-                    if (btn) {
-                        btn.classList.remove('menu-active', 'menu-pending');
-                        btn.className = btn.className.replace(/\s*(menu-active|menu-pending)\s*/g, ' ');
-                        if (!btn.classList.contains('admin-menu-btn')) btn.classList.add('admin-menu-btn');
-                    }
-                });
-                const activeBtn = document.getElementById(`admin-menu-${mappedMenu}`);
-                if (activeBtn) activeBtn.classList.add('menu-active');
+                // 🔧 2026-10-17zl: ล้าง+ไฮไลต์ผ่านจุดคุมเดียว setAdminSidebarHighlight (บล็อกลิสต์สำเนา allAdminMenus เดิมถูกถอด — กัน active ซ้อน dashboard+matrix ยังเหมือนเคส 17zi)
+                setAdminSidebarHighlight(mappedMenu);
 
                 const titleEl = document.getElementById("admin-page-title");
                 const descEl = document.getElementById("admin-page-desc");
