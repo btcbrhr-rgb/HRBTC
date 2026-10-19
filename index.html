@@ -10332,7 +10332,8 @@ async function fetchAdminEmployeeListInternal() {
     if (supabaseClient) {
         try {
             console.log('[fetchAdminEmployeeListInternal] Querying Supabase employees...');
-            const { data, error } = await supabaseClient.from('employees').select('*');
+            // 🔧 2026-10-17zq: select เฉพาะคอลัมน์ที่ map แถวอ่านจริง (L10348-10369) — ลด Supabase Egress
+            const { data, error } = await supabaseClient.from('employees').select('emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,pin,line_user_id');
             
             if (error) {
                 console.error('[fetchAdminEmployeeListInternal] Supabase error:', error);
@@ -12754,9 +12755,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 try {
                     console.log('[loadPublicData] ⚡ Loading public data...');
                     const [pOutcome, holOutcome, annOutcome] = await Promise.allSettled([
-                        supabaseClient.from('projects').select('*').neq('status', 'ระงับ'),
+                        // 🔧 2026-10-17zq: select เฉพาะคอลัมน์ที่ normalize ใช้จริง (ลด Supabase Egress) แทน select('*')
+                        supabaseClient.from('projects').select('name').neq('status', 'ระงับ'),
                         supabaseClient.from('holidays').select('date,title,holiday_type').order('date'),
-                        supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10)
+                        supabaseClient.from('announcements').select('doc_id,id,title,content,posted_at,posted_by,created_at').order('created_at', { ascending: false }).limit(10)
                     ]);
                     const pRes = readSupabaseSection(pOutcome, 'projects');
                     const holRes = readSupabaseSection(holOutcome, 'holidays');
@@ -12895,8 +12897,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             // ⚡ system_settings — ใช้คำนวณ late/OT/ค่าแรง (โหลดพร้อมข้อมูลหลัก)
                             supabaseClient.from('system_settings').select('key_name,default_value'),
                             // Public data: โหลดเฉพาะเมื่อยังไม่ได้โหลด (reuse จาก loadPublicData)
-                            needPublic ? supabaseClient.from('projects').select('*').neq('status', 'ระงับ') : null,
-                            needPublic ? supabaseClient.from('announcements').select('*').order('created_at', { ascending: false }).limit(10) : null,
+                            // 🔧 2026-10-17zq: select เฉพาะคอลัมน์ที่ normalize ใช้จริง (ลด Supabase Egress)
+                            needPublic ? supabaseClient.from('projects').select('name').neq('status', 'ระงับ') : null,
+                            needPublic ? supabaseClient.from('announcements').select('doc_id,id,title,content,posted_at,posted_by,created_at').order('created_at', { ascending: false }).limit(10) : null,
                             needPublic ? supabaseClient.from('holidays').select('date,title,holiday_type').order('date') : null
                         ]);
                         const tRes = readSupabaseSection(tOutcome, 'timeRecords');
@@ -14136,18 +14139,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const t0 = performance.now();
 
                 try {
-                    const [empRes, leaveRes, corrRes, advRes, settRes] = await Promise.all([
-                        supabaseClient.from('employees').select('*'),
-                        supabaseClient.from('leave_requests').select('*'),
-                        supabaseClient.from('time_corrections').select('*'),
-                        supabaseClient.from('advance_requests').select('*'),
-                        supabaseClient.from('system_settings').select('key_name,default_value')
-                    ]);
-
-                    if (!empRes.error && Array.isArray(empRes.data)) AdminDataCache.set('employees', empRes.data);
-                    if (!leaveRes.error && Array.isArray(leaveRes.data)) AdminDataCache.set('approvals-leave', leaveRes.data);
-                    if (!corrRes.error && Array.isArray(corrRes.data)) AdminDataCache.set('approvals-correction', corrRes.data);
-                    if (!advRes.error && Array.isArray(advRes.data)) AdminDataCache.set('approvals-advance', advRes.data);
+                    // 🔧 2026-10-17zq: ตัด fetch ของ employees/leave_requests/time_corrections/advance_requests ออกจาก prefetch
+                    // เพราะผลถูกเก็บใน AdminDataCache เท่านั้น และไม่มีผู้อ่าน (AdminDataCache.get) ทั้งไฟล์ — เป็น egress ค่าเปล่าทุกครั้งที่ admin login
+                    // (ตัวใช้จริงฝั่งอื่น query ใหม่เสมอ เช่น fetchAdminEmployeeListInternal/loadAdminApprovals) — เหลือ settings เพราะมีผู้อ่านต่อ
+                    const settRes = await supabaseClient.from('system_settings').select('key_name,default_value');
                     if (!settRes.error && Array.isArray(settRes.data)) {
                         const settingsObj = {};
                         for (const row of settRes.data) {
@@ -20423,7 +20418,8 @@ async function loadAdminEmployees() {
                     // 1. Supabase primary
                     if (supabaseClient) {
                         try {
-                            const sbRes = await supabaseClient.from('employees').select('*').order('emp_id', { ascending: true });
+                            // 🔧 2026-10-17zq: select เฉพาะคอลัมน์ที่ map แถวใช้จริง (ลด Supabase Egress)
+                            const sbRes = await supabaseClient.from('employees').select('emp_id,name,position,status,company,work_hours_per_day,phone,role,pin,avatar_url,day_off,base_salary,id_card,birth_date,start_date,address,bank,bank_branch,bank_account,wage_divisor,ot_rate,line_user_id').order('emp_id', { ascending: true });
                             if (!sbRes.error && Array.isArray(sbRes.data)) {
                                 data = sbRes.data.map(r => ({
                                     'รหัสพนักงาน': r.emp_id,
@@ -33575,7 +33571,8 @@ ${slip.textSample}
             // 🔧 SUPABASE-ONLY: โหลด employees จาก Supabase โดยตรง
             if (!supabaseClient) { showLoadError('supabaseClient ไม่พร้อมใช้งาน'); employees = []; return; }
             try {
-                const { data, error } = await supabaseClient.from('employees').select('*');
+                // 🔧 2026-10-17zq: select เฉพาะคอลัมน์ที่ mapEmployeeRow ใช้จริง (ลด Supabase Egress) — คอลัมน์ทั้งหมดต้องมีจริงใน schema (ไม่มี `project` ในตาราง)
+                const { data, error } = await supabaseClient.from('employees').select('emp_id,name,position,role,status,day_off,company,start_date,phone,avatar_url,line_user_id,base_salary,wage_divisor,work_hours_per_day,ot_rate');
                 if (error) throw error;
                 if (Array.isArray(data)) {
                     employees = data.map(mapEmployeeRow).filter(emp => emp.id);
@@ -33698,9 +33695,10 @@ ${slip.textSample}
                     const cycleStart = cycleDates[0];
                     const cycleEnd = cycleDates[cycleDates.length - 1];
                     const [sbEmp, sbAtt, sbProj] = await Promise.all([
-                        supabaseClient.from('employees').select('*'),
-                        supabaseClient.from('time_records').select('*').gte('date', cycleStart).lte('date', cycleEnd),
-                        supabaseClient.from('projects').select('*').neq('status', 'ระงับ')
+                        // 🔧 2026-10-17zq: select เฉพาะคอลัมน์ที่ map ใช้จริง (ลด Supabase Egress)
+                        supabaseClient.from('employees').select('emp_id,name,position,status,day_off,company,start_date,phone,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,avatar_url,line_user_id'),
+                        supabaseClient.from('time_records').select('emp_id,date,time_in,time_out,status_key,status,late_minutes,ot_hours,food_allowance,shift_allowance,other_allowance,project_in,project_out,source,recorded_at').gte('date', cycleStart).lte('date', cycleEnd),
+                        supabaseClient.from('projects').select('name').neq('status', 'ระงับ')
                     ]);
                     if (!sbAtt.error && Array.isArray(sbAtt.data) && sbAtt.data.length >= 0) {
                         // Apply employees
