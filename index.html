@@ -26451,6 +26451,49 @@ async function loadAdminEmployees() {
                         const periodStart = (document.getElementById('audit-log-start') || {}).value || '';
                         const periodEnd = (document.getElementById('audit-log-end') || {}).value || '';
 
+                        // ⚡ [2026-10-19zl] Supabase-direct fast path (เลี่ยง latency Vercel→GAS ~3s) — fallback GAS เดิมด้านล่าง (read-only)
+                        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                            try {
+                                let q = supabaseClient.from('audit_logs')
+                                    .select('id,action,emp_id,details,created_at')
+                                    .order('created_at', { ascending: false })
+                                    .limit(Number(limit) || 200);
+                                if (empId) q = q.eq('emp_id', empId);
+                                if (actionFilter) q = q.eq('action', actionFilter);
+                                if (periodStart) q = q.gte('created_at', periodStart);
+                                if (periodEnd) q = q.lte('created_at', periodEnd + 'T23:59:59');
+                                const s = String(search).trim();
+                                if (s) q = q.or('action.ilike.*' + s + '*,emp_id.ilike.*' + s + '*,details.ilike.*' + s + '*');
+                                const [aRes, eRes] = await Promise.all([
+                                    q,
+                                    supabaseClient.from('employees').select('emp_id,name,position').limit(2000)
+                                ]);
+                                if (!aRes.error && Array.isArray(aRes.data)) {
+                                    const empMap = {};
+                                    (eRes.data || []).forEach(e => { empMap[e.emp_id] = { name: e.name || '', pos: e.position || '' }; });
+                                    const records = aRes.data.map(row => {
+                                        let detailsObj = null;
+                                        if (row.details) {
+                                            try { detailsObj = JSON.parse(row.details); } catch (err) { detailsObj = row.details; }
+                                        }
+                                        const empInfo = empMap[(row.emp_id || '').toString().trim()] || null;
+                                        return {
+                                            id: row.id,
+                                            action: row.action || '',
+                                            emp_id: row.emp_id || '',
+                                            emp_name: empInfo ? (empInfo.name || '') : '',
+                                            details: detailsObj,
+                                            created_at: row.created_at || ''
+                                        };
+                                    });
+                                    auditLogRows = records;
+                                    renderAdminAuditLogs(auditLogRows);
+                                    return;
+                                }
+                                console.warn('[AuditLog ⚡ Supabase] error → fallback GAS:', aRes.error || eRes.error);
+                            } catch (sbErr) { console.warn('[AuditLog ⚡ Supabase] err → fallback GAS:', sbErr); }
+                        }
+
                         const res = await fetchWithTimeout(SERVER_API_URL, {
                             method: 'POST',
                             body: JSON.stringify({
