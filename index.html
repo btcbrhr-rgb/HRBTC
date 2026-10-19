@@ -8720,11 +8720,34 @@
                                         </div>
                                         <span id="line-token-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
                                             <span id="line-token-status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                            <span id="line-token-status-text">โหลดสถานะ…</span>
+                                            <span id="line-token-status-text">ตรวจสถานะ…</span>
                                         </span>
                                     </div>
                                 </div>
                                 <div class="p-4 space-y-3">
+                                    <!-- Lock / Saved State (แสดงเมื่อระบบมี Token บันทึกอยู่แล้ว) -->
+                                    <div id="line-token-saved-box" class="hidden">
+                                        <div class="flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                                            <div class="flex items-center gap-2 min-w-0">
+                                                <i class="fa-solid fa-circle-check text-emerald-600 text-sm shrink-0"></i>
+                                                <div class="min-w-0">
+                                                    <p class="text-[11px] font-bold text-emerald-800 leading-tight">บันทึก Token ในระบบแล้ว</p>
+                                                    <p id="line-token-saved-detail" class="text-[10px] text-emerald-600 truncate font-mono">•••••••••••••••••••••••••••••••• (ซ่อนรหัสจริงเพื่อความปลอดภัย)</p>
+                                                </div>
+                                            </div>
+                                            <span id="line-token-bot-tag" class="shrink-0 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-300">บอตพร้อมใช้</span>
+                                        </div>
+                                    </div>
+                                    <div id="line-token-unsaved-box" class="hidden">
+                                        <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                            <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm shrink-0"></i>
+                                            <div class="min-w-0">
+                                                <p class="text-[11px] font-bold text-amber-800 leading-tight">ยังไม่ได้บันทึก Token</p>
+                                                <p class="text-[10px] text-amber-600">กรุณาคัดลอก Channel access token มาวางแล้วกดบันทึก</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="space-y-1">
                                         <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">LINE Channel Access Token (long-lived)</label>
                                         <input id="setting-lineChannelAccessToken" type="password" placeholder="ใส่ token จาก LINE Developers Console → Messaging API → Channel access token"
@@ -8733,39 +8756,91 @@
                                         <p class="text-[9px] text-slate-400">เก็บใน Script Properties ของ Apps Script (ไม่ลงฐานข้อมูล) · ถ้าเว้นว่างแล้วกดบันทึก = คงค่าเดิมไว้</p>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <button onclick="testLineToken()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-[10px] font-bold shadow-sm transition-all">
+                                        <button onclick="testLineToken(false)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-[10px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-plug-circle-check"></i> ทดสอบ Token
                                         </button>
-                                        <span id="line-token-test-result" class="text-[10px] text-slate-500"></span>
+                                        <span id="line-token-test-result" class="text-[10px] text-slate-500 font-medium"></span>
                                     </div>
 
 <script>
 // 🧭 [2026-10-19zu] ทดสอบ LINE token ผ่าน GAS (ฝั่ง server คีย์ไป api.line.me — ห้ามแนบ token ออก browser)
-async function testLineToken() {
+async function testLineToken(isAuto = false) {
     const out = document.getElementById('line-token-test-result');
     const dot = document.getElementById('line-token-status-dot');
     const text = document.getElementById('line-token-status-text');
+    const badge = document.getElementById('line-token-status-badge');
     const input = document.getElementById('setting-lineChannelAccessToken');
-    if (out) out.textContent = '⏳ กำลังตรวจ…';
+    const savedBox = document.getElementById('line-token-saved-box');
+    const unsavedBox = document.getElementById('line-token-unsaved-box');
+    const botTag = document.getElementById('line-token-bot-tag');
+    const savedDetail = document.getElementById('line-token-saved-detail');
+
+    if (!isAuto && out) out.textContent = '⏳ กำลังทดสอบ Token กับ LINE API…';
+    if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse';
+    if (text) text.textContent = 'กำลังตรวจ…';
+
     try {
         const hasNew = (input?.value || '').trim();
-        const res = await fetchWithTimeout(SERVER_API_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'testLineToken', adminId: currentEmployeeId, lineToken: hasNew || undefined })
-        });
+        const res = typeof postAction === 'function'
+            ? await postAction('testLineToken', { adminId: currentEmployeeId, lineToken: hasNew || undefined }, { timeout: 15000, skipPerf: true })
+            : await (async () => {
+                const r = await fetchWithTimeout(SERVER_API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'testLineToken', adminId: currentEmployeeId, lineToken: hasNew || undefined })
+                });
+                return r;
+            })();
+
         const ok = res && res.status === 'success' && res.data && res.data.valid;
-        if (out) out.textContent = ok ? '✅ ใช้ได้ — บอตชื่อ: ' + (res.data.botName || '?') : '❌ ' + ((res && res.data && res.data.error) || 'ตรวจไม่ได้');
-        if (dot) dot.className = 'w-1.5 h-1.5 rounded-full ' + (ok ? 'bg-emerald-500' : 'bg-rose-500');
-        if (text) text.textContent = ok ? 'ใช้งานได้' : 'ไม่ผ่าน';
-        // แสดงสถานะการตั้งค่า token (จาก Response ของ adminGetSystemSettings)
-        if (window.HRBT_CONFIG && window.HRBT_CONFIG.lineTokenConfigured) {
-          if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
-          if (text) text.textContent = 'ตั้งค่าไว้ — ใช้งานได้';
+        const botName = (res && res.data && res.data.botName) || '';
+        const errMsg = (res && res.data && res.data.error) || '';
+
+        if (ok) {
+            if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+            if (text) text.textContent = 'เชื่อมต่อแล้ว' + (botName ? ' (' + botName + ')' : '');
+            if (badge) badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200';
+            if (out) out.textContent = '✅ เชื่อมต่อบอตสำเร็จ: ' + (botName || 'LINE OA');
+            if (savedBox) savedBox.classList.remove('hidden');
+            if (unsavedBox) unsavedBox.classList.add('hidden');
+            if (botTag) botTag.textContent = botName ? 'บอต: ' + botName : 'พร้อมใช้';
+            if (savedDetail) savedDetail.textContent = 'บอต ' + (botName || 'LINE OA') + ' · ซ่อนรหัส Token เพื่อความปลอดภัย';
+            if (input && !hasNew) {
+                input.placeholder = '•••••••••••••••••••••••• (บันทึกแล้ว — พิมพ์ใหม่เมื่อต้องการเปลี่ยน หรือเว้นว่างเพื่อคงเดิม)';
+            }
+            if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
+                try {
+                    supabaseClient.from('system_settings').upsert({
+                        key_name: 'line_bot_status_mirror',
+                        default_value: 'configured',
+                        active: JSON.stringify({ configured: true, botName: botName, updatedAt: new Date().toISOString() }),
+                        description: 'สถานะการตั้งค่า LINE Bot Token (Mirror สำหรับ Frontend)'
+                    }, { onConflict: 'key_name' }).then(() => {}).catch(() => {});
+                } catch (_) {}
+            }
+        } else {
+            const isNotSet = errMsg.indexOf('ยังไม่ได้ตั้งค่า') >= 0;
+            if (isNotSet) {
+                if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
+                if (text) text.textContent = 'ยังไม่ได้ตั้งค่า';
+                if (badge) badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200';
+                if (out) out.textContent = isAuto ? '' : '⚪ ยังไม่ได้ตั้งค่า Token ในระบบ';
+                if (savedBox) savedBox.classList.add('hidden');
+                if (unsavedBox) unsavedBox.classList.remove('hidden');
+            } else {
+                if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
+                if (text) text.textContent = 'Token ไม่ผ่าน';
+                if (badge) badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200';
+                if (out) out.textContent = '❌ ' + (errMsg || 'Token ไม่ถูกต้องหรือหมดอายุ');
+                if (savedBox) savedBox.classList.add('hidden');
+                if (unsavedBox) unsavedBox.classList.remove('hidden');
+            }
         }
+        return ok;
     } catch (e) {
-        if (out) out.textContent = '❌ เรียกเซิร์ฟเวอร์ไม่สำเร็จ';
         if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
         if (text) text.textContent = 'ผิดพลาด';
+        if (!isAuto && out) out.textContent = '❌ เรียกเซิร์ฟเวอร์ไม่สำเร็จ';
+        return false;
     }
 }
 </script>
@@ -29869,11 +29944,40 @@ ${slip.textSample}
                             document.getElementById("setting-billingCycleStartDay").value = s.billingCycleStartDay || 26;
                             document.getElementById("setting-billingCycleEndDay").value = s.billingCycleEndDay || 25;
                             document.getElementById("setting-defaultCentralProject").value = s.defaultCentralProject || "(00)บุรีรัมย์";
-                            // LINE token [2026-10-19zu]: GAS ส่งมาเฉพาะสถานะ (มี/ไม่มี) — ไม่ส่งค่าจริงกลับ browser; แสดงเฉพาะ placeholder ให้รู้ว่ามี setup แล้ว
+                            // LINE token [2026-10-19zu/zv]: จัดการแสดงผลสถานะว่าบันทึกแล้วหรือไม่
                             const lineTokEl = document.getElementById('setting-lineChannelAccessToken');
-                            if (lineTokEl) {
-                                lineTokEl.value = '';
-                                if (s.lineChannelAccessTokenSet) lineTokEl.placeholder = 'ตั้งค่าไว้แล้ว (ปกปิดสำหรับความปลอดภัย) — ใส่ค่าใหม่เพื่อเปลี่ยน หรือเว้นว่างเพื่อคงเดิม';
+                            const lineSavedBox = document.getElementById('line-token-saved-box');
+                            const lineUnsavedBox = document.getElementById('line-token-unsaved-box');
+                            const lineTokenBadge = document.getElementById('line-token-status-badge');
+                            const lineTokenDot = document.getElementById('line-token-status-dot');
+                            const lineTokenText = document.getElementById('line-token-status-text');
+                            const lineBotTag = document.getElementById('line-token-bot-tag');
+                            const lineSavedDetail = document.getElementById('line-token-saved-detail');
+
+                            const hasLineTok = !!(s && (s.lineChannelAccessTokenSet || s.lineTokenConfigured));
+                            if (lineTokEl) lineTokEl.value = '';
+
+                            if (hasLineTok) {
+                                if (lineTokEl) lineTokEl.placeholder = '•••••••••••••••••••••••• (บันทึกแล้ว — พิมพ์ใหม่เมื่อต้องการเปลี่ยน หรือเว้นว่างเพื่อคงเดิม)';
+                                if (lineSavedBox) lineSavedBox.classList.remove('hidden');
+                                if (lineUnsavedBox) lineUnsavedBox.classList.add('hidden');
+                                if (lineTokenDot) lineTokenDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+                                if (lineTokenText) lineTokenText.textContent = s.lineBotName ? 'เชื่อมต่อแล้ว (' + s.lineBotName + ')' : 'บันทึกแล้ว';
+                                if (lineTokenBadge) lineTokenBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200';
+                                if (lineBotTag && s.lineBotName) lineBotTag.textContent = 'บอต: ' + s.lineBotName;
+                                if (lineSavedDetail && s.lineBotName) lineSavedDetail.textContent = 'บอต ' + s.lineBotName + ' · ซ่อนรหัส Token เพื่อความปลอดภัย';
+                            } else {
+                                if (lineTokEl) lineTokEl.placeholder = 'ใส่ token จาก LINE Developers Console → Messaging API → Channel access token';
+                                if (lineSavedBox) lineSavedBox.classList.add('hidden');
+                                if (lineUnsavedBox) lineUnsavedBox.classList.remove('hidden');
+                                if (lineTokenDot) lineTokenDot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
+                                if (lineTokenText) lineTokenText.textContent = 'ยังไม่ได้ตั้งค่า';
+                                if (lineTokenBadge) lineTokenBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200';
+                            }
+
+                            // 🔄 ทดสอบ LINE Token อัตโนมัติในพื้นหลัง (Auto-test แบบเดียวกับ Supabase และ GAS)
+                            if (typeof testLineToken === 'function') {
+                                setTimeout(() => { testLineToken(true); }, 300);
                             }
                             // ข้อมูลบริษัท
                             document.getElementById("setting-companyName").value = s.companyName ?? COMPANY_INFO.name;
@@ -29883,16 +29987,6 @@ ${slip.textSample}
                             document.getElementById("setting-companyTaxId").value = s.companyTaxId ?? COMPANY_INFO.taxId;
                             document.getElementById("setting-companyLogoUrl").value = s.companyLogoUrl ?? COMPANY_INFO.logoUrl;
                             showToast("✅ โหลดการตั้งค่าระบบสำเร็จ", "success");
-
-                            // แสดงสถานะการตั้งค่า LINE Token
-                            if (s && s.lineTokenConfigured) {
-                              const tokenBadge = document.getElementById('line-token-status-badge');
-                              const tokenDot = document.getElementById('line-token-status-dot');
-                              const tokenText = document.getElementById('line-token-status-text');
-                              if (tokenBadge) tokenBadge.style.display = 'flex';
-                              if (tokenDot) tokenDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
-                              if (tokenText) tokenText.textContent = 'ตั้งค่าไว้ — ใช้งานได้';
-                            }
 
                             // โหลดกฎสถานะ (การนับวันทำงาน/ค่าข้าว/ยกเว้นสาย)
                             try {
@@ -29971,6 +30065,9 @@ ${slip.textSample}
                 }
                 // 📋 แท็บกำหนดเอง: โหลดรายการ settings ทั้งหมด (schema + custom) อัตโนมัติ
                 if (tabName === 'custom') loadSettingsMeta();
+                if (tabName === 'database' && typeof testLineToken === 'function') {
+                    testLineToken(true);
+                }
             }
 
             function filterSettings(query) {
@@ -30162,6 +30259,14 @@ ${slip.textSample}
                             showToast(directSaveOk
                                 ? "🎉 บันทึกการตั้งค่าทั้งหมด (ค่ากลาง + กฎ) สำเร็จแล้ว (เขียนตรง Supabase)"
                                 : "🎉 บันทึกการตั้งค่าทั้งหมด (ค่ากลาง + กฎ) สำเร็จแล้ว", "success");
+
+                            const lineTokInput = document.getElementById("setting-lineChannelAccessToken");
+                            if (lineTokInput && lineTokInput.value) {
+                                lineTokInput.value = '';
+                            }
+                            if (typeof testLineToken === 'function') {
+                                testLineToken(true);
+                            }
                         }
                     } catch (err) {
                         updateSettingsSaveState();
@@ -30171,13 +30276,26 @@ ${slip.textSample}
 
                 // 🔍 อ่านค่าจริงจาก Supabase โดยตรง (fallback เมื่อ GAS เข้าไม่ถึง) — normalize ให้ตรงกับ getSystemSettings ใน Code.gs
                 async function fetchSystemSettingsFromSupabaseDirect() {
-                    const { data, error } = await supabaseClient.from('system_settings').select('key_name,default_value');
+                    const { data, error } = await supabaseClient.from('system_settings').select('key_name,default_value,active');
                     if (error) throw error;
                     const out = {};
                     for (const row of (data || [])) {
                         const key = String(row.key_name || '').trim();
                         const dbVal = String(row.default_value ?? '').trim();
                         if (!key || dbVal === '') continue;
+                        if (key === 'line_bot_status_mirror') {
+                            try {
+                                const mirror = JSON.parse(row.active || '{}');
+                                if (mirror.configured || dbVal === 'configured') {
+                                    out.lineChannelAccessTokenSet = true;
+                                    out.lineTokenConfigured = true;
+                                    if (mirror.botName) out.lineBotName = mirror.botName;
+                                }
+                            } catch (_) {
+                                if (dbVal === 'configured') { out.lineChannelAccessTokenSet = true; out.lineTokenConfigured = true; }
+                            }
+                            continue;
+                        }
                         let parsed = dbVal;
                         if ((key.endsWith('TimeStr') || key.indexOf('Time') >= 0 || key.indexOf('Lunch') >= 0 || key.indexOf('halfDay') >= 0)) {
                             const m = dbVal.match(/\b(\d{1,2}:\d{2})/);
