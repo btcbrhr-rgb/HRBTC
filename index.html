@@ -23122,7 +23122,7 @@ async function loadAdminEmployees() {
                         // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ (ลด Egress 2.2 รอบ 2) — render ใช้ + Token/เอกสารแนบ/จำนวนมีอยู่ในคอลัมน์
                         const [lRes, cRes, aRes] = await Promise.all([
                             supabaseClient.from('leave_requests').select('doc_id,emp_id,emp_name,leave_type,start_date,end_date,days_count,reason,status,approved_by,notes,attachments').order('start_date', { ascending: false }).limit(1000),
-                            supabaseClient.from('time_corrections').select('doc_id,emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes').order('date', { ascending: false }).limit(1000),
+                            supabaseClient.from('time_corrections').select('emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes').order('date', { ascending: false }).limit(1000),
                             // 🔧 2026-10-19ze: advance_requests ไม่มี doc_id/approved_by ใน schema → ใช้ id แทน (ลด Egress 2.2 รอบ 3)
                             supabaseClient.from('advance_requests').select('id,emp_id,emp_name,amount,request_date,pay_cycle,status,payout_channel,notes,created_at').order('request_date', { ascending: false }).limit(1000)
                         ]);
@@ -23206,7 +23206,7 @@ async function loadAdminEmployees() {
                     // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ (ลด Egress 2.2 รอบ 2) — คอลัมน์/แก้เวลา/เบิกเงิน กับรายการอนุมัติ
                     const [leaveSb, corrSb, advSb] = await Promise.all([
                         supabaseClient.from('leave_requests').select('doc_id,emp_id,emp_name,leave_type,duration,start_date,end_date,reason,status,approved_by,notes').limit(1000),
-                        supabaseClient.from('time_corrections').select('doc_id,emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes').limit(1000),
+                        supabaseClient.from('time_corrections').select('emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes').limit(1000),
                         // 🔧 2026-10-19ze: advance_requests ไม่มี doc_id/approved_by ใน schema → ใช้ id + created_at แทน (ลด Egress 2.2 รอบ 3)
                         supabaseClient.from('advance_requests').select('id,emp_id,emp_name,amount,request_date,pay_cycle,status,payout_channel,notes,created_at').limit(1000)
                     ]);
@@ -23383,7 +23383,7 @@ async function loadAdminEmployees() {
                                 ? 'doc_id,emp_id,emp_name,leave_type,start_date,end_date,days_count,reason,status,approved_by,notes,attachments'
                                 : type === 'correction'
                                     ? 'emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes'
-                                    : 'emp_id,emp_name,amount,request_date,pay_cycle,status,approved_by,notes');
+                                    : 'emp_id,emp_name,amount,request_date,pay_cycle,status,notes');
                         if (!sbRes.error && Array.isArray(sbRes.data)) {
                             items = sbRes.data.map(fieldMap[type]);
                         }
