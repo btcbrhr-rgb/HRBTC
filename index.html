@@ -37607,6 +37607,19 @@ ${slip.textSample}
                     if (result.data.message) {
                         sbLog(`📊 สถานะสำรองข้อมูลล่าสุด: ${result.data.message}`, '#a78bfa');
                     }
+                    // 🔧 [2026-10-19zq] write-back: mirror ยังว่าง (เช่น trigger backup เป็นรายสัปดาห์ ยังไม่วิ่ง) —
+                    // เขียนสถานะจริงจาก GAS กลับลง system_settings ให้ครั้งถัดไปใช้ fast path ได้เลย (fire-and-forget)
+                    try {
+                        const { error: wbErr } = await supabaseClient
+                            .from('system_settings')
+                            .upsert({
+                                key_name: 'auto_sync_status_mirror',
+                                default_value: '',
+                                active: JSON.stringify(result.data),
+                                description: 'Mirror สถานะสำรองข้อมูลอัตโนมัติ (write-back จาก fallback GAS)'
+                            }, { onConflict: 'key_name' });
+                        if (wbErr) console.warn('[AutoSync ⚡ Supabase] write-back mirror failed:', wbErr);
+                    } catch (wbEx) { console.warn('[AutoSync ⚡ Supabase] write-back mirror err:', wbEx); }
                 }
             } catch (e) {
                 renderAutomaticSyncStatus({ status: 'error', message: 'อ่านสถานะจาก server ไม่ได้' });
