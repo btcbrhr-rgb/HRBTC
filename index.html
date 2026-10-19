@@ -8722,7 +8722,7 @@
                                         </div>
                                         <span id="line-token-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
                                             <span id="line-token-status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                            <span id="line-token-status-text">ยังไม่ได้ตรวจสอบ</span>
+                                            <span id="line-token-status-text">โหลดสถานะ…</span>
                                         </span>
                                     </div>
                                 </div>
@@ -8759,6 +8759,11 @@ async function testLineToken() {
         if (out) out.textContent = ok ? '✅ ใช้ได้ — บอตชื่อ: ' + (res.data.botName || '?') : '❌ ' + ((res && res.data && res.data.error) || 'ตรวจไม่ได้');
         if (dot) dot.className = 'w-1.5 h-1.5 rounded-full ' + (ok ? 'bg-emerald-500' : 'bg-rose-500');
         if (text) text.textContent = ok ? 'ใช้งานได้' : 'ไม่ผ่าน';
+        // แสดงสถานะการตั้งค่า token (จาก Response ของ adminGetSystemSettings)
+        if (window.HRBT_CONFIG && window.HRBT_CONFIG.lineTokenConfigured) {
+          if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+          if (text) text.textContent = 'ตั้งค่าไว้ — ใช้งานได้';
+        }
     } catch (e) {
         if (out) out.textContent = '❌ เรียกเซิร์ฟเวอร์ไม่สำเร็จ';
         if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
@@ -29878,6 +29883,16 @@ ${slip.textSample}
                             document.getElementById("setting-companyTaxId").value = s.companyTaxId ?? COMPANY_INFO.taxId;
                             document.getElementById("setting-companyLogoUrl").value = s.companyLogoUrl ?? COMPANY_INFO.logoUrl;
                             showToast("✅ โหลดการตั้งค่าระบบสำเร็จ", "success");
+
+                            // แสดงสถานะการตั้งค่า LINE Token
+                            if (s && s.lineTokenConfigured) {
+                              const tokenBadge = document.getElementById('line-token-status-badge');
+                              const tokenDot = document.getElementById('line-token-status-dot');
+                              const tokenText = document.getElementById('line-token-status-text');
+                              if (tokenBadge) tokenBadge.style.display = 'flex';
+                              if (tokenDot) tokenDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+                              if (tokenText) tokenText.textContent = 'ตั้งค่าไว้ — ใช้งานได้';
+                            }
 
                             // โหลดกฎสถานะ (การนับวันทำงาน/ค่าข้าว/ยกเว้นสาย)
                             try {
