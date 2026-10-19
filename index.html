@@ -26776,6 +26776,39 @@ function closeEmployeeModal() {
                         tbody.innerHTML = '<tr><td colspan="9" class="py-6 text-center text-slate-500 italic"><i class="fa-solid fa-spinner animate-spin text-indigo-500"></i> กำลังโหลด…</td></tr>';
                     }
 
+                    // ⚡ [2026-10-19zk] Supabase-direct fast path (เลี่ยง latency Vercel→GAS ~3s) — fallback GAS เดิมด้านล่าง
+                    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                        try {
+                            const OFFLINE_MIN = 5; // = SCAN_AGENT_CONFIG.DEVICE_OFFLINE_MINUTES (ScanAgent.gs)
+                            const { data: devRows, error: devErr } = await supabaseClient
+                                .from('agent_configs')
+                                .select('device_id,device_name,branch_code,model,serial_no,ip_address,port,agent_version,os_info,status,last_heartbeat,last_sync_at,total_records_pushed,poll_seconds,heartbeat_seconds,start_from_date,auto_startup,config_updated_at')
+                                .order('device_id');
+                            if (!devErr && Array.isArray(devRows)) {
+                                const nowMs = Date.now();
+                                const devices = devRows.map(r => {
+                                    const hbD = r.last_heartbeat ? new Date(r.last_heartbeat) : null;
+                                    const isOnline = !!(hbD && (nowMs - hbD.getTime()) < OFFLINE_MIN * 60 * 1000);
+                                    return {
+                                        deviceId: r.device_id, deviceName: r.device_name, branchCode: r.branch_code,
+                                        model: r.model, serialNo: r.serial_no, ipAddress: r.ip_address, port: r.port,
+                                        agentVersion: r.agent_version, osInfo: r.os_info,
+                                        status: isOnline ? (r.status || 'online') : 'offline',
+                                        lastHeartbeat: r.last_heartbeat, lastSyncAt: r.last_sync_at,
+                                        totalRecordsPushed: r.total_records_pushed || 0,
+                                        pollSeconds: r.poll_seconds || 60, heartbeatSeconds: r.heartbeat_seconds || 120,
+                                        startFromDate: r.start_from_date || '', autoStartup: r.auto_startup || false,
+                                        configUpdatedAt: r.config_updated_at || '',
+                                        note: ''
+                                    };
+                                });
+                                renderScanDevices(devices);
+                                updateScanDeviceBadge(devices);
+                                return;
+                            }
+                            console.warn('[loadScanDevices ⚡ Supabase] error → fallback GAS:', devErr);
+                        } catch (sbErr) { console.warn('[loadScanDevices ⚡ Supabase] err → fallback GAS:', sbErr); }
+                    }
                     try {
                         const res = await fetchWithTimeout(SERVER_API_URL, {
                             method: 'POST',
@@ -40615,6 +40648,42 @@ async function loadAdminFaceLogs() {
         scanMode: (flEl('admlog-mode') && flEl('admlog-mode').value) || '',
         empId: (flEl('admlog-search') && flEl('admlog-search').value.trim()) || ''
     };
+    // ⚡ [2026-10-19zk] Supabase-direct fast path — fallback GAS เดิมด้านล่าง (read-only)
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+            const dateFrom = (fromEl && fromEl.value) || '';
+            const dateTo = (toEl && toEl.value) || '';
+            const scanMode = (flEl('admlog-mode') && flEl('admlog-mode').value) || '';
+            const empQ = (flEl('admlog-search') && flEl('admlog-search').value.trim()) || '';
+            let recQ = supabaseClient.from('time_records')
+                .select('id,date,time_in,time_out,emp_id,scan_mode,created_by,similarity_score,liveness_ok,geofence_result,gps_lat,gps_lng,source')
+                .not('scan_mode', 'is', null)
+                .order('date', { ascending: false })
+                .limit(1000);
+            if (dateFrom) recQ = recQ.gte('date', dateFrom);
+            if (dateTo) recQ = recQ.lte('date', dateTo);
+            if (scanMode && ['self', 'manager_face', 'manager_manual'].includes(scanMode)) recQ = recQ.eq('scan_mode', scanMode);
+            if (empQ) recQ = recQ.eq('emp_id', empQ);
+            const [recRes, empRes] = await Promise.all([
+                recQ,
+                supabaseClient.from('employees').select('emp_id,name,position').limit(2000)
+            ]);
+            if (!recRes.error && !empRes.error && Array.isArray(recRes.data)) {
+                const rows = recRes.data;
+                const empMap = {};
+                (empRes.data || []).forEach(e => { empMap[e.emp_id] = { name: e.name || '', pos: e.position || '' }; });
+                const evCount = {};
+                const trIds = rows.filter(r => r.id != null).map(r => String(r.id));
+                if (trIds.length) {
+                    const evRes = await supabaseClient.from('face_capture_log').select('time_record_id').in('time_record_id', trIds).limit(2000);
+                    if (!evRes.error && Array.isArray(evRes.data)) evRes.data.forEach(e => { evCount[e.time_record_id] = (evCount[e.time_record_id] || 0) + 1; });
+                }
+                renderAdminFaceLogs({ rows: rows, empMap: empMap, evCount: evCount });
+                return;
+            }
+            console.warn('[FaceLogs ⚡ Supabase] error → fallback GAS:', recRes.error || empRes.error);
+        } catch (sbErr) { console.warn('[FaceLogs ⚡ Supabase] err → fallback GAS:', sbErr); }
+    }
     const body = flEl('admlog-body');
     if (body) body.innerHTML = '<p style="padding:24px;text-align:center;font-size:12px;color:#94a3b8;">กำลังโหลด…</p>';
     try {
@@ -41341,6 +41410,27 @@ if (document.readyState === 'loading') {
 // - กรอง: ชื่อ/รหัส + สถานะใบหน้า (all/enrolled/missing) · export CSV ฝั่ง client
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ⚡ [2026-10-19zk] นับมุมใบหน้าฝั่ง browser (เทียบเท่า countFaceDescriptors ใน Code.gs)
+function faceDescCountLocal_(raw) {
+    let obj = raw;
+    if (typeof raw === 'string') { try { obj = JSON.parse(raw); } catch (e) { return 0; } }
+    if (!obj) return 0;
+    const isDesc = (x) => Array.isArray(x) && x.length > 20 && typeof x[0] === 'number';
+    let count = 0;
+    if (Array.isArray(obj)) { obj.forEach((y) => { if (isDesc(y)) count++; }); return count; }
+    if (obj.version && Array.isArray(obj.items)) {
+        obj.items.forEach((it) => { const d = (it && (it.d || it.descriptor || it.face)) || null; if (isDesc(d)) count++; });
+        return count;
+    }
+    ['straight', 'left', 'right', 'center', 'face', 'descriptors'].forEach((k) => {
+        if (Array.isArray(obj[k])) {
+            if (isDesc(obj[k])) count++;
+            else obj[k].forEach((y) => { if (isDesc(y)) count++; });
+        }
+    });
+    return count;
+}
+
 let faceEnrollRows = [];
 function feEl(id) { return document.getElementById(id); }
 
@@ -41350,6 +41440,41 @@ async function loadAdminFaceEnroll() {
     const enrolled = (feEl('face-enroll-filter') && feEl('face-enroll-filter').value) || 'all';
     const body = feEl('face-enroll-body');
     if (body) body.innerHTML = '<p style="padding:24px;text-align:center;font-size:12px;color:#94a3b8;">กำลังโหลด…</p>';
+    // ⚡ [2026-10-19zk] Supabase-direct fast path — fallback GAS เดิมด้านล่าง (read-only)
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+            const [empRes, fdRes] = await Promise.all([
+                supabaseClient.from('employees').select('emp_id,name,position,status').order('emp_id').limit(3000),
+                supabaseClient.from('face_database').select('emp_id,face_descriptors,updated_at').limit(3000)
+            ]);
+            if (!empRes.error && Array.isArray(empRes.data)) {
+                const fdMap = {};
+                (fdRes.data || []).forEach((r) => {
+                    if (!r || r.emp_id == null) return;
+                    const k = String(r.emp_id);
+                    const prev = fdMap[k] || { angles: 0, updated_at: null };
+                    fdMap[k] = { angles: prev.angles + faceDescCountLocal_(r.face_descriptors), updated_at: r.updated_at || prev.updated_at };
+                });
+                const searchQ = search.toLowerCase();
+                let rows = empRes.data.map((e) => {
+                    const empId = String(e.emp_id || '');
+                    const fd = fdMap[empId] || { angles: 0, updated_at: null };
+                    return {
+                        emp_id: empId, name: e.name || '', position: e.position || '', status: e.status || '',
+                        enrolled: fd.angles > 0, angles: fd.angles, updated_at: fd.updated_at || null
+                    };
+                });
+                if (searchQ) rows = rows.filter((r) => (r.emp_id + ' ' + r.name).toLowerCase().indexOf(searchQ) !== -1);
+                if (enrolled === 'enrolled') rows = rows.filter((r) => r.enrolled);
+                else if (enrolled === 'missing') rows = rows.filter((r) => !r.enrolled);
+                faceEnrollRows = rows;
+                faceEnrollRows.sort((a, b) => String(a.emp_id || '').localeCompare(String(b.emp_id || ''), undefined, { numeric: true, sensitivity: 'base' }));
+                renderAdminFaceEnroll({ rows: rows });
+                return;
+            }
+            console.warn('[FaceEnrollAdmin ⚡ Supabase] error → fallback GAS:', empRes.error || fdRes.error);
+        } catch (sbErr) { console.warn('[FaceEnrollAdmin ⚡ Supabase] err → fallback GAS:', sbErr); }
+    }
     try {
         const res = await fetchWithTimeout(SERVER_API_URL, {
             method: 'POST',
