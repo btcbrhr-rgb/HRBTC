@@ -8707,6 +8707,68 @@
 
                             </div>
 
+                            <!-- 🔧 [2026-10-19zu] LINE Bot Token — ตั้งค่าจากหน้าเว็บได้ ไม่ต้องเข้า Script Properties (คำขอ User) -->
+                            <div class="rounded-2xl border-2 border-green-100 bg-gradient-to-br from-green-50 via-white to-white overflow-hidden shadow-sm" data-search="line bot token webhook notification channel access">
+                                <div class="px-4 py-3 bg-gradient-to-r from-green-50/60 to-transparent border-b border-green-100/60">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2.5">
+                                            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-green-600 to-emerald-500 flex items-center justify-center shadow-sm">
+                                                <i class="fa-brands fa-line text-white text-xs"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs font-extrabold text-slate-800"><i class="fa-brands fa-line" aria-hidden="true"></i> LINE Bot</p>
+                                                <p class="text-[10px] text-slate-400">Channel Access Token · บอตแจ้งเตือน/เมนูรับข้อมูล</p>
+                                            </div>
+                                        </div>
+                                        <span id="line-token-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                                            <span id="line-token-status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                            <span id="line-token-status-text">ยังไม่ได้ตรวจสอบ</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="p-4 space-y-3">
+                                    <div class="space-y-1">
+                                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">LINE Channel Access Token (long-lived)</label>
+                                        <input id="setting-lineChannelAccessToken" type="password" placeholder="ใส่ token จาก LINE Developers Console → Messaging API → Channel access token"
+                                            autocomplete="off"
+                                            class="w-full bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-[11px] font-mono focus:ring-2 focus:ring-green-400 focus:border-green-400 focus:outline-none transition-all">
+                                        <p class="text-[9px] text-slate-400">เก็บใน Script Properties ของ Apps Script (ไม่ลงฐานข้อมูล) · ถ้าเว้นว่างแล้วกดบันทึก = คงค่าเดิมไว้</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button onclick="testLineToken()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-[10px] font-bold shadow-sm transition-all">
+                                            <i class="fa-solid fa-plug-circle-check"></i> ทดสอบ Token
+                                        </button>
+                                        <span id="line-token-test-result" class="text-[10px] text-slate-500"></span>
+                                    </div>
+
+<script>
+// 🧭 [2026-10-19zu] ทดสอบ LINE token ผ่าน GAS (ฝั่ง server คีย์ไป api.line.me — ห้ามแนบ token ออก browser)
+async function testLineToken() {
+    const out = document.getElementById('line-token-test-result');
+    const dot = document.getElementById('line-token-status-dot');
+    const text = document.getElementById('line-token-status-text');
+    const input = document.getElementById('setting-lineChannelAccessToken');
+    if (out) out.textContent = '⏳ กำลังตรวจ…';
+    try {
+        const hasNew = (input?.value || '').trim();
+        const res = await fetchWithTimeout(SERVER_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'testLineToken', adminId: currentEmployeeId, lineToken: hasNew || undefined })
+        });
+        const ok = res && res.status === 'success' && res.data && res.data.valid;
+        if (out) out.textContent = ok ? '✅ ใช้ได้ — บอตชื่อ: ' + (res.data.botName || '?') : '❌ ' + ((res && res.data && res.data.error) || 'ตรวจไม่ได้');
+        if (dot) dot.className = 'w-1.5 h-1.5 rounded-full ' + (ok ? 'bg-emerald-500' : 'bg-rose-500');
+        if (text) text.textContent = ok ? 'ใช้งานได้' : 'ไม่ผ่าน';
+    } catch (e) {
+        if (out) out.textContent = '❌ เรียกเซิร์ฟเวอร์ไม่สำเร็จ';
+        if (dot) dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
+        if (text) text.textContent = 'ผิดพลาด';
+    }
+}
+</script>
+                                </div>
+                            </div>
+
                             <!-- Live Sync Monitor -->
                             <aside class="md:sticky md:top-2 min-w-0 rounded-2xl border border-slate-200 bg-slate-950 shadow-xl shadow-slate-900/10 overflow-hidden flex flex-col max-h-[calc(100vh-2rem)]" data-search="log sync supabase activity" style="max-height: calc(100vh - 2rem);">
                                 <div class="px-4 py-3 border-b border-white/10 bg-gradient-to-r from-slate-900 to-slate-800 flex-shrink-0">
@@ -29802,6 +29864,12 @@ ${slip.textSample}
                             document.getElementById("setting-billingCycleStartDay").value = s.billingCycleStartDay || 26;
                             document.getElementById("setting-billingCycleEndDay").value = s.billingCycleEndDay || 25;
                             document.getElementById("setting-defaultCentralProject").value = s.defaultCentralProject || "(00)บุรีรัมย์";
+                            // LINE token [2026-10-19zu]: GAS ส่งมาเฉพาะสถานะ (มี/ไม่มี) — ไม่ส่งค่าจริงกลับ browser; แสดงเฉพาะ placeholder ให้รู้ว่ามี setup แล้ว
+                            const lineTokEl = document.getElementById('setting-lineChannelAccessToken');
+                            if (lineTokEl) {
+                                lineTokEl.value = '';
+                                if (s.lineChannelAccessTokenSet) lineTokEl.placeholder = 'ตั้งค่าไว้แล้ว (ปกปิดสำหรับความปลอดภัย) — ใส่ค่าใหม่เพื่อเปลี่ยน หรือเว้นว่างเพื่อคงเดิม';
+                            }
                             // ข้อมูลบริษัท
                             document.getElementById("setting-companyName").value = s.companyName ?? COMPANY_INFO.name;
                             document.getElementById("setting-companyAddress").value = s.companyAddress ?? COMPANY_INFO.address;
@@ -30023,7 +30091,9 @@ ${slip.textSample}
                             // รอบบัญชี
                             billingCycleStartDay: parseInt(document.getElementById("setting-billingCycleStartDay").value),
                             billingCycleEndDay: parseInt(document.getElementById("setting-billingCycleEndDay").value),
-                            defaultCentralProject: document.getElementById("setting-defaultCentralProject").value
+                            defaultCentralProject: document.getElementById("setting-defaultCentralProject").value,
+                            // 🔧 [2026-10-19zu] LINE token: ส่งเฉพาะเมื่อพิมพ์ค่าใหม่ (เว้นว่าง = คงค่าเดิมใน Script Properties)
+                            lineChannelAccessToken: (document.getElementById("setting-lineChannelAccessToken")?.value || '').trim()
                         }
                     };
 
