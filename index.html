@@ -37577,6 +37577,24 @@ ${slip.textSample}
 
         async function loadAutomaticSyncStatus() {
             if (!currentEmployeeId && !isGoogleScriptEnvironment) return;
+            // ⚡ [2026-10-19zo] Supabase-direct fast path — อ่าน mirror จาก system_settings (ค่า active เป็น JSON payload)
+            //    ตัด round-trip GAS ~2.5s ต่อเปิดหน้า admin — GAS ยังเป็น fallback ด้านล่าง (คัทโค้ดเดิมทั้งหมด)
+            if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                try {
+                    const { data: mirRows, error: mirErr } = await supabaseClient
+                        .from('system_settings')
+                        .select('active')
+                        .eq('key_name', 'auto_sync_status_mirror')
+                        .limit(1);
+                    if (!mirErr && Array.isArray(mirRows) && mirRows.length > 0 && mirRows[0].active) {
+                        const mirrored = JSON.parse(mirRows[0].active);
+                        renderAutomaticSyncStatus(mirrored);
+                        if (mirrored.message) sbLog(`📊 สถานะสำรองข้อมูลล่าสุด (⚡ Supabase-direct): ${mirrored.message}`, '#a78bfa');
+                        return;
+                    }
+                    console.warn('[AutoSync ⚡ Supabase] mirror ไม่พบ/ว่าง → fallback GAS:', mirErr);
+                } catch (mirEx) { console.warn('[AutoSync ⚡ Supabase] err → fallback GAS:', mirEx); }
+            }
             try {
                 let result;
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
