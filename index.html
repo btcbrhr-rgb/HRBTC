@@ -5398,7 +5398,7 @@
                             <div class="flex items-center gap-2">
                                 <label for="yearly-payslip-year" class="text-xs font-bold text-slate-600">ปี พ.ศ.:</label>
                                 <select id="yearly-payslip-year" onchange="onYearlyPayslipYearChange()" class="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-teal"></select>
-                                <button onclick="loadYearlyPayslipOverview()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all">
+                                <button onclick="window.__ypForceReload=true; loadYearlyPayslipOverview()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all">
                                     <i class="fa-solid fa-rotate-right mr-1"></i>รีเฟรช
                                 </button>
                             </div>
@@ -11214,8 +11214,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         }
                         if (currentTab === 'import-payslip' && tables.includes('payslips')) {
                             // ตารางสลิปเงินเดือน (ข้อมูลเยอะ — refresh เมื่อเปิดหน้า)
-                            if (this._shouldRefresh('loadYearlyPayslipOverview', 10000) && typeof loadYearlyPayslipOverview === 'function') {
-                                try { await loadYearlyPayslipOverview(); } catch (e) { console.warn('[Realtime] loadYearlyPayslipOverview', e); }
+                        if (this._shouldRefresh('loadYearlyPayslipOverview', 10000) && typeof loadYearlyPayslipOverview === 'function') {
+                            try { window.__ypForceReload = true; await loadYearlyPayslipOverview(); } catch (e) { console.warn('[Realtime] loadYearlyPayslipOverview', e); }
                             }
                         }
                         if (currentTab === 'settings' && tables.includes('system_settings')) {
@@ -12311,6 +12311,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 sessionStorage.removeItem("is_admin_mode");
                 sessionStorage.removeItem("admin_active_tab");
                 sessionStorage.clear(); // ล้างทุกอย่างใน sessionStorage
+                // ⚡ [19zn] ล้าง cache payslips ต่อ session — กัน admin ถัดไปเห็นข้อมูลเก่า + บังคับโหลดใหม่
+                window.__ypForceReload = true;
+                window.__ypLoadedAt = 0;
                 try {
                     localStorage.removeItem("hr_logged_in_emp_id");
                     localStorage.removeItem("hr_employee_data");
@@ -29117,14 +29120,16 @@ ${slip.textSample}
 
                     // 🔄 รีเฟรชตารางสลิปเงินเดือน 12 เดือนทันที
                     if (typeof loadYearlyPayslipOverview === 'function') {
+                        window.__ypForceReload = true; // ⚡ [19zn] อัปโหลดใหม่ — cache เก่าไม่ใช้ ต้องยิงจริง
                         loadYearlyPayslipOverview();
                     }
                 }
 
                 // ═══ ตารางสลิปเงินเดือน 12 เดือน (Tabbed + Auto-Group & Universal Period Parser) ═══
-                let yearlyPayslipDataCache = {}; // { 'YYYY-MM': [payslips] }
-                let yearlyPayslipSelectedMonth = null;
+                let yearlyPayslipDataCache = {}; // { 'YYYY-MM': [payslips] }                let yearlyPayslipSelectedMonth = null;
                 let allPayslipsLoadedList = []; // แคชข้อมูลสลิปทั้งหมด
+                // ⚡ [19zn] ใช้ window.__yp* — ให้ต่าง closure (realtime/logout/onclick HTML) ปรับค่าได้แน่นอน
+                let yearlyPayslipSelectedMonth = null;
 
                 // 🧮 ตัวแยกและจัดรูปแบบรอบเงินเดือน (Universal Period Parser)
                 function parsePayslipPeriod(rawPeriod, record) {
@@ -29258,8 +29263,16 @@ ${slip.textSample}
                         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 italic"><i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูลสลิปเงินเดือนทั้งหมดจากฐานข้อมูล…</td></tr>';
                     }
 
-                    // 1. ⚡ โหลดข้อมูลสลิปเงินเดือนทั้งหมด (Supabase-First + Fallback)
+                    // 1. ⚡ โหลดข้อมูลสลิปเงินเดือนทั้งหมด (Supabase-First + Fallback + ⚡ 2026-10-19zn session-cache 5 นาที — กันดึง payslips ซ้ำทั้งชุดต่อ admin session)
                     let allPayslips = [];
+                    const cacheFreshMs = 5 * 60 * 1000;
+                    const forceReload = !!window.__ypForceReload; window.__ypForceReload = false; // อ่านแล้วรีเซ็ตทันที (ใช้ครั้งเดียว)
+                    if (!forceReload && window.__ypLoadedAt && (Date.now() - window.__ypLoadedAt) < cacheFreshMs && yearlyPayslipDataCache && Object.keys(yearlyPayslipDataCache).length > 0) {
+                        // ⚡ [19zn] ใช้ข้อมูลเดิมที่โหลดไว้ภายใน 5 นาที — rebuild cache จาก allPayslipsLoadedList ไม่ยิง Supabase
+                        console.log('[loadYearlyPayslipOverview ⚡ Cache HIT] ใช้ข้อมูลเดิม (อายุ', Math.round((Date.now() - window.__ypLoadedAt) / 1000), 'วิ) — ไม่ยิง Supabase');
+                        allPayslips = allPayslipsLoadedList || [];
+                    } else {
+                        window.__ypLoadedAt = Date.now();
                     try {
                         if (supabaseClient) {
                             console.log('[loadYearlyPayslipOverview] ⚡ Fetching all payslips from Supabase...');
@@ -29278,6 +29291,7 @@ ${slip.textSample}
                     }
 
                     if (allPayslips.length === 0) {
+                        window.__ypLoadedAt = 0; // โหลดว่าง — cache ไม่นับ (กันว่างผิดๆ ค้าง 5 นาที)
                         try {
                             const gasUrl = `${SERVER_API_URL}?action=getPayslips&empId=*ALL*&adminId=${encodeURIComponent(currentEmployeeId || '')}`;
                             console.log('[loadYearlyPayslipOverview] 🟡 Fallback to GAS API:', gasUrl);
@@ -29296,6 +29310,7 @@ ${slip.textSample}
                     }
 
                     allPayslipsLoadedList = allPayslips;
+                    } // ⚡ ปิด if-else cache [19zn]
                     console.log(`[loadYearlyPayslipOverview] Total payslips loaded: ${allPayslips.length}`);
 
                     // 2. 🗂️ จัดกลุ่มข้อมูลสลิปตาม Year-Month ลงใน Cache
