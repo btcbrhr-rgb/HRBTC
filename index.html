@@ -11818,7 +11818,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     try {
                         const { data, error } = await supabaseClient
                             .from('employees')
-                            .select('*')
+                            .select('emp_id,name,position,pin')   // 🔧 2026-10-19ze (ลด Egress 2.2 รอบ 3)
                             .ilike('emp_id', empId)
                             .maybeSingle();
                         if (!error && data) {
@@ -12006,7 +12006,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         try {
                             const { data: empRecord, error: empErr } = await supabaseClient
                                 .from('employees')
-                                .select('*')
+                                .select('emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,line_user_id,pin')   // 🔧 2026-10-19ze (ลด Egress 2.2 รอบ 3) — emp_id UNIQUE จึงเทียบเท่า *
                                 .ilike('emp_id', savedEmpId)
                                 .maybeSingle();
                             if (!empErr && empRecord) {
@@ -12217,7 +12217,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         try {
                             const { data, error } = await supabaseClient
                                 .from('employees')
-                                .select('*')
+                                .select('emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,line_user_id,pin')   // 🔧 2026-10-19ze (ลด Egress 2.2 รอบ 3) — emp_id UNIQUE จึงเทียบเท่า *
                                 .ilike('emp_id', empIdInput.trim())
                                 .maybeSingle();
                             if (!error && data) {
@@ -12250,6 +12250,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     }
                                 };
                                 console.log('[handleLogin ⚡ Supabase] Employee profile loaded instantly');
+                            }
+                            // 🔧 [2026-10-19zv] เดิม: query error ถูกกลืนเงียบ (if (!error && data) ไม่มี else) — ทำให้ debug login ไม่เห็นสาเหตุจริง
+                            else if (error) {
+                                console.error('[handleLogin] Supabase query error:', error);
+                                supabaseLoginError = error;
                             }
                         } catch (sbErr) {
                             supabaseLoginError = sbErr;
@@ -12675,7 +12680,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             if (supabaseClient) {
                                 const { data, error } = await supabaseClient
                                     .from('employees')
-                                    .select('*')
+                                    .select('emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,line_user_id,pin')   // 🔧 2026-10-19ze (ลด Egress 2.2 รอบ 3) — emp_id UNIQUE จึงเทียบเท่า *
                                     .eq('emp_id', empId)
                                     .single();
                                 if (!error && data) {
@@ -12891,9 +12896,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                         const [tOutcome, tAllOutcome, settingsOutcome, pOutcome, annOutcome, holOutcome] = await Promise.allSettled([
                             // User-specific data (always fetch time_records สำหรับ billing cycle ใหม่)
-                            supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
+                            // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ timeRecordsList map อ่านจริง (ลด Egress 2.2 รอบ 3)
+                            supabaseClient.from('time_records').select('date,emp_id,emp_name,time_in,time_out,status,late_minutes,ot_hours,food_allowance,shift_allowance,other_allowance,project_in,project_out,is_edited,source,notes').eq('emp_id', currentEmployeeId).gte('date', pStart).lte('date', pEnd),
                             // 🔧 FIX: ดึง time_records ทั้งหมด (ไม่ filter cycle) สำหรับกิจกรรมล่าสุด
-                            supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).order('date', { ascending: false }).limit(60),
+                            // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ allTimeRecordsList map อ่านจริง (ลด Egress 2.2 รอบ 3)
+                            supabaseClient.from('time_records').select('date,emp_id,emp_name,time_in,time_out,status,late_minutes,ot_hours,project_in').eq('emp_id', currentEmployeeId).order('date', { ascending: false }).limit(60),
                             // ⚡ system_settings — ใช้คำนวณ late/OT/ค่าแรง (โหลดพร้อมข้อมูลหลัก)
                             supabaseClient.from('system_settings').select('key_name,default_value'),
                             // Public data: โหลดเฉพาะเมื่อยังไม่ได้โหลด (reuse จาก loadPublicData)
@@ -13062,11 +13069,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             //    render แต่ละส่วนทันทีที่ข้อมูลตารางนั้นมาถึง — ไม่ต้องรอทุกอย่างพร้อมกัน
             async function loadSecondaryData(needCorrections, needLeaves, needAdvances, needPayslips, tSup0) {
                 try {
+                    // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ map อ่านจริง (ลด Egress 2.2 รอบ 2) — คอลัมน์ตรงตาม supabase_rebuild_all.sql
                     const [cOutcome, lOutcome, aOutcome, payOutcome] = await Promise.allSettled([
-                        needCorrections ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId) : null,
-                        needLeaves ? supabaseClient.from('leave_requests').select('*').eq('emp_id', currentEmployeeId) : null,
-                        needAdvances ? supabaseClient.from('advance_requests').select('*').eq('emp_id', currentEmployeeId) : null,
-                        needPayslips ? supabaseClient.from('payslips').select('*').eq('emp_id', currentEmployeeId) : null
+                        needCorrections ? supabaseClient.from('time_corrections').select('emp_id,date,new_time_in,new_time_out,reason,status,project,approved_by,notes').eq('emp_id', currentEmployeeId) : null,
+                        needLeaves ? supabaseClient.from('leave_requests').select('doc_id,emp_id,leave_type,duration,start_date,end_date,days_count,reason,status,approved_by,notes,signature_url,attachments').eq('emp_id', currentEmployeeId) : null,
+                        needAdvances ? supabaseClient.from('advance_requests').select('emp_id,amount,request_date,pay_cycle,status,payout_channel,notes').eq('emp_id', currentEmployeeId) : null,
+                        needPayslips ? supabaseClient.from('payslips').select('emp_id,period,file_name,file_id,slip_url,recorded_at,net_amount').eq('emp_id', currentEmployeeId) : null
                     ]);
                     const readSectionResult = (outcome, section, requested) => {
                         if (!requested) return null;
@@ -13316,7 +13324,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     try {
                         const { data, error } = await supabaseClient
                             .from('announcements')
-                            .select('*')
+                            // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ map announce ใช้จริง (ลด Egress 2.2 รอบ 3)
+                            .select('doc_id,title,content,tag,posted_at,posted_by,status,attachments')
                             .order('created_at', { ascending: false })
                             .limit(20);
                         if (!error && Array.isArray(data)) {
@@ -15320,8 +15329,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 try {
                     // 🔧 SUPABASE-ONLY: โหลดจาก Supabase โดยตรง
                     const [recRes, corrRes] = await Promise.all([
-                        supabaseClient ? supabaseClient.from('time_records').select('*').eq('emp_id', currentEmployeeId).gte('date', start).lte('date', end) : Promise.resolve({ data: [], error: null }),
-                        supabaseClient ? supabaseClient.from('time_corrections').select('*').eq('emp_id', currentEmployeeId).gte('date', start).lte('date', end) : Promise.resolve({ data: [], error: null })
+                            // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ปฏิทิน/แก้เวลา map อ่านจริง (ลด Egress 2.2 รอบ 3)
+                            supabaseClient ? supabaseClient.from('time_records').select('date,emp_id,emp_name,time_in,time_out,status,late_minutes,ot_hours,project_in,project_out').eq('emp_id', currentEmployeeId).gte('date', start).lte('date', end) : Promise.resolve({ data: [], error: null }),
+                            supabaseClient ? supabaseClient.from('time_corrections').select('date,emp_id,new_time_in,new_time_out,reason,status,project,approved_by,notes').eq('emp_id', currentEmployeeId).gte('date', start).lte('date', end) : Promise.resolve({ data: [], error: null })
                     ]);
 
                     timeCorrectionsList = (!corrRes.error && Array.isArray(corrRes.data) ? corrRes.data.map(c => ({
@@ -19182,11 +19192,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const currentYear = now7.getFullYear();
                     const yearStart = `${currentYear}-01-01`;
                     const yearEnd = `${currentYear}-12-31`;
+                    // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ dashboard charts ใช้จริง (ลด Egress 2.2 รอบ 3)
                     const [timeRes, leaveRes] = await Promise.all([
-                        supabaseClient.from('time_records').select('*')
+                        supabaseClient.from('time_records').select('emp_id,date,time_in,time_out,status,late_minutes,ot_hours')
                             .gte('date', sevenDaysAgoKey)
                             .lte('date', todayKey7),
-                        supabaseClient.from('leave_requests').select('*')
+                        supabaseClient.from('leave_requests').select('emp_id,leave_type,start_date,end_date,status')
                             .lte('start_date', yearEnd)
                             .gte('end_date', yearStart)
                     ]);
@@ -23108,10 +23119,12 @@ async function loadAdminEmployees() {
                 // ⚡ 1. Fast-Load via Supabase (< 80ms)
                 if (supabaseClient) {
                     try {
+                        // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ (ลด Egress 2.2 รอบ 2) — render ใช้ + Token/เอกสารแนบ/จำนวนมีอยู่ในคอลัมน์
                         const [lRes, cRes, aRes] = await Promise.all([
-                            supabaseClient.from('leave_requests').select('*').order('start_date', { ascending: false }).limit(1000),
-                            supabaseClient.from('time_corrections').select('*').order('date', { ascending: false }).limit(1000),
-                            supabaseClient.from('advance_requests').select('*').order('request_date', { ascending: false }).limit(1000)
+                            supabaseClient.from('leave_requests').select('doc_id,emp_id,emp_name,leave_type,start_date,end_date,days_count,reason,status,approved_by,notes,attachments').order('start_date', { ascending: false }).limit(1000),
+                            supabaseClient.from('time_corrections').select('doc_id,emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes').order('date', { ascending: false }).limit(1000),
+                            // 🔧 2026-10-19ze: advance_requests ไม่มี doc_id/approved_by ใน schema → ใช้ id แทน (ลด Egress 2.2 รอบ 3)
+                            supabaseClient.from('advance_requests').select('id,emp_id,emp_name,amount,request_date,pay_cycle,status,payout_channel,notes,created_at').order('request_date', { ascending: false }).limit(1000)
                         ]);
 
                         if (!lRes.error && !cRes.error && !aRes.error) {
@@ -23190,10 +23203,12 @@ async function loadAdminEmployees() {
                     const pendingStatuses = ['รออนุมัติ', 'รอตรวจสอบ', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ'];
                     if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อ Supabase เพื่อโหลดรายการอนุมัติได้');
 
+                    // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ (ลด Egress 2.2 รอบ 2) — คอลัมน์/แก้เวลา/เบิกเงิน กับรายการอนุมัติ
                     const [leaveSb, corrSb, advSb] = await Promise.all([
-                        supabaseClient.from('leave_requests').select('*'),
-                        supabaseClient.from('time_corrections').select('*'),
-                        supabaseClient.from('advance_requests').select('*')
+                        supabaseClient.from('leave_requests').select('doc_id,emp_id,emp_name,leave_type,duration,start_date,end_date,reason,status,approved_by,notes').limit(1000),
+                        supabaseClient.from('time_corrections').select('doc_id,emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes').limit(1000),
+                        // 🔧 2026-10-19ze: advance_requests ไม่มี doc_id/approved_by ใน schema → ใช้ id + created_at แทน (ลด Egress 2.2 รอบ 3)
+                        supabaseClient.from('advance_requests').select('id,emp_id,emp_name,amount,request_date,pay_cycle,status,payout_channel,notes,created_at').limit(1000)
                     ]);
                     const failedQuery = [leaveSb, corrSb, advSb].find(result => result.error);
                     if (failedQuery) throw failedQuery.error;
@@ -23361,7 +23376,14 @@ async function loadAdminEmployees() {
                             correction: c => ({ 'รหัสพนักงาน': c.emp_id, 'วันที่': c.date, 'เวลาเข้าใหม่': c.new_time_in, 'เวลาออกใหม่': c.new_time_out, 'เหตุผล': c.reason, 'สถานะ': c.status, 'โครงการ': c.project, 'อนุมัติโดย': c.approved_by, 'หมายเหตุ': c.notes }),
                             advance: a => ({ 'รหัสพนักงาน': a.emp_id, 'จำนวนเงิน': a.amount, 'วันที่เบิก': a.request_date, 'รอบจ่าย': a.pay_cycle, 'สถานะ': a.status, 'อนุมัติโดย': a.approved_by || '', 'เหตุผล': a.reason || a.notes, 'หมายเหตุ': a.notes })
                         };
-                        const sbRes = await supabaseClient.from(tableMap[type]).select('*');
+                        const sbRes = await supabaseClient
+                            .from(tableMap[type])
+                            // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ fieldMap[type] ใช้จริง (ลด Egress 2.2 รอบ 3)
+                            .select(type === 'leave'
+                                ? 'doc_id,emp_id,emp_name,leave_type,start_date,end_date,days_count,reason,status,approved_by,notes,attachments'
+                                : type === 'correction'
+                                    ? 'emp_id,emp_name,date,new_time_in,new_time_out,reason,status,project,approved_by,notes'
+                                    : 'emp_id,emp_name,amount,request_date,pay_cycle,status,approved_by,notes');
                         if (!sbRes.error && Array.isArray(sbRes.data)) {
                             items = sbRes.data.map(fieldMap[type]);
                         }
@@ -24461,7 +24483,8 @@ async function loadAdminEmployees() {
                     try {
                         const { data: advData, error: advErr } = await supabaseClient
                             .from('advance_requests')
-                            .select('*')
+                            // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ advance export ใช้จริง (ลด Egress 2.2 รอบ 3)
+                            .select('emp_id,amount,request_date,pay_cycle,status,notes')
                             .order('request_date', { ascending: false });
                         if (!advErr && Array.isArray(advData)) {
                             _adminAllAdvanceRecords = advData;
@@ -25875,7 +25898,8 @@ async function loadAdminEmployees() {
                     updateAuditSelectedCount();
 
                     try {
-                        let query = supabaseClient.from('leave_requests').select('*').order('start_date', { ascending: true });
+                        // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ quota audit ใช้จริง (ลด Egress 2.2 รอบ 3)
+                        let query = supabaseClient.from('leave_requests').select('emp_id,leave_type,start_date,end_date,days_count,status').order('start_date', { ascending: true });
                         if (selectedYear !== 'all') {
                             query = query.gte('start_date', `${selectedYear}-01-01`).lte('start_date', `${selectedYear}-12-31`);
                         }
@@ -26249,7 +26273,8 @@ async function loadAdminEmployees() {
                     for (const y of years) {
                         try {
                             const { data, error } = await supabaseClient.from('leave_requests')
-                                .select('*')
+                                // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ leave quota audit ใช้จริง (ลด Egress 2.2 รอบ 3)
+                                .select('id,emp_id,leave_type,duration,start_date,end_date,days_count,status')
                                 .in('status', validStatuses)
                                 .gte('start_date', `${y}-01-01`)
                                 .lte('start_date', `${y}-12-31`);
@@ -26349,9 +26374,10 @@ async function loadAdminEmployees() {
                     try {
                         if (!supabaseClient) throw new Error('Supabase ยังไม่เชื่อมต่อ');
                         // 1. ดึงใบลาที่อนุมัติแล้วและทับซ้อนช่วงที่เลือก
+                        // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ export B+ ใช้จริง (ลด Egress 2.2 รอบ 3)
                         const { data, error } = await supabaseClient
                             .from('leave_requests')
-                            .select('*')
+                            .select('id,doc_id,emp_id,leave_type,duration,start_date,end_date,days_count,status')
                             .in('status', ['อนุมัติแล้ว', 'ฝ่ายบุคคลตรวจสอบ', 'ผู้บริหารอนุมัติ'])
                             .lte('start_date', range.end)
                             .gte('end_date', range.start)
@@ -27618,9 +27644,10 @@ function closeEmployeeModal() {
                             const endStr = `${year}-${String(m).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
 
                             promises.push(
+                                // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ renderYearlyMonthTable/summary ใช้จริง (ลด Egress 2.2 รอบ 3)
                                 supabaseClient
                                     .from('time_records')
-                                    .select('*')
+                                    .select('emp_id,date,time_in,time_out,status,late_minutes,ot_hours,project_in,project_out,original_time_in,original_time_out,is_edited,source')
                                     .gte('date', startStr)
                                     .lte('date', endStr)
                                     .order('date', { ascending: true })
@@ -27676,7 +27703,8 @@ function closeEmployeeModal() {
                             // 🔧 FIX: ค้นหาทุกคน (ไม่ filter emp_id) เพื่อแสดงข้อมูลทั้งหมด
                             const { data, error } = await supabaseClient
                                 .from('time_records')
-                                .select('*')
+                                // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ renderYearlyMonthTable/summary ใช้จริง (ลด Egress 2.2 รอบ 3)
+                                .select('emp_id,date,time_in,time_out,status,late_minutes,ot_hours,project_in,project_out,original_time_in,original_time_out,is_edited,source')
                                 .gte('date', startStr)
                                 .lte('date', endStr)
                                 .order('date', { ascending: true });
@@ -29161,7 +29189,8 @@ ${slip.textSample}
                             console.log('[loadYearlyPayslipOverview] ⚡ Fetching all payslips from Supabase...');
                             const { data, error } = await supabaseClient
                                 .from('payslips')
-                                .select('*')
+                                // 🔧 2026-10-19ze: select เฉพาะคอลัมน์ที่ yearly payslip overview ใช้จริง (ลด Egress 2.2 รอบ 3)
+                                .select('emp_id,period,file_name,file_id,slip_url,recorded_at,net_amount')
                                 .limit(5000);
                             console.log('[loadYearlyPayslipOverview] Supabase response:', { count: data?.length, error, sample: data?.[0] });
                             if (!error && Array.isArray(data) && data.length > 0) {
