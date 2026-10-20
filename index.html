@@ -1486,6 +1486,11 @@
                 return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v).trim() : fallback;
             };
             const name = pick('companyName', COMPANY_INFO.name);
+            let pName = pick('portalName', null);
+            if (!pName) {
+                pName = name.replace(/^บริษัท\s*/, '').replace(/\s*จำกัด.*$/, '').trim();
+                if (!pName) pName = COMPANY_INFO.portalName || name;
+            }
             return {
                 name: name,
                 address: pick('companyAddress', COMPANY_INFO.address),
@@ -1493,7 +1498,7 @@
                 phone: pick('companyPhone', COMPANY_INFO.phone),
                 fax: pick('companyFax', COMPANY_INFO.fax),
                 logoUrl: pick('companyLogoUrl', COMPANY_INFO.logoUrl),
-                portalName: name.split(' ')[0] || COMPANY_INFO.portalName,
+                portalName: pName,
                 adminTitle: name + ' Admin'
             };
         }
@@ -1516,7 +1521,9 @@
             if (companyName) companyName.textContent = ci.name;
             if (companyContact) companyContact.textContent = `${ci.address} · โทร. ${ci.phone} · แฟกซ์ ${ci.fax}`;
             if (copyright) copyright.textContent = `© ${new Date().getFullYear()} ${ci.name}. All Rights Reserved.`;
-            if (portalName) portalName.textContent = ci.portalName;
+            if (portalName && (!window.isLoggedIn || !window.employeeData || !window.employeeData["ชื่อ-นามสกุล"])) {
+                portalName.textContent = ci.portalName;
+            }
             if (companyDetailLabel) companyDetailLabel.textContent = ci.name;
             if (adminTitle) adminTitle.textContent = ci.adminTitle;
             if (empCompanyInput) empCompanyInput.placeholder = ci.name;
@@ -2415,12 +2422,13 @@
                             alt="Avatar" class="w-full h-full object-cover">
                     </div>
                     <div>
-                        <h1 class="text-xs text-blue-100 font-light flex items-center gap-1.5">
-                            <span id="portal-name">Buriram Thongchai Portal</span>
-                            <span id="connection-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 hidden"></span>
+                        <!-- บรรทัดบน: ชื่อพนักงาน (หรือชื่อพอร์ทัลก่อนล็อกอิน) -->
+                        <h1 class="text-sm font-bold text-white flex items-center gap-1.5 truncate max-w-[200px]">
+                            <span id="portal-name">Buriram Thongchai</span>
+                            <span id="connection-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 hidden shrink-0"></span>
                         </h1>
-                        <!-- แสดงชื่อ-สกุล (รหัสพนักงาน) ตามเงื่อนไขหน้าอื่นๆ ยกเว้นหน้าแรก -->
-                        <p id="header-emp-info" class="text-sm font-semibold truncate max-w-[160px]">ยินดีต้อนรับ</p>
+                        <!-- บรรทัดล่าง: รหัสพนักงาน กับ ตำแหน่ง -->
+                        <p id="header-emp-info" class="text-xs text-blue-100 font-normal truncate max-w-[200px]">ยินดีต้อนรับ</p>
                     </div>
                 </div>
 
@@ -12696,6 +12704,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
                 } catch (e) {}
+                // 🔄 รีเซ็ต Header และ Avatar
+                updateHeaderEmployeeInfo();
+                const avatar = document.getElementById("header-avatar");
+                if (avatar) avatar.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80";
 
                 showToast("🔒 ออกจากระบบเรียบร้อยแล้ว", "success");
                 showLoginContainer();
@@ -14974,11 +14986,30 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function updateHeaderEmployeeInfo() {
-                const name = employeeData["ชื่อ-นามสกุล"] || "ไม่พบชื่อ";
-                const id = employeeData["รหัสพนักงาน"] || currentEmployeeId;
-                const element = document.getElementById("header-emp-info");
-                if (!element) return;
-                element.textContent = `${name} (${id})`;
+                const name = employeeData["ชื่อ-นามสกุล"] || employeeData.name || "";
+                const id = employeeData["รหัสพนักงาน"] || employeeData.empId || currentEmployeeId || "";
+                const pos = employeeData["ตำแหน่ง"] || employeeData.position || "";
+
+                // บรรทัดบน: ชื่อพนักงาน
+                const nameEl = document.getElementById("portal-name");
+                if (nameEl) {
+                    if (isLoggedIn && name) {
+                        nameEl.textContent = name;
+                    } else {
+                        nameEl.textContent = getCompanyInfo().portalName;
+                    }
+                }
+
+                // บรรทัดล่าง: รหัสพนักงาน กับ ตำแหน่ง
+                const infoEl = document.getElementById("header-emp-info");
+                if (infoEl) {
+                    if (isLoggedIn && (id || pos)) {
+                        const details = [id ? `รหัส: ${id}` : "", pos].filter(Boolean).join(" · ");
+                        infoEl.textContent = details;
+                    } else {
+                        infoEl.textContent = "ยินดีต้อนรับ";
+                    }
+                }
             }
 
             // helper: ตรวจสอบวันหยุดประจำสัปดาห์ของพนักงาน
