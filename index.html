@@ -1874,8 +1874,49 @@
             // Android WebView: has "wv" flag or not Chrome
             const isAndWV = isAndroid && (/\bwv\b/.test(ua) || (!/Chrome\/\d+/.test(ua) && /Version\/\d+/.test(ua)));
 
-            // Auto-redirect for LINE using native query parameter
-            if (isLINE) {
+            // 📲 ตรวจจับ LINE LIFF Session หรือแท็บที่ไม่มีความจำเป็นต้องเปิดกล้อง/GPS
+            let isLiffSession = false;
+            let isAttendanceTab = false;
+            try {
+                const searchStr = window.location.search || '';
+                const fullUrl = window.location.href;
+
+                // ตรวจว่าเข้าผ่าน LIFF หรือไม่
+                if (
+                    searchStr.includes('liff.state') ||
+                    searchStr.includes('liffClientId') ||
+                    searchStr.includes('liffId') ||
+                    fullUrl.includes('liff.line.me') ||
+                    searchStr.includes('liff=1')
+                ) {
+                    isLiffSession = true;
+                }
+
+                const parsedParams = new URLSearchParams(searchStr);
+                let currentTab = parsedParams.get('tab') || '';
+                if (!currentTab && parsedParams.has('liff.state')) {
+                    try {
+                        const ls = parsedParams.get('liff.state');
+                        const lsp = new URLSearchParams(ls.startsWith('?') ? ls : '?' + ls);
+                        currentTab = lsp.get('tab') || '';
+                    } catch (_) {}
+                }
+
+                if (currentTab === 'attendance' || currentTab === 'clock') {
+                    isAttendanceTab = true;
+                }
+            } catch (e) {
+                console.warn('[In-app check error]', e);
+            }
+
+            // หากเปิดผ่าน LINE LIFF หรือไม่ใช่หน้าลงเวลางาน (สลิปเงินเดือน, ยื่นใบลา, เบิกเงิน, ปฏิทิน, โปรไฟล์ ฯลฯ ไม่ได้ใช้กล้อง)
+            // ให้เปิดใช้งานภายใน LINE ได้อย่างราบรื่น ไม่ต้องแสดง Overlay บังหน้าจอ
+            if (isLINE && (isLiffSession || !isAttendanceTab)) {
+                return;
+            }
+
+            // Auto-redirect for LINE using native query parameter (เฉพาะกรณีหน้าลงเวลางาน/กล้อง)
+            if (isLINE && isAttendanceTab) {
                 try {
                     const url = new URL(window.location.href);
                     if (!url.searchParams.has('openExternalBrowser')) {
@@ -1888,7 +1929,7 @@
                 }
             }
 
-            const needsRedirect = isLINE || isFB || isIG || isTwitter || isTikTok || isIOSWV || isAndWV;
+            const needsRedirect = (isLINE && isAttendanceTab) || isFB || isIG || isTwitter || isTikTok || isIOSWV || isAndWV;
             if (!needsRedirect) return;
 
             // Show overlay once DOM is ready
