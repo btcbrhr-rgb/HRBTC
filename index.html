@@ -2334,7 +2334,7 @@
 
         <!-- === [MODAL: PIN Login - ป้อน PIN เข้าแอป] === -->
         <div id="pin-login-modal"
-            class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+            class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[9999] flex items-center justify-center p-4 hidden">
             <div class="bg-white w-full max-w-sm rounded-2xl p-6 space-y-5 shadow-2xl animate-slide-up">
                 <div class="text-center space-y-2">
                     <div
@@ -12278,10 +12278,30 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 } catch (e) {}
 
                 // ตรวจสอบว่า login ไว้แล้วหรือไม่: ใช้ sessionStorage เพื่อให้คงสถานะเฉพาะขณะรีเฟรชหน้า (F5) แต่เมื่อปิดเบราว์เซอร์/ปิดแท็บ จะออกจากระบบอัตโนมัติ
-                const savedEmpId = urlEmpId || sessionStorage.getItem("logged_in_emp_id") || null;
-                const savedLoginStatus = urlEmpId ? "true" : sessionStorage.getItem("is_logged_in");
+                // 🔒 ZERO-TRUST MANDATORY PIN GATEKEEPER:
+                // หากเปิดผ่าน URL จากภายนอก (มี urlEmpId) เช่น กดลิงก์จาก LINE OA หรือมีใครเปิดลิงก์ในเบราว์เซอร์
+                // ห้าม Auto-Login เด็ดขาด! ต้องบังคับยืนยัน PIN 6 หลักใหม่เสมอ 100% เพื่อป้องกันผู้อื่นแอบเข้าดูข้อมูล (PDPA Security)
+                if (urlEmpId) {
+                    sessionStorage.removeItem("is_logged_in");
+                    sessionStorage.removeItem("pin_verified_" + urlEmpId);
+                    isLoggedIn = false;
+                    currentEmployeeId = urlEmpId;
+                    await promptPinBeforeAutoLogin(urlEmpId);
+                    return;
+                }
 
-                if ((savedLoginStatus === "true" || urlEmpId) && savedEmpId) {
+                const savedEmpId = sessionStorage.getItem("logged_in_emp_id") || null;
+                const savedLoginStatus = sessionStorage.getItem("is_logged_in");
+
+                if (savedLoginStatus === "true" && savedEmpId) {
+                    // บังคับยืนยัน PIN หากยังไม่ได้ยืนยันในเซสชันนี้
+                    const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
+                    if (!pinVerifiedThisSession) {
+                        isLoggedIn = false;
+                        await promptPinBeforeAutoLogin(savedEmpId);
+                        return;
+                    }
+
                     isLoggedIn = true;
                     currentEmployeeId = savedEmpId;
                     sessionStorage.setItem("is_logged_in", "true");
@@ -12293,13 +12313,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             const cached = sessionStorage.getItem("employee_data");
                             if (cached) employeeData = JSON.parse(cached);
                         } catch(e) {}
-                    }
-
-                    // บังคับยืนยัน PIN เฉพาะเมื่อเปิดใหม่ผ่าน URL/เบราว์เซอร์ใหม่ที่ยังไม่ได้ยืนยัน PIN ในเซสชันนี้
-                    const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
-                    if (!pinVerifiedThisSession && (urlEmpId || !sessionStorage.getItem("is_logged_in"))) {
-                        await promptPinBeforeAutoLogin(savedEmpId);
-                        return;
                     }
 
                     if ((!employeeData || Object.keys(employeeData).length === 0) && supabaseClient) {
@@ -12673,7 +12686,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 closeModal("pin-login-modal");
                 closeModal("pin-setup-modal");
                 closeModal("pin-error-modal");
-                closeModal("pin-confirm-modal");
+                // 🔒 ล้าง URL query parameters ออกจาก Address Bar เพื่อความปลอดภัย (ป้องกันค้าง empId เดิม)
+                try {
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                } catch (e) {}
 
                 showToast("🔒 ออกจากระบบเรียบร้อยแล้ว", "success");
                 showLoginContainer();
@@ -12712,6 +12730,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const id = window._activeModalId;
                 if (!id) return;
                 if (e.key === 'Escape' || e.key === 'Esc') {
+                    // 🔒 ป้องกันการกด Esc ปิด Modal ความปลอดภัย (PIN Gatekeeper / Setup / Lockout)
+                    if (id === 'pin-login-modal' || id === 'pin-setup-modal' || id === 'pin-lockout-modal') {
+                        e.preventDefault();
+                        return;
+                    }
                     e.preventDefault();
                     closeModal(id);
                     return;
@@ -12988,23 +13011,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     .single();
                                 if (!error && data) {
                                     employeeData = {
-                                        "\u0E23\u0E2D\u0E21\u0E2A\u0E37\u0E01": data.emp_id,
-                                        "\u0E0A\u0E37\u0E48\u0E2D-\u0E19\u0E32\u0E21\u0E2A\u0E38\u0E01": data.name,
-                                        "\u0E41\u0E1C\u0E48\u0E19\u0E2A\u0E33": data.position,
-                                        "\u0E2A\u0E15\u0E38\u0E21": data.status,
-                                        "\u0E27\u0E32\u0E19\u0E44\u0E1E\u0E23\u0E4C\u0E41\u0E1B\u0E25\u0E2A\u0E32\u0E23": data.day_off,
-                                        "\u0E0A\u0E37\u0E48\u0E2D\u0E1A\u0E23\u0E34\u0E2A\u0E32\u0E07": data.company,
-                                        "\u0E27\u0E32\u0E19\u0E17\u0E35\u0E48\u0E40\u0E23\u0E34\u0E48\u0E21\u0E07\u0E32\u0E19": data.start_date,
-                                        "\u0E40\u0E1A\u0E23\u0E4C\u0E42\u0E17\u0E22\u0E2A\u0E32\u0E02": data.phone,
-                                        "\u0E17\u0E37\u0E49\u0E21\u0E32\u0E22": data.address,
-                                        "\u0E40\u0E25\u0E02\u0E1A\u0E23\u0E31\u0E1A\u0E1C\u0E39\u0E49\u0E08\u0E33": data.id_card,
-                                        "\u0E27\u0E32\u0E19\u0E40\u0E14\u0E35\u0E22\u0E27\u0E40\u0E1B\u0E47\u0E19": data.birth_date,
-                                        "\u0E18\u0E23\u0E30\u0E08\u0E32\u0E27": data.bank,
-                                        "\u0E42\u0E23\u0E22\u0E31\u0E07\u0E42\u0E17\u0E22": data.bank_branch,
-                                        "\u0E25\u0E33\u0E40\u0E2D\u0E47\u0E14\u0E1A\u0E32\u0E07": data.bank_account,
-                                        "\u0E25\u0E34\u0E4A\u0E2D\u0E20\u0E32\u0E22\u0E1E\u0E23\u0E4C\u0E44\u0E25\u0E49": data.avatar_url,
-                                        "\u0E17\u0E32\u0E48\u0E21\u0E40\u0E23\u0E37\u0E2D\u0E08\u0E32\u0E19": data.base_salary,
-                                        "\u0E2A\u0E37\u0E48\u0E2D\u0E17\u0E32\u0E25\u0E2B\u0E32\u0E23": data.role,
+                                        "รหัสพนักงาน": data.emp_id,
+                                        "ชื่อ-นามสกุล": data.name,
+                                        "ตำแหน่ง": data.position,
+                                        "สถานะ": data.status,
+                                        "วันหยุดประจําสัปดาห์": data.day_off,
+                                        "ชื่อบริษัท": data.company,
+                                        "วันที่เริ่มงาน": data.start_date,
+                                        "เบอร์โทรศัพท์": data.phone,
+                                        "ที่อยู่": data.address,
+                                        "เลขบัตรประชาชน": data.id_card,
+                                        "วันเดือนปีเกิด": data.birth_date,
+                                        "ธนาคาร": data.bank,
+                                        "สาขาธนาคาร": data.bank_branch,
+                                        "หมายเลขบัญชี": data.bank_account,
+                                        "ลิ้งภาพโปรไฟล์": data.avatar_url,
+                                        "ฐานเงินเดือน": data.base_salary,
+                                        "ตัวหารค่าแรง": data.wage_divisor,
+                                        "ชั่วโมงทำงานต่อวัน": data.work_hours_per_day,
+                                        "ตัวคูณโอที": data.ot_rate,
+                                        "สิทธิ์การใช้งาน": data.role,
+                                        "LineUserId": data.line_user_id,
                                         "PIN": (data.pin || data.pin_hash) ? "configured" : ""
                                     };
                                     console.log('[handleLoginSuccess ⚡ Supabase] Employee data loaded:', empId);
@@ -13018,6 +13045,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             console.warn('[handleLoginSuccess] Supabase employee load error:', sbErr);
                         }
                     }
+                    if (typeof updateEmployeeProfileUI === 'function') {
+                        updateEmployeeProfileUI();
+                    }
                     await loadAllData();
                     if (typeof RealtimeSyncManager !== 'undefined') {
                         RealtimeSyncManager.init();
@@ -13028,6 +13058,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // ✅ ข้อมูลพร้อมแล้ว → ซ่อน overlay แล้วแสดงหน้าเว็บ
                 hideLoginContainer();
+                if (typeof updateEmployeeProfileUI === 'function') {
+                    updateEmployeeProfileUI();
+                }
                 const userRole = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
                 const isAdminEmpId = (empId || currentEmployeeId || (employeeData && employeeData["รหัสพนักงาน"]) || "").toString().trim().toLowerCase() === 'admin';
                 const targetPage = deepLinkTargetPage || (isAdminEmpId ? null : "home");
