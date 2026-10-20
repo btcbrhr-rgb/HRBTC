@@ -12047,13 +12047,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             async function promptPinBeforeAutoLogin(empId) {
+                // 🚀 Instant Feedback: เด้ง Modal PIN ทันทีในเสี้ยววินาทีแรก ไม่ต้องรอ Network Roundtrip ป้องกันค้างหน้าล็อกอิน
+                const pinInput = document.getElementById('pin-login-emp-id');
+                const pinEmpDisplay = document.getElementById('pin-login-emp-display');
+                const pinField = document.getElementById('pin-login-input');
+
+                if (pinInput) pinInput.value = empId;
+                if (pinEmpDisplay) pinEmpDisplay.textContent = `รหัสพนักงาน: ${empId}`;
+                if (pinField) pinField.value = '';
+
+                // แสดง Modal PIN ทันทีเพื่อล็อกหน้าจอความปลอดภัย
+                showModal('pin-login-modal');
+                setTimeout(() => { if (pinField) pinField.focus(); }, 150);
+
                 let response = null;
 
                 if (supabaseClient) {
                     try {
                         const { data, error } = await supabaseClient
                             .from('employees')
-                            .select('emp_id,name,position,pin')   // 🔧 แก้ไขตัด pin_hash ออกเพราะตาราง employees มีเฉพาะคอลัมน์ pin
+                            .select('emp_id,name,position,pin')
                             .ilike('emp_id', empId)
                             .maybeSingle();
                         if (!error && data) {
@@ -12076,13 +12089,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 if (!response) {
                     try {
-                        response = await postAction('getEmployee', { empId: empId }, { timeout: 60000 });
+                        response = await postAction('getEmployee', { empId: empId }, { timeout: 10000 });
                     } catch (eGas) {
                         console.warn('[promptPinBeforeAutoLogin] Fallback getEmployee failed', eGas);
                     }
                 }
 
                 if (!(response && response.status === 'success')) {
+                    closeModal('pin-login-modal');
                     showLoginContainer();
                     showToast('ไม่สามารถโหลดข้อมูลพนักงานเพื่อยืนยัน PIN ได้', 'error');
                     return false;
@@ -12090,20 +12104,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 employeeData = response.data || {};
                 const configuredPin = employeeData['PIN'] || employeeData.pin || '';
-                const pinInput = document.getElementById('pin-login-emp-id');
-                const setupInput = document.getElementById('pin-setup-emp-id');
-                if (configuredPin) {
-                    if (pinInput) pinInput.value = empId;
-                    const pinEmpDisplay = document.getElementById('pin-login-emp-display');
-                    if (pinEmpDisplay) {
-                        const empName = employeeData['ชื่อ-นามสกุล'] || employeeData.name || '';
-                        pinEmpDisplay.textContent = empName ? `${empName} (${empId})` : empId;
-                    }
-                    const pinField = document.getElementById('pin-login-input');
-                    if (pinField) pinField.value = '';
-                    showModal('pin-login-modal');
-                    setTimeout(() => { if (pinField) pinField.focus(); }, 250);
-                } else {
+                const empName = employeeData['ชื่อ-นามสกุล'] || employeeData.name || '';
+                const empPos = employeeData['ตำแหน่ง'] || employeeData.position || '';
+
+                // 🔄 อัปเดตชื่อ-ตำแหน่งพนักงานบน Modal PIN ที่กำลังเปิดอยู่ให้สมบูรณ์
+                if (pinEmpDisplay) {
+                    pinEmpDisplay.textContent = empName ? `${empName} (${empId})` : empId;
+                }
+
+                // หากพนักงานยังไม่เคยตั้ง PIN ให้สลับไปหน้าตั้งค่า PIN ใหม่
+                if (!configuredPin) {
+                    closeModal('pin-login-modal');
+                    const setupInput = document.getElementById('pin-setup-emp-id');
                     if (setupInput) setupInput.value = empId;
                     showModal('pin-setup-modal');
                 }
@@ -12217,11 +12229,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const urlAction = urlParams.get("action");
                 let urlLineUserId = urlParams.get("lineUserId");
 
-                // 📲 ตรวจจับและเริ่มต้นใช้งาน LINE LIFF SDK เมื่อเปิดผ่าน LINE LIFF App
+                // 📲 ตรวจจับและเริ่มต้นใช้งาน LINE LIFF SDK (เฉพาะเมื่อเปิดภายในแอป LINE LIFF เท่านั้น ไม่บล็อกเบราว์เซอร์ภายนอก)
                 const HRBTC_LIFF_ID = "2012105427-vgVnIDrm";
-                if (typeof liff !== "undefined" && HRBTC_LIFF_ID) {
+                const isOpenExternal = urlParams.get("openExternalBrowser") === "1" || !navigator.userAgent.includes("Line");
+                if (typeof liff !== "undefined" && HRBTC_LIFF_ID && !isOpenExternal) {
                     try {
-                        await liff.init({ liffId: HRBTC_LIFF_ID });
+                        await Promise.race([
+                            liff.init({ liffId: HRBTC_LIFF_ID }),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 1500))
+                        ]);
                         if (liff.isInClient && liff.isInClient()) {
                             const liffBtn = document.getElementById('liff-close-btn');
                             if (liffBtn) liffBtn.classList.remove('hidden');
@@ -12297,6 +12313,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     sessionStorage.removeItem("pin_verified_" + urlEmpId);
                     isLoggedIn = false;
                     currentEmployeeId = urlEmpId;
+
+                    // 💡 แสดงรหัสพนักงานในช่องกรอกของ Login Form ทันที เพื่อป้องกันผู้ใช้สับสน
+                    const loginEmpInput = document.getElementById("login-emp-id");
+                    if (loginEmpInput) loginEmpInput.value = urlEmpId;
+
                     showLoginContainer();
                     await promptPinBeforeAutoLogin(urlEmpId);
                     return;
