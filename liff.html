@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>HRBTC Employee Portal</title>
+  <!-- Tailwind CSS & Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Config, Supabase JS & LINE LIFF SDK -->
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <style>
+    body {
+      font-family: 'Prompt', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #F8FAFC;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea, select {
+      user-select: text;
+    }
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-10">
+
+  <!-- Mobile Bottom Sheet Top Bar -->
+  <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm transition-all">
+    <div class="w-12 h-1 bg-slate-300 rounded-full mx-auto my-2"></div>
+    <div class="px-4 py-2.5 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div id="form-icon-box" class="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-sm shadow-sm transition-all">
+          <i id="form-header-icon" class="fa-solid fa-file-lines text-base"></i>
+        </div>
+        <div>
+          <h1 id="form-header-title" class="text-sm font-bold text-slate-800 leading-tight">กำลังโหลดฟอร์ม...</h1>
+          <p id="sub-emp-info" class="text-[11px] text-slate-500 font-medium">กำลังระบุตัวตนพนักงาน...</p>
+        </div>
+      </div>
+      <button onclick="closeLiffWindow()" class="w-8 h-8 rounded-full bg-slate-100 active:bg-slate-200 text-slate-500 flex items-center justify-center text-sm transition" title="ปิดหน้าต่าง">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State (Instant Skeleton / Spinner) -->
+  <div id="loading-view" class="p-6 flex flex-col items-center justify-center min-h-[50vh] text-center">
+    <div class="w-12 h-12 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <div class="text-sm font-bold text-slate-700">กำลังเชื่อมต่อข้อมูลพนักงาน</div>
+    <div class="text-xs text-slate-400 mt-1">โหลดข้อมูลตรงจากคลาวด์ความเร็วสูง...</div>
+  </div>
+
+  <!-- Unlinked / Error State -->
+  <div id="unlinked-view" class="hidden p-6 text-center max-w-sm mx-auto my-8">
+    <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3 shadow-inner">
+      <i class="fa-solid fa-user-slash"></i>
+    </div>
+    <h2 class="text-base font-bold text-slate-800 mb-1">ยังไม่พบบัญชีพนักงาน</h2>
+    <p id="unlinked-msg" class="text-xs text-slate-500 leading-relaxed mb-5">บัญชี LINE นี้ยังไม่ได้ผูกกับรหัสพนักงานในระบบ HRBTC กรุณาติดต่อฝ่ายบุคคลหรือสแกนใบหน้าเข้าสู่ระบบหลัก</p>
+    <button onclick="closeLiffWindow()" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-md active:scale-95 transition">
+      ปิดหน้าต่างนี้
+    </button>
+  </div>
+
+  <!-- Main Content Container -->
+  <main id="main-content" class="hidden px-4 py-3 space-y-4 max-w-md mx-auto">
+
+    <!-- ==================== VIEW 1: LEAVE FORM ==================== -->
+    <section id="view-leave" class="hidden space-y-4">
+      <!-- Leave Quota Summary Cards -->
+      <div class="grid grid-cols-3 gap-2">
+        <div class="bg-white p-2.5 rounded-xl border border-blue-100 shadow-sm text-center">
+          <div class="text-[10px] text-slate-400 font-medium">ลากิจส่วนตัว</div>
+          <div id="quota-personal-rem" class="text-sm font-bold text-blue-600 my-0.5">เหลือ - วัน</div>
+          <div id="quota-personal" class="text-[9px] text-slate-400">ใช้ 0/3</div>
+        </div>
+        <div class="bg-white p-2.5 rounded-xl border border-rose-100 shadow-sm text-center">
+          <div class="text-[10px] text-slate-400 font-medium">ลาป่วย</div>
+          <div id="quota-sick-rem" class="text-sm font-bold text-rose-600 my-0.5">เหลือ - วัน</div>
+          <div id="quota-sick" class="text-[9px] text-slate-400">ใช้ 0/30</div>
+        </div>
+        <div class="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-sm text-center">
+          <div class="text-[10px] text-slate-400 font-medium">ลาพักร้อน</div>
+          <div id="quota-annual-rem" class="text-sm font-bold text-emerald-600 my-0.5">เหลือ - วัน</div>
+          <div id="quota-annual" class="text-[9px] text-slate-400">ใช้ 0/6</div>
+        </div>
+      </div>
+
+      <!-- Leave Form Box -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">ประเภทการลา <span class="text-rose-500">*</span></label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" onclick="selectLeaveType('ลากิจ', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white active:scale-95 transition">ลากิจ</button>
+            <button type="button" onclick="selectLeaveType('ลาป่วย', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white active:scale-95 transition">ลาป่วย</button>
+            <button type="button" onclick="selectLeaveType('ลาพักร้อน', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white active:scale-95 transition">ลาพักร้อน</button>
+          </div>
+          <input type="hidden" id="leave-type-val" value="ลากิจ">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">ระยะเวลาลา</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" onclick="selectLeaveDuration('เต็มวัน', this)" class="leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition">เต็มวัน</button>
+            <button type="button" onclick="selectLeaveDuration('ครึ่งเช้า', this)" class="leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition">ครึ่งเช้า</button>
+            <button type="button" onclick="selectLeaveDuration('ครึ่งบ่าย', this)" class="leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition">ครึ่งบ่าย</button>
+          </div>
+          <input type="hidden" id="leave-duration-val" value="เต็มวัน">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-medium text-slate-600 mb-1">ตั้งแต่วันที่</label>
+            <input type="date" id="leave-start-date" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-sans">
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-slate-600 mb-1">ถึงวันที่</label>
+            <input type="date" id="leave-end-date" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-sans">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">เหตุผลประกอบการลา <span class="text-rose-500">*</span></label>
+          <textarea id="leave-reason-input" rows="2" placeholder="ระบุเหตุผลความจำเป็น..." class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+
+        <div id="leave-result-box" class="hidden text-xs"></div>
+
+        <button type="button" id="btn-submit-leave" onclick="submitLeaveAction()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i> ยื่นใบลาเข้าสู่ระบบ
+        </button>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 2: ADVANCE FORM ==================== -->
+    <section id="view-advance" class="hidden space-y-4">
+      <!-- Cutoff Alert (วันที่ 1 - 14) -->
+      <div id="advance-cutoff-alert" class="hidden p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+        <div class="font-bold flex items-center gap-1.5 mb-1 text-amber-900">
+          <i class="fa-solid fa-clock text-amber-600"></i> สิ้นสุดรอบการเบิกเงินสำรองเดือนนี้แล้ว
+        </div>
+        <p class="text-[11px] text-amber-700 leading-relaxed">
+          ระบบเปิดรับคำขอเบิกเงินสำรองเฉพาะ <b>วันที่ 1 ถึง 14 ของทุกเดือน</b> หากมีความจำเป็นเร่งด่วน กรุณาติดต่อฝ่ายบุคคลโดยตรง
+        </p>
+      </div>
+
+      <div id="advance-form-box" class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3.5">
+        <div class="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <div class="text-[11px] text-emerald-800 font-medium">สิทธิ์การเบิกเดือนนี้</div>
+            <div id="adv-status-text" class="text-xs font-bold text-emerald-700">สามารถยื่นได้ (สูงสุด 3,000 บาท)</div>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">วันที่ 1-14</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">จำนวนเงินที่ต้องการเบิก (บาท) <span class="text-rose-500">*</span></label>
+          <div class="relative">
+            <input type="number" id="advance-amount-input" min="100" max="3000" step="100" placeholder="ระบุจำนวนเงิน เช่น 1000, 2000, 3000" class="w-full text-sm font-bold p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 pl-8">
+            <span class="absolute left-3 top-3 text-slate-400 font-bold text-sm">฿</span>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1">วงเงินสูงสุดไม่เกิน 3,000 บาทต่อเดือน</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">เหตุผลความจำเป็นเร่งด่วน <span class="text-rose-500">*</span></label>
+          <textarea id="advance-reason-input" rows="2" placeholder="ระบุเหตุผล เช่น ค่ารักษาพยาบาล, ค่าเดินทางเร่งด่วน..." class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+        </div>
+
+        <div id="advance-result-box" class="hidden text-xs"></div>
+
+        <button type="button" id="btn-submit-advance" onclick="submitAdvanceAction()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-money-bill-transfer"></i> ส่งคำขอเบิกเงินสำรอง
+        </button>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 3: CALENDAR & TIME CORRECTION ==================== -->
+    <section id="view-calendar" class="hidden space-y-3.5">
+      <!-- Cycle & Quick Stats -->
+      <div class="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm space-y-2.5">
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+            <i class="fa-solid fa-calendar-check text-purple-600"></i> สรุปเวลาทำงาน
+          </div>
+          <span id="calendar-cycle-label" class="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-semibold border border-purple-100">รอบปัจจุบัน</span>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5 text-center">
+          <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
+            <div class="text-[10px] text-slate-400">วันทำงาน</div>
+            <div id="stat-work-days" class="text-xs font-bold text-slate-800 my-0.5">- วัน</div>
+          </div>
+          <div class="bg-amber-50/60 p-2 rounded-xl border border-amber-100">
+            <div class="text-[10px] text-amber-600">มาสาย</div>
+            <div id="stat-late-count" class="text-xs font-bold text-amber-700 my-0.5">- ครั้ง</div>
+          </div>
+          <div class="bg-rose-50/60 p-2 rounded-xl border border-rose-100">
+            <div class="text-[10px] text-rose-600">ขาด/ลา</div>
+            <div id="stat-absent-leave" class="text-xs font-bold text-rose-700 my-0.5">-</div>
+          </div>
+          <div class="bg-blue-50/60 p-2 rounded-xl border border-blue-100">
+            <div class="text-[10px] text-blue-600">OT สะสม</div>
+            <div id="stat-ot-hours" class="text-xs font-bold text-blue-700 my-0.5">- ชม.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Button: ขอแก้ไขเวลา -->
+      <button onclick="openTimeCorrectionModal()" class="w-full py-2.5 px-3 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center justify-between">
+        <span class="flex items-center gap-1.5"><i class="fa-solid fa-pen-to-square"></i> ลืมลงเวลา? ยื่นขอแก้ไขเวลาย้อนหลัง</span>
+        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+      </button>
+
+      <!-- Attendance List -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
+          <span>ประวัติการลงเวลา (ล่าสุด 30 รายการ)</span>
+        </div>
+        <div id="attendance-log-container" class="space-y-1.5">
+          <div class="text-center py-6 text-slate-400 text-xs">กำลังโหลดบันทึกเวลา...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 4: PAYSLIP ==================== -->
+    <section id="view-payslip" class="hidden space-y-3.5">
+      <!-- PIN Locked State -->
+      <div id="payslip-lock-screen" class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm text-center space-y-4">
+        <div class="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-inner">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-slate-800">ระบบรักษาความปลอดภัยสลิปเงินเดือน</h3>
+          <p class="text-xs text-slate-400 mt-1">กรุณาระบุรหัส PIN 6 หลัก เพื่อเข้าถึงข้อมูลทางการเงินส่วนบุคคล</p>
+        </div>
+        <div class="max-w-[200px] mx-auto">
+          <input type="password" id="payslip-pin-input" maxlength="6" inputmode="numeric" placeholder="••••••" class="w-full text-center text-2xl tracking-[0.3em] font-bold p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+        <button type="button" onclick="verifyPinAction()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-amber-500/20 transition">
+          ยืนยันรหัส PIN
+        </button>
+      </div>
+
+      <!-- Payslips List (Unlocked) -->
+      <div id="payslip-unlocked-screen" class="hidden space-y-2.5">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-slate-700">สลิปเงินเดือนย้อนหลัง</span>
+          <span class="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+            <i class="fa-solid fa-lock-open text-[9px]"></i> ยืนยันตัวตนแล้ว
+          </span>
+        </div>
+        <div id="payslips-list-container" class="space-y-2">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 5: PROFILE ==================== -->
+    <section id="view-profile" class="hidden space-y-3.5">
+      <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center text-xl font-bold">
+            <i class="fa-solid fa-user-tie"></i>
+          </div>
+          <div>
+            <h2 id="prof-emp-name" class="text-sm font-bold text-slate-800">-</h2>
+            <div class="flex items-center gap-1.5 text-xs text-slate-500">
+              <span>รหัส:</span>
+              <span id="prof-emp-id" class="font-semibold text-slate-700 font-mono">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-slate-50 p-2.5 rounded-xl">
+            <div class="text-[10px] text-slate-400">ตำแหน่ง</div>
+            <div id="prof-position" class="font-bold text-slate-700 mt-0.5">-</div>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-xl">
+            <div class="text-[10px] text-slate-400">แผนก / สังกัด</div>
+            <div id="prof-department" class="font-bold text-slate-700 mt-0.5">-</div>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-xl">
+            <div class="text-[10px] text-slate-400">บริษัท</div>
+            <div id="prof-company" class="font-bold text-slate-700 mt-0.5">-</div>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-xl">
+            <div class="text-[10px] text-slate-400">อายุงาน</div>
+            <div id="prof-tenure" class="font-bold text-slate-700 mt-0.5">-</div>
+          </div>
+        </div>
+
+        <div class="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <i class="fa-brands fa-line text-emerald-600 text-lg"></i>
+            <div>
+              <div class="font-bold text-emerald-900 text-[11px]">ผูกบัญชี LINE Official Account สำเร็จ</div>
+              <div class="text-[10px] text-emerald-700">รับการแจ้งเตือนสลิปและสถานะอนุมัติทันที</div>
+            </div>
+          </div>
+          <i class="fa-solid fa-circle-check text-emerald-600"></i>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal: ขอแก้ไขเวลา (Time Correction) -->
+  <div id="modal-correction" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl p-5 w-full max-w-md space-y-3.5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+          <i class="fa-solid fa-clock-rotate-left text-purple-600"></i> คำขอแก้ไขเวลาย้อนหลัง
+        </div>
+        <button onclick="closeTimeCorrectionModal()" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">วันที่ต้องการแก้ไข <span class="text-rose-500">*</span></label>
+        <input type="date" id="corr-date" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white font-sans">
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-[11px] font-medium text-slate-600 mb-1">เวลาเข้างานจริง</label>
+          <input type="time" id="corr-time-in" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white font-sans">
+        </div>
+        <div>
+          <label class="block text-[11px] font-medium text-slate-600 mb-1">เวลาออกงานจริง</label>
+          <input type="time" id="corr-time-out" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white font-sans">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">เหตุผลความจำเป็น <span class="text-rose-500">*</span></label>
+        <textarea id="corr-reason" rows="2" placeholder="เช่น ลืมสแกน, สแกนไม่ติด, ปฏิบัติงานนอกสถานที่..." class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white"></textarea>
+      </div>
+
+      <div id="corr-result-box" class="hidden text-xs"></div>
+
+      <button type="button" id="btn-submit-corr" onclick="submitCorrectionAction()" class="w-full py-3 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-500/20 transition flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-paper-plane"></i> ส่งคำขอแก้ไขเวลา
+      </button>
+    </div>
+  </div>
+
+  <!-- APPLICATION LOGIC (High-Speed Frontend) -->
+  <script>
+    // Configuration & State
+    const HRBTC_LIFF_ID = '2012105427-vgVnIDrm';
+    const SUPABASE_URL = (window.HRBT_CONFIG && window.HRBT_CONFIG.SUPABASE && window.HRBT_CONFIG.SUPABASE.url) || 'https://uldeugqrkabplavusoci.supabase.co';
+    const SUPABASE_ANON = (window.HRBT_CONFIG && window.HRBT_CONFIG.SUPABASE && window.HRBT_CONFIG.SUPABASE.anonKey) || 'sb_publishable__MbMYXLfBvlHHb6bKwigfA_vtGnn5Ll';
+    const supabase = (typeof supabase !== 'undefined' && supabase.createClient) 
+      ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) 
+      : (window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null);
+
+    let activeTab = 'leave';
+    let currentEmployee = null;
+    let cachedAttendance = [];
+    let cachedPayslips = [];
+
+    // Parse URL params & liff.state
+    function getQueryParam(key) {
+      const urlParams = new URLSearchParams(window.location.search);
+      let val = urlParams.get(key);
+      if (val) return val;
+
+      const rawState = urlParams.get('liff.state') || urlParams.get('liff_state') || urlParams.get('state');
+      if (rawState) {
+        try {
+          const decoded = decodeURIComponent(rawState).replace(/^\?/, '');
+          const pairs = decoded.split('&');
+          for (let p of pairs) {
+            const [k, v] = p.split('=');
+            if (k === key && v) return decodeURIComponent(v);
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // Initialize Application
+    window.addEventListener('DOMContentLoaded', async function() {
+      // Set default today on inputs
+      const today = new Date().toISOString().slice(0, 10);
+      const leaveStart = document.getElementById('leave-start-date');
+      const leaveEnd = document.getElementById('leave-end-date');
+      const corrDate = document.getElementById('corr-date');
+      if (leaveStart) leaveStart.value = today;
+      if (leaveEnd) leaveEnd.value = today;
+      if (corrDate) corrDate.value = today;
+
+      // Extract requested tab
+      const reqTab = (getQueryParam('tab') || getQueryParam('form') || 'leave').toLowerCase().trim();
+      activeTab = reqTab;
+
+      // Set Header style right away for instant feedback
+      updateHeaderStyle(activeTab);
+
+      // Start LIFF + Data loading in parallel
+      await initPortalData();
+    });
+
+    function updateHeaderStyle(tab) {
+      const titleMap = {
+        'leave': { title: 'แบบฟอร์มขอลาหยุดงาน', icon: 'fa-solid fa-calendar-minus', color: 'bg-blue-50 text-blue-700' },
+        'advance': { title: 'แบบฟอร์มขอเบิกเงินสำรอง', icon: 'fa-solid fa-money-bill-transfer', color: 'bg-emerald-50 text-emerald-700' },
+        'calendar': { title: 'ประวัติลงเวลาทำงาน', icon: 'fa-solid fa-clock-rotate-left', color: 'bg-purple-50 text-purple-700' },
+        'payslip': { title: 'ตรวจสอบสลิปเงินเดือน', icon: 'fa-solid fa-receipt', color: 'bg-amber-50 text-amber-700' },
+        'profile': { title: 'ข้อมูลพนักงาน', icon: 'fa-solid fa-user', color: 'bg-slate-50 text-slate-700' }
+      };
+      const info = titleMap[tab] || { title: 'ศูนย์บริการพนักงาน', icon: 'fa-solid fa-file-lines', color: 'bg-sky-50 text-sky-700' };
+      const titleEl = document.getElementById('form-header-title');
+      const iconEl = document.getElementById('form-header-icon');
+      const boxEl = document.getElementById('form-icon-box');
+      if (titleEl) titleEl.innerText = info.title;
+      if (iconEl) iconEl.className = info.icon + ' text-base';
+      if (boxEl) boxEl.className = 'w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm transition-all ' + info.color;
+    }
+
+    async function initPortalData() {
+      let lineUserId = getQueryParam('lineUserId') || '';
+      let empIdParam = getQueryParam('empId') || '';
+
+      // Initialize LINE LIFF
+      try {
+        if (typeof liff !== 'undefined' && HRBTC_LIFF_ID) {
+          await liff.init({ liffId: HRBTC_LIFF_ID });
+          if (liff.isLoggedIn()) {
+            const profile = await liff.getProfile();
+            if (profile && profile.userId) {
+              lineUserId = profile.userId;
+            }
+          }
+        }
+      } catch (liffErr) {
+        console.warn('LIFF init warning:', liffErr);
+      }
+
+      // Query Employee from Supabase
+      try {
+        let emp = null;
+        if (lineUserId && supabase) {
+          const { data, error } = await supabase
+            .from('employees')
+            .select('emp_id, name, department, position, company, start_date, pin, line_user_id')
+            .eq('line_user_id', lineUserId)
+            .maybeSingle();
+          if (data && !error) emp = data;
+        }
+
+        if (!emp && empIdParam && supabase) {
+          const { data, error } = await supabase
+            .from('employees')
+            .select('emp_id, name, department, position, company, start_date, pin, line_user_id')
+            .eq('emp_id', empIdParam)
+            .maybeSingle();
+          if (data && !error) emp = data;
+        }
+
+        if (!emp) {
+          // Fallback unlinked display
+          document.getElementById('loading-view').classList.add('hidden');
+          document.getElementById('unlinked-view').classList.remove('hidden');
+          return;
+        }
+
+        currentEmployee = emp;
+        onEmployeeIdentified(emp);
+
+        // Fetch dependent tab data in parallel (High-Speed)
+        await Promise.all([
+          loadLeaveBalances(emp.emp_id),
+          loadAdvanceStatus(emp.emp_id),
+          loadAttendanceLogs(emp.emp_id),
+          loadPayslips(emp.emp_id)
+        ]);
+
+        // Reveal Main UI
+        document.getElementById('loading-view').classList.add('hidden');
+        document.getElementById('main-content').classList.remove('hidden');
+        switchView(activeTab);
+
+      } catch (err) {
+        console.error('Data init error:', err);
+        document.getElementById('loading-view').classList.add('hidden');
+        document.getElementById('unlinked-view').classList.remove('hidden');
+        const msg = document.getElementById('unlinked-msg');
+        if (msg) msg.innerText = 'เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (err.message || err.toString());
+      }
+    }
+
+    function onEmployeeIdentified(emp) {
+      const subInfo = document.getElementById('sub-emp-info');
+      if (subInfo) subInfo.innerText = (emp.name || 'พนักงาน') + ' (' + emp.emp_id + ')';
+
+      const pName = document.getElementById('prof-emp-name');
+      const pId = document.getElementById('prof-emp-id');
+      const pPos = document.getElementById('prof-position');
+      const pDept = document.getElementById('prof-department');
+      const pComp = document.getElementById('prof-company');
+      const pTenure = document.getElementById('prof-tenure');
+      if (pName) pName.innerText = emp.name || '-';
+      if (pId) pId.innerText = emp.emp_id || '-';
+      if (pPos) pPos.innerText = emp.position || '-';
+      if (pDept) pDept.innerText = emp.department || '-';
+      if (pComp) pComp.innerText = emp.company || 'HRBTC';
+      
+      // Calculate tenure
+      if (emp.start_date) {
+        try {
+          const start = new Date(emp.start_date);
+          const now = new Date();
+          const years = now.getFullYear() - start.getFullYear();
+          const months = now.getMonth() - start.getMonth();
+          const totalMonths = (years * 12) + months;
+          if (pTenure) {
+            pTenure.innerText = totalMonths >= 12 
+              ? Math.floor(totalMonths / 12) + ' ปี ' + (totalMonths % 12) + ' เดือน'
+              : (totalMonths > 0 ? totalMonths + ' เดือน' : 'พนักงานใหม่');
+          }
+        } catch (e) {
+          if (pTenure) pTenure.innerText = '-';
+        }
+      }
+    }
+
+    function switchView(tabName) {
+      activeTab = tabName;
+      updateHeaderStyle(tabName);
+      const views = ['leave', 'advance', 'calendar', 'payslip', 'profile'];
+      views.forEach(function(v) {
+        const el = document.getElementById('view-' + v);
+        if (el) {
+          if (v === tabName) el.classList.remove('hidden');
+          else el.classList.add('hidden');
+        }
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // --- LEAVE LOGIC ---
+    function selectLeaveType(type, btn) {
+      document.getElementById('leave-type-val').value = type;
+      document.querySelectorAll('.leave-type-btn').forEach(b => {
+        b.className = 'leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition';
+      });
+      if (btn) btn.className = 'leave-type-btn py-2 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition shadow-sm';
+    }
+
+    function selectLeaveDuration(dur, btn) {
+      document.getElementById('leave-duration-val').value = dur;
+      document.querySelectorAll('.leave-dur-btn').forEach(b => {
+        b.className = 'leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition';
+      });
+      if (btn) btn.className = 'leave-dur-btn py-1.5 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition shadow-sm';
+    }
+
+    async function loadLeaveBalances(empId) {
+      if (!supabase) return;
+      const currentYear = new Date().getFullYear().toString();
+      const { data } = await supabase
+        .from('leave_requests')
+        .select('leave_type, days_count, status, start_date')
+        .eq('emp_id', empId)
+        .eq('status', 'อนุมัติ');
+
+      let usedPersonal = 0, usedSick = 0, usedAnnual = 0;
+      if (Array.isArray(data)) {
+        data.forEach(r => {
+          if (r.start_date && r.start_date.startsWith(currentYear)) {
+            const days = parseFloat(r.days_count) || 1;
+            if (r.leave_type === 'ลากิจ') usedPersonal += days;
+            else if (r.leave_type === 'ลาป่วย') usedSick += days;
+            else if (r.leave_type === 'ลาพักร้อน') usedAnnual += days;
+          }
+        });
+      }
+
+      const qP = document.getElementById('quota-personal');
+      const qPR = document.getElementById('quota-personal-rem');
+      const qS = document.getElementById('quota-sick');
+      const qSR = document.getElementById('quota-sick-rem');
+      const qA = document.getElementById('quota-annual');
+      const qAR = document.getElementById('quota-annual-rem');
+
+      if (qP) qP.innerText = 'ใช้ ' + usedPersonal + '/3 วัน';
+      if (qPR) qPR.innerText = 'เหลือ ' + Math.max(0, 3 - usedPersonal) + ' วัน';
+      if (qS) qS.innerText = 'ใช้ ' + usedSick + '/30 วัน';
+      if (qSR) qSR.innerText = 'เหลือ ' + Math.max(0, 30 - usedSick) + ' วัน';
+      if (qA) qA.innerText = 'ใช้ ' + usedAnnual + '/6 วัน';
+      if (qAR) qAR.innerText = 'เหลือ ' + Math.max(0, 6 - usedAnnual) + ' วัน';
+    }
+
+    async function submitLeaveAction() {
+      if (!currentEmployee) return;
+      const type = document.getElementById('leave-type-val').value;
+      const duration = document.getElementById('leave-duration-val').value;
+      const start = document.getElementById('leave-start-date').value;
+      const end = document.getElementById('leave-end-date').value;
+      const reasonElem = document.getElementById('leave-reason-input');
+      const reason = reasonElem ? reasonElem.value.trim() : '';
+      const btn = document.getElementById('btn-submit-leave');
+      const resBox = document.getElementById('leave-result-box');
+
+      if (!start) { alert('กรุณาระบุ "ตั้งแต่วันที่"'); return; }
+      if (!end) { alert('กรุณาระบุ "ถึงวันที่"'); return; }
+      if (new Date(start) > new Date(end)) { alert('วันที่เริ่มต้นต้องไม่มากกว่าวันที่สิ้นสุด'); return; }
+      if (!reason) { alert('กรุณาระบุ "เหตุผลประกอบการลา"'); if (reasonElem) reasonElem.focus(); return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> กำลังบันทึกข้อมูล...';
+
+      try {
+        const days = duration === 'เต็มวัน' ? 1 : 0.5;
+        const now = new Date();
+        const docId = 'LV-' + currentEmployee.emp_id + '-' + now.getTime();
+
+        const { error } = await supabase.from('leave_requests').insert({
+          doc_id: docId,
+          emp_id: currentEmployee.emp_id,
+          leave_type: type,
+          duration: duration,
+          start_date: start,
+          end_date: end,
+          days_count: days,
+          reason: reason,
+          status: 'รออนุมัติ',
+          submitted_at: now.toISOString()
+        });
+
+        if (error) throw error;
+
+        resBox.classList.remove('hidden');
+        resBox.className = 'p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5';
+        resBox.innerHTML = '<div class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-600"></i> ยื่นใบลาสำเร็จเรียบร้อย</div>' +
+          '<div class="text-[11px] text-slate-600">ประเภท: <b>' + type + ' (' + duration + ')</b> | วันที่: <b>' + start + ' ถึง ' + end + '</b></div>' +
+          '<button onclick="closeLiffWindow()" class="mt-2 w-full bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-semibold">ปิดหน้าต่าง</button>';
+        if (reasonElem) reasonElem.value = '';
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> บันทึกสำเร็จ';
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ยื่นใบลาเข้าสู่ระบบ';
+        alert('เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
+      }
+    }
+
+    // --- ADVANCE LOGIC ---
+    async function loadAdvanceStatus(empId) {
+      const currentDay = new Date().getDate();
+      const isCutoff = currentDay > 14;
+      const advAlert = document.getElementById('advance-cutoff-alert');
+      const advForm = document.getElementById('advance-form-box');
+      if (isCutoff) {
+        if (advAlert) advAlert.classList.remove('hidden');
+        if (advForm) advForm.classList.add('hidden');
+      } else {
+        if (advAlert) advAlert.classList.add('hidden');
+        if (advForm) advForm.classList.remove('hidden');
+      }
+    }
+
+    async function submitAdvanceAction() {
+      if (!currentEmployee) return;
+      const amtElem = document.getElementById('advance-amount-input');
+      const reasonElem = document.getElementById('advance-reason-input');
+      const amount = amtElem ? parseFloat(amtElem.value) : 0;
+      const reason = reasonElem ? reasonElem.value.trim() : '';
+      const btn = document.getElementById('btn-submit-advance');
+      const resBox = document.getElementById('advance-result-box');
+
+      if (!amount || amount <= 0) { alert('กรุณาระบุจำนวนเงินที่ต้องการเบิก'); return; }
+      if (amount > 3000) { alert('วงเงินเบิกต้องไม่เกิน 3,000 บาท'); return; }
+      if (!reason) { alert('กรุณาระบุเหตุผลความจำเป็น'); if (reasonElem) reasonElem.focus(); return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> กำลังส่งคำขอ...';
+
+      try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const { error } = await supabase.from('advance_requests').insert({
+          emp_id: currentEmployee.emp_id,
+          amount: amount,
+          request_date: todayStr,
+          status: 'รอตรวจสอบ',
+          notes: reason,
+          payout_channel: 'โอนผ่านบัญชีธนาคาร'
+        });
+
+        if (error) throw error;
+
+        resBox.classList.remove('hidden');
+        resBox.className = 'p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5';
+        resBox.innerHTML = '<div class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-600"></i> ยื่นขอเบิกเงิน ' + amount.toLocaleString() + ' บาท เรียบร้อย</div>' +
+          '<div class="text-[11px] text-slate-600">ฝ่ายบุคคลจะดำเนินการตรวจสอบและแจ้งผลผ่าน LINE</div>' +
+          '<button onclick="closeLiffWindow()" class="mt-2 w-full bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-semibold">ปิดหน้าต่าง</button>';
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> ส่งคำขอแล้ว';
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-money-bill-transfer"></i> ส่งคำขอเบิกเงินสำรอง';
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      }
+    }
+
+    // --- ATTENDANCE & CORRECTION LOGIC ---
+    async function loadAttendanceLogs(empId) {
+      if (!supabase) return;
+      const { data } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('emp_id', empId)
+        .order('date', { ascending: false })
+        .limit(30);
+
+      cachedAttendance = data || [];
+      renderAttendanceList(cachedAttendance);
+
+      // Simple stats
+      let workCount = 0, lateCount = 0, otHours = 0;
+      cachedAttendance.forEach(r => {
+        if (r.time_in) workCount++;
+        if (r.late_minutes && r.late_minutes > 0) lateCount++;
+        if (r.ot_hours) otHours += (parseFloat(r.ot_hours) || 0);
+      });
+
+      const sWork = document.getElementById('stat-work-days');
+      const sLate = document.getElementById('stat-late-count');
+      const sAbs = document.getElementById('stat-absent-leave');
+      const sOt = document.getElementById('stat-ot-hours');
+      if (sWork) sWork.innerText = workCount + ' วัน';
+      if (sLate) sLate.innerText = lateCount + ' ครั้ง';
+      if (sAbs) sAbs.innerText = '0/0';
+      if (sOt) sOt.innerText = (Math.round(otHours * 10) / 10) + ' ชม.';
+    }
+
+    function renderAttendanceList(logs) {
+      const c = document.getElementById('attendance-log-container');
+      if (!c) return;
+      if (!logs || logs.length === 0) {
+        c.innerHTML = '<div class="text-center py-6 text-slate-400 text-xs bg-white rounded-xl border border-slate-100">ยังไม่พบบันทึกเวลาในรอบนี้</div>';
+        return;
+      }
+
+      let html = '';
+      logs.forEach(r => {
+        const d = r.date || '-';
+        const tIn = r.time_in ? r.time_in.slice(0, 5) : '-';
+        const tOut = r.time_out ? r.time_out.slice(0, 5) : '-';
+        const isLate = r.late_minutes && r.late_minutes > 0;
+        const statusBadge = isLate 
+          ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">สาย ' + r.late_minutes + ' น.</span>'
+          : (r.time_in ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">ปกติ</span>' : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">ไม่มีข้อมูล</span>');
+
+        html += `
+          <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-xs flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-slate-800">${d}</div>
+              <div class="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 font-mono">
+                <span>เข้า: <b>${tIn}</b></span>
+                <span>ออก: <b>${tOut}</b></span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              ${statusBadge}
+              <button onclick="requestCorrectionForDate('${d}', '${tIn}', '${tOut}')" class="text-slate-400 hover:text-purple-600 p-1" title="ขอแก้เวลา">
+                <i class="fa-solid fa-pen-to-square text-xs"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      c.innerHTML = html;
+    }
+
+    function openTimeCorrectionModal() {
+      document.getElementById('modal-correction').classList.remove('hidden');
+    }
+
+    function closeTimeCorrectionModal() {
+      document.getElementById('modal-correction').classList.add('hidden');
+    }
+
+    function requestCorrectionForDate(dateStr, tIn, tOut) {
+      document.getElementById('corr-date').value = dateStr;
+      if (tIn && tIn !== '-') document.getElementById('corr-time-in').value = tIn;
+      if (tOut && tOut !== '-') document.getElementById('corr-time-out').value = tOut;
+      openTimeCorrectionModal();
+    }
+
+    async function submitCorrectionAction() {
+      if (!currentEmployee) return;
+      const date = document.getElementById('corr-date').value;
+      const tIn = document.getElementById('corr-time-in').value;
+      const tOut = document.getElementById('corr-time-out').value;
+      const reason = document.getElementById('corr-reason').value.trim();
+      const btn = document.getElementById('btn-submit-corr');
+      const resBox = document.getElementById('corr-result-box');
+
+      if (!date) { alert('กรุณาระบุวันที่'); return; }
+      if (!tIn && !tOut) { alert('กรุณาระบุเวลาเข้าหรือเวลาออกอย่างน้อยหนึ่งค่า'); return; }
+      if (!reason) { alert('กรุณาระบุเหตุผล'); return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> กำลังส่งคำขอ...';
+
+      try {
+        const { error } = await supabase.from('time_corrections').insert({
+          emp_id: currentEmployee.emp_id,
+          date: date,
+          new_time_in: tIn || null,
+          new_time_out: tOut || null,
+          reason: reason,
+          status: 'รออนุมัติ',
+          submitted_at: new Date().toISOString()
+        });
+
+        if (error) throw error;
+
+        resBox.classList.remove('hidden');
+        resBox.className = 'p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900';
+        resBox.innerHTML = 'ส่งคำขอแก้ไขเวลาเรียบร้อยแล้ว รอหัวหน้าอนุมัติ';
+        setTimeout(closeTimeCorrectionModal, 1500);
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ส่งคำขอแก้ไขเวลา';
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      }
+    }
+
+    // --- PAYSLIP LOGIC ---
+    async function loadPayslips(empId) {
+      if (!supabase) return;
+      const { data } = await supabase
+        .from('payslips')
+        .select('*')
+        .eq('emp_id', empId)
+        .order('period', { ascending: false })
+        .limit(12);
+
+      cachedPayslips = data || [];
+      // If employee has no PIN set, allow direct unlock
+      if (!currentEmployee.pin) {
+        document.getElementById('payslip-lock-screen').classList.add('hidden');
+        document.getElementById('payslip-unlocked-screen').classList.remove('hidden');
+        renderPayslipsList(cachedPayslips);
+      }
+    }
+
+    function verifyPinAction() {
+      const pin = document.getElementById('payslip-pin-input').value.trim();
+      if (!pin) { alert('กรุณาระบุรหัส PIN'); return; }
+      if (currentEmployee.pin && currentEmployee.pin !== pin) {
+        alert('รหัส PIN ไม่ถูกต้อง');
+        return;
+      }
+      document.getElementById('payslip-lock-screen').classList.add('hidden');
+      document.getElementById('payslip-unlocked-screen').classList.remove('hidden');
+      renderPayslipsList(cachedPayslips);
+    }
+
+    function renderPayslipsList(slips) {
+      const c = document.getElementById('payslips-list-container');
+      if (!c) return;
+      if (!slips || slips.length === 0) {
+        c.innerHTML = '<div class="text-center py-6 text-slate-400 text-xs bg-white rounded-xl border border-slate-100">ยังไม่พบข้อมูลสลิปเงินเดือน</div>';
+        return;
+      }
+
+      let html = '';
+      slips.forEach(s => {
+        const net = s.net_amount ? parseFloat(s.net_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-';
+        const link = s.slip_url || (s.file_id ? `https://drive.google.com/file/d/${s.file_id}/view` : '#');
+
+        html += `
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-slate-800">งวดเดือน: ${s.period}</div>
+              <div class="text-sm font-bold text-emerald-600 mt-0.5">฿${net}</div>
+            </div>
+            <a href="${link}" target="_blank" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition">
+              <i class="fa-solid fa-file-pdf text-rose-400"></i> เปิดดูสลิป
+            </a>
+          </div>
+        `;
+      });
+      c.innerHTML = html;
+    }
+
+    function closeLiffWindow() {
+      if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+        liff.closeWindow();
+      } else {
+        window.close();
+      }
+    }
+  </script>
+</body>
+</html>
