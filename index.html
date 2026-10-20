@@ -37,6 +37,8 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- QR Code library (vanilla, canvas-based — ใช้กับบัตร QR ลงเวลา) -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <!-- LINE Front-end Framework (LIFF SDK) v2 -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF-Lib and PDF.js for Payslip processing client-side -->
@@ -12071,15 +12073,45 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 // ไม่ต้องรอเข้าระบบ — ข้อมูลสาธารณะพร้อมใช้ทันทีเมื่อเปิดเว็บ
                 loadPublicData().catch(err => console.warn('[loadPublicData] startup error:', err));
 
-                // 🌐 อ่าน URL Query Parameters สำหรับ Deep Linking จาก LINE Flex Message
+                // 🌐 อ่าน URL Query Parameters สำหรับ Deep Linking จาก LINE Flex Message / LIFF
                 const urlParams = new URLSearchParams(window.location.search);
+                // รองรับ liff.state พารามิเตอร์กรณี LIFF ส่ง parameters ผ่าน hash/state
+                if (urlParams.has("liff.state")) {
+                    try {
+                        const liffState = urlParams.get("liff.state");
+                        const stateParams = new URLSearchParams(liffState.startsWith("?") ? liffState : "?" + liffState);
+                        for (const [sKey, sVal] of stateParams.entries()) {
+                            if (!urlParams.has(sKey)) urlParams.set(sKey, sVal);
+                        }
+                    } catch (eState) {
+                        console.warn('[LIFF State Parse Warning]', eState);
+                    }
+                }
+
                 let urlEmpId = urlParams.get("empId");
                 const urlTab = urlParams.get("tab");
                 const urlModal = urlParams.get("openModal");
                 const urlAction = urlParams.get("action");
-                const urlLineUserId = urlParams.get("lineUserId");
+                let urlLineUserId = urlParams.get("lineUserId");
 
-                // ถ้าส่ง lineUserId มา (เปิดจาก LINE) แต่ไม่มี empId ให้ค้นหา empId จากฐานข้อมูลอัตโนมัติ
+                // 📲 ตรวจจับและเริ่มต้นใช้งาน LINE LIFF SDK เมื่อเปิดผ่าน LINE LIFF App
+                const HRBTC_LIFF_ID = "2012105427-vgVnIDrm";
+                if (typeof liff !== "undefined" && HRBTC_LIFF_ID) {
+                    try {
+                        await liff.init({ liffId: HRBTC_LIFF_ID });
+                        if (liff.isLoggedIn()) {
+                            const liffProfile = await liff.getProfile();
+                            if (liffProfile && liffProfile.userId) {
+                                if (!urlLineUserId) urlLineUserId = liffProfile.userId;
+                                window.__liffProfile = liffProfile;
+                            }
+                        }
+                    } catch (liffErr) {
+                        console.warn('[LIFF Init Warning]', liffErr);
+                    }
+                }
+
+                // ถ้าส่ง lineUserId มา (เปิดจาก LINE หรือ LIFF) แต่ไม่มี empId ให้ค้นหา empId จากฐานข้อมูลอัตโนมัติ
                 if (!urlEmpId && urlLineUserId && supabaseClient) {
                     try {
                         const { data: lineEmp } = await supabaseClient
