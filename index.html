@@ -29,10 +29,7 @@
                 _origWarn.apply(console, arguments);
             };
             try {
-                var q = window.location.search;
-                if (q && (q.indexOf('lineUserId=') !== -1 || q.indexOf('empId=') !== -1)) {
-                    document.documentElement.classList.add('auto-logging-in');
-                }
+                // 🔒 ไม่ซ่อน login-container ล่วงหน้า เพื่อให้หน้าจอแสดงการเข้าสู่ระบบ/ยืนยัน PIN อย่างปลอดภัย
             } catch(e) {}
         })();
     </script>
@@ -12048,7 +12045,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     try {
                         const { data, error } = await supabaseClient
                             .from('employees')
-                            .select('emp_id,name,position,pin,pin_hash')   // 🔧 [2026-10-20] รวม pin และ pin_hash กันพลาด
+                            .select('emp_id,name,position,pin')   // 🔧 แก้ไขตัด pin_hash ออกเพราะตาราง employees มีเฉพาะคอลัมน์ pin
                             .ilike('emp_id', empId)
                             .maybeSingle();
                         if (!error && data) {
@@ -12058,17 +12055,23 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     'รหัสพนักงาน': data.emp_id,
                                     'ชื่อ-นามสกุล': data.name,
                                     'ตำแหน่ง': data.position,
-                                    'PIN': (data.pin || data.pin_hash) ? 'configured' : ''
+                                    'PIN': data.pin ? 'configured' : ''
                                 }
                             };
+                        } else if (error) {
+                            console.warn('[promptPinBeforeAutoLogin] Supabase lookup error:', error);
                         }
                     } catch (error) {
                         console.warn('[promptPinBeforeAutoLogin] Supabase lookup failed', error);
                     }
                 }
 
-                if (!response && isGoogleScriptEnvironment) {
-                    response = await postAction('getEmployee', { empId: empId }, { timeout: 60000 });
+                if (!response) {
+                    try {
+                        response = await postAction('getEmployee', { empId: empId }, { timeout: 60000 });
+                    } catch (eGas) {
+                        console.warn('[promptPinBeforeAutoLogin] Fallback getEmployee failed', eGas);
+                    }
                 }
 
                 if (!(response && response.status === 'success')) {
@@ -12286,6 +12289,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     sessionStorage.removeItem("pin_verified_" + urlEmpId);
                     isLoggedIn = false;
                     currentEmployeeId = urlEmpId;
+                    showLoginContainer();
                     await promptPinBeforeAutoLogin(urlEmpId);
                     return;
                 }
