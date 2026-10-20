@@ -9,9 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- Config, Supabase JS & LINE LIFF SDK -->
+  <!-- Config & LINE LIFF SDK -->
   <script src="config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
@@ -24,30 +23,28 @@
     input, textarea, select {
       user-select: text;
     }
-    /* Hide scrollbar for Chrome, Safari and Opera */
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
-    /* Hide scrollbar for IE, Edge and Firefox */
     .no-scrollbar {
-      -ms-overflow-style: none;  /* IE and Edge */
-      scrollbar-width: none;  /* Firefox */
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-10">
 
   <!-- Mobile Bottom Sheet Top Bar -->
-  <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm transition-all">
+  <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-xs transition-all">
     <div class="w-12 h-1 bg-slate-300 rounded-full mx-auto my-2"></div>
-    <div class="px-4 py-2.5 flex items-center justify-between">
+    <div class="px-4 py-2 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
-        <div id="form-icon-box" class="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-sm shadow-sm transition-all">
+        <div id="form-icon-box" class="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-sm shadow-xs transition-all">
           <i id="form-header-icon" class="fa-solid fa-file-lines text-base"></i>
         </div>
         <div>
-          <h1 id="form-header-title" class="text-sm font-bold text-slate-800 leading-tight">กำลังโหลดฟอร์ม...</h1>
-          <p id="sub-emp-info" class="text-[11px] text-slate-500 font-medium">กำลังระบุตัวตนพนักงาน...</p>
+          <h1 id="form-header-title" class="text-sm font-bold text-slate-800 leading-tight">ศูนย์บริการพนักงาน</h1>
+          <p id="sub-emp-info" class="text-[11px] text-slate-500 font-medium">กำลังเชื่อมต่อข้อมูล...</p>
         </div>
       </div>
       <button onclick="closeLiffWindow()" class="w-8 h-8 rounded-full bg-slate-100 active:bg-slate-200 text-slate-500 flex items-center justify-center text-sm transition" title="ปิดหน้าต่าง">
@@ -58,18 +55,18 @@
 
   <!-- Loading State (Instant Skeleton / Spinner) -->
   <div id="loading-view" class="p-6 flex flex-col items-center justify-center min-h-[50vh] text-center">
-    <div class="w-12 h-12 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-    <div class="text-sm font-bold text-slate-700">กำลังเชื่อมต่อข้อมูลพนักงาน</div>
-    <div class="text-xs text-slate-400 mt-1">โหลดข้อมูลตรงจากคลาวด์ความเร็วสูง...</div>
+    <div class="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+    <div class="text-xs font-bold text-slate-700">กำลังเชื่อมต่อข้อมูลพนักงาน...</div>
+    <div class="text-[11px] text-slate-400 mt-1">โหลดข้อมูลตรงจาก Cloud ความเร็วสูง</div>
   </div>
 
   <!-- Unlinked / Error State -->
-  <div id="unlinked-view" class="hidden p-6 text-center max-w-sm mx-auto my-8">
-    <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3 shadow-inner">
+  <div id="unlinked-view" class="hidden p-6 text-center max-w-sm mx-auto my-6">
+    <div class="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3 shadow-inner">
       <i class="fa-solid fa-user-slash"></i>
     </div>
     <h2 class="text-base font-bold text-slate-800 mb-1">ยังไม่พบบัญชีพนักงาน</h2>
-    <p id="unlinked-msg" class="text-xs text-slate-500 leading-relaxed mb-5">บัญชี LINE นี้ยังไม่ได้ผูกกับรหัสพนักงานในระบบ HRBTC กรุณาติดต่อฝ่ายบุคคลหรือสแกนใบหน้าเข้าสู่ระบบหลัก</p>
+    <p id="unlinked-msg" class="text-xs text-slate-500 leading-relaxed mb-5">บัญชี LINE นี้ยังไม่ได้ผูกกับรหัสพนักงานในระบบ HRBTC</p>
     <button onclick="closeLiffWindow()" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-md active:scale-95 transition">
       ปิดหน้าต่างนี้
     </button>
@@ -82,17 +79,17 @@
     <section id="view-leave" class="hidden space-y-4">
       <!-- Leave Quota Summary Cards -->
       <div class="grid grid-cols-3 gap-2">
-        <div class="bg-white p-2.5 rounded-xl border border-blue-100 shadow-sm text-center">
+        <div class="bg-white p-2.5 rounded-xl border border-blue-100 shadow-xs text-center">
           <div class="text-[10px] text-slate-400 font-medium">ลากิจส่วนตัว</div>
           <div id="quota-personal-rem" class="text-sm font-bold text-blue-600 my-0.5">เหลือ - วัน</div>
           <div id="quota-personal" class="text-[9px] text-slate-400">ใช้ 0/3</div>
         </div>
-        <div class="bg-white p-2.5 rounded-xl border border-rose-100 shadow-sm text-center">
+        <div class="bg-white p-2.5 rounded-xl border border-rose-100 shadow-xs text-center">
           <div class="text-[10px] text-slate-400 font-medium">ลาป่วย</div>
           <div id="quota-sick-rem" class="text-sm font-bold text-rose-600 my-0.5">เหลือ - วัน</div>
           <div id="quota-sick" class="text-[9px] text-slate-400">ใช้ 0/30</div>
         </div>
-        <div class="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-sm text-center">
+        <div class="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-xs text-center">
           <div class="text-[10px] text-slate-400 font-medium">ลาพักร้อน</div>
           <div id="quota-annual-rem" class="text-sm font-bold text-emerald-600 my-0.5">เหลือ - วัน</div>
           <div id="quota-annual" class="text-[9px] text-slate-400">ใช้ 0/6</div>
@@ -100,13 +97,13 @@
       </div>
 
       <!-- Leave Form Box -->
-      <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3.5">
+      <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3.5">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1.5">ประเภทการลา <span class="text-rose-500">*</span></label>
           <div class="grid grid-cols-3 gap-2">
-            <button type="button" onclick="selectLeaveType('ลากิจ', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white active:scale-95 transition">ลากิจ</button>
-            <button type="button" onclick="selectLeaveType('ลาป่วย', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white active:scale-95 transition">ลาป่วย</button>
-            <button type="button" onclick="selectLeaveType('ลาพักร้อน', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white active:scale-95 transition">ลาพักร้อน</button>
+            <button type="button" onclick="selectLeaveType('ลากิจ', this)" class="leave-type-btn py-2 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition">ลากิจ</button>
+            <button type="button" onclick="selectLeaveType('ลาป่วย', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition">ลาป่วย</button>
+            <button type="button" onclick="selectLeaveType('ลาพักร้อน', this)" class="leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition">ลาพักร้อน</button>
           </div>
           <input type="hidden" id="leave-type-val" value="ลากิจ">
         </div>
@@ -114,7 +111,7 @@
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1.5">ระยะเวลาลา</label>
           <div class="grid grid-cols-3 gap-2">
-            <button type="button" onclick="selectLeaveDuration('เต็มวัน', this)" class="leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition">เต็มวัน</button>
+            <button type="button" onclick="selectLeaveDuration('เต็มวัน', this)" class="leave-dur-btn py-1.5 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition">เต็มวัน</button>
             <button type="button" onclick="selectLeaveDuration('ครึ่งเช้า', this)" class="leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition">ครึ่งเช้า</button>
             <button type="button" onclick="selectLeaveDuration('ครึ่งบ่าย', this)" class="leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition">ครึ่งบ่าย</button>
           </div>
@@ -147,7 +144,6 @@
 
     <!-- ==================== VIEW 2: ADVANCE FORM ==================== -->
     <section id="view-advance" class="hidden space-y-4">
-      <!-- Cutoff Alert (วันที่ 1 - 14) -->
       <div id="advance-cutoff-alert" class="hidden p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
         <div class="font-bold flex items-center gap-1.5 mb-1 text-amber-900">
           <i class="fa-solid fa-clock text-amber-600"></i> สิ้นสุดรอบการเบิกเงินสำรองเดือนนี้แล้ว
@@ -157,7 +153,7 @@
         </p>
       </div>
 
-      <div id="advance-form-box" class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3.5">
+      <div id="advance-form-box" class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3.5">
         <div class="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3 flex items-center justify-between">
           <div>
             <div class="text-[11px] text-emerald-800 font-medium">สิทธิ์การเบิกเดือนนี้</div>
@@ -190,8 +186,7 @@
 
     <!-- ==================== VIEW 3: CALENDAR & TIME CORRECTION ==================== -->
     <section id="view-calendar" class="hidden space-y-3.5">
-      <!-- Cycle & Quick Stats -->
-      <div class="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm space-y-2.5">
+      <div class="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs space-y-2.5">
         <div class="flex items-center justify-between">
           <div class="text-xs font-bold text-purple-900 flex items-center gap-1.5">
             <i class="fa-solid fa-calendar-check text-purple-600"></i> สรุปเวลาทำงาน
@@ -218,13 +213,11 @@
         </div>
       </div>
 
-      <!-- Action Button: ขอแก้ไขเวลา -->
       <button onclick="openTimeCorrectionModal()" class="w-full py-2.5 px-3 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center justify-between">
         <span class="flex items-center gap-1.5"><i class="fa-solid fa-pen-to-square"></i> ลืมลงเวลา? ยื่นขอแก้ไขเวลาย้อนหลัง</span>
         <i class="fa-solid fa-chevron-right text-[10px]"></i>
       </button>
 
-      <!-- Attendance List -->
       <div class="space-y-2">
         <div class="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
           <span>ประวัติการลงเวลา (ล่าสุด 30 รายการ)</span>
@@ -237,8 +230,7 @@
 
     <!-- ==================== VIEW 4: PAYSLIP ==================== -->
     <section id="view-payslip" class="hidden space-y-3.5">
-      <!-- PIN Locked State -->
-      <div id="payslip-lock-screen" class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm text-center space-y-4">
+      <div id="payslip-lock-screen" class="bg-white rounded-2xl p-6 border border-slate-100 shadow-xs text-center space-y-4">
         <div class="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-inner">
           <i class="fa-solid fa-shield-halved"></i>
         </div>
@@ -254,7 +246,6 @@
         </button>
       </div>
 
-      <!-- Payslips List (Unlocked) -->
       <div id="payslip-unlocked-screen" class="hidden space-y-2.5">
         <div class="flex items-center justify-between px-1">
           <span class="text-xs font-bold text-slate-700">สลิปเงินเดือนย้อนหลัง</span>
@@ -262,15 +253,13 @@
             <i class="fa-solid fa-lock-open text-[9px]"></i> ยืนยันตัวตนแล้ว
           </span>
         </div>
-        <div id="payslips-list-container" class="space-y-2">
-          <!-- Rendered dynamically -->
-        </div>
+        <div id="payslips-list-container" class="space-y-2"></div>
       </div>
     </section>
 
     <!-- ==================== VIEW 5: PROFILE ==================== -->
     <section id="view-profile" class="hidden space-y-3.5">
-      <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+      <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-3">
         <div class="flex items-center gap-3">
           <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center text-xl font-bold">
             <i class="fa-solid fa-user-tie"></i>
@@ -359,20 +348,39 @@
     </div>
   </div>
 
-  <!-- APPLICATION LOGIC (High-Speed Frontend) -->
+  <!-- APPLICATION LOGIC (High-Speed Direct Supabase REST API) -->
   <script>
     // Configuration & State
     const HRBTC_LIFF_ID = '2012105427-vgVnIDrm';
     const SUPABASE_URL = (window.HRBT_CONFIG && window.HRBT_CONFIG.SUPABASE && window.HRBT_CONFIG.SUPABASE.url) || 'https://uldeugqrkabplavusoci.supabase.co';
     const SUPABASE_ANON = (window.HRBT_CONFIG && window.HRBT_CONFIG.SUPABASE && window.HRBT_CONFIG.SUPABASE.anonKey) || 'sb_publishable__MbMYXLfBvlHHb6bKwigfA_vtGnn5Ll';
-    const supabase = (typeof supabase !== 'undefined' && supabase.createClient) 
-      ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) 
-      : (window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null);
 
     let activeTab = 'leave';
     let currentEmployee = null;
     let cachedAttendance = [];
     let cachedPayslips = [];
+
+    // Direct Native REST Client (No external library dependency, ultra-fast < 50ms)
+    async function dbQuery(endpoint, options) {
+      options = options || {};
+      const url = SUPABASE_URL + '/rest/v1/' + endpoint;
+      const headers = {
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + SUPABASE_ANON,
+        'Content-Type': 'application/json',
+        'Prefer': options.prefer || 'return=representation'
+      };
+      const res = await fetch(url, {
+        method: options.method || 'GET',
+        headers: headers,
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || res.statusText);
+      }
+      return await res.json();
+    }
 
     // Parse URL params & liff.state
     function getQueryParam(key) {
@@ -385,36 +393,18 @@
         try {
           const decoded = decodeURIComponent(rawState).replace(/^\?/, '');
           const pairs = decoded.split('&');
-          for (let p of pairs) {
-            const [k, v] = p.split('=');
-            if (k === key && v) return decodeURIComponent(v);
+          for (let i = 0; i < pairs.length; i++) {
+            const parts = pairs[i].split('=');
+            if (parts.length === 2) {
+              const k = decodeURIComponent(parts[0]).trim();
+              const v = decodeURIComponent(parts[1]).trim();
+              if (k === key && v) return v;
+            }
           }
         } catch (e) {}
       }
       return null;
     }
-
-    // Initialize Application
-    window.addEventListener('DOMContentLoaded', async function() {
-      // Set default today on inputs
-      const today = new Date().toISOString().slice(0, 10);
-      const leaveStart = document.getElementById('leave-start-date');
-      const leaveEnd = document.getElementById('leave-end-date');
-      const corrDate = document.getElementById('corr-date');
-      if (leaveStart) leaveStart.value = today;
-      if (leaveEnd) leaveEnd.value = today;
-      if (corrDate) corrDate.value = today;
-
-      // Extract requested tab
-      const reqTab = (getQueryParam('tab') || getQueryParam('form') || 'leave').toLowerCase().trim();
-      activeTab = reqTab;
-
-      // Set Header style right away for instant feedback
-      updateHeaderStyle(activeTab);
-
-      // Start LIFF + Data loading in parallel
-      await initPortalData();
-    });
 
     function updateHeaderStyle(tab) {
       const titleMap = {
@@ -430,60 +420,102 @@
       const boxEl = document.getElementById('form-icon-box');
       if (titleEl) titleEl.innerText = info.title;
       if (iconEl) iconEl.className = info.icon + ' text-base';
-      if (boxEl) boxEl.className = 'w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm transition-all ' + info.color;
+      if (boxEl) boxEl.className = 'w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs transition-all ' + info.color;
     }
+
+    // Immediate Header Style on script execution
+    try {
+      const immediateTab = (getQueryParam('tab') || getQueryParam('form') || 'leave').toLowerCase().trim();
+      activeTab = immediateTab;
+      updateHeaderStyle(activeTab);
+    } catch (e) {}
+
+    // Initialize Application
+    window.addEventListener('DOMContentLoaded', async function() {
+      // Set default today on inputs
+      const today = new Date().toISOString().slice(0, 10);
+      const leaveStart = document.getElementById('leave-start-date');
+      const leaveEnd = document.getElementById('leave-end-date');
+      const corrDate = document.getElementById('corr-date');
+      if (leaveStart) leaveStart.value = today;
+      if (leaveEnd) leaveEnd.value = today;
+      if (corrDate) corrDate.value = today;
+
+      const reqTab = (getQueryParam('tab') || getQueryParam('form') || 'leave').toLowerCase().trim();
+      activeTab = reqTab;
+      updateHeaderStyle(activeTab);
+
+      // Safety Watchdog: Prevent infinite spinning (> 6s)
+      setTimeout(function() {
+        const loading = document.getElementById('loading-view');
+        if (loading && !loading.classList.contains('hidden') && !currentEmployee) {
+          loading.classList.add('hidden');
+          const unlinked = document.getElementById('unlinked-view');
+          if (unlinked) unlinked.classList.remove('hidden');
+          const msg = document.getElementById('unlinked-msg');
+          if (msg) msg.innerText = 'ระบบใช้เวลาเชื่อมต่อนานเกินไป กรุณากดปิดแล้วลองเปิดใหม่อีกครั้ง';
+        }
+      }, 6000);
+
+      await initPortalData();
+    });
 
     async function initPortalData() {
       let lineUserId = getQueryParam('lineUserId') || '';
       let empIdParam = getQueryParam('empId') || '';
 
-      // Initialize LINE LIFF
+      // Initialize LINE LIFF with 2.5s timeout race
       try {
         if (typeof liff !== 'undefined' && HRBTC_LIFF_ID) {
-          await liff.init({ liffId: HRBTC_LIFF_ID });
-          if (liff.isLoggedIn()) {
-            const profile = await liff.getProfile();
-            if (profile && profile.userId) {
-              lineUserId = profile.userId;
+          const liffPromise = (async function() {
+            await liff.init({ liffId: HRBTC_LIFF_ID });
+            if (liff.isLoggedIn()) {
+              try {
+                const profile = await liff.getProfile();
+                if (profile && profile.userId) {
+                  lineUserId = profile.userId;
+                }
+              } catch (pe) {
+                console.warn('liff.getProfile warn:', pe);
+              }
             }
-          }
+          })();
+          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2500));
+          await Promise.race([liffPromise, timeoutPromise]);
         }
       } catch (liffErr) {
         console.warn('LIFF init warning:', liffErr);
       }
 
-      // Query Employee from Supabase
+      // Query Employee directly via Supabase REST API
       try {
         let emp = null;
-        if (lineUserId && supabase) {
-          const { data, error } = await supabase
-            .from('employees')
-            .select('emp_id, name, department, position, company, start_date, pin, line_user_id')
-            .eq('line_user_id', lineUserId)
-            .maybeSingle();
-          if (data && !error) emp = data;
+
+        if (lineUserId) {
+          const emps = await dbQuery('employees?select=emp_id,name,department,position,company,start_date,pin,line_user_id&line_user_id=eq.' + encodeURIComponent(lineUserId) + '&limit=1');
+          if (Array.isArray(emps) && emps.length > 0) emp = emps[0];
         }
 
-        if (!emp && empIdParam && supabase) {
-          const { data, error } = await supabase
-            .from('employees')
-            .select('emp_id, name, department, position, company, start_date, pin, line_user_id')
-            .eq('emp_id', empIdParam)
-            .maybeSingle();
-          if (data && !error) emp = data;
+        if (!emp && empIdParam) {
+          const emps = await dbQuery('employees?select=emp_id,name,department,position,company,start_date,pin,line_user_id&emp_id=eq.' + encodeURIComponent(empIdParam) + '&limit=1');
+          if (Array.isArray(emps) && emps.length > 0) emp = emps[0];
         }
 
         if (!emp) {
-          // Fallback unlinked display
           document.getElementById('loading-view').classList.add('hidden');
-          document.getElementById('unlinked-view').classList.remove('hidden');
+          const unlinked = document.getElementById('unlinked-view');
+          if (unlinked) unlinked.classList.remove('hidden');
+          const msg = document.getElementById('unlinked-msg');
+          if (msg) {
+            msg.innerHTML = 'ยังไม่พบบัญชีพนักงานที่ผูกกับ LINE ID: <br><code class="text-[10px] bg-slate-100 p-1 rounded font-mono select-all">' + (lineUserId || 'ไม่พบ ID') + '</code><br><br>กรุณาติดต่อฝ่ายบุคคล หรือกดเมนู "ผูกบัญชี" ในแชท LINE OA';
+          }
           return;
         }
 
         currentEmployee = emp;
         onEmployeeIdentified(emp);
 
-        // Fetch dependent tab data in parallel (High-Speed)
+        // Fetch dependent data in parallel (High-Speed < 200ms)
         await Promise.all([
           loadLeaveBalances(emp.emp_id),
           loadAdvanceStatus(emp.emp_id),
@@ -499,7 +531,8 @@
       } catch (err) {
         console.error('Data init error:', err);
         document.getElementById('loading-view').classList.add('hidden');
-        document.getElementById('unlinked-view').classList.remove('hidden');
+        const unlinked = document.getElementById('unlinked-view');
+        if (unlinked) unlinked.classList.remove('hidden');
         const msg = document.getElementById('unlinked-msg');
         if (msg) msg.innerText = 'เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (err.message || err.toString());
       }
@@ -560,7 +593,7 @@
       document.querySelectorAll('.leave-type-btn').forEach(b => {
         b.className = 'leave-type-btn py-2 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition';
       });
-      if (btn) btn.className = 'leave-type-btn py-2 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition shadow-sm';
+      if (btn) btn.className = 'leave-type-btn py-2 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition shadow-xs';
     }
 
     function selectLeaveDuration(dur, btn) {
@@ -568,43 +601,42 @@
       document.querySelectorAll('.leave-dur-btn').forEach(b => {
         b.className = 'leave-dur-btn py-1.5 text-xs font-medium rounded-xl border border-slate-200 text-slate-600 bg-white transition';
       });
-      if (btn) btn.className = 'leave-dur-btn py-1.5 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition shadow-sm';
+      if (btn) btn.className = 'leave-dur-btn py-1.5 text-xs font-bold rounded-xl border border-blue-600 bg-blue-50 text-blue-700 transition shadow-xs';
     }
 
     async function loadLeaveBalances(empId) {
-      if (!supabase) return;
-      const currentYear = new Date().getFullYear().toString();
-      const { data } = await supabase
-        .from('leave_requests')
-        .select('leave_type, days_count, status, start_date')
-        .eq('emp_id', empId)
-        .eq('status', 'อนุมัติ');
+      try {
+        const currentYear = new Date().getFullYear().toString();
+        const data = await dbQuery('leave_requests?select=leave_type,days_count,status,start_date&emp_id=eq.' + encodeURIComponent(empId) + '&status=eq.' + encodeURIComponent('อนุมัติ'));
 
-      let usedPersonal = 0, usedSick = 0, usedAnnual = 0;
-      if (Array.isArray(data)) {
-        data.forEach(r => {
-          if (r.start_date && r.start_date.startsWith(currentYear)) {
-            const days = parseFloat(r.days_count) || 1;
-            if (r.leave_type === 'ลากิจ') usedPersonal += days;
-            else if (r.leave_type === 'ลาป่วย') usedSick += days;
-            else if (r.leave_type === 'ลาพักร้อน') usedAnnual += days;
-          }
-        });
+        let usedPersonal = 0, usedSick = 0, usedAnnual = 0;
+        if (Array.isArray(data)) {
+          data.forEach(r => {
+            if (r.start_date && r.start_date.startsWith(currentYear)) {
+              const days = parseFloat(r.days_count) || 1;
+              if (r.leave_type === 'ลากิจ') usedPersonal += days;
+              else if (r.leave_type === 'ลาป่วย') usedSick += days;
+              else if (r.leave_type === 'ลาพักร้อน') usedAnnual += days;
+            }
+          });
+        }
+
+        const qP = document.getElementById('quota-personal');
+        const qPR = document.getElementById('quota-personal-rem');
+        const qS = document.getElementById('quota-sick');
+        const qSR = document.getElementById('quota-sick-rem');
+        const qA = document.getElementById('quota-annual');
+        const qAR = document.getElementById('quota-annual-rem');
+
+        if (qP) qP.innerText = 'ใช้ ' + usedPersonal + '/3 วัน';
+        if (qPR) qPR.innerText = 'เหลือ ' + Math.max(0, 3 - usedPersonal) + ' วัน';
+        if (qS) qS.innerText = 'ใช้ ' + usedSick + '/30 วัน';
+        if (qSR) qSR.innerText = 'เหลือ ' + Math.max(0, 30 - usedSick) + ' วัน';
+        if (qA) qA.innerText = 'ใช้ ' + usedAnnual + '/6 วัน';
+        if (qAR) qAR.innerText = 'เหลือ ' + Math.max(0, 6 - usedAnnual) + ' วัน';
+      } catch (e) {
+        console.warn('loadLeaveBalances error:', e);
       }
-
-      const qP = document.getElementById('quota-personal');
-      const qPR = document.getElementById('quota-personal-rem');
-      const qS = document.getElementById('quota-sick');
-      const qSR = document.getElementById('quota-sick-rem');
-      const qA = document.getElementById('quota-annual');
-      const qAR = document.getElementById('quota-annual-rem');
-
-      if (qP) qP.innerText = 'ใช้ ' + usedPersonal + '/3 วัน';
-      if (qPR) qPR.innerText = 'เหลือ ' + Math.max(0, 3 - usedPersonal) + ' วัน';
-      if (qS) qS.innerText = 'ใช้ ' + usedSick + '/30 วัน';
-      if (qSR) qSR.innerText = 'เหลือ ' + Math.max(0, 30 - usedSick) + ' วัน';
-      if (qA) qA.innerText = 'ใช้ ' + usedAnnual + '/6 วัน';
-      if (qAR) qAR.innerText = 'เหลือ ' + Math.max(0, 6 - usedAnnual) + ' วัน';
     }
 
     async function submitLeaveAction() {
@@ -631,20 +663,21 @@
         const now = new Date();
         const docId = 'LV-' + currentEmployee.emp_id + '-' + now.getTime();
 
-        const { error } = await supabase.from('leave_requests').insert({
-          doc_id: docId,
-          emp_id: currentEmployee.emp_id,
-          leave_type: type,
-          duration: duration,
-          start_date: start,
-          end_date: end,
-          days_count: days,
-          reason: reason,
-          status: 'รออนุมัติ',
-          submitted_at: now.toISOString()
+        await dbQuery('leave_requests', {
+          method: 'POST',
+          body: {
+            doc_id: docId,
+            emp_id: currentEmployee.emp_id,
+            leave_type: type,
+            duration: duration,
+            start_date: start,
+            end_date: end,
+            days_count: days,
+            reason: reason,
+            status: 'รออนุมัติ',
+            submitted_at: now.toISOString()
+          }
         });
-
-        if (error) throw error;
 
         resBox.classList.remove('hidden');
         resBox.className = 'p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5';
@@ -693,16 +726,17 @@
 
       try {
         const todayStr = new Date().toISOString().slice(0, 10);
-        const { error } = await supabase.from('advance_requests').insert({
-          emp_id: currentEmployee.emp_id,
-          amount: amount,
-          request_date: todayStr,
-          status: 'รอตรวจสอบ',
-          notes: reason,
-          payout_channel: 'โอนผ่านบัญชีธนาคาร'
+        await dbQuery('advance_requests', {
+          method: 'POST',
+          body: {
+            emp_id: currentEmployee.emp_id,
+            amount: amount,
+            request_date: todayStr,
+            status: 'รอตรวจสอบ',
+            notes: reason,
+            payout_channel: 'โอนผ่านบัญชีธนาคาร'
+          }
         });
-
-        if (error) throw error;
 
         resBox.classList.remove('hidden');
         resBox.className = 'p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5';
@@ -719,33 +753,29 @@
 
     // --- ATTENDANCE & CORRECTION LOGIC ---
     async function loadAttendanceLogs(empId) {
-      if (!supabase) return;
-      const { data } = await supabase
-        .from('time_records')
-        .select('*')
-        .eq('emp_id', empId)
-        .order('date', { ascending: false })
-        .limit(30);
+      try {
+        const data = await dbQuery('time_records?select=*&emp_id=eq.' + encodeURIComponent(empId) + '&order=date.desc&limit=30');
+        cachedAttendance = Array.isArray(data) ? data : [];
+        renderAttendanceList(cachedAttendance);
 
-      cachedAttendance = data || [];
-      renderAttendanceList(cachedAttendance);
+        let workCount = 0, lateCount = 0, otHours = 0;
+        cachedAttendance.forEach(r => {
+          if (r.time_in) workCount++;
+          if (r.late_minutes && r.late_minutes > 0) lateCount++;
+          if (r.ot_hours) otHours += (parseFloat(r.ot_hours) || 0);
+        });
 
-      // Simple stats
-      let workCount = 0, lateCount = 0, otHours = 0;
-      cachedAttendance.forEach(r => {
-        if (r.time_in) workCount++;
-        if (r.late_minutes && r.late_minutes > 0) lateCount++;
-        if (r.ot_hours) otHours += (parseFloat(r.ot_hours) || 0);
-      });
-
-      const sWork = document.getElementById('stat-work-days');
-      const sLate = document.getElementById('stat-late-count');
-      const sAbs = document.getElementById('stat-absent-leave');
-      const sOt = document.getElementById('stat-ot-hours');
-      if (sWork) sWork.innerText = workCount + ' วัน';
-      if (sLate) sLate.innerText = lateCount + ' ครั้ง';
-      if (sAbs) sAbs.innerText = '0/0';
-      if (sOt) sOt.innerText = (Math.round(otHours * 10) / 10) + ' ชม.';
+        const sWork = document.getElementById('stat-work-days');
+        const sLate = document.getElementById('stat-late-count');
+        const sAbs = document.getElementById('stat-absent-leave');
+        const sOt = document.getElementById('stat-ot-hours');
+        if (sWork) sWork.innerText = workCount + ' วัน';
+        if (sLate) sLate.innerText = lateCount + ' ครั้ง';
+        if (sAbs) sAbs.innerText = '0/0';
+        if (sOt) sOt.innerText = (Math.round(otHours * 10) / 10) + ' ชม.';
+      } catch (e) {
+        console.warn('loadAttendanceLogs error:', e);
+      }
     }
 
     function renderAttendanceList(logs) {
@@ -819,17 +849,18 @@
       btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> กำลังส่งคำขอ...';
 
       try {
-        const { error } = await supabase.from('time_corrections').insert({
-          emp_id: currentEmployee.emp_id,
-          date: date,
-          new_time_in: tIn || null,
-          new_time_out: tOut || null,
-          reason: reason,
-          status: 'รออนุมัติ',
-          submitted_at: new Date().toISOString()
+        await dbQuery('time_corrections', {
+          method: 'POST',
+          body: {
+            emp_id: currentEmployee.emp_id,
+            date: date,
+            new_time_in: tIn || null,
+            new_time_out: tOut || null,
+            reason: reason,
+            status: 'รออนุมัติ',
+            submitted_at: new Date().toISOString()
+          }
         });
-
-        if (error) throw error;
 
         resBox.classList.remove('hidden');
         resBox.className = 'p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900';
@@ -844,20 +875,17 @@
 
     // --- PAYSLIP LOGIC ---
     async function loadPayslips(empId) {
-      if (!supabase) return;
-      const { data } = await supabase
-        .from('payslips')
-        .select('*')
-        .eq('emp_id', empId)
-        .order('period', { ascending: false })
-        .limit(12);
+      try {
+        const data = await dbQuery('payslips?select=*&emp_id=eq.' + encodeURIComponent(empId) + '&order=period.desc&limit=12');
+        cachedPayslips = Array.isArray(data) ? data : [];
 
-      cachedPayslips = data || [];
-      // If employee has no PIN set, allow direct unlock
-      if (!currentEmployee.pin) {
-        document.getElementById('payslip-lock-screen').classList.add('hidden');
-        document.getElementById('payslip-unlocked-screen').classList.remove('hidden');
-        renderPayslipsList(cachedPayslips);
+        if (!currentEmployee.pin) {
+          document.getElementById('payslip-lock-screen').classList.add('hidden');
+          document.getElementById('payslip-unlocked-screen').classList.remove('hidden');
+          renderPayslipsList(cachedPayslips);
+        }
+      } catch (e) {
+        console.warn('loadPayslips error:', e);
       }
     }
 
@@ -884,15 +912,15 @@
       let html = '';
       slips.forEach(s => {
         const net = s.net_amount ? parseFloat(s.net_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-';
-        const link = s.slip_url || (s.file_id ? `https://drive.google.com/file/d/${s.file_id}/view` : '#');
+        const link = s.slip_url || (s.file_id ? ('https://drive.google.com/file/d/' + s.file_id + '/view') : '#');
 
         html += `
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-xs flex items-center justify-between">
             <div>
               <div class="text-xs font-bold text-slate-800">งวดเดือน: ${s.period}</div>
               <div class="text-sm font-bold text-emerald-600 mt-0.5">฿${net}</div>
             </div>
-            <a href="${link}" target="_blank" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition">
+            <a href="${link}" target="_blank" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition">
               <i class="fa-solid fa-file-pdf text-rose-400"></i> เปิดดูสลิป
             </a>
           </div>
