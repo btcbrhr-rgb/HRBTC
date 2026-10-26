@@ -651,6 +651,9 @@
         tr, .hr-table-row {
             display: table-row !important;
         }
+        tr.hidden, .hr-table-row.hidden, tr[style*="display: none"], tr[style*="display:none"] {
+            display: none !important;
+        }
         th, td, .hr-table th, .hr-table td {
             display: table-cell !important;
             vertical-align: middle !important;
@@ -4938,7 +4941,7 @@
                             <div class="hr-table-search-bar flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border-b border-slate-200">
                                 <div class="relative flex-1 min-w-[220px]">
                                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                    <input type="text" id="yearly-attendance-search" placeholder="ค้นหารหัสพนักงาน, วันที่, สถานะ…" oninput="hrTableFilter('yearly-attendance-body', this.value, 'yearly-attendance-count')" aria-label="ค้นหาข้อมูลเวลางาน">
+                                    <input type="text" id="yearly-attendance-search" placeholder="ค้นหารหัส/ชื่อพนักงาน, วันที่, สถานะ, โครงการ…" oninput="hrTableFilter('yearly-attendance-body', this.value, 'yearly-attendance-count')" aria-label="ค้นหาข้อมูลเวลางาน">
                                 </div>
                                 <span class="row-count" id="yearly-attendance-count"></span>
                             </div>
@@ -17938,7 +17941,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const statusOk = !row.hasAttribute('data-approval-status')
                         || matchesApprovalStatusFilter(row.getAttribute('data-approval-status'), approvalStatusFilter);
                     const show = match && corrOk && statusOk;
-                    row.style.display = show ? '' : 'none';
+                    if (show) {
+                        row.style.removeProperty('display');
+                        row.classList.remove('hidden');
+                    } else {
+                        row.style.setProperty('display', 'none', 'important');
+                        row.classList.add('hidden');
+                    }
                     if (show) visibleCount++;
                 });
                 if (countId) {
@@ -28280,13 +28289,58 @@ function closeEmployeeModal() {
                         else if (status === 'ย' || status === 'นข') statusBadge = '<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">หยุด</span>';
                         else statusBadge = `<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">${escapeHtml(status)}</span>`;
 
-                        // 🔧 FIX: เก็บข้อความค้นหา (รหัส/วันที่/เวลา/สถานะ/โครงการ) ไว้ที่ data-search
-                        // เพื่อให้ช่องค้นหากรองจาก data จริง ไม่ติดคำใน title/tooltip ของ badge
-                        // (เดิมช่องค้นหาไม่กรองเพราะค้นหาเจอคำจาก title ทำให้ผลเพี้ยน + ไม่มี checkpoint)
-                        const searchText = `${empId} ${date} ${timeIn} ${timeOut} ${status} ${late} ${ot} ${project}`.toLowerCase();
+                        // ดึงชื่อพนักงานจาก cache เพื่อให้ค้นหาด้วยชื่อ-สกุล และแสดงชื่อพนักงานได้
+                        const emp = (typeof adminEmployeesMap !== 'undefined' && adminEmployeesMap)
+                            ? (adminEmployeesMap.get(empId) || adminEmployeesMap.get(String(empId).trim().toUpperCase()))
+                            : null;
+                        const empName = emp ? (emp.name || emp['ชื่อ-สกุล'] || emp.fullName || '') : '';
+                        const empNick = emp ? (emp.nickname || emp['ชื่อเล่น'] || '') : '';
+
+                        // แมปสถานะภาษาไทย ให้ค้นหาคำว่า ปกติ / สาย / ขาด / ลา / หยุด ได้
+                        const STATUS_THAI_MAP = {
+                            'W': 'ปกติ ทำงานปกติ เข้างานปกติ',
+                            'L': 'สาย มาสาย',
+                            'A': 'ขาด ขาดงาน',
+                            'MI': 'ลืมเข้า ลืมสแกนเข้า',
+                            'MO': 'ลืมออก ลืมสแกนออก',
+                            'B+': 'ลากิจ',
+                            'H+': 'ลาพักร้อน พักร้อน',
+                            'S+': 'ลาป่วย',
+                            'SM+': 'ลาป่วย+ใบรับรอง',
+                            'A½': 'ลาครึ่งเช้า ครึ่งเช้า',
+                            'P½': 'ลาครึ่งบ่าย ครึ่งบ่าย',
+                            'ย': 'วันหยุด หยุด ประจำสัปดาห์',
+                            'นข': 'วันหยุดนักขัตฤกษ์ นักขัตฤกษ์'
+                        };
+                        const statusThai = STATUS_THAI_MAP[status] || (status.includes('ลา') ? 'ลา' : status);
+
+                        // วันที่ภาษาไทยและปี พ.ศ. ให้ค้นหาด้วยปี 2569 หรือชื่อเดือนได้
+                        let dateThai = '';
+                        if (date && date.includes('-')) {
+                            const dp = date.split('-');
+                            const dy = parseInt(dp[0], 10);
+                            const dm = parseInt(dp[1], 10);
+                            const dd = parseInt(dp[2], 10);
+                            if (!isNaN(dy) && !isNaN(dm)) {
+                                const yearTh = dy + 543;
+                                const mShort = (typeof THAI_MONTHS_SHORT !== 'undefined' && THAI_MONTHS_SHORT[dm - 1]) || '';
+                                const mFull = (typeof THAI_MONTHS_FULL !== 'undefined' && THAI_MONTHS_FULL[dm - 1]) || '';
+                                dateThai = `${dd} ${dm} ${yearTh} ${mShort} ${mFull} ${String(dd).padStart(2,'0')}/${String(dm).padStart(2,'0')} ${String(dd).padStart(2,'0')}/${String(dm).padStart(2,'0')}/${yearTh}`;
+                            }
+                        }
+
+                        const otSearch = ot > 0 ? `ot โอที ${ot}ชม ${ot}ชั่วโมง` : '';
+                        const lateSearch = late > 0 ? `สาย มาสาย ${late}นาที` : '';
+                        const corrSearch = corrBadge ? 'ขอแก้ รอแก้ แก้ไข' : '';
+
+                        // 🔧 รวมคำค้นหาทั้งหมด (รหัส/ชื่อ/วันที่/พ.ศ./เวลา/สถานะไทย/โครงการ) ไว้ที่ data-search
+                        const searchText = `${empId} ${empName} ${empNick} ${date} ${dateThai} ${timeIn} ${timeOut} ${status} ${statusThai} ${late} ${lateSearch} ${ot} ${otSearch} ${project} ${corrSearch}`.toLowerCase();
 
                         html += `<tr id="yearly-row-${idx}" class="group hover:bg-slate-50/80 transition-colors ${corrBadge ? 'has-correction-row' : ''}" data-search="${escapeHtml(searchText)}">
-                            <td class="text-center font-bold text-brand-deep">${escapeHtml(empId || '-')}</td>
+                            <td class="text-center font-bold text-brand-deep">
+                                <div>${escapeHtml(empId || '-')}</div>
+                                ${empName ? `<div class="text-[10px] text-slate-500 font-normal truncate max-w-[130px] mx-auto mt-0.5" title="${escapeHtml(empName)}">${escapeHtml(empName)}</div>` : ''}
+                            </td>
                             <td>
                                 <div class="flex items-center gap-1.5 whitespace-nowrap">
                                     <span class="font-medium text-slate-800">${escapeHtml(date)}</span>
@@ -28380,7 +28434,13 @@ function closeEmployeeModal() {
                         const hay = (r.dataset.search || r.textContent || '').toLowerCase();
                         const searchOk = !q || hay.includes(q);
                         const show = corrOk && searchOk;
-                        r.style.display = show ? '' : 'none';
+                        if (show) {
+                            r.style.removeProperty('display');
+                            r.classList.remove('hidden');
+                        } else {
+                            r.style.setProperty('display', 'none', 'important');
+                            r.classList.add('hidden');
+                        }
                         if (show) visibleCount++;
                     });
                     const countEl = document.getElementById('yearly-attendance-count');
