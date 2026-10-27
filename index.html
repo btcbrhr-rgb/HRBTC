@@ -12203,6 +12203,41 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            // 📋 คอลัมน์มาตรฐานสำหรับดึงข้อมูลพนักงานจาก Supabase (ใช้จุดเดียวทั้งระบบ)
+            const SUPABASE_EMPLOYEE_FIELDS = 'emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,line_user_id,pin';
+
+            /**
+             * แปลง record พนักงานจาก Supabase ให้เป็นโครงสร้างข้อมูลภาษาไทยมาตรฐานของระบบ
+             * รวมศูนย์จุดเดียว เพื่อไม่ให้โค้ดซ้ำซ้อนและป้องกันข้อมูลสูญหาย
+             */
+            function mapSupabaseEmployee(record) {
+                if (!record) return null;
+                return {
+                    "รหัสพนักงาน": record.emp_id || '',
+                    "ชื่อ-นามสกุล": record.name || '',
+                    "ตำแหน่ง": record.position || '',
+                    "สถานะ": record.status || '',
+                    "วันหยุดประจําสัปดาห์": record.day_off || '',
+                    "ชื่อบริษัท": record.company || '',
+                    "วันที่เริ่มงาน": record.start_date || '',
+                    "เบอร์โทรศัพท์": record.phone || '',
+                    "ที่อยู่": record.address || '',
+                    "เลขบัตรประชาชน": record.id_card || '',
+                    "วันเดือนปีเกิด": record.birth_date || '',
+                    "ธนาคาร": record.bank || '',
+                    "สาขาธนาคาร": record.bank_branch || '',
+                    "หมายเลขบัญชี": record.bank_account || '',
+                    "ลิ้งภาพโปรไฟล์": record.avatar_url || '',
+                    "ฐานเงินเดือน": record.base_salary || '',
+                    "ตัวหารค่าแรง": record.wage_divisor || '',
+                    "ชั่วโมงทำงานต่อวัน": record.work_hours_per_day || '',
+                    "ตัวคูณโอที": record.ot_rate || '',
+                    "สิทธิ์การใช้งาน": record.role || '',
+                    "LineUserId": record.line_user_id || '',
+                    "PIN": record.pin ? "configured" : ""
+                };
+            }
+
             async function promptPinBeforeAutoLogin(empId) {
                 // 🚀 Instant Feedback: เด้ง Modal PIN ทันทีในเสี้ยววินาทีแรก ไม่ต้องรอ Network Roundtrip ป้องกันค้างหน้าล็อกอิน
                 const pinInput = document.getElementById('pin-login-emp-id');
@@ -12223,18 +12258,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     try {
                         const { data, error } = await supabaseClient
                             .from('employees')
-                            .select('emp_id,name,position,pin')
+                            .select(SUPABASE_EMPLOYEE_FIELDS)
                             .ilike('emp_id', empId)
                             .maybeSingle();
                         if (!error && data) {
                             response = {
                                 status: 'success',
-                                data: {
-                                    'รหัสพนักงาน': data.emp_id,
-                                    'ชื่อ-นามสกุล': data.name,
-                                    'ตำแหน่ง': data.position,
-                                    'PIN': data.pin ? 'configured' : ''
-                                }
+                                data: mapSupabaseEmployee(data)
                             };
                         } else if (error) {
                             console.warn('[promptPinBeforeAutoLogin] Supabase lookup error:', error);
@@ -12277,56 +12307,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     showModal('pin-setup-modal');
                 }
                 return true;
-            }
-
-
-            async function autoLoginAndNavigate(empData, navigateToPage = null) {
-                isLoggedIn = true;
-                employeeData = empData || {};
-                const resolvedEmpId = getEmployeeIdFromData(employeeData, currentEmployeeId);
-                if (resolvedEmpId) {
-                    currentEmployeeId = resolvedEmpId;
-                }
-                sessionStorage.setItem("is_logged_in", "true");
-                if (currentEmployeeId) {
-                    sessionStorage.setItem("logged_in_emp_id", currentEmployeeId);
-                    // session-only
-                    sessionStorage.setItem('pin_verified_' + currentEmployeeId, 'true');
-                }
-                if (employeeData && Object.keys(employeeData).length > 0) {
-                    try {
-                        sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
-                        // session-only
-                    } catch (e) {}
-                }
-                // ✅ Optimistic Login: แสดง loading overlay แล้วโหลดข้อมูลก่อนแสดงหน้า App
-                generateCycleOptions();
-                const currentCycle = getCurrentCycleRange();
-                const homeCycleRange = document.getElementById("home-cycle-range");
-                if (homeCycleRange) homeCycleRange.textContent = `${formatThaiDate(currentCycle.start)} - ${formatThaiDate(currentCycle.end)}`;
-                document.getElementById("stat-cycle-label").textContent = `${formatThaiDateShort(currentCycle.start)} - ${formatThaiDateShort(currentCycle.end)}`;
-                if (typeof initializeProjectCostPage === 'function') {
-                    initializeProjectCostPage();
-                }
-                showLoginLoading(employeeData["ชื่อ-นามสกุล"] || currentEmployeeId);
-
-                // ⚡ โหลดข้อมูลทั้งหมดก่อนแสดง UI
-                try {
-                    await loadAllData();
-                    if (typeof RealtimeSyncManager !== 'undefined') {
-                        RealtimeSyncManager.init();
-                    }
-                } catch (err) {
-                    console.error('[autoLoginAndNavigate] loadAllData error:', err);
-                }
-
-                // ⚡ Eager: อัปเดตสถานะลงทะเบียนใบหน้าบนหน้าลงเวลาทันที (ไม่ต้องรอเปิดหน้า)
-                if (typeof refreshFaceEnrollStatus === 'function') {
-                    refreshFaceEnrollStatus().catch(() => {});
-                }
-
-                hideLoginContainer();
-                navigateTo(navigateToPage || targetPage || "home");
             }
 
 
@@ -12510,34 +12490,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         try {
                             const { data: empRecord, error: empErr } = await supabaseClient
                                 .from('employees')
-                                .select('emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,line_user_id,pin')   // 🔧 2026-10-19ze (ลด Egress 2.2 รอบ 3) — emp_id UNIQUE จึงเทียบเท่า *
+                                .select(SUPABASE_EMPLOYEE_FIELDS)
                                 .ilike('emp_id', savedEmpId)
                                 .maybeSingle();
                             if (!empErr && empRecord) {
-                                employeeData = {
-                                    "รหัสพนักงาน": empRecord.emp_id,
-                                    "ชื่อ-นามสกุล": empRecord.name,
-                                    "ตำแหน่ง": empRecord.position,
-                                    "สถานะ": empRecord.status,
-                                    "วันหยุดประจําสัปดาห์": empRecord.day_off,
-                                    "ชื่อบริษัท": empRecord.company,
-                                    "วันที่เริ่มงาน": empRecord.start_date,
-                                    "เบอร์โทรศัพท์": empRecord.phone,
-                                    "ที่อยู่": empRecord.address,
-                                    "เลขบัตรประชาชน": empRecord.id_card,
-                                    "วันเดือนปีเกิด": empRecord.birth_date,
-                                    "ธนาคาร": empRecord.bank,
-                                    "สาขาธนาคาร": empRecord.bank_branch,
-                                    "หมายเลขบัญชี": empRecord.bank_account,
-                                    "ลิ้งภาพโปรไฟล์": empRecord.avatar_url,
-                                    "ฐานเงินเดือน": empRecord.base_salary,
-                                    "ตัวหารค่าแรง": empRecord.wage_divisor,
-                                    "ชั่วโมงทำงานต่อวัน": empRecord.work_hours_per_day,
-                                    "ตัวคูณโอที": empRecord.ot_rate,
-                                    "สิทธิ์การใช้งาน": empRecord.role,
-                                    "LineUserId": empRecord.line_user_id,
-                                    "PIN": empRecord.pin ? "configured" : ""
-                                };
+                                employeeData = mapSupabaseEmployee(empRecord);
                                 try {
                                     sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
                                     // session-only
@@ -12693,11 +12650,6 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
-            function setLoginQuick(empId) {
-                document.getElementById("login-emp-id").value = empId;
-                showToast(`📝 เลือกรหัส ${empId} แล้ว กดปุ่มเข้าสู่ระบบเพื่อดำเนินการต่อ`, "info");
-            }
-
             async function handleLogin(e) {
                 e.preventDefault();
                 const empIdInput = document.getElementById("login-emp-id").value.trim().toUpperCase();
@@ -12721,37 +12673,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         try {
                             const { data, error } = await supabaseClient
                                 .from('employees')
-                                .select('emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,line_user_id,pin')   // 🔧 2026-10-19ze (ลด Egress 2.2 รอบ 3) — emp_id UNIQUE จึงเทียบเท่า *
+                                .select(SUPABASE_EMPLOYEE_FIELDS)
                                 .ilike('emp_id', empIdInput.trim())
                                 .maybeSingle();
                             if (!error && data) {
                                 empResponse = {
                                     status: "success",
                                     _source: "supabase",
-                                    data: {
-                                        "รหัสพนักงาน": data.emp_id,
-                                        "ชื่อ-นามสกุล": data.name,
-                                        "ตำแหน่ง": data.position,
-                                        "สถานะ": data.status,
-                                        "วันหยุดประจําสัปดาห์": data.day_off,
-                                        "ชื่อบริษัท": data.company,
-                                        "วันที่เริ่มงาน": data.start_date,
-                                        "เบอร์โทรศัพท์": data.phone,
-                                        "ที่อยู่": data.address,
-                                        "เลขบัตรประชาชน": data.id_card,
-                                        "วันเดือนปีเกิด": data.birth_date,
-                                        "ธนาคาร": data.bank,
-                                        "สาขาธนาคาร": data.bank_branch,
-                                        "หมายเลขบัญชี": data.bank_account,
-                                        "ลิ้งภาพโปรไฟล์": data.avatar_url,
-                                        "ฐานเงินเดือน": data.base_salary,
-                                        "ตัวหารค่าแรง": data.wage_divisor,
-                                        "ชั่วโมงทำงานต่อวัน": data.work_hours_per_day,
-                                        "ตัวคูณโอที": data.ot_rate,
-                                        "สิทธิ์การใช้งาน": data.role,
-                                        "LineUserId": data.line_user_id,
-                                        "PIN": data.pin ? "configured" : ""
-                                    }
+                                    data: mapSupabaseEmployee(data)
                                 };
                                 console.log('[handleLogin ⚡ Supabase] Employee profile loaded instantly');
                             }
@@ -13124,16 +13053,46 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         pinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบ…';
                     }
 
-                    // 🔐 ตรวจสอบ PIN ผ่าน Backend (verifyPin): ตรวจสอบเลข PIN 6 หลักตรงๆ ใน Supabase (ไม่ใช้ Hash)
+                    // 🔐 ตรวจสอบ PIN 6 หลัก: ตรวจตรงกับ Supabase เป็นลำดับแรก (< 0.2 วินาที)
                     let pinValid = false;
                     let pinMessage = "รหัส PIN ไม่ถูกต้อง";
                     let verifyResult = null;
-                    try {
-                        verifyResult = await apiRequest({ action: 'verifyPin', pin: pin, empId: empId });
-                        pinValid = !!(verifyResult && verifyResult.status === 'success' && verifyResult.valid);
-                        if (verifyResult && verifyResult.message) pinMessage = verifyResult.message;
-                    } catch (e) {
-                        console.warn('[submitPinLogin] verifyPin failed:', e);
+
+                    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                        try {
+                            const { data: emp, error: sbErr } = await supabaseClient
+                                .from('employees')
+                                .select('pin')
+                                .ilike('emp_id', empId)
+                                .maybeSingle();
+                            if (!sbErr && emp) {
+                                const storedPin = (emp.pin || '').toString().trim();
+                                if (!storedPin) {
+                                    verifyResult = { status: 'success', valid: false, message: 'ยังไม่ได้ตั้ง PIN กรุณาตั้ง PIN ใหม่ก่อนเข้าใช้งาน' };
+                                } else if (storedPin === pin) {
+                                    pinValid = true;
+                                    verifyResult = { status: 'success', valid: true, message: 'PIN ถูกต้อง' };
+                                } else {
+                                    pinValid = false;
+                                    verifyResult = { status: 'success', valid: false, message: 'รหัส PIN ไม่ถูกต้อง' };
+                                }
+                            } else if (sbErr) {
+                                console.warn('[submitPinLogin] Supabase PIN check warning, falling back to GAS:', sbErr);
+                            }
+                        } catch (sbEx) {
+                            console.warn('[submitPinLogin] Supabase PIN check failed, falling back to GAS:', sbEx);
+                        }
+                    }
+
+                    // 🛟 Fallback: หากไม่มี supabaseClient หรือ Supabase ขัดข้อง ให้เรียกผ่าน GAS
+                    if (!verifyResult) {
+                        try {
+                            verifyResult = await apiRequest({ action: 'verifyPin', pin: pin, empId: empId });
+                            pinValid = !!(verifyResult && verifyResult.status === 'success' && verifyResult.valid);
+                            if (verifyResult && verifyResult.message) pinMessage = verifyResult.message;
+                        } catch (e) {
+                            console.warn('[submitPinLogin] Fallback verifyPin failed:', e);
+                        }
                     }
                     if (pinValid) {
                         closeModal("pin-login-modal");
@@ -13202,34 +13161,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             if (supabaseClient) {
                                 const { data, error } = await supabaseClient
                                     .from('employees')
-                                    .select('emp_id,name,position,status,day_off,company,start_date,phone,address,id_card,birth_date,bank,bank_branch,bank_account,avatar_url,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,line_user_id,pin')   // 🔧 2026-10-19ze (ลด Egress 2.2 รอบ 3) — emp_id UNIQUE จึงเทียบเท่า *
+                                    .select(SUPABASE_EMPLOYEE_FIELDS)
                                     .eq('emp_id', empId)
                                     .single();
                                 if (!error && data) {
-                                    employeeData = {
-                                        "รหัสพนักงาน": data.emp_id,
-                                        "ชื่อ-นามสกุล": data.name,
-                                        "ตำแหน่ง": data.position,
-                                        "สถานะ": data.status,
-                                        "วันหยุดประจําสัปดาห์": data.day_off,
-                                        "ชื่อบริษัท": data.company,
-                                        "วันที่เริ่มงาน": data.start_date,
-                                        "เบอร์โทรศัพท์": data.phone,
-                                        "ที่อยู่": data.address,
-                                        "เลขบัตรประชาชน": data.id_card,
-                                        "วันเดือนปีเกิด": data.birth_date,
-                                        "ธนาคาร": data.bank,
-                                        "สาขาธนาคาร": data.bank_branch,
-                                        "หมายเลขบัญชี": data.bank_account,
-                                        "ลิ้งภาพโปรไฟล์": data.avatar_url,
-                                        "ฐานเงินเดือน": data.base_salary,
-                                        "ตัวหารค่าแรง": data.wage_divisor,
-                                        "ชั่วโมงทำงานต่อวัน": data.work_hours_per_day,
-                                        "ตัวคูณโอที": data.ot_rate,
-                                        "สิทธิ์การใช้งาน": data.role,
-                                        "LineUserId": data.line_user_id,
-                                        "PIN": data.pin ? "configured" : ""
-                                    };
+                                    employeeData = mapSupabaseEmployee(data);
                                     console.log('[handleLoginSuccess ⚡ Supabase] Employee data loaded:', empId);
                                     try {
                                         sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
