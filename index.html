@@ -12127,12 +12127,40 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังประมวลผล…'; }
 
                 try {
-                    const adminId = (typeof currentEmployeeId !== 'undefined' && currentEmployeeId) ? currentEmployeeId : 'admin';
-                    const result = await postAction('reconcileAttendanceRaw', {
-                        adminId: adminId,
-                        sinceDate: sinceDate,
-                        untilDate: untilDate
-                    }, { timeout: 300000 });
+                    let result = null;
+
+                    // 🚀 DIRECT SUPABASE RPC: เรียกประมวลผลใน PostgreSQL ตรงๆ ผ่าน supabaseClient (เสร็จใน 0.2 วินาที)
+                    if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.rpc === 'function') {
+                        try {
+                            console.log('[Reconcile] 🚀 กำลังเรียก Supabase RPC reconcile_attendance โดยตรง...');
+                            const { data: rpcData, error: rpcErr } = await supabaseClient.rpc('reconcile_attendance', {
+                                p_since_date: sinceDate,
+                                p_until_date: untilDate
+                            });
+                            if (!rpcErr && rpcData && rpcData.status === 'success') {
+                                console.log('[Reconcile] ⚡ Supabase RPC สำเร็จในพริบตา:', rpcData);
+                                result = rpcData;
+                            } else if (rpcErr) {
+                                console.warn('[Reconcile] ⚠️ Supabase RPC แจ้งเตือน:', rpcErr);
+                                if (rpcErr.message && (rpcErr.message.includes('function') || rpcErr.code === '42883') && rpcErr.message.includes('reconcile_attendance')) {
+                                    throw new Error('ยังไม่ได้ติดตั้งฟังก์ชันใน Supabase: กรุณานำคำสั่งในไฟล์ supabase_rpc_reconcile.sql ไปวางแล้วกด Run ใน Supabase SQL Editor ก่อนใช้งาน');
+                                }
+                            }
+                        } catch (rpcEx) {
+                            if (rpcEx.message && rpcEx.message.includes('supabase_rpc_reconcile.sql')) throw rpcEx;
+                            console.warn('[Reconcile] ⚠️ เรียก RPC ไม่สำเร็จ กำลังสลับไปใช้ GAS:', rpcEx);
+                        }
+                    }
+
+                    // 🛟 FALLBACK: หากไม่มี supabaseClient หรือ RPC ไม่สำเร็จ ให้เรียกผ่าน Google Apps Script
+                    if (!result) {
+                        const adminId = (typeof currentEmployeeId !== 'undefined' && currentEmployeeId) ? currentEmployeeId : 'admin';
+                        result = await postAction('reconcileAttendanceRaw', {
+                            adminId: adminId,
+                            sinceDate: sinceDate,
+                            untilDate: untilDate
+                        }, { timeout: 300000 });
+                    }
 
                     const modal = document.getElementById('reconcile-result-modal');
                     const icon = document.getElementById('reconcile-modal-icon');
