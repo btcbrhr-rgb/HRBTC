@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -23403,7 +23403,7 @@ async function loadAdminEmployees() {
                             actionHtml = `
                                 <div style="display:flex;gap:4px;justify-content:flex-end">
                                   <button onclick='openDecisionModal("correction", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
-                                  <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ปฏิเสธ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                                  <button onclick='openDecisionModal("correction", ${safeJson(req)}, "ไม่อนุมัติ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                                 </div>`;
                         } else {
                             if (isApproved) {
@@ -23666,7 +23666,7 @@ async function loadAdminEmployees() {
                             actionHtml = `
                                 <div style="display:flex;gap:4px;justify-content:flex-end">
                                   <button onclick='openDecisionModal("advance", ${safeJson(req)}, "อนุมัติแล้ว")' class="action-btn action-btn-approve"><i class="fa-solid fa-check"></i> อนุมัติ</button>
-                                  <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ปฏิเสธ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                                  <button onclick='openDecisionModal("advance", ${safeJson(req)}, "ไม่อนุมัติ")' class="action-btn action-btn-reject"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                                 </div>`;
                         } else {
                             if (isApproved) approvedCount++;
@@ -25584,6 +25584,150 @@ async function loadAdminEmployees() {
                         let failedCount = 0;
                         const failedItems = [];
 
+                        // ⚡ FAST PATH FOR LEAVE BATCH: Bulk Supabase update + Single Batch GAS call (<100ms UI response)
+                        if (batchOperationType === 'leave' && supabaseClient) {
+                            try {
+                                const updateData = {
+                                    status: status,
+                                    approved_by: approvedBy,
+                                    approved_at: getTodayDateString(),
+                                    updated_at: new Date().toISOString()
+                                };
+                                if (note) updateData.notes = note;
+
+                                const docIds = items.map(it => it.docId).filter(Boolean);
+                                let sbErr = null;
+                                if (docIds.length > 0) {
+                                    const { error: e } = await supabaseClient.from('leave_requests').update(updateData).in('doc_id', docIds);
+                                    if (e) sbErr = e;
+                                }
+
+                                if (sbErr) {
+                                    // Fallback: ลองลบ approved_by/approved_at ถ้า column ยังไม่มี
+                                    console.warn('[adminDecision batch leave fallback]', sbErr);
+                                    const updateData2 = { status: status, updated_at: new Date().toISOString() };
+                                    if (note) updateData2.notes = note;
+                                    await supabaseClient.from('leave_requests').update(updateData2).in('doc_id', docIds);
+                                }
+
+                                // ⚡ Optimistic UI: ลบแถว เคลียร์ selection ปิด modal ทันที (<100ms)
+                                items.forEach(it => removeApprovalPendingRow('leave', it.rowKey));
+                                selectedLeaveItems.clear();
+                                updateBatchButtons();
+                                const selectAllLeave = document.getElementById('select-all-leave');
+                                if (selectAllLeave) selectAllLeave.checked = false;
+                                document.querySelectorAll('.leave-checkbox').forEach(cb => cb.checked = false);
+
+                                hideApprovalProcessingOverlay();
+                                closeDecisionModal();
+                                showToast(`✅ ${baseVerb}สำเร็จทั้งหมด ${total} รายการ`, "success");
+                                updateApprovalStatCards();
+                                if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                                if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+                                if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                    RealtimeSyncManager.broadcast('leave_requests', 'UPDATE', { status });
+                                }
+
+                                // ⚡ Single Batch Payload to GAS in background (LINE notification + Audit Log)
+                                const leaveBatchPayload = {
+                                    action: "approveLeave",
+                                    docIds: docIds,
+                                    status: status,
+                                    approvedBy: approvedBy,
+                                    note: note,
+                                    adminId: currentEmployeeId
+                                };
+                                fetchWithTimeout(SERVER_API_URL, {
+                                    method: "POST",
+                                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                    body: JSON.stringify(leaveBatchPayload),
+                                    timeout: 60000
+                                }).catch(e => console.warn('[adminDecision batch leave background GAS notify error]', e));
+
+                                return;
+                            } catch (sbBulkLeaveErr) {
+                                console.warn('[adminDecision batch leave direct bulk error, falling back to sequential]', sbBulkLeaveErr);
+                            }
+                        }
+
+                        // ⚡ FAST PATH FOR CORRECTION BATCH: Bulk Supabase update + Single Batch GAS call (<100ms UI response)
+                        if (batchOperationType === 'correction' && supabaseClient) {
+                            try {
+                                const updateData = {
+                                    status: status,
+                                    approved_by: approvedBy,
+                                    approved_at: getTodayDateString(),
+                                    updated_at: new Date().toISOString()
+                                };
+                                if (note) updateData.notes = note;
+
+                                // Bulk PATCH แต่ละแถว (time_corrections มี PK composite emp_id+date ไม่ใช่ single id)
+                                // ใช้ Promise.all แทนการวนทีละใบเพื่อความเร็ว
+                                const patchResults = await Promise.all(
+                                    items.map(it =>
+                                        supabaseClient.from('time_corrections').update(updateData)
+                                            .eq('emp_id', it.empId).eq('date', it.date)
+                                    )
+                                );
+                                const firstErr = patchResults.find(r => r && r.error);
+                                if (firstErr && firstErr.error && (updateData.approved_by || updateData.approved_at)) {
+                                    // Fallback ถ้า column approved_by/approved_at ยังไม่มี
+                                    console.warn('[adminDecision batch correction fallback]', firstErr.error);
+                                    const updateData2 = { status: status, updated_at: new Date().toISOString() };
+                                    if (note) updateData2.notes = note;
+                                    await Promise.all(
+                                        items.map(it =>
+                                            supabaseClient.from('time_corrections').update(updateData2)
+                                                .eq('emp_id', it.empId).eq('date', it.date)
+                                        )
+                                    );
+                                }
+
+                                // ⚡ Optimistic UI: ลบแถว เคลียร์ selection ปิด modal ทันที (<100ms)
+                                items.forEach(it => removeApprovalPendingRow('correction', it.rowKey));
+                                selectedCorrectionItems.clear();
+                                updateBatchButtons();
+                                const selectAllCorr = document.getElementById('select-all-correction');
+                                if (selectAllCorr) selectAllCorr.checked = false;
+                                document.querySelectorAll('.correction-checkbox').forEach(cb => cb.checked = false);
+
+                                hideApprovalProcessingOverlay();
+                                closeDecisionModal();
+                                showToast(`✅ ${baseVerb}สำเร็จทั้งหมด ${total} รายการ`, "success");
+                                updateApprovalStatCards();
+                                if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                                if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+                                if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                    RealtimeSyncManager.broadcast('time_corrections', 'UPDATE', { status });
+                                }
+
+                                // ⚡ Single Batch Payload to GAS in background (Reconcile time_records + LINE + Audit Log)
+                                const corrBatchPayload = {
+                                    action: "approveTimeCorrection",
+                                    status: status,
+                                    approvedBy: approvedBy,
+                                    note: note,
+                                    adminId: currentEmployeeId,
+                                    requests: items.map(it => ({ empId: it.empId, date: it.date }))
+                                };
+                                fetchWithTimeout(SERVER_API_URL, {
+                                    method: "POST",
+                                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                    body: JSON.stringify(corrBatchPayload),
+                                    timeout: 60000
+                                }).then(() => {
+                                    // หลัง GAS Reconcile เสร็จ ล้าง cache ตารางเวลา
+                                    if (window.__pcDataCache) window.__pcDataCache = {};
+                                    window.__attendanceCycleCache = null;
+                                    if (typeof loadYearlyAttendanceOverview === 'function') loadYearlyAttendanceOverview();
+                                }).catch(e => console.warn('[adminDecision batch correction background GAS reconcile error]', e));
+
+                                return;
+                            } catch (sbBulkCorrErr) {
+                                console.warn('[adminDecision batch correction direct bulk error, falling back to sequential]', sbBulkCorrErr);
+                            }
+                        }
+
                         // ⚡ FAST PATH FOR ADVANCE BATCH: Bulk Supabase update + Single Batch GAS call (<100ms UI response)
                         if (batchOperationType === 'advance' && supabaseClient) {
                             try {
@@ -25872,6 +26016,115 @@ async function loadAdminEmployees() {
 
                     return withSubmitLock("adminDecision", async () => {
                         try {
+                            // ⚡ Direct Supabase Sync for LEAVE (Instant UI response <100ms)
+                            if (type === 'leave' && supabaseClient) {
+                                try {
+                                    const docId = data["เลขที่เอกสาร"];
+                                    if (docId) {
+                                        const updateData = {
+                                            status: approvedStatus,
+                                            updated_at: new Date().toISOString()
+                                        };
+                                        if (approvedBy) updateData.approved_by = approvedBy;
+                                        if (approvedStatus === 'อนุมัติแล้ว') updateData.approved_at = getTodayDateString();
+                                        if (note) updateData.notes = note;
+
+                                        const { error: sbLeaveErr } = await supabaseClient.from('leave_requests').update(updateData).eq('doc_id', docId);
+
+                                        // Fallback ถ้า column approved_by/approved_at ยังไม่มีใน Supabase
+                                        if (sbLeaveErr && (updateData.approved_by || updateData.approved_at)) {
+                                            console.warn('[adminDecision single leave fallback]', sbLeaveErr);
+                                            const ud2 = { status: approvedStatus, updated_at: new Date().toISOString() };
+                                            if (note) ud2.notes = note;
+                                            await supabaseClient.from('leave_requests').update(ud2).eq('doc_id', docId);
+                                        }
+
+                                        // ⚡ Optimistic UI: ปิด modal ทันที ไม่รอ GAS
+                                        hideApprovalProcessingOverlay();
+                                        showToast(`✅ พิจารณาคำร้องเสร็จสิ้น`, "success");
+                                        const rowKey = adminCurrentDecisionData?.rowKey || getApprovalRowKey(type, data);
+                                        closeDecisionModal();
+                                        removeApprovalPendingRow(type, rowKey);
+                                        updateApprovalStatCards();
+                                        if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                                        if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+                                        if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                            RealtimeSyncManager.broadcast('leave_requests', 'UPDATE', { status: approvedStatus });
+                                        }
+
+                                        // ⚡ Background GAS: LINE notify + Audit Log
+                                        fetchWithTimeout(url, {
+                                            method: "POST",
+                                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                            body: JSON.stringify(payload),
+                                            timeout: 60000
+                                        }).catch(e => console.warn('[adminDecision single leave background GAS notify error]', e));
+
+                                        return;
+                                    }
+                                } catch (sbLeaveEx) {
+                                    console.warn('[adminDecision single leave direct update error]', sbLeaveEx);
+                                }
+                            }
+
+                            // ⚡ Direct Supabase Sync for CORRECTION (Instant UI response <100ms)
+                            if (type === 'correction' && supabaseClient) {
+                                try {
+                                    const empId = data["รหัสพนักงาน"];
+                                    const date = data["วันที่"];
+                                    if (empId && date) {
+                                        const updateData = {
+                                            status: approvedStatus,
+                                            updated_at: new Date().toISOString()
+                                        };
+                                        if (approvedBy) updateData.approved_by = approvedBy;
+                                        if (approvedStatus === 'อนุมัติแล้ว') updateData.approved_at = getTodayDateString();
+                                        if (note) updateData.notes = note;
+
+                                        const { error: sbCorrErr } = await supabaseClient.from('time_corrections').update(updateData)
+                                            .eq('emp_id', empId).eq('date', date);
+
+                                        // Fallback ถ้า column approved_by/approved_at ยังไม่มีใน Supabase
+                                        if (sbCorrErr && (updateData.approved_by || updateData.approved_at)) {
+                                            console.warn('[adminDecision single correction fallback]', sbCorrErr);
+                                            const ud2 = { status: approvedStatus, updated_at: new Date().toISOString() };
+                                            if (note) ud2.notes = note;
+                                            await supabaseClient.from('time_corrections').update(ud2).eq('emp_id', empId).eq('date', date);
+                                        }
+
+                                        // ⚡ Optimistic UI: ปิด modal ทันที ไม่รอ GAS
+                                        hideApprovalProcessingOverlay();
+                                        showToast(`✅ พิจารณาคำร้องเสร็จสิ้น`, "success");
+                                        const rowKey = adminCurrentDecisionData?.rowKey || getApprovalRowKey(type, data);
+                                        closeDecisionModal();
+                                        removeApprovalPendingRow(type, rowKey);
+                                        updateApprovalStatCards();
+                                        if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
+                                        if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
+                                        if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                            RealtimeSyncManager.broadcast('time_corrections', 'UPDATE', { status: approvedStatus });
+                                        }
+
+                                        // ⚡ Background GAS: Reconcile time_records + LINE notify + Audit Log
+                                        fetchWithTimeout(url, {
+                                            method: "POST",
+                                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                            body: JSON.stringify(payload),
+                                            timeout: 60000
+                                        }).then(() => {
+                                            // ล้าง cache ตารางเวลาหลัง GAS Reconcile เสร็จ
+                                            if (window.__pcDataCache) window.__pcDataCache = {};
+                                            window.__attendanceCycleCache = null;
+                                            if (typeof loadYearlyAttendanceOverview === 'function') loadYearlyAttendanceOverview();
+                                        }).catch(e => console.warn('[adminDecision single correction background GAS reconcile error]', e));
+
+                                        return;
+                                    }
+                                } catch (sbCorrEx) {
+                                    console.warn('[adminDecision single correction direct update error]', sbCorrEx);
+                                }
+                            }
+
                             // ⚡ Direct Supabase Sync for advance (Instant UI response <100ms)
                             if (type === 'advance' && supabaseClient) {
                                 try {
