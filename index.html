@@ -4187,16 +4187,21 @@
                         </div>
                     </div>
 
-                    <!-- KPI Cards (3 เสาหลักประจำวัน: มาทำงานวันนี้, ลาวันนี้, ถึงวันนี้) -->
+                    <!-- KPI Cards (3 เสาหลักประจำวัน: มาทำงานวันนี้, ลาวันนี้, งานรออนุมัติ) -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <!-- การ์ด 1: มาทำงานวันนี้ -->
-                        <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+                        <!-- การ์ด 1: มาทำงานวันนี้ (คลิกดูรายชื่อได้) -->
+                        <div onclick="showAttendanceTodayModal()" class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs cursor-pointer hover:border-emerald-300 hover:shadow-sm transition-all group">
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+                                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                                     <i class="fa-solid fa-users-line text-base"></i>
                                 </div>
                                 <div class="w-full min-w-0">
-                                    <p class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">มาทำงานวันนี้</p>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">มาทำงานวันนี้</p>
+                                        <span class="text-[10px] text-emerald-600 group-hover:underline font-bold flex items-center gap-0.5">
+                                            ดูชื่อ <i class="fa-solid fa-angle-right text-[8px]"></i>
+                                        </span>
+                                    </div>
                                     <p class="text-[26px] font-black text-slate-900 tracking-tight leading-tight mt-0.5">
                                         <span id="dash-kpi-attendance" class="text-emerald-600">0</span>
                                         <span class="text-sm text-slate-400 font-normal"> / <span id="dash-kpi-attendance-total">0</span></span>
@@ -4231,18 +4236,24 @@
                             </div>
                         </div>
 
-                        <!-- การ์ด 3: ถึงวันนี้ -->
-                        <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+                        <!-- การ์ด 3: งานรออนุมัติ (คลิกเปิดไปแท็บอนุมัติได้) -->
+                        <div onclick="switchAdminTab('approve-leave')" class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs cursor-pointer hover:border-amber-300 hover:shadow-sm transition-all group">
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
-                                    <i class="fa-solid fa-bell text-base"></i>
+                                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 group-hover:bg-amber-500 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                                    <i class="fa-solid fa-clock-rotate-left text-base"></i>
                                 </div>
                                 <div class="w-full min-w-0">
-                                    <p class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">ถึงวันนี้</p>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">งานรออนุมัติ</p>
+                                        <span class="text-[10px] text-amber-600 group-hover:underline font-bold flex items-center gap-0.5">
+                                            เปิดดู <i class="fa-solid fa-angle-right text-[8px]"></i>
+                                        </span>
+                                    </div>
                                     <p class="text-[26px] font-black text-slate-900 tracking-tight leading-tight mt-0.5">
                                         <span id="dash-kpi-due-today" class="text-amber-600">0</span>
+                                        <span class="text-xs text-slate-400 font-normal">รายการ</span>
                                     </p>
-                                    <p id="dash-kpi-due-today-sub" class="text-[10px] text-rose-500 font-bold truncate mt-0.5">รอดูข้อมูล</p>
+                                    <p id="dash-kpi-due-today-sub" class="text-[10px] text-slate-400 font-medium truncate mt-0.5">ไม่มีรายการรออนุมัติ</p>
                                 </div>
                             </div>
                         </div>
@@ -4566,6 +4577,33 @@
                                 <button type="button" onclick="closeAttachLeaveModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">ยกเลิก</button>
                                 <button type="button" id="btn-submit-attach-doc" onclick="submitAttachLeaveDoc()" class="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors shadow-xs flex items-center gap-1.5">
                                     <i class="fa-solid fa-cloud-arrow-up"></i> บันทึกเอกสาร
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal: รายชื่อพนักงานที่มาทำงานวันนี้ -->
+                    <div id="modal-attendance-today" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+                        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm font-bold shadow-sm"><i class="fa-solid fa-users-line"></i></span>
+                                    <div>
+                                        <h3 class="text-sm font-bold text-slate-800">พนักงานที่มาทำงานวันนี้</h3>
+                                        <p id="modal-attendance-today-date" class="text-[11px] text-slate-400">วันที่ --</p>
+                                    </div>
+                                </div>
+                                <button onclick="closeAttendanceTodayModal()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors">
+                                    <i class="fa-solid fa-xmark text-sm"></i>
+                                </button>
+                            </div>
+                            <div id="modal-attendance-today-body" class="p-5 max-h-[60vh] overflow-y-auto space-y-3 divide-y divide-slate-100">
+                                <div class="py-8 text-center text-slate-400 text-xs italic">กำลังโหลด…</div>
+                            </div>
+                            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                                <span id="modal-attendance-today-total" class="text-xs font-semibold text-slate-500">รวม 0 คน</span>
+                                <button onclick="closeAttendanceTodayModal()" class="px-4 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition-all">
+                                    ปิดหน้าต่าง
                                 </button>
                             </div>
                         </div>
@@ -18684,6 +18722,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return `${year}-${month}-${day}`;
             }
 
+            let adminTodayAttendanceRecords = [];
+
             async function renderAdminDashboardAttendance() {
                 try {
                     const attendanceEl = document.getElementById('dash-kpi-attendance');
@@ -18692,6 +18732,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const barEl = document.getElementById('dash-kpi-attendance-bar');
 
                     let present = 0;
+                    adminTodayAttendanceRecords = [];
                     const activeEmployees = Array.isArray(adminEmployeesList) 
                         ? adminEmployeesList.filter(e => (e["สถานะ"] || "ทำงานปกติ") !== "ลาออก")
                         : [];
@@ -18705,6 +18746,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             .eq('date', todayKey);
 
                         if (!error && Array.isArray(data)) {
+                            adminTodayAttendanceRecords = data;
                             const employeeIds = new Set();
                             data.forEach(row => {
                                 const raw = row.emp_id ?? row['รหัสพนักงาน'] ?? row.employee_id;
@@ -18885,6 +18927,107 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     console.warn('[renderAdminDashboardLeaveToday] failed:', e);
                 }
             }
+
+            /**
+             * แสดง Modal รายชื่อพนักงานที่มาทำงานในวันนี้
+             */
+            function showAttendanceTodayModal() {
+                const modal = document.getElementById('modal-attendance-today');
+                const body = document.getElementById('modal-attendance-today-body');
+                const totalEl = document.getElementById('modal-attendance-today-total');
+                const dateEl = document.getElementById('modal-attendance-today-date');
+                if (!modal) return;
+
+                const today = new Date();
+                if (dateEl) {
+                    dateEl.textContent = today.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                }
+
+                // รวมข้อมูลตาม emp_id เพื่อแสดง 1 แถวต่อคน (หากมีบันทึกออกงาน ให้ใช้ตัวที่มีออกงาน)
+                const uniqueRecordsMap = new Map();
+                if (Array.isArray(adminTodayAttendanceRecords)) {
+                    adminTodayAttendanceRecords.forEach(item => {
+                        const empId = String(item.emp_id ?? item['รหัสพนักงาน'] ?? item.employee_id ?? '').trim();
+                        if (empId) {
+                            if (!uniqueRecordsMap.has(empId) || item.time_out) {
+                                uniqueRecordsMap.set(empId, item);
+                            }
+                        }
+                    });
+                }
+                const displayRecords = Array.from(uniqueRecordsMap.values());
+
+                if (totalEl) {
+                    totalEl.textContent = `พนักงานมาทำงานทั้งหมด ${displayRecords.length} คน`;
+                }
+
+                if (!body) return;
+
+                if (displayRecords.length === 0) {
+                    body.innerHTML = `
+                        <div class="py-10 text-center">
+                            <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2.5 text-lg">
+                                <i class="fa-solid fa-clock"></i>
+                            </div>
+                            <p class="text-xs font-bold text-slate-700">ยังไม่มีข้อมูลการลงเวลาทำงานในวันนี้</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">เมื่อพนักงานบันทึกเวลา รายชื่อจะปรากฏที่นี่</p>
+                        </div>`;
+                } else {
+                    const displayTime = value => {
+                        const match = String(value || '').match(/\d{2}:\d{2}/);
+                        return match ? match[0] : '--:--';
+                    };
+
+                    body.innerHTML = displayRecords.map(item => {
+                        const empId = String(item.emp_id ?? item['รหัสพนักงาน'] ?? item.employee_id ?? '').trim();
+                        const emp = adminEmployeesMap.get(empId) || (Array.isArray(adminEmployeesList) ? adminEmployeesList.find(e => String(e.emp_id || e['รหัสพนักงาน'] || '').trim() === empId) : null);
+                        const empName = emp ? (emp["ชื่อ-นามสกุล"] || emp.name || empId) : (getAdminEmployeeName(empId) || empId);
+                        const position = emp ? (emp["ตำแหน่ง"] || emp.position || '-') : '-';
+                        const dept = (typeof getLeaveSummaryDepartment === 'function') ? getLeaveSummaryDepartment(emp || { position }) : '-';
+                        const hasClockOut = Boolean(item.time_out);
+                        const badgeColor = hasClockOut 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                            : 'bg-amber-50 text-amber-700 border-amber-200';
+                        const badgeText = hasClockOut ? 'ลงเวลาออกแล้ว' : 'เข้างานแล้ว';
+
+                        return `
+                            <div class="pt-3 first:pt-0 flex items-start gap-3">
+                                <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">
+                                    ${escapeHtml(empName.charAt(0) || 'U')}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <h4 class="text-xs font-bold text-slate-800 truncate">${escapeHtml(empName)}</h4>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor} shrink-0">
+                                            ${badgeText}
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 truncate">${escapeHtml(position)} · <span class="text-slate-400">${escapeHtml(dept)}</span></p>
+                                    <div class="mt-1 flex items-center gap-4 text-[10px] text-slate-500">
+                                        <span><i class="fa-regular fa-clock text-emerald-500 mr-1"></i>เข้า: <strong class="font-mono text-slate-700">${displayTime(item.time_in)}</strong></span>
+                                        <span><i class="fa-regular fa-clock text-amber-500 mr-1"></i>ออก: <strong class="font-mono text-slate-700">${displayTime(item.time_out)}</strong></span>
+                                    </div>
+                                </div>
+                            </div>`;
+                    }).join('');
+                }
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+
+            /**
+             * ปิด Modal รายชื่อพนักงานที่มาทำงานวันนี้
+             */
+            function closeAttendanceTodayModal() {
+                const modal = document.getElementById('modal-attendance-today');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            }
+            window.showAttendanceTodayModal = showAttendanceTodayModal;
+            window.closeAttendanceTodayModal = closeAttendanceTodayModal;
 
             /**
              * แสดง Modal รายชื่อพนักงานที่ลางานในวันนี้
