@@ -10957,8 +10957,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             let parsedPayslips = []; // Holds list of parsed/split payslip pages
-            let selectedPayslipMonth = "";
             let selectedTxtFileContent = "";
+            let txtPreviewRecords = [];
+            let txtHasValidPreview = false;
+            let txtIsProcessing = false;
 
             function getCurrentWebAppBaseUrl() {
                 try {
@@ -27343,13 +27345,10 @@ function closeEmployeeModal() {
                         const isProjectSelected = projectSelect && projectSelect.value !== "";
                         const hasFile = typeof selectedTxtFileContent === "string" && selectedTxtFileContent.length > 0;
 
-                        if (isProjectSelected && hasFile) {
-                            previewBtn.disabled = false;
-                            saveBtn.disabled = false;
-                        } else {
-                            previewBtn.disabled = true;
-                            saveBtn.disabled = true;
-                        }
+                        // Preview: เปิดเมื่อมีไฟล์ + โครงการ
+                        previewBtn.disabled = !(isProjectSelected && hasFile);
+                        // บันทึกจริง: เปิดเฉพาะเมื่อ Preview เสร็จแล้ว (txtHasValidPreview = true)
+                        saveBtn.disabled = !(isProjectSelected && hasFile && txtHasValidPreview);
                     }
                 }
 
@@ -28139,6 +28138,7 @@ function closeEmployeeModal() {
                 // ฟังก์ชันล้างสถานะและ UI ของการนำเข้าเวลางาน .txt เพื่อพร้อมเริ่มงานใหม่
                 function clearTxtImportSystem() {
                     selectedTxtFileContent = "";
+                    txtHasValidPreview = false;
 
                     const fileInput = document.getElementById("txt-time-file");
                     if (fileInput) fileInput.value = "";
@@ -28892,6 +28892,18 @@ function closeEmployeeModal() {
                                         progressBar.style.width = `${(currentProgressCount / records.length) * 100}%`;
                                     }
 
+                                    // 🗑️ [UX] ลบแถวที่บันทึกแล้วออกจาก Tabulator Preview ทีละ Batch
+                                    // (rows อยู่บนสุดเสมอ เพราะลบไปแล้วแต่ละรอบ ทำให้รายการหดลงทีละชุดให้ผู้ใช้เห็น)
+                                    if (window.txtPreviewTabulator) {
+                                        try {
+                                            const rowsToRemove = window.txtPreviewTabulator.getRows().slice(0, batchRecords.length);
+                                            rowsToRemove.forEach(row => row.delete());
+                                            console.log(`[TXT Import] Removed ${rowsToRemove.length} rows from preview table (batch ${batchIdx + 1})`);
+                                        } catch (rowErr) {
+                                            console.warn('[TXT Import] Could not remove preview rows:', rowErr);
+                                        }
+                                    }
+
                                     if (batchStatusText) {
                                         batchStatusText.textContent = `บันทึกรายการที่ ${batchStart + 1} ถึง ${batchEnd} เสร็จเรียบร้อย`;
                                     }
@@ -29089,6 +29101,8 @@ function closeEmployeeModal() {
                             }
 
                             if (dryRun) {
+                                // ✅ [Step 3 → Step 4] เปิด "บันทึกข้อมูลจริง" หลัง Preview เสร็จสมบูรณ์
+                                txtHasValidPreview = true;
                                 statusDiv.classList.add("hidden");
                                 resultDiv.classList.remove("hidden");
                                 resultDiv.className = "mt-3 p-3 rounded-xl text-xs font-semibold bg-blue-50 border border-blue-200 text-blue-700";
