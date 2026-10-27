@@ -4968,6 +4968,38 @@
                                 </table>
                             </div>
                         </div>
+
+                        <!-- ═══ Card: ประมวลผล Reconcile ซ้ำ ═══ -->
+                        <div class="mt-4 border border-amber-200 bg-amber-50/60 rounded-2xl p-4">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </span>
+                                <div>
+                                    <h4 class="text-xs font-bold text-amber-800">ประมวลผล Reconcile ซ้ำ</h4>
+                                    <p class="text-[10px] text-amber-600">ใช้เมื่อข้อมูลนำเข้าจากไฟล์ .txt มีอยู่แล้วใน Raw แต่ยังไม่ปรากฏในตาราง — เลือกช่วงวันที่แล้วกดประมวลผล</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap items-end gap-2">
+                                <div class="flex flex-col gap-1">
+                                    <label for="reconcile-since-date" class="text-[10px] font-bold text-amber-700">วันที่เริ่ม</label>
+                                    <input type="date" id="reconcile-since-date"
+                                        class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                                        title="วันที่เริ่มต้นสำหรับ Reconcile">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label for="reconcile-until-date" class="text-[10px] font-bold text-amber-700">วันที่สิ้นสุด</label>
+                                    <input type="date" id="reconcile-until-date"
+                                        class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                                        title="วันที่สิ้นสุดสำหรับ Reconcile">
+                                </div>
+                                <button onclick="runTxtReconcileByDateRange()" id="btn-txt-reconcile"
+                                    class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+                                    <i class="fa-solid fa-arrows-rotate"></i> ประมวลผลซ้ำ
+                                </button>
+                            </div>
+                            <div id="txt-reconcile-result" class="hidden mt-3 p-3 rounded-xl text-xs"></div>
+                        </div>
                     </div>
                 </section>
 
@@ -12047,6 +12079,71 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Reconcile เลย';
+            }
+
+            // 🔄 Reconcile ซ้ำตามช่วงวันที่ที่เลือก (ใช้กู้ข้อมูลที่มีใน attendance_raw แต่ยังไม่ลง time_records)
+            async function runTxtReconcileByDateRange() {
+                const sinceInput = document.getElementById('reconcile-since-date');
+                const untilInput = document.getElementById('reconcile-until-date');
+                const btn = document.getElementById('btn-txt-reconcile');
+                const resultDiv = document.getElementById('txt-reconcile-result');
+
+                const sinceDate = sinceInput ? sinceInput.value : '';
+                const untilDate = untilInput ? untilInput.value : '';
+
+                if (!sinceDate || !untilDate) {
+                    resultDiv.className = 'mt-3 p-3 rounded-xl text-xs bg-rose-50 border border-rose-200 text-rose-700 font-semibold';
+                    resultDiv.textContent = '⚠️ กรุณาเลือกวันที่เริ่มต้นและวันที่สิ้นสุดก่อน';
+                    resultDiv.classList.remove('hidden');
+                    return;
+                }
+                if (sinceDate > untilDate) {
+                    resultDiv.className = 'mt-3 p-3 rounded-xl text-xs bg-rose-50 border border-rose-200 text-rose-700 font-semibold';
+                    resultDiv.textContent = '⚠️ วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด';
+                    resultDiv.classList.remove('hidden');
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังประมวลผล…';
+                resultDiv.className = 'mt-3 p-3 rounded-xl text-xs bg-amber-50 border border-amber-200 text-amber-700';
+                resultDiv.innerHTML = '🔄 กำลัง Reconcile ช่วง ' + sinceDate + ' ถึง ' + untilDate + ' ...';
+                resultDiv.classList.remove('hidden');
+
+                try {
+                    const adminId = (typeof currentEmployeeId !== 'undefined' && currentEmployeeId) ? currentEmployeeId : 'admin';
+                    const result = await apiRequest({
+                        action: 'reconcileAttendanceRaw',
+                        adminId: adminId,
+                        sinceDate: sinceDate,
+                        untilDate: untilDate
+                    });
+
+                    if (result && result.status === 'success') {
+                        const d = result.data || {};
+                        resultDiv.className = 'mt-3 p-3 rounded-xl text-xs bg-emerald-50 border border-emerald-200';
+                        resultDiv.innerHTML =
+                            '<p class="font-bold text-emerald-700"><i class="fa-solid fa-circle-check"></i> ' + (result.message || 'Reconcile สำเร็จ') + '</p>' +
+                            '<p class="text-emerald-600 mt-1">' +
+                            'บันทึกใหม่: <strong>' + (d.inserted || 0) + '</strong> · ' +
+                            'อัปเดต: <strong>' + (d.updated || 0) + '</strong> · ' +
+                            'ข้าม: <strong>' + (d.skipped || 0) + '</strong> · ' +
+                            'ผิดพลาด: <strong>' + (d.errors || 0) + '</strong></p>';
+                        // รีเฟรชตาราง 12 เดือนอัตโนมัติ
+                        if (typeof loadYearlyAttendanceOverview === 'function') {
+                            setTimeout(() => loadYearlyAttendanceOverview(), 800);
+                        }
+                    } else {
+                        resultDiv.className = 'mt-3 p-3 rounded-xl text-xs bg-rose-50 border border-rose-200';
+                        resultDiv.innerHTML = '<p class="font-bold text-rose-700"><i class="fa-solid fa-circle-xmark"></i> ' + (result && result.message || 'Reconcile ไม่สำเร็จ') + '</p>';
+                    }
+                } catch (err) {
+                    resultDiv.className = 'mt-3 p-3 rounded-xl text-xs bg-rose-50 border border-rose-200';
+                    resultDiv.innerHTML = '<p class="font-bold text-rose-700"><i class="fa-solid fa-circle-xmark"></i> เกิดข้อผิดพลาด: ' + (err.message || err) + '</p>';
+                }
+
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ประมวลผลซ้ำ';
             }
 
             async function promptPinBeforeAutoLogin(empId) {
