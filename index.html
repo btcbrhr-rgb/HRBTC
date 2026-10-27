@@ -12528,7 +12528,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                     hideLoginContainer();
                     const userRole = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
-                    const isUserAdminRole = isAdminRole(userRole);
+                    const isUserAdminRole = isAdminRole(userRole) || isManagerRole(userRole);
                     const savedAdminMode = sessionStorage.getItem("is_admin_mode") === "true";
                     const savedAdminTab = sessionStorage.getItem("admin_active_tab");
                     const savedActivePage = sessionStorage.getItem("active_page");
@@ -15025,10 +15025,10 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const role = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
                 const switchBtn = document.getElementById("admin-switch-btn");
 
-                const isAdminOrSuper = isAdminRole(role);
+                const hasAdminAccess = isAdminRole(role) || isManagerRole(role);
 
                 if (switchBtn) {
-                    if (isAdminOrSuper) {
+                    if (hasAdminAccess) {
                         switchBtn.classList.remove("hidden");
                     } else {
                         switchBtn.classList.add("hidden");
@@ -18118,23 +18118,19 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             // 🔑 เมนูที่ Manager เข้าถึงได้ (สอดคล้องกับ MANAGER_FEATURES ฝั่ง backend)
             const MANAGER_ADMIN_MENUS = ['dashboard', 'approve-leave', 'approve-correction', 'approve-advance', 'project-cost', 'project-matrix', 'project-costing', 'project-insights'];
 
-            function isAdminLoginAccount(empId) {
-                // 🔐 ปิดช่องโหว่บายพาส: ผู้ดูแลระบบทุกคนต้องมีบัญชีในฐานข้อมูลและยืนยัน PIN เสมอ
-                return false;
-            }
-
             // 🔒 ตรวจสอบว่าผู้ใช้มีสิทธิ์เข้าถึงเมนู admin นี้หรือไม่
             function hasAdminMenuPermission(menuId) {
-                const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
-                // Administrator เข้าถึงได้ทุกเมนู
-                if (isAdminRole(role)) return true;
-                // Manager เข้าถึงได้เฉพาะเมนูที่กำหนด
+                const role = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
+                const normalizedRole = role.toLowerCase();
+                // 1. Administrator หรือ Admin เต็มสิทธิ์ เข้าถึงได้ทุกเมนู
+                if (normalizedRole === 'administrator' || normalizedRole === 'admin') return true;
+                // 2. Manager เข้าถึงได้เฉพาะเมนูที่กำหนด
                 if (isManagerRole(role)) {
                     const allowedMenus = window.DYNAMIC_MANAGER_ADMIN_MENUS || MANAGER_ADMIN_MENUS;
                     return allowedMenus.includes(menuId);
                 }
-                // admin:home,calendar format — ตรวจ sub-permissions
-                if (role.toLowerCase().startsWith('admin:')) {
+                // 3. admin:home,calendar format — ตรวจ sub-permissions สำหรับ Admin จำกัดสิทธิ์
+                if (normalizedRole.startsWith('admin:')) {
                     const sub = role.split(":")[1];
                     if (sub) {
                         const allowed = sub.split(",").map(s => s.trim().toLowerCase());
@@ -18147,8 +18143,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // 🔒 ซ่อน/แสดงเมนู admin ตามสิทธิ์
             function filterAdminMenusByPermission(role) {
-                // Administrator เห็นทุกเมนู — แสดงทั้งหมด
-                if (isAdminRole(role)) {
+                const normalizedRole = (role || "").toString().trim().toLowerCase();
+                // Administrator หรือ Admin เต็มสิทธิ์ เห็นทุกเมนู — แสดงทั้งหมด
+                if (normalizedRole === 'administrator' || normalizedRole === 'admin') {
                     document.querySelectorAll('[id^="admin-menu-"]').forEach(el => el.closest('.space-y-1')?.querySelector('button') && (el.style.display = ''));
                     return;
                 }
@@ -18172,7 +18169,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 };
                 // ดึง sub-permissions จาก role string
                 let allowed = [];
-                if (role.toLowerCase().startsWith('admin:')) {
+                if (normalizedRole.startsWith('admin:')) {
                     const sub = role.split(":")[1];
                     if (sub) allowed = sub.split(",").map(s => s.trim().toLowerCase());
                 }
@@ -18186,7 +18183,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function enterAdminMode() {
-                const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
+                const role = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
                 const hasAdminPermission = isAdminRole(role) || isManagerRole(role);
                 if (!hasAdminPermission) {
                     showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
@@ -18217,7 +18214,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 // อัปเดตข้อมูลผู้ใช้ในแถบเมนูแอดมิน
                 document.getElementById("admin-profile-name").textContent = employeeData["ชื่อ-นามสกุล"] || "System Admin";
-                document.getElementById("admin-profile-role").textContent = employeeData["สิทธิ์การใช้งาน"] || "Administrator";
+                document.getElementById("admin-profile-role").textContent = role || "Administrator";
+
+                // 🔒 ซ่อนเมนูที่ไม่มีสิทธิ์ตาม Role ทันที (รองรับ Administrator, Admin, Manager, Custom Admin)
+                filterAdminMenusByPermission(role);
+
+                // ปิด Drawer บนมือถือไว้ก่อนเป็นค่าเริ่มต้น
+                toggleAdminMobileSidebar(false);
 
                 showToast("🛠️ เข้าสู่ระบบในฐานะผู้ดูแลระบบ", "success");
                 switchAdminTab(adminActiveTab);
@@ -18338,8 +18341,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             }
 
             function toggleAdminMode() {
-                const role = (employeeData["สิทธิ์การใช้งาน"] || "").toString().trim();
-                const isAdminOrSuper = isAdminRole(role);
+                const role = (employeeData && (employeeData["สิทธิ์การใช้งาน"] || employeeData.role) || "").toString().trim();
+                const isAdminOrSuper = isAdminRole(role) || isManagerRole(role);
 
                 if (!isAdminOrSuper) {
                     showToast("⚠️ คุณไม่มีสิทธิ์เข้าถึงโหมดผู้ดูแลระบบ", "warning");
