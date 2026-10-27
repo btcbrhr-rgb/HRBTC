@@ -4888,37 +4888,30 @@
 
                     <!-- ตารางสรุปเวลา 12 เดือน (Tabbed View) -->
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-                        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                             <!-- ชื่อ section -->
                             <div class="shrink-0">
                                 <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
                                     <i class="fa-solid fa-calendar-days text-brand-teal"></i>
                                     ตารางเวลางาน 12 เดือน
                                 </h3>
-                                <p class="text-xs text-slate-500 mt-1">ดูและแก้ไขข้อมูลการลงเวลาเข้างานรายเดือน ตลอดทั้งปี</p>
+                                <p class="text-xs text-slate-500 mt-0.5">ดูและแก้ไขข้อมูลการลงเวลาเข้างานรายเดือน ตลอดทั้งปี</p>
                             </div>
-                            <!-- ═══ Reconcile ซ้ำ — ช่องว่างตรงกลาง ═══ -->
-                            <div class="flex-1 flex flex-wrap items-end gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                                <div class="flex flex-col gap-0.5">
-                                    <label for="reconcile-since-date" class="text-[9px] font-bold text-slate-500 uppercase tracking-wide">วันที่เริ่ม</label>
-                                    <input type="date" id="reconcile-since-date"
-                                        class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 focus:ring-2 focus:ring-brand-teal focus:outline-none"
-                                        title="วันที่เริ่มต้น Reconcile">
-                                </div>
-                                <div class="flex flex-col gap-0.5">
-                                    <label for="reconcile-until-date" class="text-[9px] font-bold text-slate-500 uppercase tracking-wide">วันที่สิ้นสุด</label>
-                                    <input type="date" id="reconcile-until-date"
-                                        class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 focus:ring-2 focus:ring-brand-teal focus:outline-none"
-                                        title="วันที่สิ้นสุด Reconcile">
-                                </div>
+                            <!-- เครื่องมือเรียงแถวเดียวกันทั้งหมด (วันที่เริ่ม, วันที่สิ้นสุด, ประมวลผลซ้ำ, ปี, รีเฟรช) -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <label for="reconcile-since-date" class="text-xs font-bold text-slate-500">วันที่เริ่ม:</label>
+                                <input type="date" id="reconcile-since-date"
+                                    class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-brand-teal focus:outline-none"
+                                    title="วันที่เริ่มต้น Reconcile">
+                                <label for="reconcile-until-date" class="text-xs font-bold text-slate-500">วันที่สิ้นสุด:</label>
+                                <input type="date" id="reconcile-until-date"
+                                    class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-brand-teal focus:outline-none"
+                                    title="วันที่สิ้นสุด Reconcile">
                                 <button onclick="runTxtReconcileByDateRange()" id="btn-txt-reconcile"
-                                    class="px-3 py-1.5 bg-brand-deep hover:bg-brand-teal text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+                                    class="px-3 py-1.5 bg-brand-deep hover:bg-brand-teal text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
                                     <i class="fa-solid fa-arrows-rotate"></i> ประมวลผลซ้ำ
                                 </button>
-                            </div>
-                            <!-- ปี + รีเฟรช -->
-                            <div class="shrink-0 flex items-center gap-2">
-                                <label class="text-xs font-bold text-slate-500">ปี:</label>
+                                <label for="yearly-overview-year" class="text-xs font-bold text-slate-500 ml-1">ปี:</label>
                                 <select id="yearly-overview-year" onchange="loadYearlyAttendanceOverview()"
                                     class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-brand-teal focus:outline-none">
                                 </select>
@@ -12135,12 +12128,11 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
                 try {
                     const adminId = (typeof currentEmployeeId !== 'undefined' && currentEmployeeId) ? currentEmployeeId : 'admin';
-                    const result = await apiRequest({
-                        action: 'reconcileAttendanceRaw',
+                    const result = await postAction('reconcileAttendanceRaw', {
                         adminId: adminId,
                         sinceDate: sinceDate,
                         untilDate: untilDate
-                    });
+                    }, { timeout: 300000 });
 
                     const modal = document.getElementById('reconcile-result-modal');
                     const icon = document.getElementById('reconcile-modal-icon');
@@ -12166,7 +12158,15 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                     if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
                 } catch (err) {
-                    alert('❌ เกิดข้อผิดพลาด: ' + (err.message || err));
+                    const modal = document.getElementById('reconcile-result-modal');
+                    const icon = document.getElementById('reconcile-modal-icon');
+                    const title = document.getElementById('reconcile-modal-title');
+                    const rangeEl = document.getElementById('reconcile-modal-range');
+                    if (icon) { icon.className = 'w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold'; icon.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>'; }
+                    if (title) title.textContent = (err && err.message) ? err.message : 'เกิดข้อผิดพลาดในการประมวลผล';
+                    ['reconcile-modal-inserted','reconcile-modal-updated','reconcile-modal-skipped','reconcile-modal-errors'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '-'; });
+                    if (rangeEl) rangeEl.textContent = 'กรุณาลองใหม่อีกครั้ง';
+                    if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
                 }
 
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> ประมวลผลซ้ำ'; }
