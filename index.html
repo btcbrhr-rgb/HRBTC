@@ -12040,14 +12040,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 return getCycleDateRange(startYear, startMonth);
             }
 
-            // PIN ตรวจสอบผ่าน server-side (Supabase) เท่านั้น — ไม่เก็บใน localStorage
-
-            async function hashPin(pin) {
-                const encoder = new TextEncoder();
-                const data = encoder.encode(pin);
-                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-                return Array.from(new Uint8Array(hashBuffer)).map(byte => byte.toString(16).padStart(2, '0')).join('');
-            }
+            // PIN 6 หลัก ตรวจสอบผ่าน server-side (Supabase) โดยบันทึกและตรวจสอบเป็นเลขตรงๆ เท่านั้น (ไม่ใช้ Hash)
 
             async function isPinValid(empId, pin) {
                 // ตรวจสอบ PIN ผ่าน server-side API (Supabase) เท่านั้น
@@ -12543,7 +12536,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                     "ตัวคูณโอที": empRecord.ot_rate,
                                     "สิทธิ์การใช้งาน": empRecord.role,
                                     "LineUserId": empRecord.line_user_id,
-                                    "PIN": (empRecord.pin || empRecord.pin_hash) ? "configured" : ""
+                                    "PIN": empRecord.pin ? "configured" : ""
                                 };
                                 try {
                                     sessionStorage.setItem("employee_data", JSON.stringify(employeeData));
@@ -12757,7 +12750,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                         "ตัวคูณโอที": data.ot_rate,
                                         "สิทธิ์การใช้งาน": data.role,
                                         "LineUserId": data.line_user_id,
-                                        "PIN": (data.pin || data.pin_hash) ? "configured" : ""
+                                        "PIN": data.pin ? "configured" : ""
                                     }
                                 };
                                 console.log('[handleLogin ⚡ Supabase] Employee profile loaded instantly');
@@ -13131,7 +13124,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         pinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบ…';
                     }
 
-                    // 🔐 ตรวจสอบ PIN ผ่าน Backend (verifyPin): ตรวจกับค่า hash ใน Supabase (รองรับ legacy plaintext)
+                    // 🔐 ตรวจสอบ PIN ผ่าน Backend (verifyPin): ตรวจสอบเลข PIN 6 หลักตรงๆ ใน Supabase (ไม่ใช้ Hash)
                     let pinValid = false;
                     let pinMessage = "รหัส PIN ไม่ถูกต้อง";
                     let verifyResult = null;
@@ -13235,7 +13228,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                                         "ตัวคูณโอที": data.ot_rate,
                                         "สิทธิ์การใช้งาน": data.role,
                                         "LineUserId": data.line_user_id,
-                                        "PIN": (data.pin || data.pin_hash) ? "configured" : ""
+                                        "PIN": data.pin ? "configured" : ""
                                     };
                                     console.log('[handleLoginSuccess ⚡ Supabase] Employee data loaded:', empId);
                                     try {
