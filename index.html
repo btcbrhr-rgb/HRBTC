@@ -36795,6 +36795,9 @@ ${slip.textSample}
                 if (usable <= 0) return; // เกินเพดานตัวหารแล้ว (เช่นวันที่ 31 ของเดือน) → ไม่นับ
                 empCappedDaysUsed[emp.id] = usedSoFar + usable;
 
+                // 🔒 Sync กับ buildProjectInvoiceLaborData: cap ต้องคิดรวมทุกโครงการก่อนกรองโครงการ
+                //    (ไม่งั้นเมื่อกรองดูโครงการเดียว ยอดวัน/ค่าจ้างจะไม่ตรงกับใบตั้งเบิกค่าแรง)
+                if (activeProject !== 'all' && !isProjectMatch(projName, activeProject)) return;
                 const workHours = (emp && parseFloat(emp.workHoursPerDay)) > 0 ? parseFloat(emp.workHoursPerDay) : (systemSettings.workHoursPerDay || 8);
                 const defaultRate = (emp && parseFloat(emp.otMultiplier)) > 0 ? parseFloat(emp.otMultiplier) : (systemSettings.defaultOtRate || 1.5);
                 const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : defaultRate);
@@ -36884,8 +36887,6 @@ ${slip.textSample}
                     if (!log || !log.project) return;
 
                     const projName = log.project;
-
-                    if (activeProject !== 'all' && !isProjectMatch(projName, activeProject)) return;
 
                     addToCostingRecord(projName, log, emp);
                 });
@@ -37388,48 +37389,107 @@ ${slip.textSample}
             }
         }
 
-        // ── Helper: คำนวณยอดรายพนักงานของโครงการเดียว (คืน { laborData, dates, currentCycleMonth }) ──
-        //    ค่าแรงหลัก / เงินเพิ่มแรง / ค่า OT แยกคอลัมน์ให้ตรงใบตั้งเบิกค่าแรง
-        //    วัน "เพิ่มแรง" (พร/คส) = วันทำงานเพิ่ม 1 วัน ได้เท่าค่าแรงรายวันของคนนั้น
-        //    → คิด 1 เท่าใน ค่าแรงหลัก + อีก 1 เท่าใน เงินเพิ่มแรง (รวมวันนั้น 2 เท่า)
-        function buildProjectInvoiceLaborData(projName) {
+        // ── Helper: คำนวณยอดรายพนักงานของโครงการ (คืน { laborData, dates, currentCycleMonth }) ──
+        //    ซิงค์ตรรกะให้ตรงกับ Matrix และ Costing หน้าเว็บ 100%:
+        //    ① วันหยุด นข / วันหยุด ย / ผู้บริหาร W คิดวันทำงาน (usable workDays) และค่าจ้างเท่าหน้าเว็บ
+        //    ② จำกัดวันทำงานต่อเดือนตาม divisor (empCappedDaysUsed)
+        //    ③ แยกคอลัมน์ ค่าแรงหลัก / เงินเพิ่มแรง / ค่า OT / สวัสดิการ ให้ตรงใบตั้งเบิกค่าแรง
+        function buildProjectInvoiceLaborData(targetProjName) {
             const currentCycleMonth = document.getElementById('billingMonth').value;
             const dates = getBillingCycleDates(currentCycleMonth);
             const laborData = [];
 
-            dates.forEach(date => {
-                const dayData = attendanceData[date];
-                if (!dayData) return;
+            // 🔢 จำกัด "วันทำงาน/ค่าจ้าง" รายเดือนของพนักงานแต่ละคนไว้ที่ ตัวหารค่าแรง/วัน (เช่น 30)
+            //    รวมทุกโครงการ — เดือนมี 31 วัน นับแค่ 30 เหมือน Matrix และ Costing
+            const empCappedDaysUsed = {};
 
-                Object.keys(dayData).forEach(empId => {
-                    const log = dayData[empId];
-                    if (!log || log.project !== projName) return;
+            // ✅ Optimization: Pre-compute date metadata ครั้งเดียว
+            const dateMetaMap = dates.map(date => {
+                const parts = date.split('-');
+                const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+                return {
+                    date,
+                    dayOfWeek: d.getDay(),
+                    holidayInfo: getHoliday(date)
+                };
+            });
+
+            // ✅ Optimization: Pre-compute employee metadata ครั้งเดียว
+            const empMetaMap = new Map();
+            employees.forEach(emp => {
+                const latestProj = (typeof getLatestProjectForEmp === 'function')
+                    ? getLatestProjectForEmp(emp.id, dates) || emp.project
+                    : emp.project;
+                const pattern = _getDayOffPattern(emp);
+                const isExec = isExecutiveLumpSum(emp);
+                empMetaMap.set(emp.id, { latestProj, pattern, isExec });
+            });
+
+            const projectCostDB = {};
+
+            dateMetaMap.forEach(({ date, dayOfWeek, holidayInfo }) => {
+                const dayData = attendanceData[date];
+                employees.forEach(emp => {
+                    let log = dayData ? dayData[emp.id] : null;
+                    if (!log) {
+                        const meta = empMetaMap.get(emp.id);
+                        const latestProj = meta ? meta.latestProj : emp.project;
+                        if (holidayInfo) {
+                            log = { status: 'นข', project: latestProj, _holiday: holidayInfo };
+                        } else if (meta && meta.isExec) {
+                            log = { status: 'W', project: latestProj, _execLumpSum: true };
+                        } else {
+                            const pat = meta ? meta.pattern : null;
+                            const isDayOff = pat && ((pat.type === 'all') || (pat.type === 'specific' && pat.days.has(dayOfWeek)));
+                            if (isDayOff) {
+                                log = { status: 'ย', project: latestProj, _isDayOff: true };
+                            } else {
+                                return; // ขาด (A) ไม่เกิดต้นทุน
+                            }
+                        }
+                    }
+                    if (!log || !log.project) return;
+
+                    const rowProj = log.project;
 
                     const rule = getStatusRule(log.status);
                     const workU = (+rule.workUnit) || 0;
                     if (workU <= 0) return;
 
-                    const emp = employees.find(e => e.id === empId);
-                    if (!emp) return;
-
                     // 🔧 คำนวณตามฐานค่าจ้างและตัวหารประจำตัวพนักงาน พร้อม fallback systemSettings
                     const divisor = (emp && parseFloat(emp.divisor)) > 0 ? parseFloat(emp.divisor) : (systemSettings.dailyDivisor || 30);
+                    const usedSoFar = empCappedDaysUsed[emp.id] || 0;
+                    const usable = (usedSoFar >= divisor) ? 0 : Math.min(workU, divisor - usedSoFar);
+                    if (usable <= 0) return;
+                    empCappedDaysUsed[emp.id] = usedSoFar + usable;
+
+                    // กรองโครงการหลังจากอัปเดตเพดานวันของพนักงานแล้ว (ป้องกันกรณีพนักงานทำงานข้ามโครงการ)
+                    if (targetProjName && !isProjectMatch(rowProj, targetProjName)) return;
+
                     const workHours = (emp && parseFloat(emp.workHoursPerDay)) > 0 ? parseFloat(emp.workHoursPerDay) : (systemSettings.workHoursPerDay || 8);
                     const defaultRate = (emp && parseFloat(emp.otMultiplier)) > 0 ? parseFloat(emp.otMultiplier) : (systemSettings.defaultOtRate || 1.5);
                     const otRate = (['ย', 'นข'].includes(log.status) ? (systemSettings.holidayOtRate || 2.0) : defaultRate);
 
-                    const dailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary);
-                    const hourlyWage = workHours > 0 ? (dailyWage / workHours) : 0;
-                    const otHours = parseFloat(log.ot || 0);
+                    const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary);
+                    const hourlyWage = workHours > 0 ? (baseDailyWage / workHours) : 0;
+                    const logOtHours = parseFloat(log.ot || 0);
+
                     // ⚡ เฉพาะ 'พร' / 'เพิ่มแรง' (คส = คืนวันทำงาน ไม่ใช่เพิ่มแรง)
                     const isSpecialDay = ['พร', 'เพิ่มแรง', 'พร½'].includes(String(log.status || '').trim());
+                    const specialBonus = isSpecialDay ? applyRounding(baseDailyWage * usable, systemSettings.roundSalary) : 0;
+                    const baseWage = applyRounding(baseDailyWage * usable, systemSettings.roundSalary);
+                    const otPay = applyRounding(logOtHours * hourlyWage * otRate, systemSettings.roundSalary);
 
-                    let rec = laborData.find(r => r.id === empId);
-                    if (!rec) {
-                        rec = {
+                    const effectiveProjKey = targetProjName ? targetProjName : rowProj;
+
+                    if (!projectCostDB[effectiveProjKey]) {
+                        projectCostDB[effectiveProjKey] = {};
+                    }
+                    if (!projectCostDB[effectiveProjKey][emp.id]) {
+                        projectCostDB[effectiveProjKey][emp.id] = {
                             id: emp.id,
                             name: emp.name,
-                            projectName: projName,
+                            projectName: effectiveProjKey,
                             workDays: 0,
                             specialDays: 0,
                             otHours: 0,
@@ -37440,22 +37500,31 @@ ${slip.textSample}
                             travel: 0,
                             other: 0
                         };
-                        laborData.push(rec);
                     }
 
-                    rec.workDays += workU;
-                    if (isSpecialDay) rec.specialDays += workU;
-                    rec.otHours += otHours;
-                    rec.base += applyRounding(dailyWage * workU, systemSettings.roundSalary);
-                    if (isSpecialDay) rec.specialBonus += applyRounding(dailyWage * workU, systemSettings.roundSalary);
-                    rec.ot += applyRounding(otHours * hourlyWage * otRate, systemSettings.roundSalary);
+                    const rec = projectCostDB[effectiveProjKey][emp.id];
+                    rec.workDays += usable;
+                    if (isSpecialDay) rec.specialDays += usable;
+                    rec.otHours += logOtHours;
+                    rec.base += baseWage;
+                    rec.specialBonus += specialBonus;
+                    rec.ot += otPay;
                     rec.meal += applyRounding(parseFloat(log.food || 0), systemSettings.roundWelfare);
                     rec.travel += applyRounding(parseFloat(log.trip || 0), systemSettings.roundWelfare);
                     rec.other += applyRounding(parseFloat(log.other || 0), systemSettings.roundWelfare);
                 });
             });
 
-            return { laborData, dates, currentCycleMonth };
+            const pNames = Object.keys(projectCostDB);
+            pNames.forEach(pName => {
+                const empMap = projectCostDB[pName];
+                const empIds = Object.keys(empMap).sort((a, b) => String(a).localeCompare(String(b), 'en', { numeric: true }));
+                empIds.forEach(id => {
+                    laborData.push(empMap[id]);
+                });
+            });
+
+            return { laborData, dates, currentCycleMonth, projectCostDB };
         }
 
         // ── ใบตั้งเบิกค่าแรงของโครงการเดียว (ปุ่ม "ออกรายงาน / เรียกเก็บเงิน" ในแต่ละการ์ดโครงการ) ──
