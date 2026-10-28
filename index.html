@@ -18579,11 +18579,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (costSec) costSec.classList.remove("hidden");
                     titleEl.textContent = "สรุปต้นทุนค่าโครงการ (Costing)";
                     descEl.textContent = "สรุปต้นทุนค่าจ้าง, OT, สวัสดิการ และค่าใช้จ่ายแรงงานแยกรายโครงการ";
-                    if (typeof loadProjectCostSection === 'function') {
-                        loadProjectCostSection();
-                    }
-                    if (typeof switchTab === 'function') {
-                        switchTab('costing');
+                    const isInit = (typeof isProjectCostInitialized !== 'undefined' && isProjectCostInitialized) || (!!(typeof window !== 'undefined' && window.isProjectCostInitialized));
+                    if (isInit) {
+                        if (typeof switchTab === 'function') {
+                            switchTab('costing');
+                        }
+                        const currentMonth = (() => {
+                            const sel = document.getElementById('billingMonth');
+                            return sel ? sel.value : (typeof getCurrentBillingMonthValue === 'function' ? getCurrentBillingMonthValue() : '');
+                        })();
+                        const isCurMonth = (typeof getCurrentBillingMonthValue === 'function') && (currentMonth === getCurrentBillingMonthValue());
+                        const cacheKey = `pc_data_${currentMonth}`;
+                        const cached = window.__pcDataCache && window.__pcDataCache[cacheKey];
+                        const isCacheFresh = cached && cached.attendanceData && (Date.now() - cached.ts) < 180000;
+                        if ((!isCacheFresh || isCurMonth) && typeof loadSheetData === 'function' && !window.__isLoadingSheetData) {
+                            loadSheetData();
+                        }
+                    } else if (typeof initializeProjectCostPage === 'function') {
+                        initializeProjectCostPage();
+                        if (typeof switchTab === 'function') {
+                            switchTab('costing');
+                        }
                     }
                 } else if (tabId === 'project-insights') {
                     const costSec = document.getElementById('admin-sec-project-cost');
@@ -34854,6 +34870,9 @@ ${slip.textSample}
                 const hasExistingData = Object.keys(attendanceData || {}).length > 0 && (employees && employees.length > 0);
                 if (!hasExistingData) {
                     showMatrixLoadingState('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์…');
+                    if (typeof showCostingLoadingState === 'function') {
+                        showCostingLoadingState('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์…');
+                    }
                 } else {
                     console.log('[ProjectCost] Existing local data found. Loading new updates in the background...');
                 }
@@ -35411,6 +35430,9 @@ ${slip.textSample}
             syncSharedBillingMonthFromTab(value);
             window.__pcDataCache = {};
             window.__attendanceCycleCache = null;
+            if (typeof showCostingLoadingState === 'function') {
+                showCostingLoadingState('กำลังเตรียมข้อมูลรอบบัญชีใหม่…');
+            }
             generateBillingCycleData();
         }
 
@@ -35516,7 +35538,14 @@ ${slip.textSample}
                     const bm = document.getElementById('billingMonth');
                     if (bm && bm.value !== costingBillingVal) bm.value = costingBillingVal;
                 }
-                renderProjectCosting();
+                const hasCostingData = attendanceData && Object.keys(attendanceData).length > 0 && Array.isArray(employees) && employees.length > 0;
+                if (!hasCostingData && window.__isLoadingSheetData) {
+                    if (typeof showCostingLoadingState === 'function') {
+                        showCostingLoadingState('กำลังเตรียมข้อมูลและประมวลผลต้นทุนโครงการ…');
+                    }
+                } else {
+                    renderProjectCosting();
+                }
             } else if (tabName === 'insights') {
                 document.getElementById('tab-insights').classList.remove('hidden');
                 // 🔧 FIX: ซิงค์ billingMonth ก่อน render เพื่อให้ใช้รอบบัญชีล่าสุด
@@ -35631,6 +35660,9 @@ ${slip.textSample}
 
         async function generateBillingCycleData() {
             showMatrixLoadingState();
+            if (typeof showCostingLoadingState === 'function') {
+                showCostingLoadingState();
+            }
             const selectedMonth = document.getElementById('billingMonth').value;
             updateBillingCycleDateRange(selectedMonth);
             
@@ -36274,6 +36306,22 @@ ${slip.textSample}
             `;
         }
 
+        // Display Loading State in Costing Section
+        function showCostingLoadingState(msg = 'กำลังโหลดข้อมูลและคำนวณต้นทุนโครงการ กรุณารอสักครู่…') {
+            const container = document.getElementById('projectCostSection');
+            if (!container) return;
+            container.innerHTML = `
+                <div class="p-10 bg-slate-50/80 rounded-2xl border border-slate-200 shadow-sm max-w-md w-full mx-auto my-6 text-center">
+                    <div class="relative w-12 h-12 mb-3.5 mx-auto">
+                        <div class="absolute inset-0 rounded-full border-4 border-brand-sky2 animate-ping opacity-25"></div>
+                        <div class="w-12 h-12 rounded-full border-4 border-brand-teal border-t-transparent animate-spin"></div>
+                    </div>
+                    <p class="text-sm font-extrabold text-slate-800 tracking-wide">${msg}</p>
+                    <p class="text-xs text-slate-400 font-semibold mt-1">ระบบกำลังคำนวณสถิติและต้นทุนแยกโครงการ...</p>
+                </div>
+            `;
+        }
+
         function renderSummaryMatrix() {
             const currentCycleMonth = document.getElementById('billingMonth').value;
             const dates = getBillingCycleDates(currentCycleMonth);
@@ -36754,10 +36802,14 @@ ${slip.textSample}
                 const baseDailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary); 
                 const baseHourlyWage = workHours > 0 ? (baseDailyWage / workHours) : 0; 
                 
+                // ⚡ เฉพาะ 'พร' / 'เพิ่มแรง' (คส = คืนวันทำงาน ไม่ใช่เพิ่มแรง)
+                const isSpecialDay = ['พร', 'เพิ่มแรง', 'พร½'].includes(String(log.status || '').trim());
+                const specialBonus = isSpecialDay ? applyRounding(baseDailyWage * usable, systemSettings.roundSalary) : 0;
+
                 const logOtHours = parseFloat(log.ot || 0);
                 const logOtPay = applyRounding(logOtHours * baseHourlyWage * otRate, systemSettings.roundSalary);
-                // 💰 ค่าจ้าง = นับวันทำงาน × ค่าจ้างต่อวัน (สถานะครึ่งวัน workUnit = 0.5) — จาก System Settings
-                const logWages = applyRounding(baseDailyWage * usable, systemSettings.roundSalary) + logOtPay; 
+                // 💰 ค่าจ้าง = นับวันทำงาน × ค่าจ้างต่อวัน + ค่า OT + เงินเพิ่มแรงพิเศษ (ถ้ามี)
+                const logWages = applyRounding(baseDailyWage * usable, systemSettings.roundSalary) + logOtPay + specialBonus; 
 
                 if (!costingDatabase[projName]) {
                     costingDatabase[projName] = {};
@@ -36786,37 +36838,47 @@ ${slip.textSample}
                 record.other += applyRounding(parseFloat(log.other || 0), systemSettings.roundWelfare);
             };
 
-            // 📅 นับวันทำงานแบบเดียวกับ Matrix (ตารางรวมรอบเดือน) เป๊ะๆ:
-            //    ① มี record จริง → ใช้ record นั้น (สถานะ/โครงการ/OT ตามจริง)
-            //    ② ไม่มี record แต่วันนั้นเป็นวันหยุดนักขัตฤกษ์ → นับเป็น นข (เต็มวัน ได้ค่าจ้าง)
-            //    ③ ผู้บริหารเหมาจ่าย (day_off='ผู้บริหาร') → นับเป็น W ทั้งรอบ (วันหยุด → นข ตามข้อ ②)
-            //    ④ วันหยุดประจำสัปดาห์ของพนักงาน (day_off เช่น อาทิตย์) → นับเป็น ย (เต็มวัน ได้ค่าจ้าง)
-            //    ⑤ วันอื่นที่ไม่ได้ลงเวลา → ขาด (workUnit=0) ไม่เกิดต้นทุน
-            //    workUnit/OT ของสถานะ อ่านจาก System Settings — ฝั่ง Matrix กับ Costing ใช้ร่วมกัน จึงตรงกันเสมอ
-            //    โครงการที่ใช้ของวันที่ไม่มี record = "โครงการหลัง/ล่าสุด" (getLatestProjectForEmp) เหมือนคอลัมน์โครงการใน Matrix
-            // ✅ คำนวณ "โครงการหลัง/ล่าสุด" ครั้งเดียวต่อพนักงาน (เหมือน Matrix ใช้คอลัมน์เดียว) — ไม่ต้องคำนวณซ้ำทุกวัน
-            const empLatestProj = {};
-            employees.forEach(emp => {
-                empLatestProj[emp.id] = (typeof getLatestProjectForEmp === 'function')
-                    ? getLatestProjectForEmp(emp.id, dates) || emp.project
-                    : emp.project;
+            // ✅ Optimization: Pre-compute date metadata (วันในสัปดาห์ + วันหยุด) ครั้งเดียว ไม่ต้อง parse Date ในลูป 6,000 รอบ
+            const dateMetaMap = dates.map(date => {
+                const parts = date.split('-');
+                const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+                return {
+                    date,
+                    dayOfWeek: d.getDay(),
+                    holidayInfo: getHoliday(date)
+                };
             });
 
-            dates.forEach(date => {
+            // ✅ Optimization: Pre-compute employee metadata (โครงการล่าสุด + รูปแบบวันหยุด + ผู้บริหาร) ครั้งเดียว
+            const empMetaMap = new Map();
+            employees.forEach(emp => {
+                const latestProj = (typeof getLatestProjectForEmp === 'function')
+                    ? getLatestProjectForEmp(emp.id, dates) || emp.project
+                    : emp.project;
+                const pattern = _getDayOffPattern(emp);
+                const isExec = isExecutiveLumpSum(emp);
+                empMetaMap.set(emp.id, { latestProj, pattern, isExec });
+            });
+
+            dateMetaMap.forEach(({ date, dayOfWeek, holidayInfo }) => {
                 const dayData = attendanceData[date];
-                const holidayInfo = getHoliday(date);
                 employees.forEach(emp => {
                     let log = dayData ? dayData[emp.id] : null;
                     if (!log) {
-                        const latestProj = empLatestProj[emp.id];
+                        const meta = empMetaMap.get(emp.id);
+                        const latestProj = meta ? meta.latestProj : emp.project;
                         if (holidayInfo) {
                             log = { status: 'นข', project: latestProj, _holiday: holidayInfo };
-                        } else if (isExecutiveLumpSum(emp)) {
+                        } else if (meta && meta.isExec) {
                             log = { status: 'W', project: latestProj, _execLumpSum: true };
-                        } else if (isDateEmployeeDayOff(date, emp)) {
-                            log = { status: 'ย', project: latestProj, _isDayOff: true };
                         } else {
-                            return; // วันทำงานที่ไม่ได้ลงเวลา = ขาด (A) → ไม่เกิดต้นทุน เหมือน Matrix
+                            const pat = meta ? meta.pattern : null;
+                            const isDayOff = pat && ((pat.type === 'all') || (pat.type === 'specific' && pat.days.has(dayOfWeek)));
+                            if (isDayOff) {
+                                log = { status: 'ย', project: latestProj, _isDayOff: true };
+                            } else {
+                                return; // วันทำงานที่ไม่ได้ลงเวลา = ขาด (A) → ไม่เกิดต้นทุน เหมือน Matrix
+                            }
                         }
                     }
                     if (!log || !log.project) return;
@@ -36849,6 +36911,7 @@ ${slip.textSample}
                 return;
             }
 
+            let allCardsHtml = '';
             projectNames.forEach(projName => {
                 const empRecords = costingDatabase[projName];
                 const empIds = Object.keys(empRecords).sort((a, b) => String(a).localeCompare(String(b), 'en', { numeric: true }));
@@ -36874,9 +36937,6 @@ ${slip.textSample}
                 wagesCost += projectTotalWages;
                 allowancesCost += (projectTotalFood + projectTotalTrip + projectTotalOther);
 
-                const cardDiv = document.createElement('div');
-                cardDiv.className = "bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200";
-                
                 let employeeRowsHtml = '';
                 empIds.forEach((id, idx) => {
                     const rec = empRecords[id];
@@ -36906,7 +36966,8 @@ ${slip.textSample}
                     `;
                 });
 
-                cardDiv.innerHTML = `
+                allCardsHtml += `
+                    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-200">
                     <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50/50">
                         <div>
                             <span class="px-2.5 py-1 text-[10px] font-extrabold bg-brand-deep text-white rounded-lg mr-2 uppercase tracking-wide">ต้นทุนหน้างาน</span>
@@ -36952,10 +37013,11 @@ ${slip.textSample}
                             </tbody>
                         </table>
                     </div>
+                    </div>
                 `;
-
-                container.appendChild(cardDiv);
             });
+
+            container.innerHTML = allCardsHtml;
 
             document.getElementById('costing-total-cost').innerText = formatMoney(grandCost, systemSettings.roundNetPay);
             document.getElementById('costing-wages-cost').innerText = formatMoney(wagesCost, systemSettings.roundSalary);
@@ -37359,7 +37421,8 @@ ${slip.textSample}
                     const dailyWage = applyRounding(emp.baseSalary / divisor, systemSettings.roundSalary);
                     const hourlyWage = workHours > 0 ? (dailyWage / workHours) : 0;
                     const otHours = parseFloat(log.ot || 0);
-                    const isSpecialDay = ['พร', 'เพิ่มแรง', 'คส', 'สวัสดิการ'].includes(String(log.status || '').trim());
+                    // ⚡ เฉพาะ 'พร' / 'เพิ่มแรง' (คส = คืนวันทำงาน ไม่ใช่เพิ่มแรง)
+                    const isSpecialDay = ['พร', 'เพิ่มแรง', 'พร½'].includes(String(log.status || '').trim());
 
                     let rec = laborData.find(r => r.id === empId);
                     if (!rec) {
