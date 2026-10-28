@@ -33883,6 +33883,13 @@ ${slip.textSample}
                 </div>
             </div>
 
+            <!-- Toolbar: พิมพ์ใบตั้งเบิกค่าแรง (แยกโครงการ) -->
+            <div class="flex justify-end mb-3 no-print">
+                <button onclick="generateAllProjectsInvoice()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 active:scale-95" title="พิมพ์ใบตั้งเบิกค่าแรงทุกโครงการ (แยกโครงการ)">
+                    <i class="fa-solid fa-print"></i> พิมพ์ใบตั้งเบิกค่าแรงทุกโครงการ (แยกโครงการ)
+                </button>
+            </div>
+
             <!-- Detailed Cost breakdown per Project Section -->
             <div id="projectCostSection" class="space-y-3">
                 <!-- Content populated dynamically via JS -->
@@ -37527,35 +37534,12 @@ ${slip.textSample}
             return { laborData, dates, currentCycleMonth, projectCostDB };
         }
 
-        // ── ใบตั้งเบิกค่าแรงของโครงการเดียว (ปุ่ม "ออกรายงาน / เรียกเก็บเงิน" ในแต่ละการ์ดโครงการ) ──
+        // ── ใบตั้งเบิกค่าแรง (พิมพ์ทุกโครงการ แยกหน้าแยกโครงการอัตโนมัติใน Print_Invoice.html) ──
+        //    เดิมพิมพ์ทีละโครงการ → เปลี่ยนเป็นเดลิเกตไปหา generateAllProjectsInvoice() เลย
+        //    กันพลาดจากคนลืมเลือกโครงการบางโครงการ
         function generateProjectInvoice(encodedProjName) {
-            const projName = decodeURIComponent(encodedProjName);
-            const currentCycleMonth = document.getElementById('billingMonth').value;
-            const dates = getBillingCycleDates(currentCycleMonth);
-
-            // 🔒 ตรวจสอบข้อมูลรอบบัญชีโหลดครบก่อนเปิดเอกสาร (กันพิมพ์ใบเปล่า)
-            if (!dates.length || !Object.keys(attendanceData || {}).length) {
-                return showToast('ยังไม่มีข้อมูลเวลางานของรอบบัญชีนี้ — รอข้อมูลโหลดเสร็จแล้วลองใหม่', 'warning');
-            }
-
-            const { laborData } = buildProjectInvoiceLaborData(projName);
-            if (!laborData.length) {
-                return showToast('ไม่พบพนักงานที่ทำงานในโครงการนี้สำหรับรอบบัญชีที่เลือก', 'warning');
-            }
-
-            // ── หัวเอกสาร: เลขที่ใบตั้งเบิก + รอบบัญชีจริง + วันที่ออก ──
-            const projId = (projName.match(/\((\d+)\)/) || [])[1] || '01';
-            const today = new Date();
-            const metaData = {
-                no: `HRBTC-${currentCycleMonth.replace('-', '')}-${projId}`,
-                date: today.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }),
-                period: `${formatThaiDate(dates[0])} - ${formatThaiDate(dates[dates.length - 1])}`,
-                roundSalary: systemSettings.roundSalary || 'round',
-                roundNetPay: systemSettings.roundNetPay || 'round',
-                roundWelfare: systemSettings.roundWelfare || 'round'
-            };
-
-            openInvoicePrintPage({ laborData, metaData });
+            // ไม่ใช้ encodedProjName — พิมพ์ทุกโครงการโดยอัตโนมัติ แยกหน้าตาม projectName ใน Print_Invoice.html
+            return generateAllProjectsInvoice();
         }
 
         // ── ชุดเอกสารใบตั้งเบิกค่าแรงทุกโครงการ: แยกหน้าแต่ละโครงการ + หน้าสรุปยอดรวม (หน้าแรก) ──
