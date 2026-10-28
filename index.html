@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -15172,9 +15172,16 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
              * @param {string} dateStr - YYYY-MM-DD
              * @returns {Object|null} { date, title, type } หรือ null ถ้าไม่ใช่วันหยุด
              */
+            let _holidayMapCache = null;
+            let _lastHolidaysListRef = null;
             function getHoliday(dateStr) {
                 if (!dateStr || !holidaysList || holidaysList.length === 0) return null;
-                return holidaysList.find(h => h.date === dateStr) || null;
+                if (_lastHolidaysListRef !== holidaysList) {
+                    _holidayMapCache = new Map();
+                    holidaysList.forEach(h => { if (h && h.date) _holidayMapCache.set(h.date, h); });
+                    _lastHolidaysListRef = holidaysList;
+                }
+                return _holidayMapCache.get(dateStr) || null;
             }
 
             // 🔧 OPTIMIZE: Pre-compute day-off pattern once (ไม่ต้อง parse Date ทุกรอบ)
@@ -18547,11 +18554,25 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     // 🔧 2026-10-17zi: ไม่เติม menu-active ซ้ำที่นี่ (switchAdminTab เติมให้แล้ว L17948-17951 + switchTab เติมให้อีกที กันค้าง 2 เมนู)
                     titleEl.textContent = "ตารางรวมรอบเดือน (Matrix)";
                     descEl.textContent = "แผ่นสถิติการมาปฏิบัติงานรายบุคคลประจำรอบงวด แยกตามโครงการ";
-                    if (typeof loadProjectCostSection === 'function') {
-                        loadProjectCostSection();
-                    }
-                    if (typeof switchTab === 'function') {
-                        switchTab('summary');
+                    const isInit = (typeof isProjectCostInitialized !== 'undefined' && isProjectCostInitialized) || (!!(typeof window !== 'undefined' && window.isProjectCostInitialized));
+                    if (isInit) {
+                        if (typeof switchTab === 'function') {
+                            switchTab('summary');
+                        }
+                        // ⚡ เรียลไทม์: ตรวจสอบแคชก่อนโหลดใหม่ ป้องกัน Double Render และหน้ากระตุกเมื่อข้อมูลพร้อมอยู่แล้ว
+                        const currentMonth = (() => {
+                            const sel = document.getElementById('billingMonth');
+                            return sel ? sel.value : (typeof getCurrentBillingMonthValue === 'function' ? getCurrentBillingMonthValue() : '');
+                        })();
+                        const isCurMonth = (typeof getCurrentBillingMonthValue === 'function') && (currentMonth === getCurrentBillingMonthValue());
+                        const cacheKey = `pc_data_${currentMonth}`;
+                        const cached = window.__pcDataCache && window.__pcDataCache[cacheKey];
+                        const isCacheFresh = cached && cached.attendanceData && (Date.now() - cached.ts) < 180000;
+                        if ((!isCacheFresh || isCurMonth) && typeof loadSheetData === 'function' && !window.__isLoadingSheetData) {
+                            loadSheetData();
+                        }
+                    } else if (typeof initializeProjectCostPage === 'function') {
+                        initializeProjectCostPage();
                     }
                 } else if (tabId === 'project-costing') {
                     const costSec = document.getElementById('admin-sec-project-cost');
@@ -34449,7 +34470,7 @@ ${slip.textSample}
             'พร':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: true,  exemptLate: true },
             'พร½':  { category: 'work_other',      workUnit: 0.5, absentUnit: 0.5, food: true,  exemptLate: true },
             'คส':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false },
-            'ย':    { category: 'work',            workUnit: 1,   absentUnit: 0,   food: false, exemptLate: true },
+            'ย':    { category: 'off_paid',        workUnit: 1,   absentUnit: 0,   food: false, exemptLate: true },
             'นข':   { category: 'work_other',      workUnit: 1,   absentUnit: 0,   food: false, exemptLate: true },
             '__default__': { category: 'work',     workUnit: 1,   absentUnit: 0,   food: false, exemptLate: false }
         };
@@ -34798,217 +34819,207 @@ ${slip.textSample}
                 return;
             }
 
-            // ✅ OPTIMIZED: ใช้ getProjectCostData (1 call แทน 4 calls) → เร็วขึ้น 3-4x
-            const currentMonth = (() => {
-                const sel = document.getElementById('billingMonth');
-                return sel ? sel.value : getCurrentBillingMonthValue();
-            })();
-
-            // Client-side cache guard: ถ้าโหลด month นี้แล้ว และยังไม่เกิน 2 นาที ไม่ต้องโหลดใหม่
-            const cacheKey = `pc_data_${currentMonth}`;
-            const cached = window.__pcDataCache && window.__pcDataCache[cacheKey];
-            if (cached && (Date.now() - cached.ts) < 120000) {
-                console.log(`[ProjectCost] Cache HIT for ${currentMonth}, skipping reload`);
+            // 🔒 GUARD: ป้องกัน concurrent calls / race condition ขณะกำลังโหลดข้อมูล
+            if (window.__isLoadingSheetData) {
+                console.log('[loadSheetData] Skipped: already loading data in background');
                 return;
             }
+            window.__isLoadingSheetData = true;
 
-            // ตรวจสอบว่ามีข้อมูลเดิมอยู่แล้วหรือไม่ ถ้ามี… ไม่ต้องแสดงหน้ากากโหลดบล็อกจอ (โหลดแบบเบื้องหลังเงียบๆ)
-            const hasExistingData = Object.keys(attendanceData || {}).length > 0 && (employees && employees.length > 0);
-            if (!hasExistingData) {
-                showMatrixLoadingState('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์…');
-            } else {
-                console.log('[ProjectCost] Existing local data found. Loading new updates in the background...');
-            }
+            try {
+                // ✅ OPTIMIZED: ใช้ getProjectCostData (1 call แทน 4 calls) → เร็วขึ้น 3-4x
+                const currentMonth = (() => {
+                    const sel = document.getElementById('billingMonth');
+                    return sel ? sel.value : getCurrentBillingMonthValue();
+                })();
 
-            // ✅ Supabase-First: ดึง attendance จาก Supabase โดยตรง (ไม่ผ่าน GAS)
-            let batchOk = false;
-            if (supabaseClient) {
-                try {
-                    const t0 = performance.now();
-                    const cycleDates = getBillingCycleDates(currentMonth);
-                    const cycleStart = cycleDates[0];
-                    const cycleEnd = cycleDates[cycleDates.length - 1];
-                    const [sbEmp, sbAtt, sbProj] = await Promise.all([
-                        // 🔧 2026-10-17zq: select เฉพาะคอลัมน์ที่ map ใช้จริง (ลด Supabase Egress)
-                        supabaseClient.from('employees').select('emp_id,name,position,status,day_off,company,start_date,phone,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,avatar_url,line_user_id'),
-                        supabaseClient.from('time_records').select('emp_id,date,time_in,time_out,status_key,status,late_minutes,ot_hours,food_allowance,shift_allowance,other_allowance,project_in,project_out,source,recorded_at').gte('date', cycleStart).lte('date', cycleEnd),
-                        supabaseClient.from('projects').select('name').neq('status', 'ระงับ')
-                    ]);
-                    if (!sbAtt.error && Array.isArray(sbAtt.data) && sbAtt.data.length >= 0) {
-                        // Apply employees
-                        if (!sbEmp.error && Array.isArray(sbEmp.data)) {
-                            employees = sbEmp.data.map(r => ({
-                                id: (r.emp_id || '').toString().trim(),
-                                name: r.name || '', position: r.position || '', status: r.status || 'ทำงานปกติ',
-                                dayOff: r.day_off || 'อาทิตย์', company: r.company || '',
-                                startDate: r.start_date || '', phone: r.phone || '',
-                                baseSalary: parseFloat(r.base_salary) || 0,
-                                divisor: parseFloat(r.wage_divisor) || systemSettings.dailyDivisor || 30,
-                                workHoursPerDay: parseFloat(r.work_hours_per_day) || systemSettings.workHoursPerDay || 8,
-                                otMultiplier: parseFloat(r.ot_rate) || systemSettings.defaultOtRate || 1.5,
-                                role: r.position || r.role || 'Employee',
-                                avatar: r.avatar_url || '',
-                                avatarUrl: r.avatar_url || '',
-                                project: (r.project || r['โครงการ'] || systemSettings.defaultCentralProject || '').toString().trim(),
-                                lineUserId: r.line_user_id || ''
-                            })).filter(e => e.id);
-                        }
-                        // Apply attendance
-                        attendanceData = {};
-                        sbAtt.data.forEach(raw => {
-                            const lateMins = _calcLateFromTimeIn(raw.time_in || '') || (parseInt(raw.late_minutes) || 0);
-                            const storedStatus = (raw.status || '').toString().trim();
-                            // 🔧 แสดงสถานะตามจริงจากเวลา: ถ้า DB เก็บ 'ปกติ'/ว่างไว้ แต่เวลาจริงมาสาย → แสดง 'สาย' ทันที
-                            const status = (!storedStatus || storedStatus === 'ปกติ' || storedStatus === 'W' || storedStatus === 'ทำงานปกติ' || storedStatus === 'ปกติ (W)') && lateMins > 0
-                                ? 'สาย'
-                                : (storedStatus || _calcStatusFromTimes(raw.time_in || '', raw.time_out || ''));
-                            const rawProj = (raw.project_in || raw.project_out || raw.project || '').toString().trim();
-                            const record = {
-                                empId: (raw.emp_id || '').toString().trim(),
-                                date: (raw.date || '').toString().trim(),
-                                timeIn: raw.time_in || '', timeOut: raw.time_out || '',
-                                status,
-                                late: lateMins,
-                                penalty: lateMins,
-                                ot: parseFloat(raw.ot_hours) || 0,
-                                food: parseFloat(raw.food_allowance) || 0,
-                                trip: parseFloat(raw.shift_allowance) || 0,
-                                other: parseFloat(raw.other_allowance) || 0,
-                                project: rawProj,
-                                source: raw.source || ''
-                            };
-                            if (!record.empId || !record.date) return;
-                            if (!attendanceData[record.date]) attendanceData[record.date] = {};
-                            attendanceData[record.date][record.empId] = record;
-                        });
-                        // Apply projects
-                        if (!sbProj.error && Array.isArray(sbProj.data)) {
-                            projects = [...new Set(sbProj.data.map(p => (p.name || '').toString().trim()).filter(Boolean))];
-                            updateProjectFilterOptions();
-                            updateModalProjectOptions();
-                        }
-                        updateEmployeeProjectsFromAttendance();
-                        if (!window.__pcDataCache) window.__pcDataCache = {};
-                        window.__pcDataCache[cacheKey] = { ts: Date.now() };
-                        const elapsed = Math.round(performance.now() - t0);
-                        console.log(`[ProjectCost ⚡ Supabase] ${sbAtt.data.length} records in ${elapsed}ms`);
-                        batchOk = true;
-                        refreshActiveTab();
-                    }
-                } catch (sbErr) {
-                    console.warn('[ProjectCost] Supabase failed, falling back to GAS:', sbErr.message);
+                // Client-side cache guard: ถ้าไม่ใช่เดือนปัจจุบันและยังไม่เกิน 3 นาที มีข้อมูลเดิมอยู่ ให้ restore แล้ว render ทันที (Instant UI)
+                // ⚡ สำหรับเดือนปัจจุบัน: ต้องได้ข้อมูลเรียลไทม์เสมอตามข้อกำหนดของผู้ใช้ (User Requirement: Real-time current month)
+                const isCurMonth = (typeof getCurrentBillingMonthValue === 'function') && (currentMonth === getCurrentBillingMonthValue());
+                const cacheKey = `pc_data_${currentMonth}`;
+                const cached = window.__pcDataCache && window.__pcDataCache[cacheKey];
+                if (!isCurMonth && cached && cached.attendanceData && (Date.now() - cached.ts) < 180000) {
+                    console.log(`[ProjectCost] Cache HIT for past month ${currentMonth}, restoring instant UI`);
+                    attendanceData = Object.assign({}, cached.attendanceData);
+                    refreshActiveTab();
+                    return;
                 }
-            }
+                if (isCurMonth && cached && cached.attendanceData) {
+                    // สำหรับเดือนปัจจุบัน: นำแคชมาแสดงผลทันทีก่อน (Instant UI) แล้วดึงข้อมูลสดจาก Supabase มาอัปเดตต่อโดยไม่บล็อกหน้าจอ
+                    attendanceData = Object.assign({}, cached.attendanceData);
+                    refreshActiveTab();
+                }
 
-            // Fallback: GAS API
-            if (!batchOk && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
-                try {
-                    const t0 = performance.now();
-                    
-                    // 🔧 BUG FIX: ส่ง periodStart/periodEnd แทน month เพื่อให้ server cache key แตกต่างกันตามรอบบัญชี
-                    const cycleDates = getBillingCycleDates(currentMonth);
-                    const pStart = cycleDates.length > 0 ? cycleDates[0] : '';
-                    const pEnd = cycleDates.length > 0 ? cycleDates[cycleDates.length - 1] : '';
-                    
-                    const res = await fetchWithTimeout(
-                        `${SERVER_API_URL}?action=getProjectCostData&empId=${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : ''}&month=${currentMonth}&periodStart=${encodeURIComponent(pStart)}&periodEnd=${encodeURIComponent(pEnd)}`,
-                        { timeout: 60000 }
-                    );
-                    if (res && res.status === 'success' && res.data) {
-                        const d = res.data;
+                // ตรวจสอบว่ามีข้อมูลเดิมอยู่แล้วหรือไม่ ถ้ามี… ไม่ต้องแสดงหน้ากากโหลดบล็อกจอ (โหลดแบบเบื้องหลังเงียบๆ)
+                const hasExistingData = Object.keys(attendanceData || {}).length > 0 && (employees && employees.length > 0);
+                if (!hasExistingData) {
+                    showMatrixLoadingState('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์…');
+                } else {
+                    console.log('[ProjectCost] Existing local data found. Loading new updates in the background...');
+                }
 
-                        // Apply settings
-                        if (d.settings && typeof d.settings === 'object') {
-                            systemSettings = Object.assign({}, systemSettings, d.settings);
-                        }
-
-                        // Apply employees
-                        if (Array.isArray(d.employees)) {
-                            employees = d.employees.map(mapEmployeeRow).filter(e => e.id);
-                        }
-
-                        // Apply projects
-                        if (Array.isArray(d.projects)) {
-                            projects = [...new Set(d.projects.map(p => (p['ชื่อโครงการ'] || p.name || '').toString().trim()).filter(Boolean))];
-                            updateProjectFilterOptions();
-                            updateModalProjectOptions();
-                        }
-
-                        // Apply attendance
-                        if (Array.isArray(d.attendance)) {
+                // ✅ Supabase-First: ดึง attendance จาก Supabase โดยตรง (ไม่ผ่าน GAS)
+                let batchOk = false;
+                if (supabaseClient) {
+                    try {
+                        const t0 = performance.now();
+                        const cycleDates = getBillingCycleDates(currentMonth);
+                        const cycleStart = cycleDates[0];
+                        const cycleEnd = cycleDates[cycleDates.length - 1];
+                        const needEmp = !Array.isArray(employees) || employees.length === 0;
+                        const needProj = !Array.isArray(projects) || projects.length === 0;
+                        const [sbEmp, sbAtt, sbProj] = await Promise.all([
+                            // 🔧 โหลดเฉพาะเมื่อยังไม่มีในหน่วยความจำ (ลด Egress และประหยัดเวลา)
+                            needEmp ? supabaseClient.from('employees').select('emp_id,name,position,status,day_off,company,start_date,phone,base_salary,wage_divisor,work_hours_per_day,ot_rate,role,avatar_url,line_user_id') : Promise.resolve({ data: null }),
+                            supabaseClient.from('time_records').select('emp_id,date,time_in,time_out,status_key,status,late_minutes,ot_hours,food_allowance,shift_allowance,other_allowance,project_in,project_out,source,recorded_at').gte('date', cycleStart).lte('date', cycleEnd).limit(10000),
+                            needProj ? supabaseClient.from('projects').select('name').neq('status', 'ระงับ') : Promise.resolve({ data: null })
+                        ]);
+                        if (!sbAtt.error && Array.isArray(sbAtt.data) && sbAtt.data.length >= 0) {
+                            // Apply employees (เฉพาะเมื่อดึงมาใหม่)
+                            if (needEmp && !sbEmp.error && Array.isArray(sbEmp.data)) {
+                                employees = sbEmp.data.map(r => ({
+                                    id: (r.emp_id || '').toString().trim(),
+                                    name: r.name || '', position: r.position || '', status: r.status || 'ทำงานปกติ',
+                                    dayOff: r.day_off || 'อาทิตย์', company: r.company || '',
+                                    startDate: r.start_date || '', phone: r.phone || '',
+                                    baseSalary: parseFloat(r.base_salary) || 0,
+                                    divisor: parseFloat(r.wage_divisor) || systemSettings.dailyDivisor || 30,
+                                    workHoursPerDay: parseFloat(r.work_hours_per_day) || systemSettings.workHoursPerDay || 8,
+                                    otMultiplier: parseFloat(r.ot_rate) || systemSettings.defaultOtRate || 1.5,
+                                    role: r.position || r.role || 'Employee',
+                                    avatar: r.avatar_url || '',
+                                    avatarUrl: r.avatar_url || '',
+                                    project: (r.project || r['โครงการ'] || systemSettings.defaultCentralProject || '').toString().trim(),
+                                    lineUserId: r.line_user_id || ''
+                                })).filter(e => e.id);
+                            }
+                            // Apply attendance
                             attendanceData = {};
-                            d.attendance.forEach(raw => {
-                                const record = mapAttendanceRow(raw);
-                                if (!record) return;
+                            sbAtt.data.forEach(raw => {
+                                const lateMins = _calcLateFromTimeIn(raw.time_in || '') || (parseInt(raw.late_minutes) || 0);
+                                const storedStatus = (raw.status || '').toString().trim();
+                                // 🔧 แสดงสถานะตามจริงจากเวลา: ถ้า DB เก็บ 'ปกติ'/ว่างไว้ แต่เวลาจริงมาสาย → แสดง 'สาย' ทันที
+                                const status = (!storedStatus || storedStatus === 'ปกติ' || storedStatus === 'W' || storedStatus === 'ทำงานปกติ' || storedStatus === 'ปกติ (W)') && lateMins > 0
+                                    ? 'สาย'
+                                    : (storedStatus || _calcStatusFromTimes(raw.time_in || '', raw.time_out || ''));
+                                const rawProj = (raw.project_in || raw.project_out || raw.project || '').toString().trim();
+                                const record = {
+                                    empId: (raw.emp_id || '').toString().trim(),
+                                    date: (raw.date || '').toString().trim(),
+                                    timeIn: raw.time_in || '', timeOut: raw.time_out || '',
+                                    status,
+                                    late: lateMins,
+                                    penalty: lateMins,
+                                    ot: parseFloat(raw.ot_hours) || 0,
+                                    food: parseFloat(raw.food_allowance) || 0,
+                                    trip: parseFloat(raw.shift_allowance) || 0,
+                                    other: parseFloat(raw.other_allowance) || 0,
+                                    project: rawProj,
+                                    source: raw.source || ''
+                                };
+                                if (!record.empId || !record.date) return;
                                 if (!attendanceData[record.date]) attendanceData[record.date] = {};
                                 attendanceData[record.date][record.empId] = record;
                             });
+                            // Apply projects (เฉพาะเมื่อดึงมาใหม่)
+                            if (needProj && !sbProj.error && Array.isArray(sbProj.data)) {
+                                projects = [...new Set(sbProj.data.map(p => (p.name || '').toString().trim()).filter(Boolean))];
+                                updateProjectFilterOptions();
+                                updateModalProjectOptions();
+                            }
                             updateEmployeeProjectsFromAttendance();
+                            if (!window.__pcDataCache) window.__pcDataCache = {};
+                            window.__pcDataCache[cacheKey] = { ts: Date.now(), attendanceData: Object.assign({}, attendanceData) };
+                            const elapsed = Math.round(performance.now() - t0);
+                            console.log(`[ProjectCost ⚡ Supabase] ${sbAtt.data.length} records in ${elapsed}ms`);
+                            batchOk = true;
+                            refreshActiveTab();
                         }
+                    } catch (sbErr) {
+                        console.warn('[ProjectCost] Supabase failed, falling back to server API:', sbErr.message);
+                    }
+                }
 
-                        // Store client-side cache
-                        if (!window.__pcDataCache) window.__pcDataCache = {};
-                        window.__pcDataCache[cacheKey] = { ts: Date.now() };
-
-                        const elapsed = Math.round(performance.now() - t0);
-                        console.log(`[ProjectCost] ✅ Batch loaded in ${elapsed}ms`);
-                        batchOk = true;
+                // Fallback: Backend API
+                if (!batchOk && typeof fetchWithTimeout === 'function' && typeof SERVER_API_URL !== 'undefined' && SERVER_API_URL) {
+                    try {
+                        const t0 = performance.now();
+                        const cycleDates = getBillingCycleDates(currentMonth);
+                        const pStart = cycleDates.length > 0 ? cycleDates[0] : '';
+                        const pEnd = cycleDates.length > 0 ? cycleDates[cycleDates.length - 1] : '';
                         
-                        // ✅ Refresh Matrix UI immediately after background download finishes
-                        refreshActiveTab();
-                    }
-                } catch (batchErr) {
-                    console.warn('[ProjectCost] Batch API failed:', batchErr.message || batchErr);
-                    // Show gentle warning but continue with fallback
-                    if (batchErr.response?.status === 404) {
-                        console.log('[ProjectCost] 404 error - possible authorization issue, retrying with fallback');
+                        const res = await fetchWithTimeout(
+                            `${SERVER_API_URL}?action=getProjectCostData&empId=${typeof currentEmployeeId !== 'undefined' ? currentEmployeeId : ''}&month=${currentMonth}&periodStart=${encodeURIComponent(pStart)}&periodEnd=${encodeURIComponent(pEnd)}`,
+                            { timeout: 60000 }
+                        );
+                        if (res && res.status === 'success' && res.data) {
+                            const d = res.data;
+
+                            // Apply settings
+                            if (d.settings && typeof d.settings === 'object') {
+                                systemSettings = Object.assign({}, systemSettings, d.settings);
+                            }
+
+                            // Apply employees
+                            if (Array.isArray(d.employees)) {
+                                employees = d.employees.map(mapEmployeeRow).filter(e => e.id);
+                            }
+
+                            // Apply projects
+                            if (Array.isArray(d.projects)) {
+                                projects = [...new Set(d.projects.map(p => (p['ชื่อโครงการ'] || p.name || '').toString().trim()).filter(Boolean))];
+                                updateProjectFilterOptions();
+                                updateModalProjectOptions();
+                            }
+
+                            // Apply attendance
+                            if (Array.isArray(d.attendance)) {
+                                attendanceData = {};
+                                d.attendance.forEach(raw => {
+                                    const record = mapAttendanceRow(raw);
+                                    if (!record) return;
+                                    if (!attendanceData[record.date]) attendanceData[record.date] = {};
+                                    attendanceData[record.date][record.empId] = record;
+                                });
+                                updateEmployeeProjectsFromAttendance();
+                            }
+
+                            // Store client-side cache
+                            if (!window.__pcDataCache) window.__pcDataCache = {};
+                            window.__pcDataCache[cacheKey] = { ts: Date.now(), attendanceData: Object.assign({}, attendanceData) };
+
+                            const elapsed = Math.round(performance.now() - t0);
+                            console.log(`[ProjectCost] ✅ Batch loaded in ${elapsed}ms`);
+                            batchOk = true;
+                            
+                            // ✅ Refresh Matrix UI immediately after background download finishes
+                            refreshActiveTab();
+                        }
+                    } catch (batchErr) {
+                        console.warn('[ProjectCost] Batch API failed:', batchErr.message || batchErr);
                     }
                 }
-            }
 
-
-            // Fallback: ใช้ individual calls ถ้า batch API ยังไม่ deploy
-            if (!batchOk) {
-                await Promise.all([loadSystemSettingsFromSheet(), loadEmployeesFromSheet(), loadProjectsFromSheet()]);
-                await loadAttendanceForCycle();
+                if (!batchOk) {
+                    console.warn('[ProjectCost] Unable to fetch new records, refreshing with existing memory state.');
+                    refreshActiveTab();
+                }
+            } finally {
+                window.__isLoadingSheetData = false;
             }
         }
 
+        // ⚠️ DEPRECATED: ฟังก์ชันเดิมที่ใช้ GAS API ปัจจุบันระบบใช้ loadSheetData() แบบ Supabase-First
         async function loadAttendanceForCycle() {
-            showMatrixLoadingState();
-            const currentCycleMonth = document.getElementById('billingMonth').value;
-            const cycleDates = getBillingCycleDates(currentCycleMonth);
-            const startDate = cycleDates[0];
-            const endDate = cycleDates[cycleDates.length - 1];
-
-            if (!cycleDates.includes(selectedDateStr)) {
-                selectedDateStr = startDate;
-            }
-            const curSelDateEl = document.getElementById('currentSelectedDate'); if (curSelDateEl) curSelDateEl.value = selectedDateStr;
-            updateDayLabel();
-
-            const records = await loadAttendanceRecordsForCycle(startDate, endDate);
-            attendanceData = {};
-            records.forEach(raw => {
-                const record = mapAttendanceRow(raw);
-                if (!record) return;
-                if (!attendanceData[record.date]) {
-                    attendanceData[record.date] = {};
-                }
-                attendanceData[record.date][record.empId] = record;
-            });
-
-            // Update each employee's current project based on the most recent attendance record
-            updateEmployeeProjectsFromAttendance();
-
-            refreshActiveTab();
+            return await loadSheetData();
         }
+
 
         // Set employee.project according to the latest attendance record (most recent date).
         // If a record has differing projectIn/projectOut, mapAttendanceRow already prefers the newer (projectOut).
         function updateEmployeeProjectsFromAttendance() {
-            // Collect dates descending (most recent first)
-            const dates = Object.keys(attendanceData || {}).filter(d => d).sort((a, b) => new Date(b) - new Date(a));
+            // Collect dates descending (most recent first) - fast string sort for ISO dates
+            const dates = Object.keys(attendanceData || {}).filter(d => d).sort((a, b) => b.localeCompare(a));
             if (dates.length === 0) return;
 
             const empMap = {};
@@ -35032,7 +35043,7 @@ ${slip.textSample}
             // Debug: log mapping summary for inspection
             try {
                 const summary = employees.map(e => ({ id: e.id, name: e.name, project: e.project || '' }));
-                console.info('updateEmployeeProjectsFromAttendance - mapping sample:', summary.slice(0, 20));
+                console.debug('updateEmployeeProjectsFromAttendance - mapping sample:', summary.slice(0, 20));
             } catch (err) {
                 console.debug('updateEmployeeProjectsFromAttendance - logging failed', err);
             }
@@ -35150,51 +35161,10 @@ ${slip.textSample}
             }
         }
 
-        // Initialize billing month dropdown — SHOW ONLY months that actually have time records in the DB
+        // Initialize billing month dropdown — Optimized: generate immediate 12 months back + 6 months forward (Instant UI)
         async function initializeBillingMonthSelector() {
-            // 🔧 ต้องเพิ่ม sharedBillingMonth ด้วย
             const selects = document.querySelectorAll('.billing-month, #sharedBillingMonth');
             if (selects.length === 0) return;
-
-            // ดึงชุด "เดือน/ปี ของรอบบัญชี" ที่มีข้อมูลจริงจาก time_records (โดยตรงจาก Supabase)
-            // ถ้าดึงไม่ได้ → monthsWithData = null → แสดงทุกเดือนตามเดิม (Fallback กันหน้าเสีย)
-            let monthsWithData = null;
-            if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
-                try {
-                    const cycleStartDay = parseInt(systemSettings?.billingCycleStartDay) || 26;
-                    const have = new Set();
-                    const pageSize = 1000;
-                    let offset = 0;
-                    while (offset < 50000) { // cap กันตารางใหญ่ผิดปกติ
-                        const { data, error } = await supabaseClient
-                            .from('time_records')
-                            .select('date')
-                            .range(offset, offset + pageSize - 1);
-                        if (error) throw error;
-                        const rows = data || [];
-                        rows.forEach(r => {
-                            const d = String(r.date || '').trim();
-                            if (!/^\d{4}-\d{2}-\d{2}/.test(d)) return;
-                            const parts = d.split('-');
-                            let y = parseInt(parts[0], 10);
-                            let m = parseInt(parts[1], 10);
-                            const day = parseInt(parts[2], 10);
-                            // วันที่ >= billingCycleStartDay (เช่น 26) → อยู่รอบบัญชีของเดือนถัดไป
-                            if (day >= cycleStartDay) {
-                                m += 1;
-                                if (m > 12) { m = 1; y += 1; }
-                            }
-                            have.add(`${y}-${String(m).padStart(2, '0')}`);
-                        });
-                        if (rows.length < pageSize) break;
-                        offset += pageSize;
-                    }
-                    monthsWithData = have.size > 0 ? have : null;
-                } catch (e) {
-                    console.warn('[BillingMonth] ดึงเดือนที่มีข้อมูลไม่สำเร็จ จะแสดงทุกเดือน:', e.message || e);
-                    monthsWithData = null;
-                }
-            }
 
             selects.forEach(select => { select.innerHTML = ''; });
 
@@ -35212,7 +35182,7 @@ ${slip.textSample}
                 }
             }
 
-            // Generate 12 months back + 6 months forward
+            // Generate 12 months back + 6 months forward (Instant UI, no 50k row pagination)
             for (let i = -12; i <= 6; i++) {
                 let month = currentMonth + i;
                 let year = currentYear;
@@ -35231,25 +35201,13 @@ ${slip.textSample}
                 const yearTh = year + 543; // Convert to Buddhist Era
                 const valueStr = `${year}-${String(monthNum).padStart(2, '0')}`;
 
-                // ตัวเลือกแสดงเฉพาะเดือน/ปี ที่มีข้อมูลจริงในฐานข้อมมูลเท่านั้น
-                if (monthsWithData && !monthsWithData.has(valueStr)) continue;
-
-                // Get date range for display
-                const dates = getBillingCycleDates(valueStr);
-                const startDay = dates[0].split('-')[2];
-                const endDay = dates[dates.length - 1].split('-')[2];
-                const endMonthNum = parseInt(dates[dates.length - 1].split('-')[1]);
-                const endMonthNameTh = THAI_MONTHS[endMonthNum - 1];
-                const endYear = parseInt(dates[dates.length - 1].split('-')[0]) + 543;
-
                 const option = document.createElement('option');
                 option.value = valueStr;
-                // Show only "เดือน ปี" in the selector; detailed range is shown below
                 option.textContent = `${monthNameTh} ${yearTh}`;
                 selects.forEach(select => { select.appendChild(option.cloneNode(true)); });
             }
 
-            // กันเดือนปัจจุบัน (ที่ dropdown ตั้งค่าไว้) หายจากลิสต์ เช่น เดือนใหม่ที่ยังไม่มีข้อมูล
+            // กันเดือนปัจจุบัน (ที่ dropdown ตั้งค่าไว้) หายจากลิสต์
             const currentBillingMonth = getCurrentBillingMonthValue();
             const hasCurrentMonth = selects[0] && [...selects[0].options].some(opt => opt.value === currentBillingMonth);
             if (!hasCurrentMonth && selects.length > 0) {
@@ -35266,49 +35224,116 @@ ${slip.textSample}
             renderMatrixBillingMonthTabs();
         }
 
-        // 🗓️ Render matrix pill tabs — แสดง 12 เดือนของปีปัจจุบัน (ม.ค. - ธ.ค.) และเลือกเดือนปัจจุบันเป็นค่าเริ่มต้น
+        // 🗓️ เลื่อนปี พ.ศ. ของรอบบัญชี Matrix (< ปีก่อนหน้า / ปีถัดไป >)
+        function changeMatrixBillingYear(delta) {
+            const sharedSelect = document.getElementById('sharedBillingMonth');
+            const billingSelect = document.getElementById('billingMonth');
+            let currentValue = (sharedSelect && sharedSelect.value) || (billingSelect && billingSelect.value) || '';
+            const now = new Date();
+            let year = now.getFullYear();
+            let month = now.getMonth() + 1;
+            if (currentValue && /^\d{4}-\d{2}$/.test(currentValue)) {
+                const parts = currentValue.split('-');
+                year = parseInt(parts[0], 10);
+                month = parseInt(parts[1], 10);
+            }
+            year += delta;
+            selectMatrixBillingMonth(year, month);
+        }
+
+        // 🗓️ Render matrix pill tabs — แสดงปุ่มเลื่อนปี < > และ 12 เดือนของปีเป้าหมาย (ม.ค. - ธ.ค.)
         function renderMatrixBillingMonthTabs() {
             const tabsEl = document.getElementById('matrix-billing-month-tabs');
             if (!tabsEl) return;
-            tabsEl.innerHTML = '';
 
             const shortMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
             const now = new Date();
-            const currentYear = now.getFullYear(); // ค.ศ. เช่น 2026
-            const currentMonth = now.getMonth() + 1; // 1-12
-            const yearThai = currentYear + 543; // พ.ศ. เช่น 2569
+            const defaultYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
 
             const sharedSelect = document.getElementById('sharedBillingMonth');
+            const billingSelect = document.getElementById('billingMonth');
+            let currentValue = (sharedSelect && sharedSelect.value) || (billingSelect && billingSelect.value) || '';
 
-            // กำหนดค่าเริ่มต้นเป็นเดือนปัจจุบันของปีปัจจุบัน ถ้ายังไม่มีค่าหรือไม่ใช่ปีปัจจุบัน
-            let currentValue = sharedSelect ? sharedSelect.value : '';
-            if (!currentValue || !currentValue.startsWith(currentYear + '-')) {
-                currentValue = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            if (!currentValue || !/^\d{4}-\d{2}$/.test(currentValue)) {
+                currentValue = `${defaultYear}-${String(currentMonth).padStart(2, '0')}`;
                 if (sharedSelect) sharedSelect.value = currentValue;
             }
 
-            // สร้างปุ่ม 12 เดือนของปีปัจจุบันเท่านั้น
+            const targetYear = parseInt(currentValue.split('-')[0], 10) || defaultYear;
+            const yearThai = targetYear + 543;
+
+            // ⚡ FAST UI: ถ้าปีเดิมถูกวาดไว้แล้ว ให้อัปเดตเฉพาะ active state ของปุ่ม ไม่ต้องสร้าง DOM ใหม่ทั้งหมด (ลด Flicker)
+            if (tabsEl.dataset.renderedYear === String(targetYear) && tabsEl.children.length >= 14) {
+                const updateButtonState = (root) => {
+                    root.querySelectorAll('button[data-value]').forEach(btn => {
+                        const isActive = (btn.dataset.value === currentValue);
+                        btn.className = `flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all whitespace-nowrap border ${isActive ? 'bg-brand-deep text-white border-brand-deep shadow-sm font-bold' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`;
+                    });
+                };
+                updateButtonState(tabsEl);
+                document.querySelectorAll('.matrix-billing-month-tabs-clone').forEach(updateButtonState);
+                return;
+            }
+            tabsEl.dataset.renderedYear = String(targetYear);
+            tabsEl.innerHTML = '';
+
+            // ปุ่มเลื่อนปีก่อนหน้า <
+            const prevYearBtn = document.createElement('button');
+            prevYearBtn.type = 'button';
+            prevYearBtn.dataset.role = 'prev-year';
+            prevYearBtn.title = `ปีก่อนหน้า (พ.ศ. ${yearThai - 1})`;
+            prevYearBtn.className = 'flex-shrink-0 px-2 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all flex items-center gap-1 shadow-2xs active:scale-95';
+            prevYearBtn.innerHTML = '<i class="fa-solid fa-chevron-left text-[9px]"></i>';
+            prevYearBtn.onclick = () => changeMatrixBillingYear(-1);
+            tabsEl.appendChild(prevYearBtn);
+
+            // ป้ายปี พ.ศ.
+            const yearBadge = document.createElement('span');
+            yearBadge.className = 'flex-shrink-0 px-2 py-1 rounded-lg text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200 flex items-center';
+            yearBadge.innerHTML = `<i class="fa-solid fa-calendar-days text-brand-teal mr-1 text-[9px]"></i>ปี ${yearThai}`;
+            tabsEl.appendChild(yearBadge);
+
+            // สร้างปุ่ม 12 เดือนของปีเป้าหมาย
             for (let m = 1; m <= 12; m++) {
-                const valueStr = `${currentYear}-${String(m).padStart(2, '0')}`;
+                const valueStr = `${targetYear}-${String(m).padStart(2, '0')}`;
                 const isActive = (valueStr === currentValue);
 
                 const btn = document.createElement('button');
+                btn.type = 'button';
                 btn.dataset.value = valueStr;
-                btn.innerHTML = `${shortMonths[m - 1]} ${yearThai}`;
-                btn.className = `flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all whitespace-nowrap border ${isActive ? 'bg-brand-deep text-white border-brand-deep shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`;
-                btn.onclick = () => selectMatrixBillingMonth(currentYear, m);
+                btn.innerHTML = `${shortMonths[m - 1]}`;
+                btn.title = `${shortMonths[m - 1]} ${yearThai}`;
+                btn.className = `flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all whitespace-nowrap border ${isActive ? 'bg-brand-deep text-white border-brand-deep shadow-sm font-bold' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`;
+                btn.onclick = () => selectMatrixBillingMonth(targetYear, m);
                 tabsEl.appendChild(btn);
             }
-            // 🔧 2026-10-17: clone ปุ่มไปแถบใน Admin Matrix card (จุดที่หน้าจริงใช้ — class ไม่ซ้ำ id)
+
+            // ปุ่มเลื่อนปีถัดไป >
+            const nextYearBtn = document.createElement('button');
+            nextYearBtn.type = 'button';
+            nextYearBtn.dataset.role = 'next-year';
+            nextYearBtn.title = `ปีถัดไป (พ.ศ. ${yearThai + 1})`;
+            nextYearBtn.className = 'flex-shrink-0 px-2 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all flex items-center gap-1 shadow-2xs active:scale-95';
+            nextYearBtn.innerHTML = '<i class="fa-solid fa-chevron-right text-[9px]"></i>';
+            nextYearBtn.onclick = () => changeMatrixBillingYear(1);
+            tabsEl.appendChild(nextYearBtn);
+
+            // 🔧 clone ปุ่มไปแถบใน Admin Matrix card (จุดที่หน้าจริงใช้ — class ไม่ซ้ำ id)
             try {
                 document.querySelectorAll('.matrix-billing-month-tabs-clone').forEach(function (cloneEl) {
                     cloneEl.innerHTML = tabsEl.innerHTML;
                     cloneEl.querySelectorAll('button').forEach(function (b) {
-                        const v = b.dataset.value || (b.textContent || '').trim();
-                        b.onclick = function () {
+                        if (b.dataset.role === 'prev-year') {
+                            b.onclick = () => changeMatrixBillingYear(-1);
+                        } else if (b.dataset.role === 'next-year') {
+                            b.onclick = () => changeMatrixBillingYear(1);
+                        } else {
                             const parts = String(b.dataset.value || '').split('-');
-                            if (parts.length === 2) selectMatrixBillingMonth(parseInt(parts[0], 10), parseInt(parts[1], 10));
-                        };
+                            if (parts.length === 2) {
+                                b.onclick = () => selectMatrixBillingMonth(parseInt(parts[0], 10), parseInt(parts[1], 10));
+                            }
+                        }
                     });
                 });
             } catch (e) {}
@@ -35317,26 +35342,26 @@ ${slip.textSample}
         // เลือกเดือนจาก pill tab แล้วซิงค์รอบบัญชีทั้งระบบ
         function selectMatrixBillingMonth(year, month) {
             const valueStr = `${year}-${String(month).padStart(2, '0')}`;
-            const sharedSelect = document.getElementById('sharedBillingMonth');
+            const shortMonthsOpt = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+            const optionText = `${shortMonthsOpt[month - 1]} ${year + 543}`;
 
-            if (sharedSelect) {
-                // ถ้ายังไม่มี option นี้ใน select ให้เพิ่มเข้าไปก่อน
-                let optionExists = false;
-                for (let i = 0; i < sharedSelect.options.length; i++) {
-                    if (sharedSelect.options[i].value === valueStr) {
-                        optionExists = true;
+            // 🔄 ซิงค์ option เข้า dropdown ทุกตัว (.billing-month และ #sharedBillingMonth) หากยังไม่มี
+            document.querySelectorAll('.billing-month, #sharedBillingMonth').forEach(sel => {
+                let exists = false;
+                for (let i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === valueStr) {
+                        exists = true;
                         break;
                     }
                 }
-                if (!optionExists) {
-                    const newOption = document.createElement('option');
-                    const shortMonthsOpt = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-                    newOption.value = valueStr;
-                    newOption.textContent = `${shortMonthsOpt[month - 1]} ${year + 543}`;
-                    sharedSelect.appendChild(newOption);
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = valueStr;
+                    opt.textContent = optionText;
+                    sel.appendChild(opt);
                 }
-                sharedSelect.value = valueStr;
-            }
+                sel.value = valueStr;
+            });
 
             syncAllBillingMonthDropdowns(valueStr);
             renderMatrixBillingMonthTabs(); // รีเฟรชสถานะ active ของปุ่ม
@@ -35476,7 +35501,13 @@ ${slip.textSample}
                 renderDailyTable();
             } else if (tabName === 'summary') {
                 document.getElementById('tab-summary').classList.remove('hidden');
-                renderSummaryMatrix();
+                // ⚡ Optimization: ถ้ายังไม่มีข้อมูลในหน่วยความจำ ให้แสดง Loading State เพื่อรอ loadSheetData วาดข้อมูลจริงรอบเดียว (ตัด Double Render)
+                const hasMatrixData = attendanceData && Object.keys(attendanceData).length > 0 && Array.isArray(employees) && employees.length > 0;
+                if (!hasMatrixData) {
+                    showMatrixLoadingState('กำลังเตรียมตารางรวมรอบเดือนและดึงข้อมูล…');
+                } else {
+                    renderSummaryMatrix();
+                }
             } else if (tabName === 'costing') {
                 document.getElementById('tab-costing').classList.remove('hidden');
                 // 🔧 FIX: ซิงค์ billingMonth ก่อน render เพื่อให้ใช้รอบบัญชีล่าสุด
@@ -36274,6 +36305,7 @@ ${slip.textSample}
                 return {
                     dayNum: d.getDate(),
                     dayName: d.toLocaleDateString('th-TH', { weekday: 'narrow' }),
+                    dayOfWeek: d.getDay(),
                     isSunday: d.getDay() === 0,
                     monthShort: d.toLocaleDateString('th-TH', { month: 'short' }),
                     monthFull: d.toLocaleDateString('th-TH', { month: 'long' }),
@@ -36464,85 +36496,6 @@ ${slip.textSample}
                 // 🔢 จำกัด "วันทำงาน/ค่าจ้าง" รายเดือนไว้ที่ ตัวหารค่าแรง/วัน (เช่น 30) — เดือนมี 31 วัน นับแค่ 30
                 let cappedDaysUsed = 0;
 
-                dates.forEach(date => {
-                    const holidayInfo = getHoliday(date);
-                    let log = attendanceData[date]?.[emp.id];
-                    if (!log) {
-                        // ไม่มีข้อมูล time record → ต้องเช็กว่าวันนี้เป็นวันหยุดหรือไม่
-                        if (holidayInfo) {
-                            log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
-                        } else if (isExecutiveLumpSum(emp)) {
-                            // ผู้บริหารเหมาจ่าย 30 วัน ไม่ต้องลงเวลา → นับเป็นวันทำงานทั้งรอบ ไม่หักเป็นขาด
-                            log = { status: 'W', project: emp.project, _execLumpSum: true };
-                        } else if (isDateEmployeeDayOff(date, emp)) {
-                            log = { status: 'ย', project: emp.project };
-                        } else {
-                            log = { status: 'A', project: emp.project, _isAbsent: true };
-                        }
-                    }
-                    const matchesFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
-                    if (matchesFilter) {
-                        const rule = getStatusRule(log.status);
-                        const cat = rule.category;
-                        const workU = (+rule.workUnit) || 0;
-                        const lateMins = parseFloat(log.penalty || 0);
-                        // 🔢 เพดานวันทำงาน = ตัวหารค่าแรง/วัน: วันที่เกินเพดาน (เช่นวันที่ 31 ของเดือน) ไม่นับวัน/ไม่จ่าย/ไม่นับ OT/เบี้ยเลี้ยง
-                        const usable = (cappedDaysUsed >= costParams.divisor) ? 0 : Math.min(workU, costParams.divisor - cappedDaysUsed);
-                        if (usable > 0) {
-                            cappedDaysUsed += usable;
-                            workedDaysCount += usable;
-                            if (cat === 'late' || cat === 'late_half') lateDaysCount++;
-                        } else if ((+rule.absentUnit || 0) > 0) {
-                            absentDaysCount += (+rule.absentUnit || 0);
-                        }
-                        // ✅ นับนาทีสายจาก penalty ทุก record ที่มีค่า > 0 (ยกเว้นสถานะที่ตั้งค่า "ยกเว้นนับสาย" ใน System Settings)
-                        if (lateMins > 0 && !rule.exemptLate) {
-                            lateMinutesSum += lateMins;
-                            if (cat !== 'late' && cat !== 'late_half') lateDaysCount++;
-                        }
-
-                        if (usable > 0) {
-                            // 💰 ต้นทุนค่าจ้างรายวัน = (วันทำงาน × ค่าจ้างต่อวัน) + (OT ชม. × อัตรารายชั่วโมง × ค่าแรง OT) — ตรรกะเดียวกับแท็บต้นทุน
-                            const logOtHours = parseFloat(log.ot || 0);
-                            const baseWageForDay = costParams.baseDailyWage * usable;
-                            const otWageForDay = logOtHours * costParams.baseHourlyWage * costParams.otRate;
-                            totalWagesCost += baseWageForDay + otWageForDay;
-                            totalBaseWagesCost += baseWageForDay;
-                            totalOtWagesCost += otWageForDay;
-                            totalOtHours += logOtHours;
-                            totalFoodSum += parseFloat(log.food || 0);
-                            totalTripSum += parseFloat(log.trip || 0);
-                            totalOtherSum += parseFloat(log.other || 0);
-                        }
-                    }
-                });
-
-                const totalAllowancesSum = totalFoodSum + totalTripSum + totalOtherSum;
-                const ewfRate = Math.max(0, Number(systemSettings.ewfEmployeeRate ?? 0.0025));
-                const estimatedEwf = (systemSettings.ewfEstimateEnabled === false || !ewfEstimateActiveForCycle)
-                    ? null
-                    : applyRounding(totalWagesCost * ewfRate, systemSettings.roundEwf);
-                const estimatedSsoWage = Math.max(0, Number(emp.baseSalary) || 0);
-                const ssoMinSalary = Math.max(0, Number(systemSettings.ssoMinSalary ?? 1650));
-                const ssoMaxSalary = Math.max(ssoMinSalary, Number(systemSettings.ssoMaxSalary ?? 17500));
-                const ssoWageBase = estimatedSsoWage > 0
-                    ? Math.min(ssoMaxSalary, Math.max(ssoMinSalary, estimatedSsoWage))
-                    : 0;
-                const estimatedSso = applyRounding(ssoWageBase * Math.max(0, Number(systemSettings.ssoRate ?? 0.05)), systemSettings.roundSSO);
-
-                totalAllWorkingDays += workedDaysCount;
-                totalLateDays += lateDaysCount;
-                totalLateMinutes += lateMinutesSum;
-                totalAbsentDays += absentDaysCount;
-                sumGrandOtHours += totalOtHours;
-                sumGrandFood += totalFoodSum;
-                sumGrandTrip += totalTripSum;
-                sumGrandOther += totalOtherSum;
-                sumGrandAllowance += totalAllowancesSum;
-                if (estimatedEwf !== null) sumGrandEwfEstimate += estimatedEwf;
-                sumGrandSsoEstimate += estimatedSso;
-                sumGrandWages += totalWagesCost;
-
                 const latestProject = getLatestProjectForEmp(emp.id, dates);
                 const zebra = empIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
 
@@ -36568,7 +36521,7 @@ ${slip.textSample}
                     </td>
                 `;
 
-                // ── Daily attendance cells ──
+                // ── Daily attendance cells & stats calculation (Single Loop) ──
                 dates.forEach((date, idx) => {
                     const holidayInfo = getHoliday(date);
                     let log = attendanceData[date]?.[emp.id];
@@ -36585,6 +36538,45 @@ ${slip.textSample}
                             log = { status: 'A', project: emp.project, _isAbsent: true };
                         }
                     }
+
+                    // ── สถิติ & ค่าแรง ──
+                    const matchesFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
+                    if (matchesFilter) {
+                        const rule = getStatusRule(log.status);
+                        const cat = rule.category;
+                        const workU = (+rule.workUnit) || 0;
+                        const lateMins = parseFloat(log.penalty || 0);
+                        const usable = (cappedDaysUsed >= costParams.divisor) ? 0 : Math.min(workU, costParams.divisor - cappedDaysUsed);
+                        if (usable > 0) {
+                            cappedDaysUsed += usable;
+                            workedDaysCount += usable;
+                        } else if ((+rule.absentUnit || 0) > 0) {
+                            absentDaysCount += (+rule.absentUnit || 0);
+                        }
+                        // นับ lateDaysCount เพียงครั้งเดียว
+                        if (cat === 'late' || cat === 'late_half') {
+                            lateDaysCount++;
+                            if (lateMins > 0) lateMinutesSum += lateMins;
+                        } else if (lateMins > 0 && !rule.exemptLate) {
+                            lateMinutesSum += lateMins;
+                            lateDaysCount++;
+                        }
+
+                        if (usable > 0) {
+                            const logOtHours = parseFloat(log.ot || 0);
+                            const baseWageForDay = costParams.baseDailyWage * usable;
+                            const otWageForDay = logOtHours * costParams.baseHourlyWage * costParams.otRate;
+                            totalWagesCost += baseWageForDay + otWageForDay;
+                            totalBaseWagesCost += baseWageForDay;
+                            totalOtWagesCost += otWageForDay;
+                            totalOtHours += logOtHours;
+                            totalFoodSum += parseFloat(log.food || 0);
+                            totalTripSum += parseFloat(log.trip || 0);
+                            totalOtherSum += parseFloat(log.other || 0);
+                        }
+                    }
+
+                    // ── Cell Display ──
                     let statusClass = "bg-slate-50 text-slate-400";
                     let statusSymbol = log.status;
 
@@ -36601,11 +36593,21 @@ ${slip.textSample}
                             // 🗓️ วันหยุดนักขัตฤกษ์ — สีเหลือง/ปฏิทิน ต่างจาก ย (วันหยุดประจำสัปดาห์)
                             statusClass = "bg-yellow-50 text-yellow-700 border-yellow-200 font-extrabold shadow-sm";
                             statusSymbol = 'นข';
-                        } else if (cat === 'work' || cat === 'work_other') statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
-                        else if (cat === 'late_half') { statusClass = "bg-purple-100 text-purple-700 border-purple-200 font-extrabold shadow-sm"; statusSymbol = 'L½'; }
-                        else if (cat === 'late' || cat === 'work_incomplete') statusClass = "bg-amber-100 text-amber-800 border-amber-200 font-extrabold shadow-sm";
-                        else if (cat === 'absent') statusClass = "bg-rose-100 text-rose-700 border-rose-200 font-extrabold shadow-sm";
-                        else if (cat === 'off') statusClass = "bg-rose-50/30 text-rose-500 border-rose-100/30";
+                        } else if (cat === 'off_paid') {
+                            // วันหยุดประจำสัปดาห์ (ย)
+                            statusClass = "bg-sky-50 text-sky-600 border-sky-200 font-extrabold shadow-sm";
+                        } else if (cat === 'work' || cat === 'work_other') {
+                            statusClass = "bg-green-100 text-green-800 border-green-200 font-extrabold shadow-sm";
+                        } else if (cat === 'late_half') {
+                            statusClass = "bg-purple-100 text-purple-700 border-purple-200 font-extrabold shadow-sm";
+                            statusSymbol = 'L½';
+                        } else if (cat === 'late' || cat === 'work_incomplete') {
+                            statusClass = "bg-amber-100 text-amber-800 border-amber-200 font-extrabold shadow-sm";
+                        } else if (cat === 'absent') {
+                            statusClass = "bg-rose-100 text-rose-700 border-rose-200 font-extrabold shadow-sm";
+                        } else if (cat === 'off') {
+                            statusClass = "bg-rose-50/30 text-rose-500 border-rose-100/30";
+                        }
                     }
 
                     const m = dateMeta[idx];
@@ -36634,6 +36636,32 @@ ${slip.textSample}
                         </td>
                     `;
                 });
+
+                const totalAllowancesSum = totalFoodSum + totalTripSum + totalOtherSum;
+                const ewfRate = Math.max(0, Number(systemSettings.ewfEmployeeRate ?? 0.0025));
+                const estimatedEwf = (systemSettings.ewfEstimateEnabled === false || !ewfEstimateActiveForCycle)
+                    ? null
+                    : applyRounding(totalWagesCost * ewfRate, systemSettings.roundEwf);
+                const estimatedSsoWage = Math.max(0, Number(emp.baseSalary) || 0);
+                const ssoMinSalary = Math.max(0, Number(systemSettings.ssoMinSalary ?? 1650));
+                const ssoMaxSalary = Math.max(ssoMinSalary, Number(systemSettings.ssoMaxSalary ?? 17500));
+                const ssoWageBase = estimatedSsoWage > 0
+                    ? Math.min(ssoMaxSalary, Math.max(ssoMinSalary, estimatedSsoWage))
+                    : 0;
+                const estimatedSso = applyRounding(ssoWageBase * Math.max(0, Number(systemSettings.ssoRate ?? 0.05)), systemSettings.roundSSO);
+
+                totalAllWorkingDays += workedDaysCount;
+                totalLateDays += lateDaysCount;
+                totalLateMinutes += lateMinutesSum;
+                totalAbsentDays += absentDaysCount;
+                sumGrandOtHours += totalOtHours;
+                sumGrandFood += totalFoodSum;
+                sumGrandTrip += totalTripSum;
+                sumGrandOther += totalOtherSum;
+                sumGrandAllowance += totalAllowancesSum;
+                if (estimatedEwf !== null) sumGrandEwfEstimate += estimatedEwf;
+                sumGrandSsoEstimate += estimatedSso;
+                sumGrandWages += totalWagesCost;
 
                 // ── Summary stat cells ──
                 rowHtml += `
