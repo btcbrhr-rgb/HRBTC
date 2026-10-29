@@ -37781,6 +37781,16 @@ ${slip.textSample}
                     return matchProject && matchSearch;
                 }).sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
 
+                // ── กำหนดค่า projText ก่อนกลุ่มพนักงาน ──
+                let projText;
+                const isPrintingAllProjects = !(typeof activeProject !== 'undefined' && activeProject !== 'all');
+
+                if (isPrintingAllProjects) {
+                    projText = 'ทุกโครงการ';
+                } else {
+                    projText = activeProject;
+                }
+
                 if (filteredEmps.length === 0) {
                     if (typeof showToast === 'function') {
                         showToast('ไม่พบข้อมูลพนักงานที่ตรงกับตัวกรองที่จะพิมพ์', 'warning');
@@ -37790,8 +37800,56 @@ ${slip.textSample}
                     return;
                 }
 
-                const dateRangeText = document.getElementById('sharedBillingCycleDateRange')?.textContent || '';
-                const projText = (typeof activeProject === 'undefined' || activeProject === 'all') ? 'ทุกโครงการ' : activeProject;
+                // ── หากพิมพ์ทุกโครงการ → จัดกลุ่มพนักงานตามโครงการ ──
+                let isPrintingAllProjects = !(typeof activeProject !== 'undefined' && activeProject !== 'all');
+                let projectOrder = []; // เก็บลำดับโปรเจกต์ที่พบ
+                if (isPrintingAllProjects) {
+                    // ดึงโครงการไม่ซ้ำและเก็บลำดับ
+                    const seenProjects = new Set();
+                    filteredEmps.forEach(emp => {
+                        if (emp.project && !seenProjects.has(emp.project)) {
+                            seenProjects.add(emp.project);
+                            projectOrder.push(emp.project);
+                        }
+                    });
+                    // เรียงลำดับโปรเจกต์ตามที่พบ (保持 original order)
+                    // ให้ทุกโปรเจกต์ขึ้นฟังก์ชัน isProjectMatch เฉยๆ ไม่ sorting เพิ่มเติม
+                }
+
+                // กำหนด projText
+                let projText;
+                if (isPrintingAllProjects) {
+                    projText = 'ทุกโครงการ';
+                } else {
+                    projText = activeProject;
+                }
+
+                // ── ใช้งานโปรเจกต์ทุกครั้ง → จัดกลุ่มพนักงานด้วยหัวเรื่องโปรเจกต์ ──
+                let groupedEmps = filteredEmps; // default: ใช้เดิมถ้าไม่ได้พิมพ์ทุกโครงการ
+                if (isPrintingAllProjects) {
+                    groupedEmps = [];
+                    const seenProjects = new Set();
+                    filteredEmps.forEach(emp => {
+                        const proj = emp.project || '-';
+                        if (!seenProjects.has(proj)) {
+                            seenProjects.add(proj);
+                            groupedEmps.push({ type: 'projectHeader', projectName: proj });
+                        }
+                        groupedEmps.push({ type: 'employee', emp: emp });
+                    });
+                }
+                // ── สร้าง HTML หัวเรื่องโปรเจกต์ (สำหรับพิมพ์ทุกโครงการ) ──
+                let projectHeadersHtml = '';
+                if (isPrintingAllProjects && groupedEmps.length > 0) {
+                    // ดึงหัวเรื่องโปรเจกต์ที่ไม่ซ้ำจาก groupedEmps
+                    const projectHeaders = groupedEmps.filter(item => item.type === 'projectHeader');
+                    projectHeadersHtml = projectHeaders.map(h => {
+                        return `<tr style="background-color:#e2e8f0;border-bottom:2px solid #475569;">
+                            <td colspan="24" style="font-size:8.5px;font-weight:700;color:#1e293b;border:1px solid #cbd5e1;padding:4px 2px;text-align:left;font-weight:700;white-space:nowrap;">โปรเจกต์: ${h.projectName}</td>
+                        </tr>`;
+                    }).join('');
+                }
+
                 const printDateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
                 // ขนาดกระดาษเริ่มต้น: ตรวจจากพารามิเตอร์ หรือ localStorage (ค่าเริ่มต้น = legal)
@@ -38211,7 +38269,7 @@ ${slip.textSample}
             </tr>
         </thead>
         <tbody>
-            ${empRowsHtml}
+            ${projectHeadersHtml}${empRowsHtml}
         </tbody>
         <tfoot>
             <tr style="background-color:#e2e8f0;font-weight:700;color:#0f172a;border-top:2px solid #475569;border-bottom:3px double #0f172a;">
