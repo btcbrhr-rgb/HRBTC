@@ -37782,14 +37782,7 @@ ${slip.textSample}
                 }).sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
 
                 // ── กำหนดค่า projText ก่อนกลุ่มพนักงาน ──
-                // ใช้ค่า "ทั้งหมด" เสมอเมื่อพิมพ์ตาราง ให้แยกตามโครงการอัตโนมัติ
-                const alwaysPrintAllProjects = true;
-
-                if (alwaysPrintAllProjects) {
-                    projText = 'ทุกโครงการ';
-                } else {
-                    projText = activeProject;
-                }
+                projText = 'ทุกโครงการ';
 
                 if (filteredEmps.length === 0) {
                     if (typeof showToast === 'function') {
@@ -37826,30 +37819,14 @@ ${slip.textSample}
                     projText = activeProject;
                 }
 
-                // ── ใช้งานโปรเจกต์ทุกครั้ง → จัดกลุ่มพนักงานด้วยหัวเรื่องโปรเจกต์ ──
-                let groupedEmps = filteredEmps; // default: ใช้เดิมถ้าไม่ได้พิมพ์ทุกโครงการ
-                if (alwaysPrintAllProjects) {
-                    groupedEmps = [];
-                    const seenProjects = new Set();
-                    filteredEmps.forEach(emp => {
-                        const proj = emp.project || '-';
-                        if (!seenProjects.has(proj)) {
-                            seenProjects.add(proj);
-                            groupedEmps.push({ type: 'projectHeader', projectName: proj });
-                        }
-                        groupedEmps.push({ type: 'employee', emp: emp });
+                // ──── ใช้งานโปรเจกต์ทุกครั้ง → เรียงลำดับแถวตาม project ที่พบ ────
+                // เรียงลำดับพนักงานตาม project จาก attendanceData
+                if (attendanceData) {
+                    filteredEmps.sort((a, b) => {
+                        const projA = attendanceData?.find((d) => d[a.id])?.project || a.project || '';
+                        const projB = attendanceData?.find((d) => d[b.id])?.project || b.project || '';
+                        return projA.localeCompare(projB);
                     });
-                }
-                // ── สร้าง HTML หัวเรื่องโปรเจกต์ (สำหรับพิมพ์ทุกโครงการ) ──
-                let projectHeadersHtml = '';
-                if (alwaysPrintAllProjects && groupedEmps.length > 0) {
-                    // ดึงหัวเรื่องโปรเจกต์ที่ไม่ซ้ำจาก groupedEmps
-                    const projectHeaders = groupedEmps.filter(item => item.type === 'projectHeader');
-                    projectHeadersHtml = projectHeaders.map(h => {
-                        return `<tr style="background-color:#e2e8f0;border-bottom:2px solid #475569;">
-                            <td colspan="24" style="font-size:8.5px;font-weight:700;color:#1e293b;border:1px solid #cbd5e1;padding:4px 2px;text-align:left;font-weight:700;white-space:nowrap;">โปรเจกต์: ${h.projectName}</td>
-                        </tr>`;
-                    }).join('');
                 }
 
                 const printDateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
