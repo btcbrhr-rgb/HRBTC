@@ -10627,6 +10627,7 @@ let selectedLeaveItems = new Set(); // For batch leave approval
 let selectedCorrectionItems = new Set(); // For batch time correction approval
 let selectedAdvanceItems = new Set(); // For batch advance approval
 let currentEmployeeId;
+let sessionToken = sessionStorage.getItem('hrbtc_session_token') || '';
 var isProjectCostInitialized = false;
 let SERVER_API_URL; // Will be set from config or Apps Script URL
 
@@ -11790,6 +11791,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
             async function postAction(action, extraBody, fetchOpts) {
                 const t0 = performance.now();
                 const body = Object.assign({ action: action }, extraBody || {});
+                if (sessionToken && !Object.prototype.hasOwnProperty.call(body, 'sessionToken')) {
+                    body.sessionToken = sessionToken;
+                }
                 try {
                     const res = await fetchWithTimeout(SERVER_API_URL, Object.assign({
                         method: 'POST',
@@ -12503,6 +12507,21 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 const savedLoginStatus = sessionStorage.getItem("is_logged_in");
 
                 if (savedLoginStatus === "true" && savedEmpId) {
+                    sessionToken = sessionStorage.getItem('hrbtc_session_token') || '';
+                    const sessionCheck = sessionToken
+                        ? await postAction('validateSession', {}, { skipPerf: true })
+                        : null;
+                    if (!sessionCheck || sessionCheck.status !== 'success' ||
+                        String(sessionCheck.empId || '').toUpperCase() !== String(savedEmpId).toUpperCase()) {
+                        sessionToken = '';
+                        sessionStorage.removeItem('hrbtc_session_token');
+                        sessionStorage.removeItem('is_logged_in');
+                        sessionStorage.removeItem('pin_verified_' + savedEmpId);
+                        isLoggedIn = false;
+                        await promptPinBeforeAutoLogin(savedEmpId);
+                        return;
+                    }
+
                     // บังคับยืนยัน PIN หากยังไม่ได้ยืนยันในเซสชันนี้
                     const pinVerifiedThisSession = sessionStorage.getItem('pin_verified_' + savedEmpId);
                     if (!pinVerifiedThisSession) {
@@ -12782,6 +12801,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 sessionStorage.removeItem("is_admin_mode");
                 sessionStorage.removeItem("admin_active_tab");
                 sessionStorage.clear(); // ล้างทุกอย่างใน sessionStorage
+                sessionToken = '';
                 // ⚡ [19zn] ล้าง cache payslips ต่อ session — กัน admin ถัดไปเห็นข้อมูลเก่า + บังคับโหลดใหม่
                 window.__ypForceReload = true;
                 window.__ypLoadedAt = 0;
@@ -13055,12 +13075,24 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     showToast("⏳ กำลังบันทึก PIN...", "info");
                     const res = await postAction('savePin', { empId, idCardLast4, pin });
                     if (res && res.status === 'success') {
+                        sessionToken = '';
+                        sessionStorage.removeItem('hrbtc_session_token');
+                        const authResult = await postAction('verifyPin', { empId, pin }, { skipPerf: true });
+                        if (!authResult || authResult.status !== 'success' || !authResult.valid || !authResult.sessionToken) {
+                            closeModal("pin-confirm-modal");
+                            closeModal("pin-setup-modal");
+                            _pendingPinData = null;
+                            if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = originalLabel; }
+                            showLoginContainer();
+                            showToast("ตั้ง PIN สำเร็จ แต่เข้าสู่ระบบอัตโนมัติไม่สำเร็จ กรุณาเข้าสู่ระบบด้วย PIN ใหม่", "warning");
+                            return;
+                        }
                         if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = originalLabel; }
                         closeModal("pin-confirm-modal");
                         closeModal("pin-setup-modal");
                         _pendingPinData = null;
                         showToast("✅ ตั้งค่า PIN สำเร็จ กำลังเข้าสู่ระบบ…", "success");
-                        await handleLoginSuccess(empId);
+                        await handleLoginSuccess(empId, authResult.sessionToken);
                     } else {
                         // ❌ ค้างอยู่หน้าเดิม + คืนปุ่มให้กดลองใหม่ได้ (ไม่กลับไปหน้าตั้ง PIN)
                         if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = originalLabel; }
@@ -13083,6 +13115,8 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
 
                 try {
+                    sessionToken = '';
+                    sessionStorage.removeItem('hrbtc_session_token');
                     // ⚡ แสดง Loading Overlay + Spinner บนปุ่ม ทันที
                     showLoginLoading();
                     const pinBtn = document.getElementById('btn-submit-pin-login');
@@ -13091,50 +13125,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         pinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบ…';
                     }
 
-                    // 🔐 ตรวจสอบ PIN 6 หลัก: ตรวจตรงกับ Supabase เป็นลำดับแรก (< 0.2 วินาที)
+                    // 🔐 PIN verification and short-lived session issuance stay server-side.
                     let pinValid = false;
                     let pinMessage = "รหัส PIN ไม่ถูกต้อง";
                     let verifyResult = null;
 
-                    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
-                        try {
-                            const { data: emp, error: sbErr } = await supabaseClient
-                                .from('employees')
-                                .select('pin')
-                                .ilike('emp_id', empId)
-                                .maybeSingle();
-                            if (!sbErr && emp) {
-                                const storedPin = (emp.pin || '').toString().trim();
-                                if (!storedPin) {
-                                    verifyResult = { status: 'success', valid: false, message: 'ยังไม่ได้ตั้ง PIN กรุณาตั้ง PIN ใหม่ก่อนเข้าใช้งาน' };
-                                } else if (storedPin === pin) {
-                                    pinValid = true;
-                                    verifyResult = { status: 'success', valid: true, message: 'PIN ถูกต้อง' };
-                                } else {
-                                    pinValid = false;
-                                    verifyResult = { status: 'success', valid: false, message: 'รหัส PIN ไม่ถูกต้อง' };
-                                }
-                            } else if (sbErr) {
-                                console.warn('[submitPinLogin] Supabase PIN check warning, falling back to GAS:', sbErr);
-                            }
-                        } catch (sbEx) {
-                            console.warn('[submitPinLogin] Supabase PIN check failed, falling back to GAS:', sbEx);
-                        }
-                    }
-
-                    // 🛟 Fallback: หากไม่มี supabaseClient หรือ Supabase ขัดข้อง ให้เรียกผ่าน GAS
-                    if (!verifyResult) {
-                        try {
-                            verifyResult = await apiRequest({ action: 'verifyPin', pin: pin, empId: empId });
-                            pinValid = !!(verifyResult && verifyResult.status === 'success' && verifyResult.valid);
-                            if (verifyResult && verifyResult.message) pinMessage = verifyResult.message;
-                        } catch (e) {
-                            console.warn('[submitPinLogin] Fallback verifyPin failed:', e);
-                        }
-                    }
+                    verifyResult = await postAction('verifyPin', { pin: pin, empId: empId }, { skipPerf: true });
+                    pinValid = !!(verifyResult && verifyResult.status === 'success' &&
+                        verifyResult.valid && verifyResult.sessionToken);
+                    if (verifyResult && verifyResult.message) pinMessage = verifyResult.message;
                     if (pinValid) {
                         closeModal("pin-login-modal");
-                        await handleLoginSuccess(empId);
+                        await handleLoginSuccess(empId, verifyResult.sessionToken);
                     } else if (verifyResult && verifyResult.message && /ยังไม่ได้ตั้ง PIN/.test(verifyResult.message)) {
                         // PIN ถูกล้าง/ยังไม่เคยตั้ง → บังคับไปหน้า set PIN ก่อนเข้าใช้งาน
                         const overlay = document.getElementById("login-loading-overlay");
@@ -13176,7 +13178,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
-            async function handleLoginSuccess(empId) {
+            async function handleLoginSuccess(empId, issuedSessionToken) {
+                if (!issuedSessionToken) {
+                    showToast("❌ ยืนยันตัวตนไม่สำเร็จ กรุณาลองเข้าสู่ระบบใหม่", "error");
+                    showLoginContainer();
+                    return;
+                }
+                sessionToken = issuedSessionToken;
+                sessionStorage.setItem('hrbtc_session_token', sessionToken);
                 isLoggedIn = true;
                 currentEmployeeId = empId;
                 sessionStorage.setItem("is_logged_in", "true");
@@ -40954,14 +40963,10 @@ async function saveFaceEnrollment(payload, itemCount) {
         const effEmp = (faceEnrollCtx && faceEnrollCtx.empId) ? String(faceEnrollCtx.empId) : (currentEmployeeId || '');
         const selfName = (typeof employeeData !== 'undefined' && employeeData) ? (employeeData['ชื่อ-นามสกุล'] || employeeData.name || '') : '';
         const nm = (faceEnrollCtx && faceEnrollCtx.name) ? faceEnrollCtx.name : selfName;
-        const res = await fetchWithTimeout(SERVER_API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'saveFaceDescriptor',
-                empId: effEmp,
-                descriptors: payload,
-                updatedBy: nm || effEmp
-            })
+        const res = await postAction('saveFaceDescriptor', {
+            empId: effEmp,
+            descriptors: payload,
+            updatedBy: nm || effEmp
         });
         if (res && res.status === 'success') {
             playScanBeep('ok');
@@ -42517,14 +42522,10 @@ async function kioskImproveOwnVectors(desc, sharp) {
             if (candQ <= items[worstIdx].quality) return;
             items[worstIdx] = { d: candD, yaw: 0, pitch: 0, quality: candQ };
         }
-        await fetchWithTimeout(SERVER_API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'saveFaceDescriptor',
-                empId: currentEmployeeId,
-                descriptors: { version: 2, items: items.map((it) => ({ d: it.d, yaw: it.yaw, pitch: it.pitch, quality: it.quality })) },
-                updatedBy: currentEmployeeId
-            })
+        await postAction('saveFaceDescriptor', {
+            empId: currentEmployeeId,
+            descriptors: { version: 2, items: items.map((it) => ({ d: it.d, yaw: it.yaw, pitch: it.pitch, quality: it.quality })) },
+            updatedBy: currentEmployeeId
         });
         kiosk.enrolledCount = -1; // โหลดใหม่รอบถัดไป
         if (typeof refreshFaceEnrollStatus === 'function') refreshFaceEnrollStatus();
