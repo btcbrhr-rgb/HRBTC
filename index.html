@@ -35936,6 +35936,9 @@ ${slip.textSample}
                 clearTimeout(_matrixTooltipTimer);
                 const tip = document.getElementById('matrixDayTooltip');
                 if (tip) tip.style.display = 'none';
+                const modal = document.getElementById('statusModal');
+                if (!modal) throw new Error('ไม่พบหน้าต่างแก้ไขสถานะ');
+                if (modal.parentElement !== document.body) document.body.appendChild(modal);
                 selectedDateStr = date;
                 const curDateEl = document.getElementById('currentSelectedDate'); if (curDateEl) curDateEl.value = date;
                 updateDayLabel();
@@ -35953,15 +35956,22 @@ ${slip.textSample}
                     );
                 }
                 openStatusModal(empId);
-                const modal = document.getElementById('statusModal');
                 if (!modal || modal.classList.contains('hidden')) {
                     throw new Error('หน้าต่างแก้ไขไม่สามารถเปิดได้');
                 }
+                modal.style.display = 'flex';
             } catch (error) {
                 console.error('[openMatrixStatusModal] Failed to open editor:', error);
                 showToast(`เปิดหน้าแก้ไขไม่สำเร็จ: ${error.message || error}`, 'error');
             }
         }
+
+        document.addEventListener('click', event => {
+            const target = event.target instanceof Element ? event.target.closest('button[data-matrix-edit]') : null;
+            if (!target) return;
+            event.preventDefault();
+            openMatrixStatusModal(target.dataset.empId, target.dataset.date);
+        }, true);
 
         // ═══════════════════════════════════════════════════════════════════════
         // 📂 SECTION 5/12: DAILY TABLE — Render, Status Modal, Allowance
@@ -36852,7 +36862,6 @@ ${slip.textSample}
                                 data-emp-id="${escapeHtml(emp.id)}"
                                 data-date="${date}"
                                 title="คลิกเพื่อดูรายละเอียดหรือแก้ไข"
-                                onclick="openMatrixStatusModal(this.dataset.empId, this.dataset.date)"
                                 onmouseenter="showMatrixTooltip(this, '${emp.id}', '${date}')"
                                 onmouseleave="hideMatrixTooltip()">
                                 <span class="inline-block w-[20px] h-[18px] leading-[18px] text-[8px] rounded ${statusClass} transition-all duration-150 transform group-hover/cell:scale-110 group-hover/cell:shadow-md font-bold">
