@@ -35497,7 +35497,79 @@ ${slip.textSample}
         // ═══════════════════════════════════════════════════════════════════════
 
 
-        // 🔧 ตรวจสอบและโหลดข้อมูลเบิกสำรองให้ครบก่อนเรนเดอร์ Matrix
+        // 🔧 โหลดใบลาที่ทับซ้อนรอบบัญชีก่อน Matrix สรุปวันที่ไม่มี time record
+        let _matrixLeaveCycleKey = '';
+        let _matrixLeaveByEmpDate = new Map();
+
+        async function ensureMatrixLeaveDataLoaded(cycleStart, cycleEnd) {
+            const cacheKey = `${cycleStart}|${cycleEnd}`;
+            if (_matrixLeaveCycleKey === cacheKey) return true;
+            if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+                console.error('[ensureMatrixLeaveDataLoaded] Supabase client is unavailable');
+                return false;
+            }
+
+            try {
+                const leaveRows = [];
+                const pageSize = 1000;
+                let offset = 0;
+                while (true) {
+                    const { data, error } = await supabaseClient
+                        .from('leave_requests')
+                        .select('emp_id,leave_type,start_date,end_date,status')
+                        .lte('start_date', cycleEnd)
+                        .gte('end_date', cycleStart)
+                        .order('start_date', { ascending: true })
+                        .range(offset, offset + pageSize - 1);
+                    if (error) throw error;
+                    if (!Array.isArray(data)) {
+                        throw new Error('Supabase returned an invalid leave_requests response');
+                    }
+                    leaveRows.push(...data);
+                    if (data.length < pageSize) break;
+                    offset += pageSize;
+                }
+
+                const nextLeaveMap = new Map();
+                leaveRows.forEach(row => {
+                    const status = String(row.status || '').trim();
+                    if (status.includes('ปฏิเสธ') || status.includes('ไม่อนุมัติ')) return;
+                    const empId = String(row.emp_id || '').trim().toUpperCase();
+                    const leaveStart = String(row.start_date || '').slice(0, 10);
+                    const leaveEnd = String(row.end_date || row.start_date || '').slice(0, 10);
+                    if (!empId || !leaveStart || !leaveEnd) return;
+
+                    const leaveCode = normalizeStatusCode(row.leave_type || 'ลา');
+                    const date = new Date(leaveStart + 'T12:00:00');
+                    const endDate = new Date(leaveEnd + 'T12:00:00');
+                    while (date <= endDate) {
+                        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                        if (dateKey >= cycleStart && dateKey <= cycleEnd) {
+                            nextLeaveMap.set(`${empId}|${dateKey}`, {
+                                status: leaveCode,
+                                _isLeave: true,
+                                _leaveType: row.leave_type || 'ลา',
+                                _leaveApprovalStatus: status
+                            });
+                        }
+                        date.setDate(date.getDate() + 1);
+                    }
+                });
+
+                _matrixLeaveByEmpDate = nextLeaveMap;
+                _matrixLeaveCycleKey = cacheKey;
+                return true;
+            } catch (error) {
+                console.error('[ensureMatrixLeaveDataLoaded] Failed to load leave_requests:', error);
+                return false;
+            }
+        }
+
+        function getMatrixLeaveLog(empId, date) {
+            if (!empId || !date) return null;
+            return _matrixLeaveByEmpDate.get(`${String(empId).trim().toUpperCase()}|${date}`) || null;
+        }
+
         async function ensureAdvanceDataLoaded() {
             if (typeof _adminAllAdvance_records !== 'undefined' && Array.isArray(_adminAllAdvance_records) && _adminAllAdvance_records.length > 0) {
                 return;
@@ -36398,6 +36470,10 @@ ${slip.textSample}
             await ensureAdvanceDataLoaded();
             const currentCycleMonth = document.getElementById('billingMonth').value;
             const dates = getBillingCycleDates(currentCycleMonth);
+            if (dates.length > 0 && !(await ensureMatrixLeaveDataLoaded(dates[0], dates[dates.length - 1]))) {
+                showToast('โหลดข้อมูลใบลาไม่สำเร็จ จึงยังไม่อัปเดต Matrix เพื่อป้องกันการแสดงวันลาเป็นวันขาด', 'error');
+                return;
+            }
 
             // ไฮไลต์คอลัมน์วันที่ปัจจุบัน
             const _now = new Date();
@@ -36648,6 +36724,10 @@ ${slip.textSample}
                 dates.forEach((date, idx) => {
                     const holidayInfo = getHoliday(date);
                     let log = attendanceData[date]?.[emp.id];
+                    if (!log) {
+                        const leaveLog = getMatrixLeaveLog(emp.id, date);
+                        if (leaveLog) log = Object.assign({ project: emp.project }, leaveLog);
+                    }
                     if (!log) {
                         // ไม่มีข้อมูล time record → ต้องเช็กว่าวันนี้เป็นวันหยุดหรือไม่
                         if (holidayInfo) {
@@ -37777,11 +37857,15 @@ ${slip.textSample}
         }
 
         // Print Matrix Timesheet in Formal Legal & A4 Landscape Format
-        function printMatrixLegal(preferredPaper = null) {
+        async function printMatrixLegal(preferredPaper = null) {
             try {
                 const billingMonthEl = document.getElementById('sharedBillingMonth') || document.getElementById('billingMonth');
                 const currentCycleMonth = billingMonthEl ? billingMonthEl.value : '';
                 const dates = getBillingCycleDates(currentCycleMonth);
+                if (dates.length > 0 && !(await ensureMatrixLeaveDataLoaded(dates[0], dates[dates.length - 1]))) {
+                    showToast('โหลดข้อมูลใบลาไม่สำเร็จ จึงไม่สามารถพิมพ์ Matrix ได้', 'error');
+                    return;
+                }
 
                 if (!dates || dates.length === 0) {
                     if (typeof showToast === 'function') {
@@ -37894,6 +37978,10 @@ ${slip.textSample}
                         const m = dateMeta[dIdx];
                         const holidayInfo = typeof getHoliday === 'function' ? getHoliday(date) : null;
                         let log = attendanceData[date]?.[emp.id];
+                        if (!log) {
+                            const leaveLog = getMatrixLeaveLog(emp.id, date);
+                            if (leaveLog) log = Object.assign({ project: emp.project }, leaveLog);
+                        }
                         if (!log) {
                             if (holidayInfo) {
                                 log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
