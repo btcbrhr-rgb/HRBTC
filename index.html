@@ -3101,7 +3101,7 @@
                             <div class="space-y-1">
                                 <label for="leave-days-input"
                                     class="text-xs text-slate-500 font-semibold">จำนวนวันลา</label>
-                                <input id="leave-days-input" type="number" step="0.5" min="0.5" value="1" required
+                                <input id="leave-days-input" type="number" step="0.5" min="0.5" value="1" required readonly
                                     title="จำนวนวันลา"
                                     class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700">
                             </div>
@@ -10281,7 +10281,7 @@ async function testLineToken(isAuto = false) {
                     </div>
                     <div>
                         <label for="admin-create-leave-days" class="text-xs text-slate-500 font-semibold">จำนวนวันลา</label>
-                        <input id="admin-create-leave-days" type="number" step="0.5" min="0.5"
+                        <input id="admin-create-leave-days" type="number" step="0.5" min="0.5" readonly
                             class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-700 font-medium" value="1" />
                     </div>
                 </div>
@@ -25642,34 +25642,38 @@ async function loadAdminEmployees() {
                         let failedCount = 0;
                         const failedItems = [];
 
-                        // ⚡ FAST PATH FOR LEAVE BATCH: Bulk Supabase update + Single Batch GAS call (<100ms UI response)
+                        // Process leave decisions through GAS so terminal-status checks cannot be bypassed.
                         if (batchOperationType === 'leave' && supabaseClient) {
                             try {
-                                const updateData = {
-                                    status: status,
-                                    approved_by: approvedBy,
-                                    approved_at: getTodayDateString(),
-                                    updated_at: new Date().toISOString()
-                                };
-                                if (note) updateData.notes = note;
-
                                 const docIds = items.map(it => it.docId).filter(Boolean);
-                                let sbErr = null;
-                                if (docIds.length > 0) {
-                                    const { error: e } = await supabaseClient.from('leave_requests').update(updateData).in('doc_id', docIds);
-                                    if (e) sbErr = e;
+                                const response = await fetchWithTimeout(SERVER_API_URL, {
+                                    method: "POST",
+                                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                    body: JSON.stringify({
+                                        action: "approveLeave",
+                                        docIds,
+                                        status,
+                                        approvedBy,
+                                        note,
+                                        adminId: currentEmployeeId
+                                    }),
+                                    timeout: 60000
+                                });
+                                if (!response || typeof response !== 'object') {
+                                    throw new Error('ตอบรับจากเซิร์ฟเวอร์ผิดรูปแบบ');
                                 }
+                                const processedDocIds = Array.isArray(response.data && response.data.processedDocIds)
+                                    ? response.data.processedDocIds
+                                    : [];
+                                const processed = new Set(processedDocIds);
+                                successCount = processed.size;
+                                failedItems.push(...items
+                                    .filter(item => !processed.has(item.docId))
+                                    .map(item => ({ ...item, reason: response.message || 'ไม่สามารถเปลี่ยนสถานะใบลาได้' })));
+                                failedCount = failedItems.length;
 
-                                if (sbErr) {
-                                    // Fallback: ลองลบ approved_by/approved_at ถ้า column ยังไม่มี
-                                    console.warn('[adminDecision batch leave fallback]', sbErr);
-                                    const updateData2 = { status: status, updated_at: new Date().toISOString() };
-                                    if (note) updateData2.notes = note;
-                                    await supabaseClient.from('leave_requests').update(updateData2).in('doc_id', docIds);
-                                }
-
-                                // ⚡ Optimistic UI: ลบแถว เคลียร์ selection ปิด modal ทันที (<100ms)
-                                items.forEach(it => removeApprovalPendingRow('leave', it.rowKey));
+                                items.filter(item => processed.has(item.docId))
+                                    .forEach(item => removeApprovalPendingRow('leave', item.rowKey));
                                 selectedLeaveItems.clear();
                                 updateBatchButtons();
                                 const selectAllLeave = document.getElementById('select-all-leave');
@@ -25678,33 +25682,23 @@ async function loadAdminEmployees() {
 
                                 hideApprovalProcessingOverlay();
                                 closeDecisionModal();
-                                showToast(`✅ ${baseVerb}สำเร็จทั้งหมด ${total} รายการ`, "success");
+                                if (failedCount === 0) {
+                                    showToast(`✅ ${baseVerb}สำเร็จทั้งหมด ${successCount}/${total} รายการ`, "success");
+                                } else if (successCount === 0) {
+                                    showToast(`❌ ${baseVerb}ไม่สำเร็จ: ${response.message || 'ไม่สามารถเปลี่ยนสถานะใบลาได้'}`, "error");
+                                } else {
+                                    showToast(`⚠️ ${baseVerb}สำเร็จ ${successCount}/${total}; ไม่สำเร็จ ${failedCount} รายการ`, "warning");
+                                }
                                 updateApprovalStatCards();
                                 if (typeof renderAdminDashboardPending === 'function') renderAdminDashboardPending();
                                 if (typeof refreshAdminDashboard === 'function') refreshAdminDashboard();
-                                if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
+                                if (successCount > 0 && typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
                                     RealtimeSyncManager.broadcast('leave_requests', 'UPDATE', { status });
                                 }
 
-                                // ⚡ Single Batch Payload to GAS in background (LINE notification + Audit Log)
-                                const leaveBatchPayload = {
-                                    action: "approveLeave",
-                                    docIds: docIds,
-                                    status: status,
-                                    approvedBy: approvedBy,
-                                    note: note,
-                                    adminId: currentEmployeeId
-                                };
-                                fetchWithTimeout(SERVER_API_URL, {
-                                    method: "POST",
-                                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                                    body: JSON.stringify(leaveBatchPayload),
-                                    timeout: 60000
-                                }).catch(e => console.warn('[adminDecision batch leave background GAS notify error]', e));
-
                                 return;
                             } catch (sbBulkLeaveErr) {
-                                console.warn('[adminDecision batch leave direct bulk error, falling back to sequential]', sbBulkLeaveErr);
+                                console.warn('[adminDecision batch leave GAS error, falling back to sequential]', sbBulkLeaveErr);
                             }
                         }
 
@@ -26709,21 +26703,25 @@ async function loadAdminEmployees() {
 
                 function calculateAdminLeaveDays() {
                     const start = document.getElementById('admin-create-leave-start').value;
-                    const end = document.getElementById('admin-create-leave-end').value;
+                    const endInput = document.getElementById('admin-create-leave-end');
+                    const end = endInput.value;
                     const input = document.getElementById('admin-create-leave-days');
                     const periodRadio = document.querySelector('input[name="admin-leave-period"]:checked');
                     const period = periodRadio ? periodRadio.value : 'เต็มวัน';
+                    if (period !== 'เต็มวัน') {
+                        if (start) {
+                            endInput.value = start;
+                            input.value = '0.5';
+                        }
+                        return;
+                    }
                     if (!start || !end) {
-                        // If half-day and single date not yet set, just set 0.5
-                        if (period !== 'เต็มวัน' && start) input.value = '0.5';
                         return;
                     }
                     const s = new Date(start);
                     const e = new Date(end);
                     if (s > e) return;
-                    let diff = (e.getTime() - s.getTime()) / (1000 * 3600 * 24) + 1;
-                    if (period !== 'เต็มวัน') diff = Math.max(0.5, diff - 0.5);
-                    input.value = diff;
+                    input.value = (e.getTime() - s.getTime()) / (1000 * 3600 * 24) + 1;
                 }
 
                 async function submitLeaveByAdminFromAdminUI() {
@@ -26740,6 +26738,7 @@ async function loadAdminEmployees() {
                     if (!empId) return showToast('⚠️ กรุณาระบุรหัสพนักงาน', 'warning');
                     if (!type) return showToast('⚠️ กรุณาเลือกประเภทการลา', 'warning');
                     if (!start || !end || !reason) return showToast('⚠️ กรอกข้อมูลให้ครบถ้วน', 'warning');
+                    if (period !== 'เต็มวัน' && start !== end) return showToast('⚠️ การลาครึ่งวันต้องเลือกวันเริ่มต้นและวันสิ้นสุดเป็นวันเดียวกัน', 'warning');
 
                     // Verify employee exists (only if name still shows '-')
                     const nameEl = document.getElementById('admin-create-leave-empname');
@@ -34540,10 +34539,10 @@ ${slip.textSample}
             if (['MO', 'ลืมออก', 'ลืมบันทึกออก'].includes(s)) return 'MO';
             if (['A½', 'ลาครึ่งเช้า'].includes(s)) return 'A½';
             if (['P½', 'ลาครึ่งบ่าย'].includes(s)) return 'P½';
+            if (s.endsWith(' (ไม่รับค่าจ้าง)')) return 'A';
             if (s.startsWith('S')) return 'S+';
             if (s.startsWith('H')) return 'H+';
             if (s.startsWith('B')) return 'B+';
-            if (s.includes('ลา')) return 'B+';
             return s;
         }
 
