@@ -35931,9 +35931,25 @@ ${slip.textSample}
 
         // Open Status Changer Modal directly from Matrix
         function openMatrixStatusModal(empId, date) {
+            clearTimeout(_matrixTooltipTimer);
+            const tip = document.getElementById('matrixDayTooltip');
+            if (tip) tip.style.display = 'none';
             selectedDateStr = date;
             const curDateEl = document.getElementById('currentSelectedDate'); if (curDateEl) curDateEl.value = date;
             updateDayLabel();
+            const emp = employees.find(e => e.id === empId);
+            const leaveLog = getMatrixLeaveLog(empId, date);
+            const attendanceLog = attendanceData[date]?.[empId];
+            if (emp && leaveLog && GLOBAL_STATUS[leaveLog.status] &&
+                (!attendanceLog || attendanceLog._isAbsent || normalizeStatusCode(attendanceLog.status) === 'A')) {
+                const dayData = ensureAttendanceDateEntry(date);
+                dayData[empId] = Object.assign(
+                    {},
+                    attendanceLog || _defaultAttendanceLog(emp),
+                    leaveLog,
+                    { project: (attendanceLog && attendanceLog.project) || emp.project || '' }
+                );
+            }
             openStatusModal(empId);
         }
 
@@ -36554,6 +36570,11 @@ ${slip.textSample}
             const headerRow  = document.getElementById('matrixHeaderRow');
             const tableBody  = document.getElementById('matrixTableBody');
             const tableFoot  = document.getElementById('matrixTableFoot');
+            tableBody.addEventListener('click', event => {
+                const target = event.target instanceof Element ? event.target.closest('button[data-matrix-edit]') : null;
+                if (!target || !tableBody.contains(target)) return;
+                openMatrixStatusModal(target.dataset.empId, target.dataset.date);
+            });
 
             groupRow.innerHTML = '';
             headerRow.innerHTML = '';
@@ -36820,15 +36841,20 @@ ${slip.textSample}
 
                     rowHtml += `
                         <td class="p-px border-r border-b ${cellBg} text-center align-middle">
-                            <div class="flex flex-col items-center justify-center py-0.5 cursor-pointer group/cell"
+                            <button type="button"
+                                class="flex min-h-7 min-w-7 mx-auto flex-col items-center justify-center py-0.5 cursor-pointer group/cell rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal active:scale-95"
+                                aria-label="แก้ไขสถานะ ${escapeHtml(emp.name)} วันที่ ${date}"
+                                data-matrix-edit
+                                data-emp-id="${escapeHtml(emp.id)}"
+                                data-date="${date}"
+                                title="คลิกเพื่อดูรายละเอียดหรือแก้ไข"
                                 onmouseenter="showMatrixTooltip(this, '${emp.id}', '${date}')"
-                                onmouseleave="hideMatrixTooltip()"
-                                onclick="openMatrixStatusModal('${emp.id}', '${date}')">
+                                onmouseleave="hideMatrixTooltip()">
                                 <span class="inline-block w-[20px] h-[18px] leading-[18px] text-[8px] rounded ${statusClass} transition-all duration-150 transform group-hover/cell:scale-110 group-hover/cell:shadow-md font-bold">
                                     ${statusSymbol}
                                 </span>
                                 ${otDisplay}
-                            </div>
+                            </button>
                         </td>
                     `;
                 });
@@ -37755,9 +37781,9 @@ ${slip.textSample}
             clearTimeout(_matrixTooltipTimer);
             const tip = document.getElementById('matrixDayTooltip');
             if (!tip) return;
-            let log = (attendanceData[dateStr] || {})[empId];
             const emp = employees.find(e => e.id === empId);
             if (!emp) return;
+            let log = getMatrixLogForDate(empId, dateStr, emp);
 
             const parts = dateStr.split('-');
             const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
@@ -37793,7 +37819,9 @@ ${slip.textSample}
                 const sc = scMap[cat] || scMap.off;
                 const totalAllow = (parseFloat(log.food)||0) + (parseFloat(log.trip)||0) + (parseFloat(log.other)||0);
 
-                const statusRow = `<div class="${sc.bg} rounded-xl px-3 py-2 mb-2.5 flex items-center gap-2"><i class="fa-solid ${sc.icon} ${sc.ic} text-sm"></i><span class="font-extrabold ${sc.text} text-xs">${log.status}</span>${parseFloat(log.penalty||0)>0?`<span class="ml-auto text-amber-600 font-bold text-[10px]">สาย ${log.penalty} น.</span>`:''}</div>`;
+                const displayStatus = log._isLeave && normalizeStatusCode(log.status) === 'A' ? 'ลา' : log.status;
+                const statusRow = `<div class="${sc.bg} rounded-xl px-3 py-2 mb-2.5 flex items-center gap-2"><i class="fa-solid ${sc.icon} ${sc.ic} text-sm"></i><span class="font-extrabold ${sc.text} text-xs">${displayStatus}</span>${parseFloat(log.penalty||0)>0?`<span class="ml-auto text-amber-600 font-bold text-[10px]">สาย ${log.penalty} น.</span>`:''}</div>`;
+                const leaveRow = log._isLeave ? `<div class="bg-blue-50 rounded-lg px-2.5 py-1.5 mb-2 text-[10px] text-blue-700"><span class="font-semibold">ประเภทลา:</span> ${escapeHtml(log._leaveType || '-')}</div>` : '';
                 const timeRow = `<div class="grid grid-cols-2 gap-1.5 mb-2"><div class="bg-slate-50 rounded-lg px-2.5 py-1.5"><p class="text-[10px] text-slate-400 font-semibold">เข้างาน</p><p class="font-extrabold text-slate-700">${log.timeIn||'--:--'}</p></div><div class="bg-slate-50 rounded-lg px-2.5 py-1.5"><p class="text-[10px] text-slate-400 font-semibold">ออกงาน</p><p class="font-extrabold text-slate-700">${log.timeOut||'--:--'}</p></div></div>`;
                 const otRow = parseFloat(log.ot||0)>0 ? `<div class="bg-brand-sky rounded-lg px-2.5 py-1.5 mb-2 flex items-center gap-2"><i class="fa-solid fa-star-half-stroke text-brand-teal text-[10px]"></i><span class="text-[10px] text-slate-500">ล่วงเวลา (OT)</span><span class="ml-auto font-extrabold text-brand-deep">${log.ot} ชม.</span></div>` : '';
                 const allowRow = totalAllow>0 ? `<div class="bg-emerald-50 rounded-lg px-2.5 py-1.5 mb-2 flex items-center gap-2"><i class="fa-solid fa-coins text-emerald-400 text-[10px]"></i><span class="text-[10px] text-slate-500">เบี้ยเลี้ยงรวม</span><span class="ml-auto font-extrabold text-emerald-700">${totalAllow.toLocaleString('th-TH')}</span></div>` : '';
@@ -37801,7 +37829,7 @@ ${slip.textSample}
                 const noteRow = log.otherMemo ? `<div class="flex items-start gap-1.5 mb-2 text-[10px] text-slate-500"><i class="fa-solid fa-note-sticky text-slate-300 mt-0.5 flex-shrink-0"></i><span>${log.otherMemo}</span></div>` : '';
                 const editHint = `<p class="text-[10px] text-brand-teal text-center font-bold pt-2 border-t border-slate-100"><i class="fa-solid fa-pen-to-square mr-1 text-brand-teal"></i>คลิกเพื่อแก้ไขข้อมูล</p>`;
 
-                html = `${headerHtml}${statusRow}${timeRow}${otRow}${allowRow}${projRow}${noteRow}${editHint}`;
+                html = `${headerHtml}${statusRow}${leaveRow}${timeRow}${otRow}${allowRow}${projRow}${noteRow}${editHint}`;
             }
 
             document.getElementById('matrixTipContent').innerHTML = html;
