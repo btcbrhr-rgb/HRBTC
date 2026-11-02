@@ -35556,6 +35556,17 @@ ${slip.textSample}
             return _matrixLeaveByEmpDate.get(`${String(empId).trim().toUpperCase()}|${date}`) || null;
         }
 
+        function getMatrixLogForDate(empId, date, employee) {
+            const attendanceLog = attendanceData[date]?.[empId] || null;
+            const leaveLog = getMatrixLeaveLog(empId, date);
+            if (leaveLog && (!attendanceLog || attendanceLog._isAbsent || normalizeStatusCode(attendanceLog.status) === 'A')) {
+                return Object.assign({}, attendanceLog || {}, leaveLog, {
+                    project: (attendanceLog && attendanceLog.project) || (employee && employee.project) || ''
+                });
+            }
+            return attendanceLog;
+        }
+
         async function ensureAdvanceDataLoaded() {
             if (typeof _adminAllAdvance_records !== 'undefined' && Array.isArray(_adminAllAdvance_records) && _adminAllAdvance_records.length > 0) {
                 return;
@@ -36709,11 +36720,7 @@ ${slip.textSample}
                 // ── Daily attendance cells & stats calculation (Single Loop) ──
                 dates.forEach((date, idx) => {
                     const holidayInfo = getHoliday(date);
-                    let log = attendanceData[date]?.[emp.id];
-                    if (!log) {
-                        const leaveLog = getMatrixLeaveLog(emp.id, date);
-                        if (leaveLog) log = Object.assign({ project: emp.project }, leaveLog);
-                    }
+                    let log = getMatrixLogForDate(emp.id, date, emp);
                     if (!log) {
                         // ไม่มีข้อมูล time record → ต้องเช็กว่าวันนี้เป็นวันหยุดหรือไม่
                         if (holidayInfo) {
@@ -36767,7 +36774,7 @@ ${slip.textSample}
 
                     // ── Cell Display ──
                     let statusClass = "bg-slate-50 text-slate-400";
-                    let statusSymbol = log.status;
+                    let statusSymbol = log._isLeave && normalizeStatusCode(log.status) === 'A' ? 'ลา' : log.status;
 
                     const isSpecificProjActive = (activeProject !== 'all');
                     const isWorkedOnOtherProj = isSpecificProjActive && !isProjectMatch(log.project, activeProject);
@@ -37963,11 +37970,7 @@ ${slip.textSample}
                     const dailyCells = dates.map((date, dIdx) => {
                         const m = dateMeta[dIdx];
                         const holidayInfo = typeof getHoliday === 'function' ? getHoliday(date) : null;
-                        let log = attendanceData[date]?.[emp.id];
-                        if (!log) {
-                            const leaveLog = getMatrixLeaveLog(emp.id, date);
-                            if (leaveLog) log = Object.assign({ project: emp.project }, leaveLog);
-                        }
+                        let log = getMatrixLogForDate(emp.id, date, emp);
                         if (!log) {
                             if (holidayInfo) {
                                 log = { status: 'นข', project: emp.project, _holiday: holidayInfo };
@@ -38035,7 +38038,7 @@ ${slip.textSample}
                                 const penalty = log.penalty || log.late || 0;
                                 cellContent = `<span style="color:#c2410c;font-weight:700;">L</span><div style="font-size:6.5px;color:#c2410c;line-height:1;">${penalty}m</div>${otBadge}`;
                             } else if (cat === 'absent') {
-                                cellContent = `<span style="color:#b91c1c;font-weight:800;">A</span>`;
+                                cellContent = `<span style="color:#b91c1c;font-weight:800;">${log._isLeave ? 'ลา' : 'A'}</span>`;
                             } else if (log.status === 'ย' || cat === 'off') {
                                 cellContent = `<span style="color:#94a3b8;">ย</span>`;
                             } else {
