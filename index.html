@@ -16215,6 +16215,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const safeStatus = escapeHtml(status);
                     const safeReason = escapeHtml(reason);
                     const safeApprover = escapeHtml(l["อนุมัติโดย"] || "--");
+                    const canRequestCancellation = !['ยกเลิก', 'ไม่อนุมัติ', 'ไม่อนุมัติแล้ว', 'ปฏิเสธ'].includes(status);
 
                     let badgeClass = "bg-amber-50 text-amber-700 border-amber-100";
                     if (status === "อนุมัติแล้ว") badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
@@ -16262,17 +16263,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
               ` : ''}
             </div>
             <div class="flex items-center gap-1.5">
-              ${status !== "อนุมัติแล้ว" ? `
-                <button onclick='deleteLeaveRequestItem(${safeDocIdArgument})'
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-semibold transition-all border border-rose-200 shadow-xs active:scale-95">
-                  <i class="fa-solid fa-trash-can"></i> ลบคำขอ
-                </button>
-              ` : `
+              ${status === "อนุมัติแล้ว" ? `
                 <button onclick='openAttachLeaveModal(${safeDocIdArgument}, ${safeTypeArgument}, ${escapeHtml(safeJson(formatThaiDate(start)))})'
                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-semibold transition-all border border-amber-200 shadow-xs active:scale-95">
                   <i class="fa-solid fa-paperclip"></i> แนบเอกสารย้อนหลัง
                 </button>
-              `}
+              ` : ''}
+              ${canRequestCancellation ? `
+                <button onclick='requestLeaveCancellationItem(${safeDocIdArgument})'
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-semibold transition-all border border-orange-200 shadow-xs active:scale-95">
+                  <i class="fa-brands fa-line"></i> แจ้ง HR ขอยกเลิก
+                </button>
+              ` : ''}
               <button onclick='printLeaveRecord(${escapeHtml(safeJson(l))})'
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy hover:bg-brand-deep text-white text-[10px] font-semibold transition-all shadow-xs active:scale-95">
                 <i class="fa-solid fa-file-pdf text-rose-400"></i> ดูใบลา / พิมพ์ PDF
@@ -16935,51 +16937,36 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
-            // ─── Leave Request Employee Management (Delete & Retroactive Attachment) ───
+            // ─── Leave Request Employee Management (HR cancellation request & attachment) ───
             let currentAttachingDocId = null;
             let attachDocBase64 = "";
 
             /**
-             * 🗑️ ลบคำขอลาที่ยังไม่ได้รับการอนุมัติ
+             * แจ้ง HR ผ่าน LINE เพื่อขอยกเลิก โดยไม่เปลี่ยนสถานะใบลาในระบบ
              */
-            async function deleteLeaveRequestItem(docId) {
+            async function requestLeaveCancellationItem(docId) {
                 if (!docId) return;
-                if (!confirm(`คุณต้องการลบคำขอลาเลขที่ "${docId}" หรือไม่?\n(คำขอนี้จะถูกลบออกจากระบบอย่างถาวร)`)) return;
+                if (!confirm(`ส่งคำขอให้ HR พิจารณายกเลิกใบลาเลขที่ "${docId}" ผ่าน LINE ใช่หรือไม่?\nใบลาจะยังไม่ถูกยกเลิกจนกว่า HR จะดำเนินการ`)) return;
 
-                showToast("⏳ กำลังลบคำขอลา…", "info");
-                let errorMsg = "";
+                showToast("⏳ กำลังแจ้ง HR ผ่าน LINE…", "info");
                 try {
-                    const activeApiUrl = SERVER_API_URL || window.HRBT_CONFIG?.getGasUrl?.() || window.GAS_WEB_APP_URL || '';
-                    const res = await fetchWithTimeout(activeApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({
-                            action: 'deleteLeaveRequest',
+                    const res = await postAction('requestLeaveCancellation', {
                             docId: docId,
                             empId: currentEmployeeId
-                        }),
-                        timeout: 15000
                     });
                     if (res && res.status === 'success') {
-                        showToast(`🗑️ ลบคำขอลา ${docId} เรียบร้อยแล้ว`, "success");
-                        leaveRequestsList = (leaveRequestsList || []).filter(l => (l["เลขที่เอกสาร"] || l.doc_id) !== docId);
-                        displayLeaveHistory();
-
-                        if (typeof RealtimeSyncManager !== 'undefined' && RealtimeSyncManager.broadcast) {
-                            RealtimeSyncManager.broadcast('leave_requests', 'DELETE', { docId });
-                        }
-                        if (typeof loadAllData === 'function') loadAllData();
+                        showToast(res.message || 'ส่งคำขอให้ HR ผ่าน LINE แล้ว ใบลายังไม่ถูกยกเลิก', "success");
                         return;
                     }
-                    if (res && res.message) {
-                        errorMsg = res.message;
-                    }
-                } catch (gasErr) {
-                    console.warn('[deleteLeaveRequestItem] GAS error:', gasErr);
-                    errorMsg = gasErr && gasErr.message ? gasErr.message : 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+                    showToast(`❌ แจ้ง HR ไม่สำเร็จ: ${(res && res.message) || 'ระบบตอบกลับไม่ถูกต้อง'}`, "error");
+                } catch (requestErr) {
+                    console.error('[requestLeaveCancellationItem] Error:', requestErr);
+                    showToast(`❌ แจ้ง HR ไม่สำเร็จ: ${requestErr.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}`, "error");
                 }
+            }
 
-                showToast(`❌ ไม่สามารถลบคำขอลาได้: ${errorMsg || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'}`, "error");
+            async function deleteLeaveRequestItem(docId) {
+                return requestLeaveCancellationItem(docId);
             }
 
             /**
