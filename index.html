@@ -2404,8 +2404,8 @@
                         class="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner">
                         <i class="fa-solid fa-triangle-exclamation"></i>
                     </div>
-                    <h3 class="font-bold text-base text-slate-800">รหัส PIN ไม่ถูกต้อง</h3>
-                    <p class="text-xs text-slate-500">หากลืมรหัส PIN กรุณาติดต่อฝ่ายบุคลเพื่อขอล้าง PIN
+                    <h3 id="pin-error-title" class="font-bold text-base text-slate-800">รหัส PIN ไม่ถูกต้อง</h3>
+                    <p id="pin-error-message" class="text-xs text-slate-500">หากลืมรหัส PIN กรุณาติดต่อฝ่ายบุคลเพื่อขอล้าง PIN
                         และตั้งค่าใหม่</p>
                 </div>
                 <button onclick="closePinErrorModal()"
@@ -13158,6 +13158,22 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         closeModal("pin-login-modal");
                         showModal("pin-setup-modal");
                         showToast("⚠️ ยังไม่ได้ตั้ง PIN — กรุณาตั้ง PIN ใหม่ก่อนเข้าใช้งาน", "warning");
+                    } else if (verifyResult && verifyResult.valid === true) {
+                        const overlay = document.getElementById("login-loading-overlay");
+                        if (overlay) overlay.classList.add("hidden");
+                        if (pinBtn) {
+                            pinBtn.disabled = false;
+                            pinBtn.innerHTML = 'เข้าใช้งาน';
+                        }
+                        showToast("PIN ถูกต้อง แต่ระบบสร้างเซสชันไม่สำเร็จ: " + (verifyResult.message || "กรุณาติดต่อผู้ดูแลระบบ"), "error");
+                    } else if (!verifyResult || verifyResult.status !== 'success') {
+                        const overlay = document.getElementById("login-loading-overlay");
+                        if (overlay) overlay.classList.add("hidden");
+                        if (pinBtn) {
+                            pinBtn.disabled = false;
+                            pinBtn.innerHTML = 'เข้าใช้งาน';
+                        }
+                        showToast("ตรวจสอบ PIN ไม่สำเร็จ: " + (pinMessage || "ระบบไม่พร้อมใช้งาน กรุณาลองใหม่"), "error");
                     } else {
                         // ซ่อน Loading Overlay + รีเซ็ตปุ่ม ถ้า PIN ผิด
                         const overlay = document.getElementById("login-loading-overlay");
@@ -13168,8 +13184,12 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                             pinBtn.innerHTML = 'เข้าใช้งาน';
                         }
                         closeModal("pin-login-modal");
-                        const errReason = document.getElementById("pin-error-reason");
-                        if (errReason) errReason.textContent = pinMessage;
+                        const errorTitle = document.getElementById("pin-error-title");
+                        const errorMessage = document.getElementById("pin-error-message");
+                        if (errorTitle) errorTitle.textContent = "รหัส PIN ไม่ถูกต้อง";
+                        if (errorMessage) {
+                            errorMessage.textContent = "หากลืมรหัส PIN กรุณาติดต่อฝ่ายบุคคลเพื่อล้าง PIN และตั้งค่าใหม่";
+                        }
                         showModal("pin-error-modal");
                     }
                 } catch (err) {
