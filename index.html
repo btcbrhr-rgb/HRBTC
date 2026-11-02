@@ -35486,6 +35486,7 @@ ${slip.textSample}
         // 🔧 โหลดใบลาที่ทับซ้อนรอบบัญชีก่อน Matrix สรุปวันที่ไม่มี time record
         let _matrixLeaveCycleKey = '';
         let _matrixLeaveByEmpDate = new Map();
+        let _matrixEditClickListenerAttached = false;
 
         async function ensureMatrixLeaveDataLoaded(cycleStart, cycleEnd) {
             const cacheKey = `${cycleStart}|${cycleEnd}`;
@@ -36570,11 +36571,14 @@ ${slip.textSample}
             const headerRow  = document.getElementById('matrixHeaderRow');
             const tableBody  = document.getElementById('matrixTableBody');
             const tableFoot  = document.getElementById('matrixTableFoot');
-            tableBody.addEventListener('click', event => {
-                const target = event.target instanceof Element ? event.target.closest('button[data-matrix-edit]') : null;
-                if (!target || !tableBody.contains(target)) return;
-                openMatrixStatusModal(target.dataset.empId, target.dataset.date);
-            });
+            if (!_matrixEditClickListenerAttached) {
+                document.addEventListener('click', event => {
+                    const target = event.target instanceof Element ? event.target.closest('button[data-matrix-edit]') : null;
+                    if (!target) return;
+                    openMatrixStatusModal(target.dataset.empId, target.dataset.date);
+                });
+                _matrixEditClickListenerAttached = true;
+            }
 
             groupRow.innerHTML = '';
             headerRow.innerHTML = '';
