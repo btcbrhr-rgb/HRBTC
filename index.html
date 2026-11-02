@@ -35486,7 +35486,6 @@ ${slip.textSample}
         // 🔧 โหลดใบลาที่ทับซ้อนรอบบัญชีก่อน Matrix สรุปวันที่ไม่มี time record
         let _matrixLeaveCycleKey = '';
         let _matrixLeaveByEmpDate = new Map();
-        let _matrixEditClickListenerAttached = false;
 
         async function ensureMatrixLeaveDataLoaded(cycleStart, cycleEnd) {
             const cacheKey = `${cycleStart}|${cycleEnd}`;
@@ -35932,26 +35931,36 @@ ${slip.textSample}
 
         // Open Status Changer Modal directly from Matrix
         function openMatrixStatusModal(empId, date) {
-            clearTimeout(_matrixTooltipTimer);
-            const tip = document.getElementById('matrixDayTooltip');
-            if (tip) tip.style.display = 'none';
-            selectedDateStr = date;
-            const curDateEl = document.getElementById('currentSelectedDate'); if (curDateEl) curDateEl.value = date;
-            updateDayLabel();
-            const emp = employees.find(e => e.id === empId);
-            const leaveLog = getMatrixLeaveLog(empId, date);
-            const attendanceLog = attendanceData[date]?.[empId];
-            if (emp && leaveLog && GLOBAL_STATUS[leaveLog.status] &&
-                (!attendanceLog || attendanceLog._isAbsent || normalizeStatusCode(attendanceLog.status) === 'A')) {
-                const dayData = ensureAttendanceDateEntry(date);
-                dayData[empId] = Object.assign(
-                    {},
-                    attendanceLog || _defaultAttendanceLog(emp),
-                    leaveLog,
-                    { project: (attendanceLog && attendanceLog.project) || emp.project || '' }
-                );
+            try {
+                if (!empId || !date) throw new Error('ไม่พบรหัสพนักงานหรือวันที่ของช่องที่เลือก');
+                clearTimeout(_matrixTooltipTimer);
+                const tip = document.getElementById('matrixDayTooltip');
+                if (tip) tip.style.display = 'none';
+                selectedDateStr = date;
+                const curDateEl = document.getElementById('currentSelectedDate'); if (curDateEl) curDateEl.value = date;
+                updateDayLabel();
+                const emp = employees.find(e => e.id === empId);
+                const leaveLog = getMatrixLeaveLog(empId, date);
+                const attendanceLog = attendanceData[date]?.[empId];
+                if (emp && leaveLog && GLOBAL_STATUS[leaveLog.status] &&
+                    (!attendanceLog || attendanceLog._isAbsent || normalizeStatusCode(attendanceLog.status) === 'A')) {
+                    const dayData = ensureAttendanceDateEntry(date);
+                    dayData[empId] = Object.assign(
+                        {},
+                        attendanceLog || _defaultAttendanceLog(emp),
+                        leaveLog,
+                        { project: (attendanceLog && attendanceLog.project) || emp.project || '' }
+                    );
+                }
+                openStatusModal(empId);
+                const modal = document.getElementById('statusModal');
+                if (!modal || modal.classList.contains('hidden')) {
+                    throw new Error('หน้าต่างแก้ไขไม่สามารถเปิดได้');
+                }
+            } catch (error) {
+                console.error('[openMatrixStatusModal] Failed to open editor:', error);
+                showToast(`เปิดหน้าแก้ไขไม่สำเร็จ: ${error.message || error}`, 'error');
             }
-            openStatusModal(empId);
         }
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -36571,15 +36580,6 @@ ${slip.textSample}
             const headerRow  = document.getElementById('matrixHeaderRow');
             const tableBody  = document.getElementById('matrixTableBody');
             const tableFoot  = document.getElementById('matrixTableFoot');
-            if (!_matrixEditClickListenerAttached) {
-                document.addEventListener('click', event => {
-                    const target = event.target instanceof Element ? event.target.closest('button[data-matrix-edit]') : null;
-                    if (!target) return;
-                    openMatrixStatusModal(target.dataset.empId, target.dataset.date);
-                });
-                _matrixEditClickListenerAttached = true;
-            }
-
             groupRow.innerHTML = '';
             headerRow.innerHTML = '';
             tableBody.innerHTML = '';
@@ -36852,6 +36852,7 @@ ${slip.textSample}
                                 data-emp-id="${escapeHtml(emp.id)}"
                                 data-date="${date}"
                                 title="คลิกเพื่อดูรายละเอียดหรือแก้ไข"
+                                onclick="openMatrixStatusModal(this.dataset.empId, this.dataset.date)"
                                 onmouseenter="showMatrixTooltip(this, '${emp.id}', '${date}')"
                                 onmouseleave="hideMatrixTooltip()">
                                 <span class="inline-block w-[20px] h-[18px] leading-[18px] text-[8px] rounded ${statusClass} transition-all duration-150 transform group-hover/cell:scale-110 group-hover/cell:shadow-md font-bold">
