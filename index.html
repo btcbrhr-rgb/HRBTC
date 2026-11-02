@@ -2362,8 +2362,9 @@
                             class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 text-center">รหัส PIN 6 หลัก</label>
                         <input id="pin-login-input" type="password" maxlength="6" placeholder="• • • • • •"
                             title="รหัส PIN 6 หลัก" autocomplete="off" inputmode="numeric" pattern="[0-9]*"
-                            oninput="if(this.value.length === 6) submitPinLogin();"
+                            oninput="document.getElementById('pin-login-feedback').textContent=''; if(this.value.length === 6) submitPinLogin();"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-lg font-bold text-center tracking-[0.35em] text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-teal transition-all">
+                        <p id="pin-login-feedback" class="min-h-5 mt-2 text-xs text-center text-slate-500" aria-live="polite"></p>
                     </div>
                 </div>
                 <button id="btn-submit-pin-login" onclick="submitPinLogin()"
@@ -13112,21 +13113,27 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                 }
             }
 
+            let pinLoginInProgress = false;
+
             async function submitPinLogin() {
-                const pin = document.getElementById("pin-login-input").value.trim();
+                const pinInput = document.getElementById("pin-login-input");
+                const feedback = document.getElementById("pin-login-feedback");
+                const pinBtn = document.getElementById('btn-submit-pin-login');
+                if (pinLoginInProgress) return;
+                const pin = pinInput.value.trim();
                 const empId = document.getElementById("pin-login-emp-id").value.trim();
 
                 if (!/^\d{6}$/.test(pin)) {
-                    showToast("⚠️ กรุณากรอกรหัส PIN 6 หลัก", "warning");
+                    if (feedback) feedback.textContent = "กรุณากรอกรหัส PIN 6 หลัก";
                     return;
                 }
 
+                pinLoginInProgress = true;
                 try {
                     sessionToken = '';
                     sessionStorage.removeItem('hrbtc_session_token');
-                    // ⚡ แสดง Loading Overlay + Spinner บนปุ่ม ทันที
-                    showLoginLoading();
-                    const pinBtn = document.getElementById('btn-submit-pin-login');
+                    if (feedback) feedback.textContent = "กำลังตรวจสอบ PIN กรุณารอสักครู่…";
+                    if (pinInput) pinInput.disabled = true;
                     if (pinBtn) {
                         pinBtn.disabled = true;
                         pinBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังตรวจสอบ…';
@@ -13137,52 +13144,26 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     let pinMessage = "รหัส PIN ไม่ถูกต้อง";
                     let verifyResult = null;
 
-                    verifyResult = await postAction('verifyPin', { pin: pin, empId: empId }, { skipPerf: true });
+                    verifyResult = await postAction('verifyPin', { pin: pin, empId: empId }, { timeout: 20000, skipPerf: true });
                     pinValid = !!(verifyResult && verifyResult.status === 'success' &&
                         verifyResult.valid && verifyResult.sessionToken);
                     if (verifyResult && verifyResult.message) pinMessage = verifyResult.message;
                     if (pinValid) {
+                        if (feedback) feedback.textContent = "PIN ถูกต้อง กำลังโหลดข้อมูลบัญชี…";
                         closeModal("pin-login-modal");
                         await handleLoginSuccess(empId, verifyResult.sessionToken);
                     } else if (verifyResult && verifyResult.message && /ยังไม่ได้ตั้ง PIN/.test(verifyResult.message)) {
                         // PIN ถูกล้าง/ยังไม่เคยตั้ง → บังคับไปหน้า set PIN ก่อนเข้าใช้งาน
-                        const overlay = document.getElementById("login-loading-overlay");
-                        if (overlay) overlay.classList.add("hidden");
-                        const pinBtn2 = document.getElementById('btn-submit-pin-login');
-                        if (pinBtn2) {
-                            pinBtn2.disabled = false;
-                            pinBtn2.innerHTML = 'เข้าใช้งาน';
-                        }
                         const setupInput = document.getElementById("pin-setup-emp-id");
                         if (setupInput) setupInput.value = empId;
                         closeModal("pin-login-modal");
                         showModal("pin-setup-modal");
                         showToast("⚠️ ยังไม่ได้ตั้ง PIN — กรุณาตั้ง PIN ใหม่ก่อนเข้าใช้งาน", "warning");
                     } else if (verifyResult && verifyResult.valid === true) {
-                        const overlay = document.getElementById("login-loading-overlay");
-                        if (overlay) overlay.classList.add("hidden");
-                        if (pinBtn) {
-                            pinBtn.disabled = false;
-                            pinBtn.innerHTML = 'เข้าใช้งาน';
-                        }
-                        showToast("PIN ถูกต้อง แต่ระบบสร้างเซสชันไม่สำเร็จ: " + (verifyResult.message || "กรุณาติดต่อผู้ดูแลระบบ"), "error");
+                        if (feedback) feedback.textContent = "PIN ถูกต้อง แต่สร้างเซสชันไม่สำเร็จ: " + (verifyResult.message || "กรุณาติดต่อผู้ดูแลระบบ");
                     } else if (!verifyResult || verifyResult.status !== 'success') {
-                        const overlay = document.getElementById("login-loading-overlay");
-                        if (overlay) overlay.classList.add("hidden");
-                        if (pinBtn) {
-                            pinBtn.disabled = false;
-                            pinBtn.innerHTML = 'เข้าใช้งาน';
-                        }
-                        showToast("ตรวจสอบ PIN ไม่สำเร็จ: " + (pinMessage || "ระบบไม่พร้อมใช้งาน กรุณาลองใหม่"), "error");
+                        if (feedback) feedback.textContent = "ตรวจสอบ PIN ไม่สำเร็จ: " + (pinMessage || "ระบบไม่พร้อมใช้งาน กรุณาลองใหม่");
                     } else {
-                        // ซ่อน Loading Overlay + รีเซ็ตปุ่ม ถ้า PIN ผิด
-                        const overlay = document.getElementById("login-loading-overlay");
-                        if (overlay) overlay.classList.add("hidden");
-                        const pinBtn = document.getElementById('btn-submit-pin-login');
-                        if (pinBtn) {
-                            pinBtn.disabled = false;
-                            pinBtn.innerHTML = 'เข้าใช้งาน';
-                        }
                         closeModal("pin-login-modal");
                         const errorTitle = document.getElementById("pin-error-title");
                         const errorMessage = document.getElementById("pin-error-message");
@@ -13194,14 +13175,18 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     }
                 } catch (err) {
                     console.error("[submitPinLogin] Error:", err);
-                    const overlay = document.getElementById("login-loading-overlay");
-                    if (overlay) overlay.classList.add("hidden");
-                    const pinBtn = document.getElementById('btn-submit-pin-login');
+                    if (feedback) {
+                        feedback.textContent = err && err.name === 'AbortError'
+                            ? "หมดเวลารอการตรวจสอบ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่"
+                            : "ระบบตรวจสอบ PIN ขัดข้อง: " + (err && err.message ? err.message : "กรุณาลองใหม่");
+                    }
+                } finally {
+                    pinLoginInProgress = false;
+                    if (pinInput) pinInput.disabled = false;
                     if (pinBtn) {
                         pinBtn.disabled = false;
                         pinBtn.innerHTML = 'เข้าใช้งาน';
                     }
-                    showToast("❌ เกิดข้อผิดพลาดในการตรวจสอบ PIN", "error");
                 }
             }
 
