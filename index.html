@@ -34857,7 +34857,8 @@ ${slip.textSample}
 
             // 🔒 GUARD: ป้องกัน concurrent calls / race condition ขณะกำลังโหลดข้อมูล
             if (window.__isLoadingSheetData) {
-                console.log('[loadSheetData] Skipped: already loading data in background');
+                window.__pendingSheetDataReload = true;
+                console.log('[loadSheetData] Queued: reload latest selected billing cycle after current load');
                 return;
             }
             window.__isLoadingSheetData = true;
@@ -35045,6 +35046,12 @@ ${slip.textSample}
                 }
             } finally {
                 window.__isLoadingSheetData = false;
+                if (window.__pendingSheetDataReload) {
+                    window.__pendingSheetDataReload = false;
+                    loadSheetData().catch(error => {
+                        console.error('[loadSheetData] Queued billing-cycle reload failed:', error);
+                    });
+                }
             }
         }
 
