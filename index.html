@@ -37922,17 +37922,30 @@ ${slip.textSample}
         }
 
         // Print Matrix Timesheet in Formal Legal & A4 Landscape Format
-        async function printMatrixLegal(preferredPaper = null) {
+        async function printMatrixLegal(preferredPaper = null, projectOverride = null, collectOnly = false) {
+            let groupedPrintWindow = null;
             try {
+                const matrixProjectFilter = projectOverride === null ? activeProject : projectOverride;
+                const shouldGroupProjects = projectOverride === null && activeProject === 'all';
+                if (shouldGroupProjects) {
+                    groupedPrintWindow = window.open('', '_blank');
+                    if (!groupedPrintWindow) {
+                        showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                        return;
+                    }
+                }
+
                 const billingMonthEl = document.getElementById('sharedBillingMonth') || document.getElementById('billingMonth');
                 const currentCycleMonth = billingMonthEl ? billingMonthEl.value : '';
                 const dates = getBillingCycleDates(currentCycleMonth);
                 if (dates.length > 0 && !(await ensureMatrixLeaveDataLoaded(dates[0], dates[dates.length - 1]))) {
+                    if (groupedPrintWindow) groupedPrintWindow.close();
                     showToast('โหลดข้อมูลใบลาไม่สำเร็จ จึงไม่สามารถพิมพ์ Matrix ได้', 'error');
                     return;
                 }
 
                 if (!dates || dates.length === 0) {
+                    if (groupedPrintWindow) groupedPrintWindow.close();
                     if (typeof showToast === 'function') {
                         showToast('ไม่พบข้อมูลรอบบัญชีที่จะพิมพ์', 'warning');
                     } else {
@@ -37943,8 +37956,75 @@ ${slip.textSample}
 
                 const matrixSearchEl = document.getElementById('matrixEmpSearch');
                 const matrixSearchTerm = (matrixSearchEl ? matrixSearchEl.value : '').trim().toLowerCase();
+                if (shouldGroupProjects) {
+                    const searchMatchedEmployees = employees.filter(emp => !matrixSearchTerm
+                        || emp.name.toLowerCase().includes(matrixSearchTerm)
+                        || String(emp.id).toLowerCase().includes(matrixSearchTerm));
+                    const projectNames = [];
+                    const addProjectName = projectName => {
+                        const candidate = String(projectName || '').trim();
+                        if (!candidate || candidate.toLowerCase() === 'all') return;
+                        if (!projectNames.some(existing => isProjectMatch(existing, candidate))) {
+                            projectNames.push(candidate);
+                        }
+                    };
+
+                    searchMatchedEmployees.forEach(emp => {
+                        addProjectName(emp.project);
+                        dates.forEach(date => {
+                            const log = attendanceData[date]?.[emp.id];
+                            if (log) addProjectName(log.project);
+                        });
+                    });
+
+                    if (projectNames.length > 0) {
+                        projectNames.sort((a, b) => a.localeCompare(b, 'th'));
+                        const projectHtmls = [];
+                        for (const projectName of projectNames) {
+                            const projectHtml = await printMatrixLegal(preferredPaper, projectName, true);
+                            if (typeof projectHtml !== 'string') {
+                                groupedPrintWindow.close();
+                                showToast(`สร้างชุดพิมพ์ของโครงการ "${projectName}" ไม่สำเร็จ จึงยกเลิกการพิมพ์`, 'error');
+                                return;
+                            }
+                            projectHtmls.push(projectHtml);
+                        }
+
+                        if (projectHtmls.length === 0) {
+                            groupedPrintWindow.close();
+                            showToast('ไม่พบข้อมูลโครงการที่ตรงกับตัวกรองที่จะพิมพ์', 'warning');
+                            return;
+                        }
+
+                        const parser = new DOMParser();
+                        const printDocument = parser.parseFromString(projectHtmls[0], 'text/html');
+                        projectHtmls.slice(1).forEach(projectHtml => {
+                            const projectDocument = parser.parseFromString(projectHtml, 'text/html');
+                            const projectPage = printDocument.createElement('section');
+                            projectPage.className = 'matrix-project-print-section';
+                            Array.from(projectDocument.body.children).forEach(element => {
+                                if (element.classList.contains('no-print') || element.tagName === 'SCRIPT') return;
+                                projectPage.appendChild(printDocument.importNode(element, true));
+                            });
+                            printDocument.body.appendChild(projectPage);
+                        });
+
+                        if (projectHtmls.length > 1) {
+                            const pageBreakStyle = printDocument.createElement('style');
+                            pageBreakStyle.textContent = '@media print { .matrix-project-print-section { break-before: page; page-break-before: always; } }';
+                            printDocument.head.appendChild(pageBreakStyle);
+                        }
+                        printDocument.title = `Matrix Timesheet - ${currentCycleMonth} - แยก ${projectHtmls.length} โครงการ`;
+                        groupedPrintWindow.document.open();
+                        groupedPrintWindow.document.write('<!DOCTYPE html>' + printDocument.documentElement.outerHTML);
+                        groupedPrintWindow.document.close();
+                        groupedPrintWindow.focus && groupedPrintWindow.focus();
+                        return;
+                    }
+                }
+
                 const filteredEmps = employees.filter(emp => {
-                    const matchProject = (typeof activeProject === 'undefined' || activeProject === 'all') || isEmpWorkedInProject(emp.id, activeProject, dates);
+                    const matchProject = (typeof matrixProjectFilter === 'undefined' || matrixProjectFilter === 'all') || isEmpWorkedInProject(emp.id, matrixProjectFilter, dates);
                     const matchSearch = !matrixSearchTerm
                         || emp.name.toLowerCase().includes(matrixSearchTerm)
                         || String(emp.id).toLowerCase().includes(matrixSearchTerm);
@@ -37952,6 +38032,7 @@ ${slip.textSample}
                 }).sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
 
                 if (filteredEmps.length === 0) {
+                    if (groupedPrintWindow) groupedPrintWindow.close();
                     if (typeof showToast === 'function') {
                         showToast('ไม่พบข้อมูลพนักงานที่ตรงกับตัวกรองที่จะพิมพ์', 'warning');
                     } else {
@@ -37961,7 +38042,7 @@ ${slip.textSample}
                 }
 
                 const dateRangeText = document.getElementById('sharedBillingCycleDateRange')?.textContent || '';
-                const projText = (typeof activeProject === 'undefined' || activeProject === 'all') ? 'ทุกโครงการ' : activeProject;
+                const projText = (typeof matrixProjectFilter === 'undefined' || matrixProjectFilter === 'all') ? 'ทุกโครงการ' : matrixProjectFilter;
                 const printDateStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
                 // ขนาดกระดาษเริ่มต้น: ตรวจจากพารามิเตอร์ หรือ localStorage (ค่าเริ่มต้น = legal)
@@ -38055,7 +38136,7 @@ ${slip.textSample}
                             }
                         }
 
-                        const matchesFilter = (activeProject === 'all' || isProjectMatch(log.project, activeProject));
+                        const matchesFilter = (matrixProjectFilter === 'all' || isProjectMatch(log.project, matrixProjectFilter));
                         if (matchesFilter) {
                             const rule = getStatusRule(log.status);
                             const cat = rule.category;
@@ -38083,8 +38164,8 @@ ${slip.textSample}
                             totalOtherSum += parseFloat(log.other || 0);
                         }
 
-                        const isSpecificProj = (activeProject !== 'all');
-                        const isWorkedOther = isSpecificProj && !isProjectMatch(log.project, activeProject);
+                        const isSpecificProj = (matrixProjectFilter !== 'all');
+                        const isWorkedOther = isSpecificProj && !isProjectMatch(log.project, matrixProjectFilter);
 
                         let cellContent = '';
                         let cellBg = m.isSunday ? '#fee2e2' : (m.isSaturday ? '#f8fafc' : '#ffffff');
@@ -38486,7 +38567,9 @@ ${slip.textSample}
 </body>
 </html>`;
 
-                const printWindow = window.open('', '_blank');
+                if (collectOnly) return printHtml;
+
+                const printWindow = groupedPrintWindow || window.open('', '_blank');
                 if (printWindow) {
                     printWindow.document.open();
                     printWindow.document.write(printHtml);
@@ -38503,6 +38586,7 @@ ${slip.textSample}
                     }, 1000);
                 }
             } catch (err) {
+                if (groupedPrintWindow && !groupedPrintWindow.closed) groupedPrintWindow.close();
                 console.error('[printMatrixLegal error]', err);
                 if (typeof showToast === 'function') {
                     showToast('เกิดข้อผิดพลาดในการพิมพ์: ' + err.message, 'error');
