@@ -16679,6 +16679,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
 
             // Render a printable window from a leave record and open print dialog or PDF generator
             async function printLeaveRecord(recordOrDoc) {
+                let printWindow = null;
                 try {
                     if (!recordOrDoc) return showToast('ไม่พบข้อมูลสำหรับพิมพ์', 'error');
 
@@ -16691,6 +16692,9 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     if (!docId) {
                         return showToast('ไม่พบเลขที่เอกสารสำหรับพิมพ์', 'error');
                     }
+
+                    printWindow = window.open('', '_blank');
+                    if (!printWindow) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
 
                     // ค้นหารายละเอียดใบลาเต็มจาก recordOrDoc หรือ leaveRequestsList
                     let record = (typeof recordOrDoc === 'object' && recordOrDoc) ? { ...recordOrDoc } : null;
@@ -16730,6 +16734,14 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                     const status = (record && (record['สถานะ'] || record.status)) || 'รออนุมัติ';
                     const approvalDate = (record && (record['วันที่อนุมัติ'] || record.approved_at)) || '';
 
+                    const balanceResult = await postAction('getLeaveRecord', { docId }, { skipPerf: true });
+                    if (!balanceResult || balanceResult.status !== 'success' || !balanceResult.data || !balanceResult.data.leave_records) {
+                        printWindow.close();
+                        printWindow = null;
+                        showToast(balanceResult?.message || 'โหลดสิทธิ์วันลาจากการตั้งค่าระบบไม่สำเร็จ จึงยังพิมพ์ใบลาไม่ได้', 'error');
+                        return;
+                    }
+
                     const printPayload = {
                         metadata: {
                             doc_no: docId,
@@ -16751,6 +16763,7 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         total_days: days,
                         leave_reason: reason,
                         contact_no: empPhone,
+                        leave_records: balanceResult.data.leave_records,
                         _leaveType: leaveType,
                         type: leaveType
                     };
@@ -16774,13 +16787,13 @@ function renderRowsInChunks(bodyEl, rowsHtml, emptyMessage, colspan, chunkSize =
                         url.searchParams.set('adminMode', '1');
                     }
 
-                    const w = window.open(url.toString(), '_blank');
-                    if (!w) return showToast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ โปรดปิด popup blocker', 'error');
+                    printWindow.location.href = url.toString();
                     try {
-                        w.__PRINT_LEAVE_DATA__ = printPayload;
+                        printWindow.__PRINT_LEAVE_DATA__ = printPayload;
                     } catch (e) {}
-                    w.focus && w.focus();
+                    printWindow.focus && printWindow.focus();
                 } catch (e) {
+                    if (printWindow && !printWindow.closed) printWindow.close();
                     console.error('printLeaveRecord error', e);
                     showToast('เกิดข้อผิดพลาดขณะเตรียมพิมพ์: ' + e.message, 'error');
                 }
